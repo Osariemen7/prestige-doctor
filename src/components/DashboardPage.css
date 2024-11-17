@@ -1,0 +1,108 @@
+
+.dashboard-container {
+  padding: 16px;
+  background-color: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden; /* Prevents horizontal scrolling */
+}
+
+.data-list {
+  flex-grow: 1;
+  overflow-y: auto; /* Enable vertical scrolling for the data list */
+  margin-bottom: 20px; /* Optional: Add some spacing below the list */
+}
+
+.slide-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  max-height: 0;
+  background-color: #e6f2ff;
+  overflow: hidden; /* Keeps the hidden state for the slide menu */
+  transition: max-height 0.3s ease;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 999;
+}
+
+.slide-menu.open {
+  max-height: 200px;
+  overflow-y: auto; /* Allow scrolling if menu items exceed visible height */
+}
+
+
+.dashboard-header {
+  font-size: 24px;
+  color: #003366;
+  font-weight: bold;
+  text-align: center;
+  margin-top: 40px;
+  margin-bottom: 20px;
+}
+
+.item-container {
+  padding: 16px;
+  margin-bottom: 10px;
+  background-color: #b3e5fc;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.item-container:hover {
+  transform: scale(1.02);
+  background-color: #81d4fa;
+}
+
+.item-text {
+  font-size: 16px;
+  margin: 4px 0;
+  color: #000;
+}
+
+.loading {
+  font-size: 18px;
+  color: #003366;
+  text-align: center;
+  margin-top: 20px;
+}
+
+/* Slide-In Menu */
+.menu-toggle {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  background-color: #003366;
+  border: none;
+  border-radius: 50%;
+  padding: 10px;
+  cursor: pointer;
+  color: white;
+  z-index: 1000;
+}
+
+
+.menu-item {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+.menu-text {
+  font-size: 14px;
+  color: #003366;
+  margin-top: 4px;
+}
+
+.menu-item:last-child .menu-text {
+  color: #d32f2f;
+  font-weight: bold;
+}

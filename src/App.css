@@ -1,0 +1,194 @@
+/* Ensure the app takes full height of the viewport */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* Prevent scrolling if not necessary */
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Full height */
+  width: 100%;  /* Full width */
+  box-sizing: border-box; /* Include padding/borders in size */
+}
+
+/* Styling for individual components/screens */
+.screen {
+  flex: 1; /* Take up all available space */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px; /* Optional padding */
+  box-sizing: border-box;
+}
+/*Voice Note Screen */
+/* voiceNoteScreen.css */
+.container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.scrollContainer {
+  padding: 16px;
+}
+
+.dataContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ifoCard {
+  width: 28%;
+  padding: 16px;
+  background-color: #00308f;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.inoCard {
+  width: 100%;
+  padding: 16px;
+  background-color: #d6eaf8;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.ifoLabel {
+  font-size: 14px;
+  color: white;
+  margin-bottom: 4px;
+}
+
+.ifoValue {
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+}
+
+.fieldsContainer {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.input {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.errorText {
+  color: red;
+  margin-top: 5px;
+}
+
+.topContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.infoCard {
+  width: 48%;
+  margin-bottom: 8px;
+}
+
+.infoLabel {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.infoValue {
+  font-size: 14px;
+  color: gray;
+}
+
+.nfoValue {
+  font-size: 14px;
+}
+
+.sectionHeader {
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 16px;
+}
+
+.editableContainer,
+.nonEditableContainer {
+  margin-bottom: 10px;
+}
+
+.label {
+  font-size: 16px;
+}
+
+.value {
+  font-size: 16px;
+  color: gray;
+}
+
+.inputField {
+  border: 1px solid gray;
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 5px;
+  font-size: 16px;
+  width: 100%;
+}
+
+.bottomControls {
+  padding: 16px;
+}
+
+.timerText {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: space-around;
+}
+
+.controlButton {
+  background-color: #007aff;
+  border-radius: 5px;
+  padding: 10px 20px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.buttonText {
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.button {
+  background-color: #007aff;
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+/* Optional: Add styles for responsiveness */
+@media (max-width: 768px) {
+  .screen {
+    padding: 10px;
+  }
+}

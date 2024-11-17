@@ -1,0 +1,111 @@
+.detail-container {
+    padding: 16px;
+    background-color: #f5f5f5;
+  }
+  
+  .section-header {
+    font-size: 22px;
+    font-weight: bold;
+    color: #333;
+    margin-top: 20px;
+  }
+  
+  .sub-header {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 20px;
+  }
+  
+  .info-card {
+    padding: 16px;
+    background-color: #d6eaf8;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  
+  .info-label {
+    font-size: 14px;
+    color: #555;
+  }
+  
+  .info-value {
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  .detail-card {
+    padding: 16px;
+    background-color: #fff;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .detail-label {
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  .detail-value {
+    font-size: 14px;
+    color: #666;
+  }
+  
+  .button-container {
+    display: flex;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  
+  .action-button {
+    padding: 10px 20px;
+    background-color: #00308f;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  .modal-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 400px;
+  }
+  
+  .modal-message {
+    text-align: center;
+  }
+  
+  .text-input {
+    width: 100%;
+    height: 100px;
+    border: 1px solid #ddd;
+    margin-bottom: 20px;
+    padding: 10px;
+  }
+  
+  .submit-button,
+  .close-button {
+    background-color: #00308f;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-right: 10px;
+  }
+  
