@@ -39,7 +39,7 @@ const ChatScreen = () => {
   };
 
   return (
-    <Flex direction="column" height="88vh" bg="gray.100" p={4}>
+    <Flex direction="column" height="80vh" bg="gray.100" p={4}>
       {/* Chat Messages */}
       <VStack
         flex="1"
