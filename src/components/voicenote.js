@@ -220,7 +220,7 @@ const VoiceNoteScreen = () => {
   };
 
   return (
-    <Flex direction="column" height="90vh" justifyContent="space-between" >
+    <Flex direction="column" height="80vh" justifyContent="space-between" >
       <Box padding={0}>
         {isLoading ? (
           <Flex justifyContent="center" alignItems="center">
