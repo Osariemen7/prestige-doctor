@@ -11,10 +11,12 @@ import {
   Divider,
   Heading,
 } from '@chakra-ui/react';
+import { useNavigate } from 'react-router-dom';
 import { sendAudioFile, submitEdits } from './api';
 import { useReview } from './context';
 
 const VoiceNoteScreen = () => {
+  const navigate = useNavigate()
   const { setReview } = useReview();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -26,10 +28,6 @@ const VoiceNoteScreen = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableFields, setEditableFields] = useState({});
   const [reviewId, setReviewId] = useState(null);
-  const audioRecorder = useRef(null);
-  const lastRecordingUri = useRef(null);
-  const intervalId = useRef(null);
-  const [audioURL, setAudioURL] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
@@ -170,7 +168,7 @@ const VoiceNoteScreen = () => {
     try {
       const recipient = reviewId || phone; // Use reviewId if available; otherwise, phoneNumber
       const response = await sendAudioFile(audioBlob, recipient);
-
+      
       if (response?.review_id) {
         setReview(response.review_id)
         setReviewId(response.review_id); // Save reviewId after the first successful response
@@ -220,9 +218,9 @@ const VoiceNoteScreen = () => {
   };
 
   return (
-    <Flex direction="column" height="80vh" justifyContent="space-between" >
-      <Box padding={0}>
-        {isLoading ? (
+    <Flex direction="column" height="80vh"  >
+      <Box flex="1" overflowY="auto" padding={1}>
+        {isLoading && !data ? (
           <Flex justifyContent="center" alignItems="center">
             <Spinner />
             <Text ml={2}>Fetching data...</Text>
@@ -281,23 +279,24 @@ const VoiceNoteScreen = () => {
         )}
       </Box>
 
-      <Box padding={4}>
-        <Text mb={2}>
-          Recorded Time: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
-        </Text>
-        {recording ? (
-          <Flex justifyContent="space-between">
-            <Button colorScheme="yellow" onClick={isPaused ? resumeRecording : pauseRecording}>
-              {isPaused ? 'Resume' : 'Pause'}
-            </Button>
-            <Button colorScheme="red" onClick={stopRecording}>
-              End
-            </Button>
-          </Flex>
-        ) : (
-          <Button colorScheme="blue" width="100%" onClick={startRecording}>
-            Start Recording
+      <Box padding={4} bg="white" boxShadow="md">
+      <Text mb={2}>
+        Recorded Time: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+      </Text>
+      {recording ? (
+        <Flex justifyContent="space-between">
+          <Button colorScheme="yellow" onClick={isPaused ? resumeRecording : pauseRecording}>
+            {isPaused ? 'Resume' : 'Pause'}
           </Button>
+          <Button colorScheme="red" onClick={stopRecording}>
+            End
+          </Button>
+        </Flex>
+      ) : (
+        <Button colorScheme="blue" width="100%" onClick={startRecording}>
+          Start Recording
+        </Button>
+
         )}
       </Box>
     </Flex>
