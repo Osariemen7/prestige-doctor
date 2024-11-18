@@ -1,14 +1,14 @@
 .provider-container {
-    justify-content: center;
-    padding: 20px;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    height: 100vh;
-    display: flex;
+  padding:0 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  min-height: 100vh; /* Ensure it covers the full viewport height */
+  display: flex;
   flex-direction: column;
-  }
-  
+  overflow-y: auto; /* Enable vertical scrolling */
+}
+
   .provider-title {
     font-size: 28px;
     text-align: center;

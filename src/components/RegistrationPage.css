@@ -1,9 +1,12 @@
-.cont{
-  background-color:#e6f2ff;
+.cont {
+  background-color: #e6f2ff;
   border-radius: 8px;
-  height: 100vh;
-  
+  height: 100vh; /* Keep the full viewport height */
+  overflow-y: auto; /* Enable vertical scrolling when content exceeds the viewport */
+  padding:0 20px; /* Add some padding for better spacing */
+  box-sizing: border-box; /* Ensure padding doesn't affect overall width/height */
 }
+
 .back-icon {
   display: flex;
   align-items: center;
@@ -13,23 +16,24 @@
   padding:4% 4% 0 5%;
 }
 .containers {
-    max-width: 400px;
-    margin: 0 auto;
-    padding:0 20px;
-    background-color: #e6f2ff;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    justify-content: center;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
+  max-width: 400px;
+  margin: 0 auto;
+  padding:0 20px; /* Ensure consistent padding inside the container */
+  background-color: #e6f2ff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  justify-content: center;
+  display: flex;
+  flex-direction: column;
+  min-height: fit-content; /* Allow the height to adjust dynamically */
+}
   
   .header {
     font-size: 24px;
     color: #1e90ff;
     text-align: center;
     font-weight: bold;
+    margin: 0 auto;
   }
   
   .input {
