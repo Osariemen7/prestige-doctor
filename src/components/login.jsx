@@ -47,7 +47,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className=''>
+    <div className='login'>
     <div className="login-container">
     <h2 className='login-title'>Welcome to Prestige Health</h2>
       <h1 className="login-title">Login</h1>

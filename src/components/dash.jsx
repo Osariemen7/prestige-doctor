@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './DashboardPage.css';
-import { FaHome, FaRobot, FaBars, FaTimes, FaSignOutAlt } from 'react-icons/fa'; // Include icons for navigation
+import Sidebar from './sidebar'; // Import Sidebar component
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [dataList, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false); // State to manage the slide-in menu
 
   const getAccessToken = () => {
     try {
@@ -43,10 +42,10 @@ const DashboardPage = () => {
         });
         if (response.status === 401) {
           navigate('/');
-        } else {  
+        } else {
           const result = await response.json();
-          setDataList(result);} 
-        
+          setDataList(result);
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -62,51 +61,36 @@ const DashboardPage = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user-info'); // Clear user info
-    navigate('/'); // Navigate to root
+    localStorage.removeItem('user-info');
+    navigate('/');
   };
 
   return (
     <div className="dashboard-container">
-      {/* Menu Toggle Button at the Top */}
-      <button className="menu-toggle top" onClick={() => setMenuOpen(!menuOpen)}>
-        {menuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
-      </button>
+      {/* Persistent Sidebar */}
+      <Sidebar navigate={navigate} handleLogout={handleLogout} />
 
-      <h1 className="dashboard-header">Patient Health Dashboard</h1>
+      {/* Main Content */}
+      <div className="main-content">
+        <h1 className="dashboard-header">Patient Health Dashboard</h1>
 
-      {loading ? (
-        <div className="loading">Loading...</div>
-      ) : (
-        <div className="data-list">
-          {dataList.map((item, index) => (
-            <div
-              key={item?.id || index}
-              className="item-container"
-              onClick={() => handleViewDetails(item)}
-            >
-              <p className="item-text"><strong>Chief Complaint:</strong> {item.chief_complaint}</p>
-              <p className="item-text"><strong>Diagnosis:</strong> {item.assessment_diagnosis}</p>
-              <p className="item-text"><strong>Medication:</strong> {item.medication}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Slide-In Navigation Menu */}
-      <div className={`slide-menu ${menuOpen ? 'open' : ''}`}>
-        <div className="menu-item" onClick={() => { setMenuOpen(false); navigate('/dashboard'); }}>
-          <FaHome size={24} color="#003366" />
-          <p className="menu-text">Home</p>
-        </div>
-        <div className="menu-item" onClick={() => { setMenuOpen(false); navigate('/consult-ai'); }}>
-          <FaRobot size={24} color="#003366" />
-          <p className="menu-text">Consult AI</p>
-        </div>
-        <div className="menu-item" onClick={handleLogout}>
-          <FaSignOutAlt size={24} color="#d32f2f" />
-          <p className="menu-text">Log Out</p>
-        </div>
+        {loading ? (
+          <div className="loading">Loading...</div>
+        ) : (
+          <div className="data-list">
+            {dataList.map((item, index) => (
+              <div
+                key={item?.id || index}
+                className="item-container"
+                onClick={() => handleViewDetails(item)}
+              >
+                <p className="item-text"><strong>Chief Complaint:</strong> {item.chief_complaint}</p>
+                <p className="item-text"><strong>Diagnosis:</strong> {item.assessment_diagnosis}</p>
+                <p className="item-text"><strong>Medication:</strong> {item.medication}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

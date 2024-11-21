@@ -80,15 +80,15 @@ const ProviderPage = () => {
   };
 
   return (
-    <div>
-        
-  
-    <div className="provider-container">
-    <div className="back-icon" onClick={() => navigate('/register')}>
+    <div className='provider'>
+       <div className="back-icon" onClick={() => navigate('/register')}>
         <AiOutlineArrowLeft size={24} />
         <span className="back-text"></span>
       </div>
-
+ 
+  
+    <div className="provider-container">
+    
 
       <h1 className="provider-title">Clinic Registration</h1>
 
