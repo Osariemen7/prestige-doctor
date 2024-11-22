@@ -235,6 +235,11 @@ const DetailPage = () => {
             <Button
               colorScheme="green"
               onClick={async () => {
+                const updatedData = {
+      review_details: {
+        ...formData
+      },
+    };
                 try {
                   const response = await fetch(
                     `https://health.prestigedelta.com/medicalreview/${item.id}/`,
@@ -244,7 +249,7 @@ const DetailPage = () => {
                         'Content-Type': 'application/json',
                         Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
                       },
-                      body: JSON.stringify({ review_status: 'approved' }),
+                      body: JSON.stringify(updatedData),
                     }
                   );
 

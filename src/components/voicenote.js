@@ -14,6 +14,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { sendAudioFile, submitEdits } from './api';
 import { useReview } from './context';
+import Recorder from 'recorder-js';
 
 const VoiceNoteScreen = () => {
   const navigate = useNavigate()
@@ -21,14 +22,17 @@ const VoiceNoteScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [recording, setRecording] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [data, setData] = useState(null);
   const [timer, setTimer] = useState(0);
+  const recorderRef = useRef(null);
+
+  const audioContextRef = useRef(null);
+  const timerIntervalRef = useRef(null);
+  const [data, setData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editableFields, setEditableFields] = useState({});
   const [reviewId, setReviewId] = useState(null);
-  const mediaRecorderRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(false)
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
 
@@ -80,12 +84,11 @@ const VoiceNoteScreen = () => {
     let timerInterval;
     if (recording && !isPaused) {
       timerInterval = setInterval(() => setTimer((prev) => prev + 1), 1000);
-    }    else {
+    } else {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
     return () => clearInterval(timerInterval);
-  
   }, [recording, isPaused]);
 
   const startRecording = async () => {
@@ -99,25 +102,23 @@ const VoiceNoteScreen = () => {
     try {
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const recorder = new Recorder(audioContext);
+      recorder.init(stream);
+      recorderRef.current = recorder;
 
-      audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        // Send final recording
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        await sendRecording(audioBlob);
-      };
-
-      mediaRecorder.start();
+      // Start recording
+      recorder.start();
       setRecording(true);
       setIsPaused(false);
+
+      // Start 1-minute interval for sending audio
+      timerRef.current = setInterval(async () => {
+        const audioData = await recorder.stop(); // Stop and fetch current chunk
+        audioChunksRef.current.push(audioData.blob); // Save chunk
+        await sendRecording(audioData.blob); // Send current chunk
+        recorder.start(); // Restart recorder for the next chunk
+      }, 60000); // 1-minute interval
     } catch (error) {
       console.error('Error accessing microphone:', error);
       setErrorMessage('Could not access microphone.');
@@ -125,50 +126,49 @@ const VoiceNoteScreen = () => {
   };
 
   const pauseRecording = async () => {
-    if (mediaRecorderRef.current && recording) {
-      // Request the current data chunk
-      mediaRecorderRef.current.requestData();
-  
-      // Pause the recorder
-      mediaRecorderRef.current.pause();
-      setIsPaused(true);
+    if (recorderRef.current && recording) {
       clearInterval(timerRef.current); // Stop the timer
-      timerRef.current = null; // Clear the interval reference
-  
-      // Wait for any pending data to be flushed
-      setTimeout(async () => {
-        if (audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-          await sendRecording(audioBlob);
-          audioChunksRef.current = []; // Clear the chunks after sending
-        }
-      }, 100); // Allow a short delay for data to flush
+      timerRef.current = null; // Clear interval reference
+      const audioData = await recorderRef.current.stop();
+      audioChunksRef.current.push(audioData.blob); // Save the current chunk
+      setIsPaused(true);
     }
   };
 
   const resumeRecording = () => {
-    if (mediaRecorderRef.current && isPaused) {
-      mediaRecorderRef.current.resume();
+    if (recorderRef.current && isPaused) {
+      recorderRef.current.start(); // Resume recording
       setIsPaused(false);
+
+      // Restart 1-minute interval
+      timerRef.current = setInterval(async () => {
+        const audioData = await recorderRef.current.stop();
+        audioChunksRef.current.push(audioData.blob);
+        await sendRecording(audioData.blob);
+        recorderRef.current.start();
+      }, 60000);
     }
   };
 
   const stopRecording = async () => {
-    if (mediaRecorderRef.current && recording) {
-      mediaRecorderRef.current.stop();
+    if (recorderRef.current && recording) {
+      clearInterval(timerRef.current); // Stop the timer
+      const audioData = await recorderRef.current.stop(); // Get final chunk
+      audioChunksRef.current.push(audioData.blob); // Save it
+      await sendRecording(audioData.blob); // Send it
       setRecording(false);
       setIsPaused(false);
       setTimer(0);
     }
   };
 
-  const sendRecording = async (audioBlob) => {
+  const sendRecording = async (audioBlob, documentation = false) => {
     setIsLoading(true);
-    const phone =`+234${phoneNumber.slice(1)}`;
+    const phone = `+234${phoneNumber.slice(1)}`;
+    
     try {
       const recipient = reviewId || phone; // Use reviewId if available; otherwise, phoneNumber
-      const response = await sendAudioFile(audioBlob, recipient);
-      
+      const response = await sendAudioFile(audioBlob, recipient, documentation);
       if (response?.review_id) {
         setReview(response.review_id)
         setReviewId(response.review_id); // Save reviewId after the first successful response
@@ -184,6 +184,7 @@ const VoiceNoteScreen = () => {
     }
   };
 
+  
   const renderEditableField = (key, value) => {
     const isEditable = editableFieldKeys.includes(key);
     const displayValue = editableFields[key] ?? value;
@@ -218,88 +219,101 @@ const VoiceNoteScreen = () => {
   };
 
   return (
-    <Flex direction="column" height="80vh"  >
-      <Box flex="1" overflowY="auto" padding={1}>
-        {isLoading && !data ? (
-          <Flex justifyContent="center" alignItems="center">
-            <Spinner />
-            <Text ml={2}>Fetching data...</Text>
-          </Flex>
-        ) : data ? (
-          <VStack>
-          <Heading fontSize='20px'>Patient Report</Heading>
-          <Box  backgroundColor='#4682b4' 
-  w='fit-content' 
-  p={3} 
-  ml={0} 
-  display='flex'>
-  <Heading fontSize='16px' color='#fff'>Patient ID: {data.patient_id}</Heading>
-</Box>
-
-          <VStack  spacing={2} align="stretch">
-          
-            
-            <Heading fontSize='13px'>Review Time: {data.review_time}</Heading>
-            <Heading fontSize='13px'>Sentiment: {data.doctor_note?.sentiment}</Heading>
-          </VStack>
-          <Box backgroundColor='#f0f8ff' p={2}>
-          <Heading fontSize='16px'>AI Response</Heading>
-          <Text> {data.doctor_note?.response}</Text>
-          </Box>
-          <VStack align="stretch" spacing={4} w="100%">
-      {Object.entries(data?.doctor_note?.review_details || {}).map(([section, details]) => (
-        <Box key={section} w="100%">
-          <Text fontSize="lg" fontWeight="bold" mt={4} mb={2}>
-            {section.replace(/_/g, ' ')}
-          </Text>
-          {typeof details === 'object'
-            ? Object.entries(details).map(([key, value]) => renderEditableField(key, value))
-            : renderEditableField(section, details)}
-          <Divider />
-        </Box>
-      ))}
-    </VStack>
-    
-
-  <Button colorScheme="teal" onClick={isEditing ? handleEditSubmit : () => setIsEditing(true)}>
-    {isEditing ? 'Submit Edits' : 'Edit'}
-  </Button>
-</VStack>
-
+    <Flex direction="column" height="100vh">
+    {/* Header with Recording Controls */}
+    <Flex
+      bg="#f0f4f8"
+      padding={4}
+      justifyContent="space-between"
+      alignItems="center"
+      boxShadow="md"
+    >
+      <Text>Recorded Time: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}</Text>
+      <Flex gap={4}>
+        {recording ? (
+          <>
+            <Button
+              colorScheme="yellow"
+              onClick={isPaused ? resumeRecording : pauseRecording}
+            >
+              {isPaused ? 'Resume' : 'Pause'}
+            </Button>
+            <Button colorScheme="red" onClick={stopRecording}>
+              End
+            </Button>
+          </>
         ) : (
-          <VStack spacing={4} align="stretch">
-            <Input
-              placeholder="Enter phone number of Patient"
-              maxLength={11}
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-            />
-            {errorMessage && <Text color="red.500">{errorMessage}</Text>}
-          </VStack>
-        )}
-      </Box>
-
-      <Box padding={4} bg="white" boxShadow="md">
-      <Text mb={2}>
-        Recorded Time: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
-      </Text>
-      {recording ? (
-        <Flex justifyContent="space-between">
-          <Button colorScheme="yellow" onClick={isPaused ? resumeRecording : pauseRecording}>
-            {isPaused ? 'Resume' : 'Pause'}
+          <Button colorScheme="blue" onClick={startRecording}>
+            Start Recording
           </Button>
-          <Button colorScheme="red" onClick={stopRecording}>
-            End
-          </Button>
-        </Flex>
-      ) : (
-        <Button colorScheme="blue" width="100%" onClick={startRecording}>
-          Start Recording
-        </Button>
-
         )}
-      </Box>
+      </Flex>
     </Flex>
+
+    {/* Main Content */}
+    <Box flex="1" overflowY="auto" padding={4}>
+      {isLoading && !data ? (
+        <Flex justifyContent="center" alignItems="center">
+          <Spinner />
+          <Text ml={2}>Fetching data...</Text>
+        </Flex>
+      ) : data ? (
+        <VStack spacing={4}>
+          <Heading fontSize="lg">Patient Report</Heading>
+          <Box
+            bg="#4682b4"
+            color="white"
+            padding={3}
+            borderRadius="md"
+            width="fit-content"
+          >
+            <Text>Patient ID: {data.patient_id}</Text>
+          </Box>
+          <VStack spacing={2} align="stretch">
+            <Text>Review Time: {data.review_time}</Text>
+            <Text>Sentiment: {data.doctor_note?.sentiment}</Text>
+          </VStack>
+          <Box bg="#f0f8ff" padding={4} borderRadius="md" width="100%">
+            <Heading fontSize="md">AI Response</Heading>
+            <Text>{data.doctor_note?.response}</Text>
+          </Box>
+          <VStack spacing={4} align="stretch" width="100%">
+            {Object.entries(data?.doctor_note?.review_details || {}).map(
+              ([section, details]) => (
+                <Box key={section} width="100%">
+                  <Text fontWeight="bold" mt={4} mb={2}>
+                    {section.replace(/_/g, ' ')}
+                  </Text>
+                  {typeof details === 'object'
+                    ? Object.entries(details).map(([key, value]) =>
+                        renderEditableField(key, value)
+                      )
+                    : renderEditableField(section, details)}
+                  <Divider />
+                </Box>
+              )
+            )}
+          </VStack>
+          <Button
+            colorScheme="teal"
+            onClick={isEditing ? handleEditSubmit : () => setIsEditing(true)}
+          >
+            {isEditing ? 'Submit Edits' : 'Edit'}
+          </Button>
+        </VStack>
+      ) : (
+        <VStack spacing={4} align="stretch">
+          <Input
+            placeholder="Enter phone number of Patient"
+            maxLength={11}
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+          />
+          {errorMessage && <Text color="red.500">{errorMessage}</Text>}
+        </VStack>
+      )}
+    </Box>
+  </Flex>
   );
 };
 
