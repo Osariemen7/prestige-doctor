@@ -142,6 +142,7 @@ const VoiceNoteScreen = () => {
     }
   };
   
+
   const resumeRecording = () => {
     if (recorderRef.current && isPaused) {
       recorderRef.current.start(); // Resume recording
