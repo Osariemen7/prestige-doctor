@@ -9,7 +9,7 @@ import {
   Flex,
   Spinner,
 } from '@chakra-ui/react';
-import { sendMessage } from './api';
+import { sendMessage, getAccessToken } from './api';
 import { useReview } from './context';
 import axios from 'axios';
 
@@ -17,15 +17,29 @@ const ChatScreen = () => {
   const [userMessage, setUserMessage] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { reviewId } = useReview();
+
+  const { reviewId, setReview } = useReview();
 
   // Fetch AI messages from the API
   const fetchMessages = async () => {
     try {
-      const response = await axios.get(`https://health.prestigedelta.com/doctormessages/${reviewId.review_id}/`);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        console.error('No access token available. Cannot fetch messages.');
+        return;
+      }
+      const response = await axios.get(
+        `https://health.prestigedelta.com/doctormessages/${reviewId}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
       const newMessages = response.data.map((msg) => ({
         sender: 'ai',
-        text: msg.message, // Adjust based on API response structure
+        text: msg.message_content
+        , // Adjust based on API response structure
       }));
 
       // Avoid duplicates and merge messages
@@ -43,35 +57,42 @@ const ChatScreen = () => {
 
   // Poll for new messages
   useEffect(() => {
+    if (reviewId !== null) {
     fetchMessages(); // Initial fetch
     const intervalId = setInterval(fetchMessages, 10000); // Poll every 10 seconds
     return () => clearInterval(intervalId); // Cleanup
-  }, []);
+ } }, [reviewId]);
+
+ useEffect(() => {
+  return () => {
+    console.log('Clearing reviewId on component exit...');
+    setReview(null); // Reset reviewId in the context
+  };
+}, [setReview]);
+
 
   // Handle sending user messages
   const handleSendMessage = async () => {
     if (!userMessage.trim()) return;
-
+  
+    // Add user message to the chat UI
     setChatMessages((prevMessages) => [
       ...prevMessages,
       { sender: 'user', text: userMessage },
     ]);
     setUserMessage('');
     setIsLoading(true);
-
+  
     try {
-      const response = await sendMessage(userMessage, { review_id: reviewId });
-
-      if (response?.response) {
-        setChatMessages((prevMessages) => [
-          ...prevMessages,
-          { sender: 'ai', text: response.response },
-        ]);
-      }
+      // Send the user message to the API
+      await sendMessage(userMessage, { review_id: reviewId });
+  
+      // Wait for fetchMessages to pull AI's response
     } catch (error) {
+      console.error('Error sending message:', error);
       setChatMessages((prevMessages) => [
         ...prevMessages,
-        { sender: 'ai', text: 'Error retrieving response. Please try again later.' },
+        { sender: 'ai', text: 'Error sending message. Please try again.' },
       ]);
     } finally {
       setIsLoading(false);

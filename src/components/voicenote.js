@@ -129,12 +129,19 @@ const VoiceNoteScreen = () => {
     if (recorderRef.current && recording) {
       clearInterval(timerRef.current); // Stop the timer
       timerRef.current = null; // Clear interval reference
+  
       const audioData = await recorderRef.current.stop();
       audioChunksRef.current.push(audioData.blob); // Save the current chunk
+  
       setIsPaused(true);
+  
+      // Send the recording asynchronously without blocking
+      sendRecording(audioData.blob, true).catch((error) => {
+        console.error('Error sending paused recording:', error);
+      });
     }
   };
-
+  
   const resumeRecording = () => {
     if (recorderRef.current && isPaused) {
       recorderRef.current.start(); // Resume recording
@@ -155,10 +162,11 @@ const VoiceNoteScreen = () => {
       clearInterval(timerRef.current); // Stop the timer
       const audioData = await recorderRef.current.stop(); // Get final chunk
       audioChunksRef.current.push(audioData.blob); // Save it
-      await sendRecording(audioData.blob); // Send it
+      // Send it
       setRecording(false);
       setIsPaused(false);
       setTimer(0);
+      await sendRecording(audioData.blob, true);
     }
   };
 
@@ -239,7 +247,7 @@ const VoiceNoteScreen = () => {
               {isPaused ? 'Resume' : 'Pause'}
             </Button>
             <Button colorScheme="red" onClick={stopRecording}>
-              End
+              Save
             </Button>
           </>
         ) : (

@@ -3,38 +3,24 @@ import { ChakraProvider, Box, Grid, VStack, Text, Button, Input } from "@chakra-
 import './DashboardPage.css';
 import Sidebar from './sidebar'; // Import Sidebar component
 import { useNavigate } from 'react-router-dom';
+import { getAccessToken } from './api';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [data, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [accessToken, setAccessToken] = useState('');
+  
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredPatients = data.filter((patient) =>
     patient.phone_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getAccessToken = () => {
-    try {
-      const userInfo = localStorage.getItem('user-info');
-      const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
-      if (parsedUserInfo?.access) {
-        setAccessToken(parsedUserInfo.access);
-      } else {
-        console.log('No user information found in storage.');
-      }
-    } catch (error) {
-      console.error('Error fetching token:', error);
-    }
-  };
-
-  useEffect(() => {
-    getAccessToken();
-  }, []);
+  
 
   useEffect(() => {
     const fetchData = async () => {
+      const accessToken = await getAccessToken();
       if (!accessToken) return;
 
       try {
@@ -60,7 +46,7 @@ const DashboardPage = () => {
     };
 
     fetchData();
-  }, [accessToken]);
+  }, []);
 
   const handleViewDetails = (item) => {
     navigate('/detail', { state: { item } }); // Navigate using the ID

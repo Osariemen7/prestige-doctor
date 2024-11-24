@@ -42,14 +42,14 @@ export const getAccessToken = async () => {
 
 }
 // Function to send audio file
-export const sendAudioFile = async (blob, phoneNumber, documentation = false) => {
+export const sendAudioFile = async (blob, recipient, documentation = false) => {
   try {
     const formData = new FormData();
     formData.append('audio_file', blob, 'audio.wav');
-    if (phoneNumber.length < 10) {
-      formData.append('review_id', phoneNumber);
+    if (recipient.length !== 14) {
+      formData.append('review_id', recipient);
     } else {
-      formData.append('phone_number', phoneNumber);
+      formData.append('phone_number', recipient);
     }
     if (documentation) {
       formData.append('documentation', 'true');

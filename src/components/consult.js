@@ -17,20 +17,38 @@ import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
 import axios from 'axios';
 import { useReview } from './context';
+import { getAccessToken } from './api';
 
 const ConsultAIPage = () => {
-  const { reviewId } = useReview();
   const [selectedTab, setSelectedTab] = useState(0);
   const [messages, setMessages] = useState([]);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const navigate = useNavigate();
+  const { reviewId, setReview } = useReview();
 
   // Function to fetch messages
   const fetchMessages = async () => {
     try {
-      const response = await axios.get(`https://health.prestigedelta.com/doctormessages/${reviewId.review_id}/`);
+      // Retrieve the access token
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        console.error('No access token available. Cannot fetch messages.');
+        return;
+      }
+  
+      // Fetch messages with the token in the Authorization header
+      const response = await axios.get(
+        `https://health.prestigedelta.com/doctormessages/${reviewId}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+  
       const newMessages = response.data;
-
+  
+      // Update messages and notification status if there are new messages
       if (newMessages.length > messages.length) {
         setHasNewMessage(true);
         setMessages(newMessages);
@@ -42,11 +60,21 @@ const ConsultAIPage = () => {
 
   // Poll the API every 10 seconds
   useEffect(() => {
-  if (reviewId !== null) {
-    const intervalId = setInterval(fetchMessages, 10000);
-    return () => clearInterval(intervalId); // Cleanup interval on component unmount
-    } }, [messages]);
+    if (reviewId !== null) {
+      const intervalId = setInterval(() => {
+        fetchMessages();
+      }, 10000);
+      return () => clearInterval(intervalId); // Cleanup interval on component unmount
+    }
+  }, [messages, reviewId]);
 
+  useEffect(() => {
+    return () => {
+      console.log('Clearing reviewId on component exit...');
+      setReview(null); // Reset reviewId in the context
+    };
+  }, [setReview]);
+  
   // Clear the new message notification when switching to the Chat tab
   useEffect(() => {
     if (selectedTab === 1) {
