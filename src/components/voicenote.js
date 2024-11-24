@@ -232,12 +232,20 @@ const VoiceNoteScreen = () => {
     {/* Header with Recording Controls */}
     <Flex
       bg="#f0f4f8"
-      padding={4}
+      padding={2}
       justifyContent="space-between"
       alignItems="center"
       boxShadow="md"
+    >{data? (
+     <Button
+      colorScheme="teal"
+      onClick={isEditing ? handleEditSubmit : () => setIsEditing(true)}
+      isDisabled={!data} // Disable if no data is available
     >
-      <Text>Recorded Time: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}</Text>
+      {isEditing ? 'Save Edits' : 'Edit'}
+    </Button>): null}
+  
+      <Text>Time: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}</Text>
       <Flex gap={4}>
         {recording ? (
           <>
@@ -248,7 +256,7 @@ const VoiceNoteScreen = () => {
               {isPaused ? 'Resume' : 'Pause'}
             </Button>
             <Button colorScheme="red" onClick={stopRecording}>
-              Save
+              Stop
             </Button>
           </>
         ) : (
