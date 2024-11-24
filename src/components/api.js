@@ -42,7 +42,7 @@ export const getAccessToken = async () => {
 
 }
 // Function to send audio file
-export const sendAudioFile = async (blob, recipient, documentation = false) => {
+export const sendAudioFile = async (blob, recipient, document = false) => {
   try {
     const token = await getAccessToken();
     // Validate blob and recipient
@@ -61,7 +61,7 @@ export const sendAudioFile = async (blob, recipient, documentation = false) => {
 
     // Append documentation flag if true
     if (documentation) {
-      formData.append('documentation', 'true');
+      formData.append('document', 'true');
     }
 
     // Make the API call
