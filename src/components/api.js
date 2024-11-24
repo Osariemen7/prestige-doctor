@@ -60,7 +60,7 @@ export const sendAudioFile = async (blob, recipient, document = false) => {
     }
 
     // Append documentation flag if true
-    if (documentation) {
+    if (document) {
       formData.append('document', 'true');
     }
 
