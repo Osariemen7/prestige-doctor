@@ -1,14 +1,54 @@
-import React, { useState } from 'react';
-import { Box, VStack, HStack, Input, Button, Text, Flex, Spinner } from '@chakra-ui/react';
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  VStack,
+  HStack,
+  Input,
+  Button,
+  Text,
+  Flex,
+  Spinner,
+} from '@chakra-ui/react';
 import { sendMessage } from './api';
 import { useReview } from './context';
+import axios from 'axios';
 
 const ChatScreen = () => {
   const [userMessage, setUserMessage] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); // Loading state
+  const [isLoading, setIsLoading] = useState(false);
   const { reviewId } = useReview();
 
+  // Fetch AI messages from the API
+  const fetchMessages = async () => {
+    try {
+      const response = await axios.get(`https://health.prestigedelta.com/doctormessages/${reviewId.review_id}/`);
+      const newMessages = response.data.map((msg) => ({
+        sender: 'ai',
+        text: msg.message, // Adjust based on API response structure
+      }));
+
+      // Avoid duplicates and merge messages
+      setChatMessages((prevMessages) => {
+        const existingTexts = prevMessages.map((msg) => msg.text);
+        const filteredNewMessages = newMessages.filter(
+          (msg) => !existingTexts.includes(msg.text)
+        );
+        return [...prevMessages, ...filteredNewMessages];
+      });
+    } catch (error) {
+      console.error('Error fetching AI messages:', error);
+    }
+  };
+
+  // Poll for new messages
+  useEffect(() => {
+    fetchMessages(); // Initial fetch
+    const intervalId = setInterval(fetchMessages, 10000); // Poll every 10 seconds
+    return () => clearInterval(intervalId); // Cleanup
+  }, []);
+
+  // Handle sending user messages
   const handleSendMessage = async () => {
     if (!userMessage.trim()) return;
 
@@ -17,7 +57,7 @@ const ChatScreen = () => {
       { sender: 'user', text: userMessage },
     ]);
     setUserMessage('');
-    setIsLoading(true); // Start loading
+    setIsLoading(true);
 
     try {
       const response = await sendMessage(userMessage, { review_id: reviewId });
@@ -34,7 +74,7 @@ const ChatScreen = () => {
         { sender: 'ai', text: 'Error retrieving response. Please try again later.' },
       ]);
     } finally {
-      setIsLoading(false); // Stop loading
+      setIsLoading(false);
     }
   };
 
@@ -82,14 +122,19 @@ const ChatScreen = () => {
           borderColor="gray.300"
           borderRadius="full"
           px={4}
-          isDisabled={isLoading} // Disable input while loading
+          isDisabled={isLoading}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && userMessage.trim()) {
+              handleSendMessage();
+            }
+          }}
         />
         <Button
           colorScheme="teal"
           borderRadius="full"
           px={6}
           onClick={handleSendMessage}
-          isLoading={isLoading} // Display loading spinner in button
+          isLoading={isLoading}
           loadingText="Sending"
         >
           Send
@@ -100,3 +145,4 @@ const ChatScreen = () => {
 };
 
 export default ChatScreen;
+

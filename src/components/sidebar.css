@@ -1,31 +1,83 @@
+/* General Sidebar Styles */
 .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 250px;
-    height: 100%;
-    background-color: #f8f9fa;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
-    padding-top: 20px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 100%;
+  background-color: #f8f9fa;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  padding-top: 20px;
+  transition: left 0.3s ease-in-out;
+  z-index: 1000;
+}
+
+/* Default state for desktop view */
+.sidebar.open {
+  left: 0; /* Always visible on desktop */
+}
+
+.sidebar.closed {
+  left: -250px; /* Hidden on mobile */
+}
+
+/* Menu Item Styles */
+.menu-item {
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-bottom: 1px solid #ddd;
+}
+
+.menu-item:hover {
+  background-color: #e9ecef;
+}
+
+.menu-text {
+  margin-left: 10px;
+  font-size: 16px;
+  color: #333;
+}
+
+/* Hamburger Icon */
+.hamburger {
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  z-index: 1100;
+  cursor: pointer;
+  display: none; /* Hidden by default */
+}
+.desktop-view {
+  display: block; /* Or any other appropriate styling */
+}
+
+/* Styles for mobile view */
+.mobile-view {
+  display: none; /* Initially hide for desktop */
+}
+
+/* Responsive Styles for Mobile */
+@media (max-width: 768px) {
+  .desktop-view {
+    display: none; /* Hide for mobile */
   }
-  
-  .menu-item {
-    padding: 15px 20px;
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    border-bottom: 1px solid #ddd;
+
+  .mobile-view {
+    display: block; /* Show for mobile */
   }
-  
-  .menu-item:hover {
-    background-color: #e9ecef;
+  .hamburger {
+    display: block; /* Show hamburger in mobile view */
   }
-  
-  .menu-text {
-    margin-left: 10px;
-    font-size: 16px;
-    color: #333;
+
+  .sidebar {
+    left: -250px; /* Sidebar hidden by default */
   }
-  
+
+  .sidebar.open {
+    left: 0; /* Slide in when open */
+  }
+}

@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ChakraProvider, Box, Grid, VStack, Text, Button, Input } from "@chakra-ui/react";
 import './DashboardPage.css';
 import Sidebar from './sidebar'; // Import Sidebar component
+import { useNavigate } from 'react-router-dom';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const [dataList, setDataList] = useState([]);
+  const [data, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredPatients = data.filter((patient) =>
+    patient.phone_number.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const getAccessToken = () => {
     try {
@@ -32,7 +38,7 @@ const DashboardPage = () => {
       if (!accessToken) return;
 
       try {
-        const response = await fetch('https://health.prestigedelta.com/medicalreview/', {
+        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -57,14 +63,33 @@ const DashboardPage = () => {
   }, [accessToken]);
 
   const handleViewDetails = (item) => {
-    navigate('/detail', { state: { item } });
+    navigate('/detail', { state: { item } }); // Navigate using the ID
   };
 
   const handleLogout = () => {
     localStorage.removeItem('user-info');
     navigate('/');
   };
-
+  const PatientCard = ({ patient }) => (
+    <Box borderWidth="1px" borderRadius="lg" p={4} shadow="md" backgroundColor='#f0f8ff'>
+      <VStack align="start" spacing={7}>
+        <Text>
+          <strong>Patient ID:</strong> {patient.id}
+        </Text>
+        <Text>
+          <strong>Phone:</strong> {patient.phone_number}
+        </Text>
+        <Text>
+          <strong>Most Recent Review:</strong>{" "}
+          {new Date(patient.most_recent_review).toLocaleString()}
+        </Text>
+        <Button colorScheme="blue" onClick={() => handleViewDetails(patient)}>
+          View Details
+        </Button>
+      </VStack>
+    </Box>
+  );
+  
   return (
     <div className="dashboard-container">
       {/* Persistent Sidebar */}
@@ -77,19 +102,28 @@ const DashboardPage = () => {
         {loading ? (
           <div className="loading">Loading...</div>
         ) : (
-          <div className="data-list">
-            {dataList.map((item, index) => (
-              <div
-                key={item?.id || index}
-                className="item-container"
-                onClick={() => handleViewDetails(item)}
-              >
-                <p className="item-text"><strong>Chief Complaint:</strong> {item.chief_complaint}</p>
-                <p className="item-text"><strong>Diagnosis:</strong> {item.assessment_diagnosis}</p>
-                <p className="item-text"><strong>Medication:</strong> {item.medication}</p>
-              </div>
-            ))}
-          </div>
+          <ChakraProvider>           <Box p={4}>
+      <Text fontSize="20px" fontWeight="bold" mb={4}>
+        Patient Records
+      </Text>
+      <Box mb={6}>
+        <Input
+          placeholder="Search by phone number"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </Box>
+      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={6}>
+        {filteredPatients.length > 0 ? (
+          filteredPatients.map((patient) => (
+            <PatientCard key={patient.id} patient={patient} />
+          ))
+        ) : (
+          <Text>No patients found.</Text>
+        )}
+      </Grid>
+    </Box></ChakraProvider>
+
         )}
       </div>
     </div>

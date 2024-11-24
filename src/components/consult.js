@@ -1,14 +1,58 @@
-import React, { useState } from 'react';
-import { Box, Tab, TabList, TabPanel, TabPanels, Tabs, Icon, ChakraProvider } from '@chakra-ui/react';
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
+  Icon,
+  ChakraProvider,
+  Badge,
+} from '@chakra-ui/react';
 import { MdMic, MdChat } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
+import axios from 'axios';
+import { useReview } from './context';
 
 const ConsultAIPage = () => {
+  const { reviewId } = useReview();
   const [selectedTab, setSelectedTab] = useState(0);
+  const [messages, setMessages] = useState([]);
+  const [hasNewMessage, setHasNewMessage] = useState(false);
   const navigate = useNavigate();
+
+  // Function to fetch messages
+  const fetchMessages = async () => {
+    try {
+      const response = await axios.get(`https://health.prestigedelta.com/doctormessages/${reviewId.review_id}/`);
+      const newMessages = response.data;
+
+      if (newMessages.length > messages.length) {
+        setHasNewMessage(true);
+        setMessages(newMessages);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  // Poll the API every 10 seconds
+  useEffect(() => {
+  if (reviewId !== null) {
+    const intervalId = setInterval(fetchMessages, 10000);
+    return () => clearInterval(intervalId); // Cleanup interval on component unmount
+    } }, [messages]);
+
+  // Clear the new message notification when switching to the Chat tab
+  useEffect(() => {
+    if (selectedTab === 1) {
+      setHasNewMessage(false);
+    }
+  }, [selectedTab]);
 
   return (
     <ChakraProvider>
@@ -48,9 +92,21 @@ const ConsultAIPage = () => {
               justifyContent="center"
               _selected={{ bg: 'teal.500', color: 'white', borderRadius: 'md' }}
               padding="8px"
+              position="relative"
             >
               <Icon as={MdChat} boxSize={5} marginRight={2} />
               Chat
+              {hasNewMessage && (
+                <Badge
+                  colorScheme="red"
+                  position="absolute"
+                  top="0"
+                  right="10px"
+                  borderRadius="full"
+                >
+                  New
+                </Badge>
+              )}
             </Tab>
           </TabList>
 
@@ -60,7 +116,7 @@ const ConsultAIPage = () => {
               <VoiceNoteScreen />
             </TabPanel>
             <TabPanel>
-              <ChatScreen />
+              <ChatScreen messages={messages} />
             </TabPanel>
           </TabPanels>
         </Tabs>

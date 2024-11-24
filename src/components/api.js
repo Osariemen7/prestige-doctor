@@ -34,7 +34,7 @@ export const getAccessToken = async () => {
   rep = await rep.json();
   if (rep) {
     console.log('Access Token:', rep.access);
-    localStorage.setItem('user-info', JSON.stringify(rep));
+    
     return rep.access // Return the access token
     
     
