@@ -9,7 +9,10 @@ const ProviderPage = () => {
   const [clinicName, setClinicName] = useState('');
   const [specialty, setSpecialty] = useState('');
   const [qualifications, setQualifications] = useState('');
-  const [dateOfRegistration, setDateOfRegistration] = useState(new Date());
+  const [dateOfRegistration, setDateOfRegistration] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0]; // Default to today's date in YYYY-MM-DD
+  });
   const [bio, setBio] = useState('');
   const [message, setMessage] = useState('');
   const [accessToken, setAccessToken] = useState('');
@@ -41,10 +44,9 @@ const ProviderPage = () => {
   }, []);
 
   const handleDateChange = (event) => {
-    const selectedDate = event.target.value;
-    // Convert the string from the input back to a Date object
-    setDateOfRegistration(new Date(selectedDate));
+    setDateOfRegistration(event.target.value); // Directly set the value from the input
   };
+
 
   const handleSubmit = async () => {
     const providerType = 'doctor';
@@ -124,7 +126,7 @@ const ProviderPage = () => {
           id="dateOfRegistration"
           className="provider-input"
           type="date"
-          value={dateOfRegistration.toISOString().split('T')[0]}
+          value={dateOfRegistration} 
           onChange={handleDateChange}
         />
       </div>
