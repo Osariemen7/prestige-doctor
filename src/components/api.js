@@ -44,41 +44,48 @@ export const getAccessToken = async () => {
 // Function to send audio file
 export const sendAudioFile = async (blob, recipient, documentation = false) => {
   try {
+    const token = await getAccessToken();
+    // Validate blob and recipient
+    if (!blob) throw new Error("No audio blob provided.");
+    if (!recipient) throw new Error("No recipient provided.");
+
     const formData = new FormData();
     formData.append('audio_file', blob, 'audio.wav');
-    if (recipient.length !== 14) {
-      formData.append('review_id', recipient);
-    } else {
+
+    // Determine whether to append as phone_number or review_id
+    if (recipient.length === 14 && recipient.startsWith('+234')) {
       formData.append('phone_number', recipient);
+    } else {
+      formData.append('review_id', recipient);
     }
+
+    // Append documentation flag if true
     if (documentation) {
       formData.append('documentation', 'true');
     }
 
-    const token = await getAccessToken();
-    if (token) {
-      const uploadResponse = await fetch('https://health.prestigedelta.com/recording/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+    // Make the API call
+    const response = await fetch('https://health.prestigedelta.com/recording/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+  
+    });
 
-      if (uploadResponse.ok) {
-        return uploadResponse.json();
-      } else {
-        console.error('Server error:', uploadResponse.status, uploadResponse.statusText);
-        return { error: 'Error uploading file', status: uploadResponse.statusText };
-      }
-    } else {
-      console.log('No access token available.');
-      return null;
+    // Parse the response
+    if (!response.ok) {
+      throw new Error(`Failed to send audio file. Status: ${response.status}`);
     }
+
+    return await response.json(); // Assuming JSON response
   } catch (error) {
-    console.error('Failed to send audio file:', error);
+    console.error("Error in sendAudioFile:", error);
+    throw error; // Rethrow error for upstream handling
   }
 };
+
 
 
 // Function to send a message
