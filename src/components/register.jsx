@@ -44,7 +44,7 @@ const RegistrationPage = () => {
       } else {
         setMessage('Registration successful');
         localStorage.setItem('user-info', JSON.stringify(result));
-        navigate('/provider-page');
+        navigate('/provider');
       }
     } catch (error) {
       console.log(error);
