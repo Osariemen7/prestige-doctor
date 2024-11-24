@@ -41,7 +41,9 @@ const ProviderPage = () => {
   }, []);
 
   const handleDateChange = (event) => {
-    setDateOfRegistration(event.target.value);
+    const selectedDate = event.target.value;
+    // Convert the string from the input back to a Date object
+    setDateOfRegistration(new Date(selectedDate));
   };
 
   const handleSubmit = async () => {
