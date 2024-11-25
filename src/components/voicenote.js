@@ -208,8 +208,11 @@ const VoiceNoteScreen = () => {
         borderColor={isEditable ? 'teal.300' : 'transparent'}
       >
         <Text fontWeight="bold" mb={2}>
-          {key.replace(/_/g, ' ')}:
-        </Text>
+  {key
+    .replace(/_/g, ' ') // Replace underscores with spaces
+    .toLowerCase()      // Convert the entire string to lowercase
+    .replace(/^\w/, (c) => c.toUpperCase())}: {/* Capitalize the first letter */}
+</Text>
         {isEditable && isEditing ? (
           <Textarea
             value={displayValue}
@@ -228,7 +231,7 @@ const VoiceNoteScreen = () => {
   };
 
   return (
-    <Flex direction="column" height="100vh">
+    <Flex direction="column" height="80vh">
     {/* Header with Recording Controls */}
     <Flex
       bg="#f0f4f8"
@@ -298,10 +301,12 @@ const VoiceNoteScreen = () => {
             {Object.entries(data?.doctor_note?.review_details || {}).map(
               ([section, details]) => (
                 <Box key={section} width="100%">
-                  <Text fontWeight="bold" mt={4} mb={2}>
-                    {section.replace(/_/g, ' ')}
-                  </Text>
-                  {typeof details === 'object'
+                 <Text fontWeight="bold" mt={4} mb={2}>
+  {section
+    .replace(/_/g, ' ') // Replace underscores with spaces
+    .toLowerCase()      // Convert the entire string to lowercase
+    .replace(/^\w/, (c) => c.toUpperCase())}: {/* Capitalize the first letter */}
+</Text>                  {typeof details === 'object'
                     ? Object.entries(details).map(([key, value]) =>
                         renderEditableField(key, value)
                       )
