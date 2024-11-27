@@ -8,6 +8,7 @@ import ProviderPage from './components/provider';
 import DashboardPage from './components/dash';
 import DetailPage from './components/detail';
 import ConsultAIPage from './components/consult';
+import Organization from './components/organization';
 import './App.css'; // Import the global styles
 
 const App = () => {
@@ -21,6 +22,7 @@ const App = () => {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/detail" element={<DetailPage />} />
           <Route path="/consult-ai" element={<ConsultAIPage />} />
+          <Route path="/organization" element={<Organization />} />
         </Routes>
       </div>
     </ReviewProvider>
