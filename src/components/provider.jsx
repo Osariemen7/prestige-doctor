@@ -74,7 +74,7 @@ const ProviderPage = () => {
         setMessage(result.message || 'An error occurred');
       } else {
         localStorage.setItem('user-info', JSON.stringify(result));
-        navigate('/'); // Redirect to LoginPage
+        navigate('/organization'); // Redirect to LoginPage
       }
     } catch (error) {
       console.error(error);
@@ -94,15 +94,7 @@ const ProviderPage = () => {
     <div className="provider-container">
     
 
-      <h1 className="provider-title">Clinic Registration</h1>
-
-      <input
-        className="provider-input"
-        type="text"
-        placeholder="Clinic/Hospital Name"
-        value={clinicName}
-        onChange={(e) => setClinicName(e.target.value)}
-      />
+      <h1 className="provider-title">Create Profile</h1>
 
       <input
         className="provider-input"

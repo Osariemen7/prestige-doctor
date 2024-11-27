@@ -32,7 +32,17 @@ const LoginPage = () => {
       } else {
         const result = await response.json();
         localStorage.setItem('user-info', JSON.stringify(result)); // Use localStorage for web
-        navigate('/dashboard'); // Redirect to DashboardPage
+        if (result.user.profile_set !== true) {
+          localStorage.setItem('user-info', JSON.stringify(result))
+          navigate('/provider')
+        }  else if(result.user.organization_set !== true){
+          localStorage.setItem('user-info', JSON.stringify(result));
+          navigate('/organization')
+        }else {
+          localStorage.setItem('user-info', JSON.stringify(result));
+          navigate('/dashboard');
+        }
+         // Redirect to DashboardPage
       }
     } catch (error) {
       console.error(error);
