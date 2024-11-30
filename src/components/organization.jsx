@@ -205,7 +205,7 @@ const handleAddress=(event)=> {
     } 
 
   return(
-    <div style={{backgroundColor:'#F0F8FF', maxHeight:'100%', height: '100vh', padding:'5%', zIndex:'0', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{backgroundColor:'#F0F8FF', maxHeight:'100%', height: '100vh', padding:'5%', zIndex:'0', alignItems: 'center', justifyContent: 'center', overflow:'auto' }}>
        <Link to='/provider'><i class="fa-solid fa-chevron-left bac"></i></Link>
       
             <h3>Set Organization</h3>
