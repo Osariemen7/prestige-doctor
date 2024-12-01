@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { ChakraProvider, Box, Grid, VStack, Text, Button, Input } from "@chakra-ui/react";
+import { ChakraProvider, Box, Grid, VStack, Text, Button, Input, Spinner } from "@chakra-ui/react";
 import './DashboardPage.css';
 import Sidebar from './sidebar'; // Import Sidebar component
 import { useNavigate } from 'react-router-dom';
+import {
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
+  Heading
+} from '@chakra-ui/react';
 import { getAccessToken } from './api';
+import DocDash from './doctordash';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [data, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+  const [selectedTab, setSelectedTab] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredPatients = data.filter((patient) =>
@@ -48,6 +57,37 @@ const DashboardPage = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    const fetchSub = async () => {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      try {
+        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (response.status === 401) {
+          navigate('/');
+        } else {
+          const result = await response.json();
+          setDataList(result);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSub();
+  }, []);
+
+
   const handleViewDetails = (item) => {
     navigate('/detail', { state: { item } }); // Navigate using the ID
   };
@@ -83,35 +123,73 @@ const DashboardPage = () => {
 
       {/* Main Content */}
       <div className="main-content">
-        <h1 className="dashboard-header">Patient Health Dashboard</h1>
+      <ChakraProvider>
+      <Box flex="1" overflow="auto">
+  <Tabs index={selectedTab} onChange={(index) => setSelectedTab(index)}>
+    {/* Tab Navigation at the Top */}
+    <TabList>
+      <Tab
+        flex="1"
+        justifyContent="center"
+        _selected={{ bg: "blue.500", color: "white", borderRadius: "md" }}
+        padding="8px"
+      >
+        Patient Record
+      </Tab>
+      <Tab
+        flex="1"
+        justifyContent="center"
+        _selected={{ bg: "blue.500", color: "white", borderRadius: "md" }}
+        padding="8px"
+      >
+        Doctor's Dashboard
+      </Tab>
+    </TabList>
 
+    {/* Tab Content Below */}
+    <TabPanels>
+      <TabPanel>
+        <Heading fontSize='24px' textAlign='center'>Patient Health Dashboard</Heading>
         {loading ? (
-          <div className="loading">Loading...</div>
+          <Box textAlign="center" mt={8}>
+            <Spinner size="xl" />
+            <Text mt={4}>Loading...</Text>
+          </Box>
         ) : (
-          <ChakraProvider>           <Box p={4}>
-      <Text fontSize="20px" fontWeight="bold" mb={4}>
-        Patient Records
-      </Text>
-      <Box mb={6}>
-        <Input
-          placeholder="Search by phone number"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </Box>
-      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={6}>
-        {filteredPatients.length > 0 ? (
-          filteredPatients.map((patient) => (
-            <PatientCard key={patient.id} patient={patient} />
-          ))
-        ) : (
-          <Text>No patients found.</Text>
+          <Box p={4}>
+            <Text fontSize="20px" fontWeight="bold" mb={4}>
+              Patient Records
+            </Text>
+            <Box mb={6}>
+              <Input
+                placeholder="Search by phone number"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </Box>
+            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={6}>
+              {filteredPatients.length > 0 ? (
+                filteredPatients.map((patient) => (
+                  <PatientCard key={patient.id} patient={patient} />
+                ))
+              ) : (
+                <Text>No patients found.</Text>
+              )}
+            </Grid>
+          </Box>
         )}
-      </Grid>
-    </Box></ChakraProvider>
+      </TabPanel>
+      <TabPanel>
+        <DocDash />
+      </TabPanel>
+    </TabPanels>
+  </Tabs>
+</Box>
 
-        )}
-      </div>
+
+      </ChakraProvider>
+
+             </div>
     </div>
   );
 };
