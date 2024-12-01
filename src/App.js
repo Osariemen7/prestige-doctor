@@ -9,6 +9,7 @@ import DashboardPage from './components/dash';
 import DetailPage from './components/detail';
 import ConsultAIPage from './components/consult';
 import Organization from './components/organization';
+import Account from './components/account';
 import './App.css'; // Import the global styles
 
 const App = () => {
@@ -23,6 +24,7 @@ const App = () => {
           <Route path="/detail" element={<DetailPage />} />
           <Route path="/consult-ai" element={<ConsultAIPage />} />
           <Route path="/organization" element={<Organization />} />
+          <Route path='/account' element={<Account />} />
         </Routes>
       </div>
     </ReviewProvider>
