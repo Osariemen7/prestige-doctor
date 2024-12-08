@@ -1,7 +1,6 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { ReviewProvider } from './components/context'; // Assuming the context file is the same
-import { ChannelProvider } from './components/cont';
 // Import your components
 import RegisterPage from './components/register';
 import LoginPage from './components/login';
@@ -16,7 +15,7 @@ import './App.css'; // Import the global styles
 
 const App = () => {
   return (
-    <ChannelProvider>
+    
     <ReviewProvider>
       <div className="app-container">
         <Routes>
@@ -32,7 +31,7 @@ const App = () => {
         </Routes>
       </div>
     </ReviewProvider>
-    </ChannelProvider>
+  
   );
 };
 
