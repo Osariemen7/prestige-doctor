@@ -1,19 +1,155 @@
 import React, { useEffect, useState } from "react";
-import {ChakraProvider, Box, Divider, Flex, Heading, Text, Spinner } from "@chakra-ui/react";
+import {ChakraProvider, Box, Button, Divider, Flex, Heading, Text, Spinner } from "@chakra-ui/react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { AiOutlineArrowLeft } from 'react-icons/ai' ;
+import { getAccessToken } from './api';
+
+import {
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Input,
+  Textarea,
+  useToast,
+  useDisclosure,
+} from '@chakra-ui/react';
+import axios from "axios";
+import { Select } from "@chakra-ui/react";
 
 const Details = () => {
+  const { isOpen, onOpen, onClose } = useDisclosure();
+    const [startTime, setStartTime] = useState('');
+    const [reason, setReason] = useState('');
+    const [info, setInfo] = useState([])
+    const [loading, setLoading] = useState(true);
+    const [buttonVisible, setButtonVisible] = useState(false);
+    const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate()
   const { state } = useLocation(); // Retrieve passed data using useLocation
   const item = state?.item || {};
+
+  const formatDateTime = (isoString) => {
+    return isoString.replace('T', ' ').slice(0, 16); // Ensures 'YYYY-MM-DD HH:MM' format
+  };
+  const handleSubmit = async () => {
+    setButtonVisible(true)
+    const formattedStartTime = formatDateTime(startTime);
+    const data = {
+        patient_id: item.id,
+        start_time: formattedStartTime,
+        reason,
+    };
+    const token = await getAccessToken();
+    try {
+        const response = await fetch('https://health.prestigedelta.com/appointments/book/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          
+            toast({
+                title: 'Appointment booked successfully!',
+                description: `Your appointment is scheduled for ${startTime}.`,
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+            });
+            onClose(); // Close the modal
+            
+            
+        } else {
+            throw new Error('Failed to book the appointment.');
+        }
+    } catch (error) {
+        toast({
+            title: 'Error',
+            description: error.message,
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+        });
+    } finally {
+      setButtonVisible(false); // Reset loading state
+  }
+};
+
+useEffect(() => {
+  const fetchDa = async () => {
+    try {
+      const accessToken = await getAccessToken();
+      const response = await axios.get(
+        "https://health.prestigedelta.com/appointments/available_slots/?date=2024-12-05",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      setInfo(response.data); // Assuming response.data is the array of slots
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    
+    }
+  };
+
+  fetchDa();
+}, []);
+
+const options = info.map((slot) => (
+  <option key={slot.start_time} value={slot.start_time}>
+    {slot.start_time}
+  </option>
+));
   
- 
   const healthSummary = JSON.parse(item.health_summary || "{}");
 
- 
-
+  const deleteDet = async () => {
+    try {
+      const token = await getAccessToken(); // Get the token
+      if (!token) {
+        alert('Failed to get access token.');
+        return;
+      }
+  
+      const response = await fetch(`https://health.prestigedelta.com/medicalreview/${item.id}/`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+  
+      if (response.ok) {
+        alert('Review deleted successfully');
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to delete review: ${errorData.message || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      alert('An error occurred while deleting the review. Please try again.');
+    }
+  };
+   
+  if(loading) {
+    return(
+    <p>Loading...</p>)
+  }
   return (
     <ChakraProvider>
     <Box p={6} bg="blue.50" minH="100vh" overflowY="auto">
@@ -21,10 +157,17 @@ const Details = () => {
         <AiOutlineArrowLeft size={24} />
         <span className="back-text"></span>
       </div>
-
+      
       <Heading size="lg" mb={4} color="blue.700">
         Patient Details
       </Heading>
+      {/* <Button colorScheme="red" onClick={deleteDet}>
+          Delete
+        </Button> */}
+      
+            <Button colorScheme="blue" onClick={onOpen} mb='10px'>
+                Schedule Call Appointment
+            </Button>
       <Flex
         direction="column"
         bg="white"
@@ -80,6 +223,7 @@ const Details = () => {
         </Box>
       ))}
       <Divider mt={4} />
+    
     </Box>
   ))
 ) : (
@@ -87,6 +231,49 @@ const Details = () => {
 )}
     </Flex>
     </Box>
+    <Modal isOpen={isOpen} onClose={onClose}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Book Call Appointment</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <FormControl mb={4}>
+                        <FormLabel>Set Date and Time</FormLabel>
+                        <Select
+                placeholder="Set Date and time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              >
+                {options}
+              </Select>
+                           
+                        </FormControl>
+                        <FormControl>
+                            <FormLabel>Reason for Appointment</FormLabel>
+                            <Textarea
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                placeholder="Enter the reason for your appointment"
+                            />
+                        </FormControl>
+                    </ModalBody>
+
+                    <ModalFooter>
+                        <Button
+                            colorScheme="blue"
+                            mr={3}
+                            onClick={handleSubmit}
+                            isDisabled={loading} // Disable button while loading
+                        >
+                            {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
+                        </Button>
+                        <Button variant="ghost" onClick={onClose}>
+                            Cancel
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+
   
     </ChakraProvider>
   );
