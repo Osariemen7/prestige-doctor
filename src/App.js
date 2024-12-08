@@ -1,6 +1,7 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { ReviewProvider } from './components/context'; // Assuming the context file is the same
+import { ChannelProvider } from './components/cont';
 // Import your components
 import RegisterPage from './components/register';
 import LoginPage from './components/login';
@@ -10,10 +11,12 @@ import DetailPage from './components/detail';
 import ConsultAIPage from './components/consult';
 import Organization from './components/organization';
 import Account from './components/account';
+import Voice from './components/voice';
 import './App.css'; // Import the global styles
 
 const App = () => {
   return (
+    <ChannelProvider>
     <ReviewProvider>
       <div className="app-container">
         <Routes>
@@ -25,9 +28,11 @@ const App = () => {
           <Route path="/consult-ai" element={<ConsultAIPage />} />
           <Route path="/organization" element={<Organization />} />
           <Route path='/account' element={<Account />} />
+          <Route path='/appointment' element={<Voice />} />
         </Routes>
       </div>
     </ReviewProvider>
+    </ChannelProvider>
   );
 };
 
