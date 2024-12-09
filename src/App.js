@@ -11,6 +11,7 @@ import ConsultAIPage from './components/consult';
 import Organization from './components/organization';
 import Account from './components/account';
 import Voice from './components/voice';
+import Call from './components/voi';
 import './App.css'; // Import the global styles
 
 const App = () => {
@@ -28,6 +29,7 @@ const App = () => {
           <Route path="/organization" element={<Organization />} />
           <Route path='/account' element={<Account />} />
           <Route path='/appointment' element={<Voice />} />
+          <Route path='/call' element={<Call />} />
         </Routes>
       </div>
     </ReviewProvider>
