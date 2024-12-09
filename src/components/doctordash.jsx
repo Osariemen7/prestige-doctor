@@ -63,7 +63,7 @@ const DocDash = () => {
     fetchSlots();
   }, []);
   const handleCalls = (item) => {
-    navigate('/appointment', { state: { item } }); // Navigate using the ID
+    navigate('/call', { state: { item } }); // Navigate using the ID
   };
 
 
