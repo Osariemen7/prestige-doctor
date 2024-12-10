@@ -12,6 +12,7 @@ import Organization from './components/organization';
 import Account from './components/account';
 import Voice from './components/voice';
 import Call from './components/voi';
+import DocDash from './components/doctordash';
 import './App.css'; // Import the global styles
 
 const App = () => {
@@ -29,6 +30,7 @@ const App = () => {
           <Route path="/organization" element={<Organization />} />
           <Route path='/account' element={<Account />} />
           <Route path='/appointment' element={<Voice />} />
+          <Route path='/doctor' element={<DocDash />} />
           <Route path='/call' element={<Call />} />
         </Routes>
       </div>
