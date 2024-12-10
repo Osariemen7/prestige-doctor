@@ -5,6 +5,7 @@ import { getAccessToken } from './api';
 import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff } from 'react-icons/md';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar } from '@chakra-ui/react';
+import VideoDisplay from './vod';
 
 const Voice = () => {
     const { state } = useLocation();
@@ -22,7 +23,9 @@ const Voice = () => {
     const [recorder, setRecorder] = useState(null);
     const [isLoading, setIsLoading] = useState(false); // New loading state
     const [userCount, setUserCount] = useState(0);
-
+    const [callDuration, setCallDuration] = useState(0);
+    const [timerId, setTimerId] = useState(null);
+    
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const destination = audioContext.createMediaStreamDestination();
 
@@ -48,23 +51,44 @@ const Voice = () => {
             setUserCount((prev) => Math.max(prev - 1, 0)); // Decrement user count
         });
     }, [client]);
+
+    const startTimer = () => {
+        setCallDuration(0);
+        const id = setInterval(() => {
+            setCallDuration((prev) => prev + 1);
+        }, 1000);
+        setTimerId(id);
+    };
+
+    // Stop call timer
+    const stopTimer = () => {
+        if (timerId) {
+            clearInterval(timerId);
+            setTimerId(null);
+        }
+    };
     
     async function joinChannel() {
+        if (isJoined) {
+            console.warn('You are already in the channel.');
+            return;
+        }
+    
         setIsLoading(true); // Start loading
         try {
             const appId = '44787e17cd0348cd8b75366a2b5931e9';
             const token = null;
             const channel = item.channel_name || chanel;
-
+    
             await client.join(appId, channel, token, null);
-
+    
             const audioTrack = await createMicrophoneAudioTrack();
             await client.publish(audioTrack);
             setLocalAudioTrack(audioTrack);
             setIsJoined(true);
-            setUserCount(1)
-
-            await startRecording(audioTrack);
+            setUserCount(1);
+    
+            startTimer();
             console.log('Joined channel with audio.');
         } catch (error) {
             console.error('Error joining channel:', error);
@@ -72,7 +96,40 @@ const Voice = () => {
             setIsLoading(false); // Stop loading
         }
     }
-
+    
+    async function joinChannelWithVideo() {
+        if (isJoined) {
+            console.warn('You are already in the channel.');
+            return;
+        }
+    
+        setIsLoading(true);
+        try {
+            const appId = '44787e17cd0348cd8b75366a2b5931e9';
+            const token = null;
+            const channel = `${item.channel_name}s` || `${chanel}s`;
+    
+            await client.join(appId, channel, token, null);
+    
+            const audioTrack = await createMicrophoneAudioTrack();
+            await client.publish(audioTrack);
+            setLocalAudioTrack(audioTrack);
+            startTimer();
+    
+            const videoTrack = await createCameraVideoTrack();
+            await client.publish(videoTrack);
+            setLocalVideoTrack(videoTrack);
+            setIsVideoEnabled(true);
+            setIsJoined(true);
+    
+            console.log('Joined channel with audio and video.');
+        } catch (error) {
+            console.error('Error joining channel with video:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    
     async function enableVideo() {
         const appId = '44787e17cd0348cd8b75366a2b5931e9';
             const token = null;
@@ -83,19 +140,24 @@ const Voice = () => {
             console.error('You need to join the channel before enabling video.');
             return;
         }
-
+    
+        if (localVideoTrack) {
+            console.warn('Video is already enabled.');
+            return;
+        }
+    
         try {
             const videoTrack = await createCameraVideoTrack();
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
             setIsVideoEnabled(true);
             console.log('Video enabled.');
-            console.log(isVideoEnabled)
         } catch (error) {
             console.error('Error enabling video:', error);
         }
     }
-
+    
+    
 
     async function disableVideo() {
         if (isVideoEnabled && localVideoTrack) {
@@ -115,12 +177,9 @@ const Voice = () => {
     async function leaveChannel() {
         setIsLoading(true); // Start loading
         try {
-            if (isRecording) {
-                await stopRecording();
-            }
-
+            
             await client.leave();
-
+            stopTimer();
             if (localAudioTrack) {
                 localAudioTrack.stop();
                 localAudioTrack.close();
@@ -147,107 +206,12 @@ const Voice = () => {
         }
     }
  
-    async function joinChannelWithVideo() {
-        setIsLoading(true);
-        try {
-            const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
-            const channel = item.channel_name || chanel;
-
-            await client.join(appId, channel, token, null);
-            await startRecording(audioTrack);
-            const audioTrack = await createMicrophoneAudioTrack();
-            await client.publish(audioTrack);
-            setLocalAudioTrack(audioTrack);
-
-            const videoTrack = await createCameraVideoTrack();
-            await client.publish(videoTrack);
-            setLocalVideoTrack(videoTrack);
-            setIsVideoEnabled(true);
-            setIsJoined(true);
-
-            console.log('Joined channel with audio and video.');
-        } catch (error) {
-            console.error('Error joining channel with video:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }
-
-
-    function mixAudio(localTrack, remoteTracks) {
-        if (localTrack) {
-            const localSource = audioContext.createMediaStreamSource(localTrack.getMediaStream());
-            localSource.connect(destination);
-        }
-    
-        remoteTracks.forEach((remoteTrack) => {
-            const remoteSource = audioContext.createMediaStreamSource(remoteTrack.getMediaStream());
-            remoteSource.connect(destination);
-        });
-    
-        console.log('Mixed audio stream:', destination.stream);
-        return destination.stream; // Should return a valid MediaStream
-    }
-
-    async function startRecording() {
-        try {
-            const mixedStream = mixAudio(localAudioTrack, remoteAudioTracks);
-            console.log('Mixed stream:', mixedStream);
-            const recorderInstance = new Recorder(audioContext);
-            await recorderInstance.init(mixedStream);
-            await recorderInstance.start();
-            setRecorder(recorderInstance);
-            setIsRecording(true);
-            console.log('Recording started.');
-        } catch (error) {
-            console.error('Error starting recording:', error);
-        }
-    }
    
-    async function stopRecording() {
-        if (recorder) {
-            try {
-                const { blob } = await recorder.stop();
-                console.log('Recording stopped. Blob size:', blob.size);
-                setIsRecording(false);
-                await uploadAudio(blob);
-            } catch (error) {
-                console.error('Error stopping recording:', error);
-            } finally {
-                setRecorder(null);
-            }
-        } else {
-            console.warn('Recorder is not initialized or already stopped.');
-        }
-    }
-        
-    async function uploadAudio(blob) {
-        const phone = item.patient_phone_number
-       
-        const formData = new FormData();
-        formData.append('audio_file', blob, 'conversation.wav');
-        formData.append('phone_number', phone);
-        formData.append('document', 'true');
-        try {
-            const token = await getAccessToken();
-            const response = await fetch('https://health.prestigedelta.com/recording/', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-            });
-
-            if (response.ok) {
-                console.log('Audio uploaded successfully.');
-            } else {
-                console.error('Failed to upload audio:', response.statusText);
-            }
-        } catch (error) {
-            console.error('Error uploading audio:', error);
-        }
-    }
+    const formatDuration = (seconds) => {
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
 
     return (
         <ChakraProvider>
@@ -255,14 +219,16 @@ const Voice = () => {
                 <Heading fontSize="25px" marginBottom="20px">
                     Doctor's Appointment
                 </Heading>
-
+                  {/* Call timer display */}
+                {isJoined && (
+                    <Box marginBottom="10px">
+                        <Text fontSize="lg" color="yellow.300">
+                            Call Duration: {formatDuration(callDuration)}
+                        </Text>
+                    </Box>
+                )}
                 {isVideoEnabled ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-                        {localVideoTrack && <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '320px', height: '240px', backgroundColor: 'black' }} />}
-                        {remoteUsers.map((user) => (
-                            <div key={user.uid} ref={(ref) => ref && user.videoTrack.play(ref)} style={{ width: '320px', height: '240px', backgroundColor: 'black' }} />
-                        ))}
-                    </div>
+                    <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
                 ) : (
                     <Avatar size="2xl" name="User" backgroundColor="gray.600" marginBottom="20px" />
                 )}
