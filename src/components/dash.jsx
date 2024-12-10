@@ -96,6 +96,7 @@ const DashboardPage = () => {
     localStorage.removeItem('user-info');
     navigate('/');
   };
+
   const PatientCard = ({ patient }) => (
     <Box borderWidth="1px" borderRadius="lg" p={4} shadow="md" backgroundColor='#f0f8ff'>
       <VStack align="start" spacing={7}>
@@ -125,31 +126,9 @@ const DashboardPage = () => {
       <div className="main-content">
       <ChakraProvider>
       <Box flex="1" overflow="auto">
-  <Tabs index={selectedTab} onChange={(index) => setSelectedTab(index)}>
-    {/* Tab Navigation at the Top */}
-    <TabList>
-      <Tab
-        flex="1"
-        justifyContent="center"
-        _selected={{ bg: "blue.500", color: "white", borderRadius: "md" }}
-        padding="8px"
-      >
-        Patient Record
-      </Tab>
-      <Tab
-        flex="1"
-        justifyContent="center"
-        _selected={{ bg: "blue.500", color: "white", borderRadius: "md" }}
-        padding="8px"
-      >
-        Doctor's Dashboard
-      </Tab>
-    </TabList>
-
+  
     {/* Tab Content Below */}
-    <TabPanels>
-      <TabPanel>
-        <Heading fontSize='24px' textAlign='center'>Patient Health Dashboard</Heading>
+        <Heading fontSize='22px' textAlign='center'>Patient Health Dashboard</Heading>
         {loading ? (
           <Box textAlign="center" mt={8}>
             <Spinner size="xl" />
@@ -178,12 +157,8 @@ const DashboardPage = () => {
             </Grid>
           </Box>
         )}
-      </TabPanel>
-      <TabPanel>
-        <DocDash />
-      </TabPanel>
-    </TabPanels>
-  </Tabs>
+       
+      
 </Box>
 
 

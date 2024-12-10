@@ -90,7 +90,7 @@ useEffect(() => {
     try {
       const accessToken = await getAccessToken();
       const response = await axios.get(
-        "https://health.prestigedelta.com/appointments/available_slots/?date=2024-12-05",
+        "https://health.prestigedelta.com/appointments/available_slots/",
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,

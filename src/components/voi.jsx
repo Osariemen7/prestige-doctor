@@ -6,6 +6,8 @@ import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff } from 'react
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, Button, VStack, Divider, Textarea } from '@chakra-ui/react';
 import {  submitEdits } from './api';
+import { BiMicrophone, BiMicrophoneOff } from 'react-icons/bi';
+import VideoDisplay from './vod';
 
 const Call = () => {
     const { state } = useLocation();
@@ -17,7 +19,10 @@ const Call = () => {
   const [editableFields, setEditableFields] = useState({});
   const [message, setMessage] = useState('')
 
+    const [recordingTimer, setRecordingTimer] = useState(null);
 
+    const [callDuration, setCallDuration] = useState(0);
+    const [timerId, setTimerId] = useState(null);
     const [isJoined, setIsJoined] = useState(false);
     const [remoteAudioTracks, setRemoteAudioTracks] = useState([]);
     const [localAudioTrack, setLocalAudioTrack] = useState(null);
@@ -54,30 +59,87 @@ const Call = () => {
             setUserCount((prev) => Math.max(prev - 1, 0)); // Decrement user count
         });
     }, [client]);
+
+    const startTimer = () => {
+      setCallDuration(0);
+      const id = setInterval(() => {
+          setCallDuration((prev) => prev + 1);
+      }, 1000);
+      setTimerId(id);
+  };
+
+  // Stop call timer
+  const stopTimer = () => {
+      if (timerId) {
+          clearInterval(timerId);
+          setTimerId(null);
+      }
+  };
     
-    async function joinChannel() {
-        setIsLoading(true); // Start loading
-        try {
-            const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
-            const channel = item.channel_name || chanel;
-
-            await client.join(appId, channel, token, null);
-
-            const audioTrack = await createMicrophoneAudioTrack();
-            await client.publish(audioTrack);
-            setLocalAudioTrack(audioTrack);
-            setIsJoined(true);
-            setUserCount(1)
-
-            await startRecording(audioTrack);
-            console.log('Joined channel with audio.');
-        } catch (error) {
-            console.error('Error joining channel:', error);
-        } finally {
-            setIsLoading(false); // Stop loading
-        }
+  async function joinChannel() {
+    if (isJoined) {
+        console.warn('You are already in the channel.');
+        return;
     }
+
+    setIsLoading(true);
+    try {
+        const appId = '44787e17cd0348cd8b75366a2b5931e9';
+        const token = null;
+        const channel = item.channel_name || chanel;
+
+        await client.join(appId, channel, token, null);
+
+        const audioTrack = await createMicrophoneAudioTrack();
+        await client.publish(audioTrack);
+        setLocalAudioTrack(audioTrack);
+        setIsJoined(true);
+        setUserCount(1);
+
+        startTimer();
+        console.log('Joined channel with audio.');
+    } catch (error) {
+        console.error('Error joining channel:', error);
+    } finally {
+        setIsLoading(false);
+    }
+}
+
+   
+  
+  async function joinChannelWithVideo() {
+      if (isJoined) {
+          console.warn('You are already in the channel.');
+          return;
+      }
+  
+      setIsLoading(true);
+      try {
+          const appId = '44787e17cd0348cd8b75366a2b5931e9';
+          const token = null;
+          const channel = `${item.channel_name}s` || `${chanel}s`;
+  
+          await client.join(appId, channel, token, null);
+  
+          const audioTrack = await createMicrophoneAudioTrack();
+          await client.publish(audioTrack);
+          setLocalAudioTrack(audioTrack);
+          startTimer();
+  
+          const videoTrack = await createCameraVideoTrack();
+          await client.publish(videoTrack);
+          setLocalVideoTrack(videoTrack);
+          setIsVideoEnabled(true);
+          setIsJoined(true);
+  
+          console.log('Joined channel with audio and video.');
+      } catch (error) {
+          console.error('Error joining channel with video:', error);
+      } finally {
+          setIsLoading(false);
+      }
+  }
+  
 
     async function enableVideo() {
         const appId = '44787e17cd0348cd8b75366a2b5931e9';
@@ -119,143 +181,141 @@ const Call = () => {
     }
 
     async function leaveChannel() {
-        setIsLoading(true); // Start loading
-        setMessage('please wait, fetching data...')
-        try {
-            if (isRecording) {
-                stopRecording();
-            }
-            
-            await client.leave();
-
-            if (localAudioTrack) {
-                localAudioTrack.stop();
-                localAudioTrack.close();
-                setLocalAudioTrack(null);
-            }
-
-            if (localVideoTrack) {
-                localVideoTrack.stop();
-                localVideoTrack.close();
-                setLocalVideoTrack(null);
-            }
-
-            setRemoteUsers([]);
-            setRemoteAudioTracks([]);
-            setIsVideoEnabled(false);
-            setIsRecording(false);
-            setUserCount(0)
-
-            console.log('Left the channel and cleaned up tracks.');
-        } catch (error) {
-            console.error('Error leaving channel:', error);
-        } finally {
-            setIsLoading(false); // Stop loading
-        }
-    }
+      try {
+          
+  
+          if (localAudioTrack) {
+              localAudioTrack.stop();
+              localAudioTrack.close();
+              setLocalAudioTrack(null);
+          }
+  
+          if (localVideoTrack) {
+              localVideoTrack.stop();
+              localVideoTrack.close();
+              setLocalVideoTrack(null);
+          }
+  
+          await client.leave();
+  
+          setRemoteUsers([]);
+          setRemoteAudioTracks([]);
+          setIsVideoEnabled(false);
+          setIsRecording(false);
+          setIsJoined(false);
+          setUserCount(0);
+          stopRecording()
+  
+          console.log('Left the channel and cleaned up tracks.');
+      } catch (error) {
+          console.error('Error leaving channel:', error);
+      }
+  }
+  
  
-    async function joinChannelWithVideo() {
-        setIsLoading(true);
-        try {
-            const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
-            const channel = item.channel_name || chanel;
-
-            await client.join(appId, channel, token, null);
-            await startRecording(audioTrack);
-            const audioTrack = await createMicrophoneAudioTrack();
-            await client.publish(audioTrack);
-            setLocalAudioTrack(audioTrack);
-
-            const videoTrack = await createCameraVideoTrack();
-            await client.publish(videoTrack);
-            setLocalVideoTrack(videoTrack);
-            setIsVideoEnabled(true);
-            setIsJoined(true);
-
-            console.log('Joined channel with audio and video.');
-        } catch (error) {
-            console.error('Error joining channel with video:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }
     
     function mixAudio(localTrack, remoteTracks) {
-        if (localTrack) {
-            const localSource = audioContext.createMediaStreamSource(localTrack.getMediaStream());
-            localSource.connect(destination);
-        }
-    
-        remoteTracks.forEach((remoteTrack) => {
-            const remoteSource = audioContext.createMediaStreamSource(remoteTrack.getMediaStream());
-            remoteSource.connect(destination);
-        });
-    
-        console.log('Mixed audio stream:', destination.stream);
-        return destination.stream; // Should return a valid MediaStream
-    }
-    
-    async function startRecording() {
-        try {
-            const mixedStream = mixAudio(localAudioTrack, remoteAudioTracks);
-            console.log('Mixed stream:', mixedStream);
-            const recorderInstance = new Recorder(audioContext);
-            await recorderInstance.init(mixedStream);
-            await recorderInstance.start();
-            setRecorder(recorderInstance);
-            setIsRecording(true);
-            console.log('Recording started.');
-        } catch (error) {
-            console.error('Error starting recording:', error);
-        }
-    }
-    
-    async function stopRecording() {
+      if (localTrack) {
+          const localStream = new MediaStream([localTrack.getMediaStreamTrack()]);
+          const localSource = audioContext.createMediaStreamSource(localStream);
+          localSource.connect(destination);
+      }
+  
+      remoteTracks.forEach((remoteTrack) => {
+          const remoteStream = new MediaStream([remoteTrack.getMediaStreamTrack()]);
+          const remoteSource = audioContext.createMediaStreamSource(remoteStream);
+          remoteSource.connect(destination);
+      });
+  
+      console.log('Mixed audio stream:', destination.stream);
+      return destination.stream; // Returns a valid MediaStream
+  }
+      
+    const startRecording = async () => {
+      try {
+          if (!localAudioTrack) {
+              console.error('Local audio track is not available.');
+              return;
+          }
+  
+          const mixedStream = mixAudio(localAudioTrack, remoteAudioTracks);
+  
+          const recorderInstance = new Recorder(audioContext);
+          await recorderInstance.init(mixedStream);
+          await recorderInstance.start();
+  
+          setRecorder(recorderInstance);
+          setIsRecording(true);
+  
+          console.log('Recording started.');
+  
+          // Set up a timer to upload recording every 60 seconds
+          const timerId = setInterval(async () => {
+              if (recorderInstance) {
+                  const { blob } = await recorderInstance.stop();
+                  await uploadAudio(blob, false);
+                  await recorderInstance.start(); // Restart recording after upload
+              }
+          }, 60000);
+  
+          setRecordingTimer(timerId);
+      } catch (error) {
+          console.error('Error starting recording:', error);
+      }
+  };
+  
+
+  // Stop recording function
+  const stopRecording = async () => {
+    try {
+        clearInterval(recordingTimer); // Clear the timer
+        setRecordingTimer(null);
+
         if (recorder) {
-            try {
-                const { blob } = await recorder.stop();
-                console.log('Recording stopped. Blob size:', blob.size);
-                setIsRecording(false);
-                await uploadAudio(blob);
-            } catch (error) {
-                console.error('Error stopping recording:', error);
-            } finally {
-                setRecorder(null);
-            }
+            const { blob } = await recorder.stop();
+            await uploadAudio(blob, true); // Send with `document=true`
+            setRecorder(null);
+            console.log('Recording stopped and sent with document=true.');
+        }
+    } catch (error) {
+        console.error('Error stopping recording:', error);
+    } finally {
+        setIsRecording(false);
+    }
+};
+
+// Upload audio function
+const uploadAudio = async (blob, isFinal) => {
+    const phoneNumber = item.patient_phone_number;
+    const phone = `+234${phoneNumber.slice(1)}`;
+    const formData = new FormData();
+    formData.append('audio_file', blob, 'conversation.wav');
+    formData.append('phone_number', phone);
+
+    if (isFinal) {
+        formData.append('document', 'true'); // Add `document=true` for final recording
+    }
+
+    try {
+        const token = await getAccessToken();
+        const response = await fetch('https://health.prestigedelta.com/recording/', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+        });
+
+        if (response.ok) {
+            const responseData = await response.json();
+            console.log('Audio uploaded successfully:', responseData);
         } else {
-            console.warn('Recorder is not initialized or already stopped.');
+            console.error('Failed to upload audio:', response.statusText);
         }
+    } catch (error) {
+        console.error('Error uploading audio:', error);
     }
-        
-    async function uploadAudio(blob) {
-        const phone = item.patient_phone_number
-       
-        const formData = new FormData();
-        formData.append('audio_file', blob, 'conversation.wav');
-        formData.append('phone_number', phone);
-        formData.append('document', 'true');
-        try {
-            const token = await getAccessToken();
-            const response = await fetch('https://health.prestigedelta.com/recording/', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-            });
-              
-            if (response.ok) {
-                const responseData = await response.json()
-                setData(responseData)
-                console.log('Audio uploaded successfully.');
-            } else {
-                console.error('Failed to upload audio:', response.statusText);
-            }
-        } catch (error) {
-            console.error('Error uploading audio:', error);
-        }
-    }
+};
 
     const editableFieldKeys = [
         'chief_complaint',
@@ -349,6 +409,12 @@ const Call = () => {
           setIsLoading(false);
         }
       };
+
+      const formatDuration = (seconds) => {
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
       
       const renderEditableField = (key, value) => {
         const isEditable = editableFieldKeys.includes(key);
@@ -392,14 +458,23 @@ const Call = () => {
                 <Heading fontSize="25px" marginBottom="20px">
                   Appointment
                 </Heading>
-
-                {isVideoEnabled ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-                        {localVideoTrack && <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '320px', height: '240px', backgroundColor: 'black' }} />}
-                        {remoteUsers.map((user) => (
-                            <div key={user.uid} ref={(ref) => ref && user.videoTrack.play(ref)} style={{ width: '320px', height: '240px', backgroundColor: 'black' }} />
-                        ))}
-                    </div>
+                {isJoined && (
+                    <Box marginBottom="10px">
+                        <Text fontSize="lg" color="yellow.300">
+                            Call Duration: {formatDuration(callDuration)}
+                        </Text>
+                    </Box>
+                )}
+                 
+        {isRecording && (
+            <Box textAlign="center" marginBottom="20px">
+                <Text fontSize="lg" color="red.400">
+                    ● Recording...
+                </Text>
+            </Box>
+        )}
+                {isVideoEnabled ? (<VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
+                    
                 ) : (
                     <Avatar size="2xl" name="User" backgroundColor="gray.600" marginBottom="20px" />
                 )}
@@ -421,23 +496,49 @@ const Call = () => {
                 <Flex justify="center" gap="30px" marginTop="auto" marginBottom="20px">
                     <Box textAlign="center">
                         <IconButton icon={<MdCall />} colorScheme="green" fontSize="36px" onClick={joinChannel} borderRadius="full" size="lg" />
-                        <Text marginTop="5px">Start Call</Text>
+                        <Text fontSize='12px' marginTop="5px">Start Call</Text>
                     </Box>
 
                     <Box textAlign="center">
                         <IconButton icon={<MdCallEnd />} colorScheme="red" fontSize="36px" onClick={leaveChannel} borderRadius="full" size="lg" />
-                        <Text marginTop="5px">End Call</Text>
+                        <Text fontSize='12px' marginTop="5px">End Call</Text>
                     </Box>
 
                    {isJoined? <Box textAlign='center'> <IconButton icon={<MdVideoCall />} colorScheme="blue" fontSize="36px" onClick={enableVideo}  borderRadius="full" size="lg" />
-                   <Text marginTop="5px">Enable Video</Text></Box> : <Box textAlign="center">
+                   <Text marginTop="5px" fontSize='12px'>Enable Video</Text></Box> : <Box textAlign="center">
                         {isVideoEnabled ? (
                             <IconButton icon={<MdVideocamOff />} colorScheme="red" fontSize="36px" onClick={disableVideo} borderRadius="full" size="lg" />
                         ) : (
                             <IconButton icon={<MdVideocam />} colorScheme="green" fontSize="36px" onClick={joinChannelWithVideo}  borderRadius="full" size="lg" />
                         )}
-                        <Text marginTop="5px">{isVideoEnabled ? 'Disable Video' : 'Start Video'}</Text>
+                        <Text marginTop="5px" fontSize='12px'>{isVideoEnabled ? 'Disable Video' : 'Start Video'}</Text>
                     </Box>}
+                   
+                    <Box textAlign='center'>
+    {isRecording ? (
+        <IconButton
+            icon={<BiMicrophoneOff />}
+            colorScheme="red"
+            fontSize="36px"
+            onClick={stopRecording} // Correct handler
+            borderRadius="full"
+            size="lg"
+        />
+    ) : (
+        <IconButton
+            icon={<BiMicrophone />}
+            colorScheme="green"
+            fontSize="36px"
+            onClick={startRecording} // Correct handler
+            borderRadius="full"
+            size="lg"
+        />
+    )}
+    <Text marginTop="5px" fontSize='12px'>{isRecording ? 'Stop Recording' : 'Record'}</Text>
+</Box>
+                   
+                   
+          
                 </Flex>
             </Flex>
         </ChakraProvider>

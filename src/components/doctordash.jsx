@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ChakraProvider,
   Box,
@@ -8,10 +8,14 @@ import {
   Spinner,
   Divider,
   VStack,
+  IconButton,
+  Button
 } from "@chakra-ui/react";
+import { FiCopy } from 'react-icons/fi'
 import axios from "axios";
 import { getAccessToken } from "./api";
 import {useNavigate} from 'react-router-dom';
+import Sidebar from './sidebar'; // Import Sidebar component
 
 const DocDash = () => {
   const [data, setData] = useState(null);
@@ -19,6 +23,33 @@ const DocDash = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate()
 
+  
+    const CopyButton = ({ textToCopy }) => {
+      const textRef = useRef(null);
+    
+      const copyToClipboard = async () => {
+        try {
+          await navigator.clipboard.writeText(textToCopy);
+          alert('Copied to clipboard!');
+        } catch (err) {
+          console.error('Unable to copy to clipboard.', err);
+        }
+      };
+      return (
+          <div>
+          <IconButton
+          aria-label="Copy"
+          icon={<FiCopy />}
+          size="sm"
+          colorScheme="blue"
+          onClick={copyToClipboard}
+        />
+            
+          </div>
+        );
+      };
+
+      
   // Fetch doctor subscribers data
   useEffect(() => {
     const fetchSubscribers = async () => {
@@ -47,7 +78,7 @@ const DocDash = () => {
       try {
         const accessToken = await getAccessToken();
         const response = await axios.get(
-          "https://health.prestigedelta.com/appointments/available_slots/?date=2024-12-05",
+          "https://health.prestigedelta.com/appointments/available_slots/",
           {
             headers: { Authorization: `Bearer ${accessToken}` },
           }
@@ -87,10 +118,18 @@ const DocDash = () => {
     subscription_rate,
   } = data || {};
 
+  const handleLogout = () => {
+    localStorage.removeItem('user-info');
+    navigate('/');
+  };
+  
   return (
     <ChakraProvider>
-      <Box p={5}>
-        <Heading fontSize="24px" mb={4}>
+    <div className="main-content">
+      <Box p={5} >
+      <Sidebar navigate={navigate} handleLogout={handleLogout} />
+
+        <Heading textAlign='center' fontSize="24px" mb={4}>
           Doctor's Dashboard
         </Heading>
 
@@ -118,22 +157,35 @@ const DocDash = () => {
 
         <VStack spacing={4} align="stretch">
           {bookedItems.length > 0 ? (
-            bookedItems.map((item, index) => (
-              <Box key={index} p={4} bg="white" shadow="md" borderRadius="md" onClick={() => handleCalls(item)}>
-                <Text fontSize="md" fontWeight="bold" color="blue.500">
-                  Patient ID: {item.patient_id}
-                </Text>
-                <Text fontSize="sm">
-                   Time: {new Date(item.start_time).toLocaleString()}
-                </Text>
-                
-              </Box>
-            ))
+            bookedItems.map((item, index) => {
+              const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.channel_name}`;
+              return (
+                <Box
+                  key={index}
+                  p={4}
+                  bg="white"
+                  shadow="md"
+                  borderRadius="md"
+                  onClick={() => handleCalls(item)}
+                >
+                  <Text fontSize="md" fontWeight="bold" color="blue.500">
+                    Patient ID: {item.patient_id}
+                  </Text>
+                  <Text fontSize="sm">Time: {new Date(item.start_time).toLocaleString()}</Text>
+                 <Flex gap='15px'>
+                  <Text>Patient link: {dynamicLink}</Text>
+                  <CopyButton textToCopy={dynamicLink} />
+                  </Flex>
+                  <Button colorScheme='blue'>Start call</Button>
+                </Box>
+              );
+            })
           ) : (
             <Text color="gray.500">No booked appointments available.</Text>
           )}
         </VStack>
       </Box>
+      </div>
     </ChakraProvider>
   );
 };
