@@ -25,6 +25,7 @@ import { Select } from "@chakra-ui/react";
 const Details = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
     const [startTime, setStartTime] = useState('');
+    const [date, setDate] = useState('')
     const [reason, setReason] = useState('');
     const [info, setInfo] = useState([])
     const [loading, setLoading] = useState(true);
@@ -86,11 +87,12 @@ const Details = () => {
 };
 
 useEffect(() => {
+  if (date) {
   const fetchDa = async () => {
     try {
       const accessToken = await getAccessToken();
       const response = await axios.get(
-        "https://health.prestigedelta.com/appointments/available_slots/",
+        `https://health.prestigedelta.com/appointments/available_slots/?date=${date}`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -106,8 +108,8 @@ useEffect(() => {
     }
   };
 
-  fetchDa();
-}, []);
+  fetchDa();}
+}, [date]);
 
 const options = info.map((slot) => (
   <option key={slot.start_time} value={slot.start_time}>
@@ -146,10 +148,7 @@ const options = info.map((slot) => (
     }
   };
    
-  if(loading) {
-    return(
-    <p>Loading...</p>)
-  }
+  
   return (
     <ChakraProvider>
     <Box p={6} bg="blue.50" minH="100vh" overflowY="auto">
@@ -237,16 +236,23 @@ const options = info.map((slot) => (
                     <ModalHeader>Book Call Appointment</ModalHeader>
                     <ModalCloseButton />
                     <ModalBody>
-                        <FormControl mb={4}>
-                        <FormLabel>Set Date and Time</FormLabel>
+                    <FormControl mb={4}>
+                    <FormLabel>Set Date</FormLabel>
+                            <Input
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                placeholder="Select start time"
+                            />
+                        <FormLabel>Select available Slot</FormLabel>
                         <Select
-                placeholder="Set Date and time"
+                placeholder="Select start time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
               >
                 {options}
               </Select>
-                           
+                            
                         </FormControl>
                         <FormControl>
                             <FormLabel>Reason for Appointment</FormLabel>
