@@ -33,32 +33,46 @@ const Voice = () => {
 
     useEffect(() => {
         client.on('user-published', async (user, mediaType) => {
-            await client.subscribe(user, mediaType);
-            if (mediaType === 'video') {
-                setRemoteUsers((prev) => [...prev, user]);
-            } else if (mediaType === 'audio') {
-                user.audioTrack.play();
-                setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
-            }
-            setUserCount((prev) => prev + 1); // Increment user count
+          await client.subscribe(user, mediaType);
+      
+          if (mediaType === 'video') {
+            setRemoteUsers((prev) => [...prev, user]);
+          } else if (mediaType === 'audio') {
+            user.audioTrack.play();
+            setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
+          }
+      
+          setUserCount((prev) => prev + 1);
+      
+          // Start timer when the first remote user joins
+          if (!timerId) {
+            startTimer();
+          }
         });
-    
+      
         client.on('user-unpublished', (user) => {
-            setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-            setRemoteAudioTracks((prev) =>
-                prev.filter((track) => track.getUserId() !== user.uid)
-            );
-            setUserCount((prev) => Math.max(prev - 1, 0)); // Decrement user count
+          setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+          setRemoteAudioTracks((prev) =>
+            prev.filter((track) => track.getUserId() !== user.uid)
+          );
+          setUserCount((prev) => Math.max(prev - 1, 0));
+      
+          // Stop timer if no remote users remain
+          if (userCount <= 1) {
+            stopTimer();
+          }
         });
-    }, [client]);
+      }, [client, timerId, userCount]);
+      
 
-    const startTimer = () => {
-        setCallDuration(0);
+      const startTimer = () => {
+        setCallDuration(0); // Reset duration
         const id = setInterval(() => {
-            setCallDuration((prev) => prev + 1);
+          setCallDuration((prev) => prev + 1);
         }, 1000);
         setTimerId(id);
-    };
+      };
+      
 
     // Stop call timer
     const stopTimer = () => {
@@ -68,34 +82,7 @@ const Voice = () => {
         }
     };
     
-    async function joinChannel() {
-        if (isJoined) {
-            console.warn('You are already in the channel.');
-            return;
-        }
     
-        setIsLoading(true); // Start loading
-        try {
-            const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
-            const channel = item.channel_name || chanel;
-    
-            await client.join(appId, channel, token, null);
-    
-            const audioTrack = await createMicrophoneAudioTrack();
-            await client.publish(audioTrack);
-            setLocalAudioTrack(audioTrack);
-            setIsJoined(true);
-            setUserCount(1);
-    
-            startTimer();
-            console.log('Joined channel with audio.');
-        } catch (error) {
-            console.error('Error joining channel:', error);
-        } finally {
-            setIsLoading(false); // Stop loading
-        }
-    }
     
     async function joinChannelWithVideo() {
         if (isJoined) {
@@ -107,20 +94,20 @@ const Voice = () => {
         try {
             const appId = '44787e17cd0348cd8b75366a2b5931e9';
             const token = null;
-            const channel = `${item.channel_name}s` || `${chanel}s`;
+            const channel = item.channel_name || chanel
     
             await client.join(appId, channel, token, null);
     
             const audioTrack = await createMicrophoneAudioTrack();
             await client.publish(audioTrack);
             setLocalAudioTrack(audioTrack);
-            startTimer();
-    
+           
             const videoTrack = await createCameraVideoTrack();
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
             setIsVideoEnabled(true);
             setIsJoined(true);
+            setUserCount(1);
     
             console.log('Joined channel with audio and video.');
         } catch (error) {
@@ -130,74 +117,60 @@ const Voice = () => {
         }
     }
     
-    async function enableVideo() {
-        const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
-            const channel = item.channel_name || chanel;
-
-            await client.join(appId, channel, token, null);
-        if (!isJoined) {
-            console.error('You need to join the channel before enabling video.');
-            return;
-        }
-    
-        if (localVideoTrack) {
-            console.warn('Video is already enabled.');
-            return;
-        }
-    
-        try {
-            const videoTrack = await createCameraVideoTrack();
-            await client.publish(videoTrack);
-            setLocalVideoTrack(videoTrack);
-            setIsVideoEnabled(true);
-            console.log('Video enabled.');
-        } catch (error) {
-            console.error('Error enabling video:', error);
-        }
-    }
-    
-    
 
     async function disableVideo() {
+        if (!isJoined) {
+            console.error("Cannot disable video: Client hasn't joined a channel.");
+            return;
+        }
+    
         if (isVideoEnabled && localVideoTrack) {
             try {
-                await client.unpublish(localVideoTrack);
+                console.log('Disabling video...');
+                await client.unpublish(localVideoTrack); // Ensure client has joined before unpublishing
                 localVideoTrack.stop();
                 localVideoTrack.close();
                 setLocalVideoTrack(null);
                 setIsVideoEnabled(false);
-                console.log('Video disabled.');
+                console.log('Video disabled successfully.');
             } catch (error) {
                 console.error('Error disabling video:', error);
             }
+        } else {
+            console.log('Video is already disabled or no video track found.');
         }
     }
+    
+    
 
     async function leaveChannel() {
         setIsLoading(true); // Start loading
         try {
-            
-            await client.leave();
-            stopTimer();
+            if (isJoined) {
+                console.log('Leaving channel...');
+                await client.leave();
+                stopTimer();
+            }
+    
             if (localAudioTrack) {
                 localAudioTrack.stop();
                 localAudioTrack.close();
                 setLocalAudioTrack(null);
             }
-
+    
             if (localVideoTrack) {
                 localVideoTrack.stop();
                 localVideoTrack.close();
                 setLocalVideoTrack(null);
             }
-
+    
             setRemoteUsers([]);
             setRemoteAudioTracks([]);
             setIsVideoEnabled(false);
             setIsRecording(false);
-            setUserCount(0)
-
+            setUserCount(0);
+            setIsJoined(false);
+    
             console.log('Left the channel and cleaned up tracks.');
         } catch (error) {
             console.error('Error leaving channel:', error);
@@ -205,6 +178,7 @@ const Voice = () => {
             setIsLoading(false); // Stop loading
         }
     }
+    
  
    
     const formatDuration = (seconds) => {
@@ -215,61 +189,107 @@ const Voice = () => {
 
     return (
         <ChakraProvider>
-            <Flex direction="column" align="center" justify="space-between" height="100vh" padding="24px" bgColor="#2c2c2c" color="white">
-                <Heading fontSize="25px" marginBottom="20px">
-                    Doctor's Appointment
-                </Heading>
-                  {/* Call timer display */}
-                {isJoined && (
-                    <Box marginBottom="10px">
-                        <Text fontSize="lg" color="yellow.300">
-                            Call Duration: {formatDuration(callDuration)}
-                        </Text>
-                    </Box>
-                )}
-                {isVideoEnabled ? (
-                    <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
-                ) : (
-                    <Avatar size="2xl" name="User" backgroundColor="gray.600" marginBottom="20px" />
-                )}
-                {userCount === 1 && (
-                <Box textAlign="center" marginTop="20px">
+        <Box position="relative" height="100vh" width="100%" bg="#2c2c2c">
+            {/* Full-Screen Video */}
+            <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
+
+            {/* Header */}
+           
+            {/* Call Timer */}
+            
+            {/* Overlayed Controls */}
+            <Flex
+                position="absolute"
+                bottom="20px"
+                left="50%"
+                transform="translateX(-50%)"
+                gap="30px"
+                zIndex="1"
+            >
+                <Box textAlign="center">
+                    <IconButton
+                        icon={<MdCallEnd />}
+                        colorScheme="red"
+                        fontSize="36px"
+                        onClick={leaveChannel}
+                        borderRadius="full"
+                        size="lg"
+                    />
+                    <Text marginTop="5px" color="white">End Call</Text>
+                </Box>
+
+                <Box textAlign="center">
+                    {isVideoEnabled ? (
+                        <IconButton
+                            icon={<MdVideocamOff />}
+                            colorScheme="red"
+                            fontSize="36px"
+                            onClick={disableVideo}
+                            borderRadius="full"
+                            size="lg"
+                        />
+                    ) : (
+                        <IconButton
+                            icon={<MdVideocam />}
+                            colorScheme="green"
+                            fontSize="36px"
+                            onClick={joinChannelWithVideo}
+                            borderRadius="full"
+                            size="lg"
+                        />
+                    )}
+                    <Text marginTop="5px" color="white">
+                        {isVideoEnabled ? 'Disable Video' : 'Start Video'}
+                    </Text>
+                </Box>
+            </Flex>
+
+            {/* Loading Spinner */}
+            {isLoading && (
+                <Box
+                    position="absolute"
+                    top="50%"
+                    left="50%"
+                    transform="translate(-50%, -50%)"
+                    textAlign="center"
+                    zIndex="1"
+                >
+                    <Spinner color="blue.500" size="xl" />
+                    <Text fontSize="lg" color="white">Processing...</Text>
+                </Box>
+            )}
+
+            {/* Waiting for Caller */}
+            {userCount === 1 && (
+                <Box
+                    position="absolute"
+                    top="50%"
+                    left="50%"
+                    transform="translate(-50%, -50%)"
+                    textAlign="center"
+                    zIndex="1"
+                >
                     <Text fontSize="lg" color="yellow.400">
                         Waiting for other caller to join...
                     </Text>
                 </Box>
             )}
+            {isJoined && (
+                <Box
+                    position="absolute"
+                    bottom="120px"
+                    left="50%"
+                    transform="translateX(-50%)"
+                    zIndex="1"
+                >
+                    <Text fontSize="m" color="green.300">
+                         {formatDuration(callDuration)}
+                    </Text>
+                </Box>
+            )}
 
-                {isLoading && (
-                    <Box textAlign="center" marginTop="20px">
-                        <Spinner color="blue.500" size="xl" />
-                        <Text fontSize="lg">Processing...</Text>
-                    </Box>
-                )}
-
-                <Flex justify="center" gap="30px" marginTop="auto" marginBottom="20px">
-                    <Box textAlign="center">
-                        <IconButton icon={<MdCall />} colorScheme="green" fontSize="36px" onClick={joinChannel} borderRadius="full" size="lg" />
-                        <Text marginTop="5px">Start Call</Text>
-                    </Box>
-
-                    <Box textAlign="center">
-                        <IconButton icon={<MdCallEnd />} colorScheme="red" fontSize="36px" onClick={leaveChannel} borderRadius="full" size="lg" />
-                        <Text marginTop="5px">End Call</Text>
-                    </Box>
-
-                   {isJoined? <Box textAlign='center'> <IconButton icon={<MdVideoCall />} colorScheme="blue" fontSize="36px" onClick={enableVideo}  borderRadius="full" size="lg" />
-                   <Text marginTop="5px">Enable Video</Text></Box> : <Box textAlign="center">
-                        {isVideoEnabled ? (
-                            <IconButton icon={<MdVideocamOff />} colorScheme="red" fontSize="36px" onClick={disableVideo} borderRadius="full" size="lg" />
-                        ) : (
-                            <IconButton icon={<MdVideocam />} colorScheme="green" fontSize="36px" onClick={joinChannelWithVideo}  borderRadius="full" size="lg" />
-                        )}
-                        <Text marginTop="5px">{isVideoEnabled ? 'Disable Video' : 'Start Video'}</Text>
-                    </Box>}
-                </Flex>
-            </Flex>
-        </ChakraProvider>
+        </Box>
+    </ChakraProvider>
     );
 };
 

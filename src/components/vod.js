@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Flex } from '@chakra-ui/react';
+import { Box } from '@chakra-ui/react';
 
 const VideoDisplay = ({ localVideoTrack, remoteUsers }) => {
     const [isLocalPrimary, setIsLocalPrimary] = useState(false);
@@ -10,15 +10,9 @@ const VideoDisplay = ({ localVideoTrack, remoteUsers }) => {
     };
 
     return (
-        <Flex direction="column" align="center" gap="20px">
-            {/* Primary (Larger) Video */}
-            <Box
-                width="340px"
-                height="270px"
-                bg="black"
-                onClick={toggleVideoPosition}
-                cursor="pointer"
-            >
+        <Box position="relative" width="100%" height="100vh" bg="black">
+            {/* Main Video Covering the Entire Screen */}
+            <Box width="100%" height="100%" onClick={toggleVideoPosition} cursor="pointer">
                 {isLocalPrimary && localVideoTrack ? (
                     <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '100%', height: '100%' }} />
                 ) : remoteUsers.length > 0 && remoteUsers[0].videoTrack ? (
@@ -28,13 +22,19 @@ const VideoDisplay = ({ localVideoTrack, remoteUsers }) => {
                 )}
             </Box>
 
-            {/* Secondary (Smaller) Video */}
+            {/* Inset (Smaller) Video Positioned at the Top-Right */}
             <Box
-                width="190px"
-                height="190px"
+                position="absolute"
+                top="20px"
+                right="20px"
+                width="230px"
+                height="180px"
                 bg="black"
+                border="2px solid white"
+                borderRadius="10px"
                 onClick={toggleVideoPosition}
                 cursor="pointer"
+                boxShadow="lg"
             >
                 {!isLocalPrimary && localVideoTrack ? (
                     <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '100%', height: '100%' }} />
@@ -44,7 +44,7 @@ const VideoDisplay = ({ localVideoTrack, remoteUsers }) => {
                     <Box bg="gray.700" width="100%" height="100%" />
                 )}
             </Box>
-        </Flex>
+        </Box>
     );
 };
 
