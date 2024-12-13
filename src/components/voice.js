@@ -119,29 +119,19 @@ const Voice = () => {
     
 
     async function disableVideo() {
-        if (!isJoined) {
-            console.error("Cannot disable video: Client hasn't joined a channel.");
-            return;
-        }
-    
         if (isVideoEnabled && localVideoTrack) {
             try {
-                console.log('Disabling video...');
-                await client.unpublish(localVideoTrack); // Ensure client has joined before unpublishing
                 localVideoTrack.stop();
                 localVideoTrack.close();
                 setLocalVideoTrack(null);
                 setIsVideoEnabled(false);
-                console.log('Video disabled successfully.');
+                console.log('Video disabled.');
             } catch (error) {
                 console.error('Error disabling video:', error);
             }
-        } else {
-            console.log('Video is already disabled or no video track found.');
         }
     }
-    
-    
+      
 
     async function leaveChannel() {
         setIsLoading(true); // Start loading
