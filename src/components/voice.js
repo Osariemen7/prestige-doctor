@@ -3,7 +3,7 @@ import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from
 import Recorder from 'recorder-js';
 import { getAccessToken } from './api';
 import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff } from 'react-icons/md';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar } from '@chakra-ui/react';
 import VideoDisplay from './vod';
 
@@ -13,6 +13,7 @@ const Voice = () => {
     const [searchParams] = useSearchParams();
     const chanel = searchParams.get("channel");
 
+    const [vid, setVid] = useState(false)
     const [isJoined, setIsJoined] = useState(false);
     const [remoteAudioTracks, setRemoteAudioTracks] = useState([]);
     const [localAudioTrack, setLocalAudioTrack] = useState(null);
@@ -25,7 +26,7 @@ const Voice = () => {
     const [userCount, setUserCount] = useState(0);
     const [callDuration, setCallDuration] = useState(0);
     const [timerId, setTimerId] = useState(null);
-    
+    const navigate = useNavigate()
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const destination = audioContext.createMediaStreamDestination();
 
@@ -73,15 +74,13 @@ const Voice = () => {
         setTimerId(id);
       };
       
-
-    // Stop call timer
-    const stopTimer = () => {
+    
+      const stopTimer = () => {
         if (timerId) {
             clearInterval(timerId);
             setTimerId(null);
         }
     };
-    
     
     
     async function joinChannelWithVideo() {
@@ -125,6 +124,7 @@ const Voice = () => {
                 localVideoTrack.close();
                 setLocalVideoTrack(null);
                 setIsVideoEnabled(false);
+                setVid(true)
                 console.log('Video disabled.');
             } catch (error) {
                 console.error('Error disabling video:', error);
@@ -166,10 +166,22 @@ const Voice = () => {
             console.error('Error leaving channel:', error);
         } finally {
             setIsLoading(false); // Stop loading
+            navigate('/');
         }
     }
     
- 
+    async function enableVideo() {
+        try {
+          const videoTrack = await createCameraVideoTrack();
+          
+          setLocalVideoTrack(videoTrack);
+          setIsVideoEnabled(true);
+          console.log('Video enabled.');
+          console.log(isVideoEnabled)
+      } catch (error) {
+          console.error('Error enabling video:', error);
+      }
+  }
    
     const formatDuration = (seconds) => {
         const minutes = Math.floor(seconds / 60);
@@ -208,30 +220,16 @@ const Voice = () => {
                     <Text marginTop="5px" color="white">End Call</Text>
                 </Box>
 
-                <Box textAlign="center">
-                    {isVideoEnabled ? (
-                        <IconButton
-                            icon={<MdVideocamOff />}
-                            colorScheme="red"
-                            fontSize="36px"
-                            onClick={disableVideo}
-                            borderRadius="full"
-                            size="lg"
-                        />
-                    ) : (
-                        <IconButton
-                            icon={<MdVideocam />}
-                            colorScheme="green"
-                            fontSize="36px"
-                            onClick={joinChannelWithVideo}
-                            borderRadius="full"
-                            size="lg"
-                        />
-                    )}
-                    <Text marginTop="5px" color="white">
-                        {isVideoEnabled ? 'Disable Video' : 'Start Video'}
-                    </Text>
-                </Box>
+                {!isVideoEnabled && vid ? <Box textAlign='center'> <IconButton icon={<MdVideoCall />} colorScheme="blue" fontSize="36px" onClick={enableVideo}  borderRadius="full" size="lg" />
+                   <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text></Box> : <Box textAlign="center">
+                        {isVideoEnabled ? (
+                            <IconButton icon={<MdVideocamOff />} colorScheme="red" fontSize="36px" onClick={disableVideo} borderRadius="full" size="lg" />
+                        ) : (
+                            <IconButton icon={<MdVideocam />} colorScheme="green" fontSize="36px" onClick={joinChannelWithVideo}  borderRadius="full" size="lg" />
+                        )}
+                        <Text marginTop="5px" fontSize='12px' color='white'>{isVideoEnabled ? 'Disable Video' : 'Start Call'}</Text>
+                    </Box>}
+                
             </Flex>
 
             {/* Loading Spinner */}

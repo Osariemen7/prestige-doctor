@@ -31,6 +31,7 @@ const Call = () => {
     const [recorder, setRecorder] = useState(null);
     const [isLoading, setIsLoading] = useState(false); // New loading state
     const [userCount, setUserCount] = useState(0);
+    const [vid, setVid] = useState(false)
     
 
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -102,7 +103,6 @@ const Call = () => {
         const appId = '44787e17cd0348cd8b75366a2b5931e9';
         const token = null;
         const channel = item.channel_name || chanel;
-        startRecording(); // Start recording immediately
 
         await client.join(appId, channel, token, null);
 
@@ -114,8 +114,11 @@ const Call = () => {
         await client.publish(videoTrack);
         setLocalVideoTrack(videoTrack);
         setIsVideoEnabled(true);
+        startRecording(); // Start recording immediately
+
         setIsJoined(true);
         setUserCount(1);
+        
         
         
         console.log('Joined channel with audio and video.');
@@ -127,8 +130,6 @@ const Call = () => {
 }
 
   
-  
-  
 
   async function disableVideo() {
       if (isVideoEnabled && localVideoTrack) {
@@ -138,11 +139,26 @@ const Call = () => {
               setLocalVideoTrack(null);
               setIsVideoEnabled(false);
               console.log('Video disabled.');
+              setVid(true)
           } catch (error) {
               console.error('Error disabling video:', error);
           }
       }
   }
+
+
+  async function enableVideo() {
+      try {
+        const videoTrack = await createCameraVideoTrack();
+        
+        setLocalVideoTrack(videoTrack);
+        setIsVideoEnabled(true);
+        console.log('Video enabled.');
+        console.log(isVideoEnabled)
+    } catch (error) {
+        console.error('Error enabling video:', error);
+    }
+}
 
   async function leaveChannel() {
     setIsLoading(true); // Start loading
@@ -258,8 +274,15 @@ const Call = () => {
 // Upload audio function
 const uploadAudio = async (blob, isFinal) => {
     const phoneNumber = item.patient_phone_number;
-    const phone = `+234${phoneNumber.slice(1)}`;
-    const formData = new FormData();
+    
+    const formatPhoneNumber = (phoneNumber) => {
+        if (phoneNumber.startsWith('+234')) {
+            return phoneNumber;
+        }
+        return `+234${phoneNumber.slice(1)}`;
+    };  
+    const phone = formatPhoneNumber(phoneNumber) 
+     const formData = new FormData();
     formData.append('audio_file', blob, 'conversation.wav');
     formData.append('phone_number', phone);
 
@@ -317,11 +340,7 @@ const uploadAudio = async (blob, isFinal) => {
                 gap="30px"
                 zIndex="1"
             >
-            {isRecording && (
-    <Box position="absolute" top="20px" left="20px" zIndex="1">
-        <Text fontSize="lg" color="red.500">● Recording...</Text>
-    </Box>
-)}
+           
 
                 <Box textAlign="center">
                     <IconButton
@@ -332,33 +351,42 @@ const uploadAudio = async (blob, isFinal) => {
                         borderRadius="full"
                         size="lg"
                     />
-                    <Text marginTop="5px" color="white">End Call</Text>
+                    <Text marginTop="5px" color="white"  fontSize='12px'>End Call</Text>
                 </Box>
 
-                <Box textAlign="center">
-                    {isVideoEnabled ? (
-                        <IconButton
-                            icon={<MdVideocamOff />}
-                            colorScheme="red"
-                            fontSize="36px"
-                            onClick={disableVideo}
-                            borderRadius="full"
-                            size="lg"
-                        />
-                    ) : (
-                        <IconButton
-                            icon={<MdVideocam />}
-                            colorScheme="green"
-                            fontSize="36px"
-                            onClick={joinChannelWithVideo}
-                            borderRadius="full"
-                            size="lg"
-                        />
-                    )}
-                    <Text marginTop="5px" color="white">
-                        {isVideoEnabled ? 'Disable Video' : 'Start Video'}
-                    </Text>
-                </Box>
+                {!isVideoEnabled && vid ? <Box textAlign='center'> <IconButton icon={<MdVideoCall />} colorScheme="blue" fontSize="36px" onClick={enableVideo}  borderRadius="full" size="lg" />
+                   <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text></Box> : <Box textAlign="center">
+                        {isVideoEnabled ? (
+                            <IconButton icon={<MdVideocamOff />} colorScheme="red" fontSize="36px" onClick={disableVideo} borderRadius="full" size="lg" />
+                        ) : (
+                            <IconButton icon={<MdVideocam />} colorScheme="green" fontSize="36px" onClick={joinChannelWithVideo}  borderRadius="full" size="lg" />
+                        )}
+                        <Text marginTop="5px" fontSize='12px' color='white'>{isVideoEnabled ? 'Disable Video' : 'Start Call'}</Text>
+                    </Box>}
+                   
+                    
+                <Box textAlign='center'>
+    {isRecording ? (
+        <IconButton
+            icon={<BiMicrophoneOff />}
+            colorScheme="red"
+            fontSize="36px"
+            onClick={stopRecording} // Correct handler
+            borderRadius="full"
+            size="lg"
+        />
+    ) : (
+        <IconButton
+            icon={<BiMicrophone />}
+            colorScheme="green"
+            fontSize="36px"
+            onClick={startRecording} // Correct handler
+            borderRadius="full"
+            size="lg"
+        />
+    )}
+    <Text marginTop="5px" fontSize='12px' color='white'>{isRecording ? 'Stop Recording' : 'Record'}</Text>
+</Box>
             </Flex>
 
             {/* Loading Spinner */}
@@ -389,10 +417,22 @@ const uploadAudio = async (blob, isFinal) => {
                     <Text fontSize="lg" color="yellow.400">
                         Waiting for other caller to join...
                     </Text>
-                    <Text>{message}</Text>
-
                 </Box>
             )}
+            <Box  position="absolute"
+                    top="50%"
+                    left="50%"
+                    transform="translate(-50%, -50%)"
+                    textAlign="center"
+                    zIndex="1">
+                        <Text>{message}</Text>
+                    </Box>
+            
+                    {isRecording && (
+    <Box position="absolute" top="20px" left="20px" zIndex="1">
+        <Text fontSize="lg" color="red.500">● Recording...</Text>
+    </Box>
+)}
             <Box>
                 
             </Box>
