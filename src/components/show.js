@@ -173,7 +173,7 @@ const Document = () => {
           {/* Main Content */}
           <Box flex="1" overflowY="auto" p={4}>
             
-              data && (
+               
                 <VStack spacing={4}>
                   <Heading fontSize="lg">Patient Report</Heading>
                   <Box bg="#4682b4" color="white" p={3} borderRadius="md" w="fit-content">
@@ -205,7 +205,7 @@ const Document = () => {
                     ))}
                   </VStack>
                 </VStack>
-              )
+              
             
           </Box>
         </Flex>
