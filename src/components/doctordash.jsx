@@ -125,6 +125,7 @@ const DocDash = () => {
   
   return (
     <ChakraProvider>
+    <div className="dashboard-container">
     <div className="main-content">
       <Box p={5} >
       <Sidebar navigate={navigate} handleLogout={handleLogout} />
@@ -185,6 +186,7 @@ const DocDash = () => {
           )}
         </VStack>
       </Box>
+      </div>
       </div>
     </ChakraProvider>
   );
