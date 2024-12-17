@@ -139,7 +139,6 @@ const Call = () => {
             setIsJoined(true);
             setUserCount(1);
             startTimer()
-            startRecording()
             setIsRecording(true)
             
             console.log('Joined channel with audio and video.');
@@ -307,7 +306,8 @@ const uploadAudio = async (blob, isFinal) => {
     };  
     const phone = formatPhoneNumber(phoneNumber) 
     try {
-        const recipient = reviewId || phone; // Use reviewId if available; otherwise, phoneNumber
+    
+        const recipient = reviewId === null ? phone : reviewId; // Use reviewId if available; otherwise, phoneNumber
         const response = await sendAudioFile(blob, recipient, isFinal);
         if (response?.review_id) {
           setReview(response.review_id)
@@ -352,7 +352,7 @@ const uploadAudio = async (blob, isFinal) => {
         position="absolute"
         bottom={['70px', '20px']}
         right={['10px', '20px']}
-        width={['80%', '300px']}
+        width={['80%', '350px']}
         height={['50%', '340px']}
         bg="white"
         borderRadius="md"

@@ -227,7 +227,8 @@ const VoiceNoteScreen = () => {
     const phone = `+234${phoneNumber.slice(1)}`;
     
     try {
-      const recipient = reviewId || phone; // Use reviewId if available; otherwise, phoneNumber
+      const recipient = reviewId === null ? phone : reviewId; // Use reviewId if available; otherwise, phoneNumber
+      // Use reviewId if available; otherwise, phoneNumber
       const response = await sendAudioFile(audioBlob, recipient, documentation);
       if (response?.review_id) {
         setReview(response.review_id)
