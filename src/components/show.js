@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { getAccessToken, submitEdits } from './api';
+import {  submitEdits } from './api';
 import { ChakraProvider, Heading, Text, Spinner, Modal,
     ModalOverlay,
     ModalContent,
@@ -8,14 +8,15 @@ import { ChakraProvider, Heading, Text, Spinner, Modal,
     ModalFooter,
     ModalBody,
     ModalCloseButton, Box, Flex, useDisclosure, IconButton, Avatar, Button, VStack, Divider, Textarea } from '@chakra-ui/react';
-
+    import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
 const Document = () => {
     const { state } = useLocation();
-    const data = state?.responseData || {};
+    const data = state?.dat || {};
     const { isOpen, onOpen, onClose } = useDisclosure();
     const [isEditing, setIsEditing] = useState(false);
   const [editableFields, setEditableFields] = useState({});
-  const [isloading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState('')
   const navigate = useNavigate()
 
   const editableFieldKeys = [
@@ -47,7 +48,7 @@ const Document = () => {
 
   const handleEditSubmit = async () => {
     setIsLoading(true);
-  
+     setMessage('hi')
     // Create the structured payload
     const structuredPayload = {
       review_details: {
@@ -99,11 +100,13 @@ const Document = () => {
   
     try {
       const response = await submitEdits(data, structuredPayload);
-      if (response) {
+      console.log('Response received:', response);
+      if (response.success) {
         console.log('Edit submission successful:', response);
         setIsEditing(false);
-        onOpen()
-         // Update data with changes
+        onOpen();
+      } else {
+        console.error('Submission failed:', response.message);
       }
     } catch (error) {
       console.error('Error submitting edits:', error);
@@ -155,6 +158,17 @@ const Document = () => {
     
     return(
         <ChakraProvider>
+         <Box
+          display="flex"
+          alignItems="center"
+          padding="10px"
+          cursor="pointer"
+          onClick={() => navigate('/dashboard')}
+        >
+          <AiOutlineArrowLeft size={24} />
+          <span style={{ marginLeft: '8px' }}>Back</span>
+        </Box>
+             <Text>{message}</Text>
            <Flex direction="column" height="80vh">
           {/* Header */}
           <Flex bg="#f0f4f8" p={2} justify="space-between" align="center" boxShadow="md">
@@ -169,7 +183,12 @@ const Document = () => {
             )}
             <Button colorScheme='blue' onClick={handleEditSubmit}>Save</Button>
           </Flex>
-    
+          {isLoading && (
+  <Flex justify="center" mt={4}>
+    <Spinner size="lg" />
+  </Flex>
+)}
+
           {/* Main Content */}
           <Box flex="1" overflowY="auto" p={4}>
             
