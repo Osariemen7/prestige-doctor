@@ -12,6 +12,7 @@ const Voice = () => {
     const item = state?.item || {};
     const [searchParams] = useSearchParams();
     const chanel = searchParams.get("channel");
+  
 
     const [vid, setVid] = useState(false)
     const [isJoined, setIsJoined] = useState(false);
@@ -93,14 +94,14 @@ const Voice = () => {
         try {
             const appId = '44787e17cd0348cd8b75366a2b5931e9';
             const token = null;
-            const channel = item.channel_name || chanel
+            const channel = item.channel_name || chanel;
     
             await client.join(appId, channel, token, null);
     
             const audioTrack = await createMicrophoneAudioTrack();
             await client.publish(audioTrack);
             setLocalAudioTrack(audioTrack);
-           
+    
             const videoTrack = await createCameraVideoTrack();
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
@@ -109,12 +110,18 @@ const Voice = () => {
             setUserCount(1);
     
             console.log('Joined channel with audio and video.');
+    
+            // Add listener to stop all tracks on page unload
+            window.onbeforeunload = () => {
+                leaveChannel();
+            };
         } catch (error) {
             console.error('Error joining channel with video:', error);
         } finally {
             setIsLoading(false);
         }
     }
+    
     
 
     async function disableVideo() {
@@ -154,8 +161,10 @@ const Voice = () => {
                 setLocalVideoTrack(null);
             }
     
-            setRemoteUsers([]);
+            remoteAudioTracks.forEach((track) => track.stop());
             setRemoteAudioTracks([]);
+    
+            setRemoteUsers([]);
             setIsVideoEnabled(false);
             setIsRecording(false);
             setUserCount(0);
@@ -166,9 +175,10 @@ const Voice = () => {
             console.error('Error leaving channel:', error);
         } finally {
             setIsLoading(false); // Stop loading
-            navigate('/');
+            navigate('https://prestige-health.vercel.app/');
         }
     }
+    
     
     async function enableVideo() {
         try {
@@ -248,20 +258,21 @@ const Voice = () => {
             )}
 
             {/* Waiting for Caller */}
-            {userCount === 1 && (
-                <Box
-                    position="absolute"
-                    top="50%"
-                    left="50%"
-                    transform="translate(-50%, -50%)"
-                    textAlign="center"
-                    zIndex="1"
-                >
-                    <Text fontSize="lg" color="yellow.400">
-                        Waiting for other caller to join...
-                    </Text>
-                </Box>
-            )}
+            {isJoined && remoteUsers.length === 0 && (
+    <Box
+        position="absolute"
+        top="50%"
+        left="50%"
+        transform="translate(-50%, -50%)"
+        textAlign="center"
+        zIndex="1"
+    >
+        <Text fontSize="lg" color="yellow.400">
+            Waiting for other caller to join...
+        </Text>
+    </Box>
+)}
+
             {isJoined && (
                 <Box
                     position="absolute"

@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect , useRef} from 'react';
 import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from 'agora-rtc-sdk-ng';
 import Recorder from 'recorder-js';
 import { getAccessToken } from './api';
-import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff } from 'react-icons/md';
+import { MdCall, MdCallEnd, MdVideoCall,MdChat, MdVideocam, MdVideocamOff } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, Button, VStack, Divider, Textarea } from '@chakra-ui/react';
 import {  submitEdits } from './api';
 import { BiMicrophone, BiMicrophoneOff } from 'react-icons/bi';
 import VideoDisplay from './vod';
+import { sendAudioFile} from './api'
+import { useReview } from './context';
+import Chat from './chatVoice';
+
+
 
 const Call = () => {
     const { state } = useLocation();
@@ -16,7 +21,12 @@ const Call = () => {
     const chanel = searchParams.get("channel");
     const navigate = useNavigate()
   const [message, setMessage] = useState('')
-
+  const timerRef = useRef(null);
+  const startTimeRef = useRef(null);
+  const { setReview } = useReview();
+  const [reviewId, setReviewId] = useState(null);
+  const [dat, setData] = useState('')
+  const [isChatOpen, setIsChatOpen] = useState(false);  
     const [recordingTimer, setRecordingTimer] = useState(null);
 
     const [callDuration, setCallDuration] = useState(0);
@@ -32,104 +42,147 @@ const Call = () => {
     const [isLoading, setIsLoading] = useState(false); // New loading state
     const [userCount, setUserCount] = useState(0);
     const [vid, setVid] = useState(false)
-    
+    const clientRef = useRef(null);
 
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const destination = audioContext.createMediaStreamDestination();
 
-    const client = createClient({ mode: 'rtc', codec: 'vp8' });
-
     useEffect(() => {
-      client.on('user-published', async (user, mediaType) => {
-          await client.subscribe(user, mediaType);
-  
-          if (mediaType === 'video') {
-              setRemoteUsers((prev) => [...prev, user]);
-          } else if (mediaType === 'audio') {
-              user.audioTrack.play();
-              setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
-          }
-  
-          setUserCount((prev) => prev + 1);
-  
-          // Start timer when the first remote user joins
-          if (userCount === 0) {
-              startTimer();
-          }
-      });
-  
-      client.on('user-unpublished', (user) => {
-          setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-          setRemoteAudioTracks((prev) =>
-              prev.filter((track) => track.getUserId() !== user.uid)
-          );
-          setUserCount((prev) => Math.max(prev - 1, 0));
-  
-          // Stop timer if no remote users remain
-          if (userCount <= 1) {
-              stopTimer();
-          }
-      });
-  }, [client, userCount]);
-  
-    
+        clientRef.current = createClient({ mode: 'rtc', codec: 'vp8' });
+        const client = clientRef.current;
+
+        const handleUserPublished = async (user, mediaType) => {
+            await client.subscribe(user, mediaType);
+
+            if (mediaType === 'video') {
+                setRemoteUsers((prev) => [...prev, user]);
+            } else if (mediaType === 'audio') {
+                user.audioTrack.play();
+                setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
+            }
+
+            setUserCount((prev) => {
+                const newCount = prev + 1;
+                if (newCount === 1) {
+                    startTimer();
+                }
+                return newCount;
+            });
+        };
+
+        const handleUserUnpublished = (user) => {
+            setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+            setRemoteAudioTracks((prev) =>
+                prev.filter((track) => track.getUserId() !== user.uid)
+            );
+
+            setUserCount((prev) => {
+                const newCount = Math.max(prev - 1, 0);
+                if (newCount === 0) {
+                    stopTimer();
+                }
+                return newCount;
+            });
+        };
+
+        client.on('user-published', handleUserPublished);
+        client.on('user-unpublished', handleUserUnpublished);
+
+        return () => {
+            client.off('user-published', handleUserPublished);
+            client.off('user-unpublished', handleUserUnpublished);
+            stopTimer();
+        };
+    }, []);
 
     const startTimer = () => {
-      setCallDuration(0); // Reset duration
-      const id = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-      setTimerId(id);
+        if (timerRef.current) return; // Prevent multiple timers
+
+        setCallDuration(0);
+        startTimeRef.current = Date.now();
+
+        timerRef.current = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+            setCallDuration(elapsed);
+        }, 1000);
     };
-    
 
-  // Stop call timer
-  const stopTimer = () => {
-      if (timerId) {
-          clearInterval(timerId);
-          setTimerId(null);
-      }
-  };
-  
-  
-  async function joinChannelWithVideo() {
-    if (isJoined) {
-        console.warn('You are already in the channel.');
-        return;
-    }
+    const stopTimer = () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
 
-    setIsLoading(true);
-    try {
-        const appId = '44787e17cd0348cd8b75366a2b5931e9';
-        const token = null;
-        const channel = item.channel_name || chanel;
+    const joinChannelWithVideo = async () => {
+        if (isJoined) {
+            console.warn('You are already in the channel.');
+            return;
+        }
+        setIsLoading(true);
+        startRecording()
+        try {
+            const appId = '44787e17cd0348cd8b75366a2b5931e9';
+            const token = null;
+            const channel = item.channel_name; 
 
-        await client.join(appId, channel, token, null);
+            await clientRef.current.join(appId, channel, token, null);
 
-        const audioTrack = await createMicrophoneAudioTrack();
-        await client.publish(audioTrack);
-        setLocalAudioTrack(audioTrack);
+            const audioTrack = await createMicrophoneAudioTrack();
+            await clientRef.current.publish(audioTrack);
+            setLocalAudioTrack(audioTrack);
 
-        const videoTrack = await createCameraVideoTrack();
-        await client.publish(videoTrack);
-        setLocalVideoTrack(videoTrack);
-        setIsVideoEnabled(true);
-        startRecording(); // Start recording immediately
+            const videoTrack = await createCameraVideoTrack();
+            await clientRef.current.publish(videoTrack);
+            setLocalVideoTrack(videoTrack);
+            setIsVideoEnabled(true);
+            setIsJoined(true);
+            setUserCount(1);
+            
 
-        setIsJoined(true);
-        setUserCount(1);
-        
-        
-        
-        console.log('Joined channel with audio and video.');
-    } catch (error) {
-        console.error('Error joining channel with video:', error);
-    } finally {
-        setIsLoading(false);
-    }
-}
+            
+            console.log('Joined channel with audio and video.');
+        } catch (error) {
+            console.error('Error joining channel with video:', error);
+        }finally {
+            setIsLoading(false);
+        }
+    };
 
-  
+    const leaveChannel = async () => {
+        try {
+            stopRecording();
+            setIsLoading(true)
+            await clientRef.current.leave();
+            stopTimer();
+
+            if (localAudioTrack) {
+                localAudioTrack.stop();
+                localAudioTrack.close();
+                setLocalAudioTrack(null);
+            }
+
+            if (localVideoTrack) {
+                localVideoTrack.stop();
+                localVideoTrack.close();
+                setLocalVideoTrack(null);
+            }
+
+            setRemoteUsers([]);
+            setRemoteAudioTracks([]);
+            setIsVideoEnabled(false);
+            setIsRecording(false);
+            setIsJoined(false);
+            setUserCount(0);
+
+            console.log('Left the channel and cleaned up tracks.');
+        } catch (error) {
+            console.error('Error leaving channel:', error);
+        } finally {
+            setIsLoading(false); // Stop loading
+        }
+    };
+
 
   async function disableVideo() {
       if (isVideoEnabled && localVideoTrack) {
@@ -160,41 +213,7 @@ const Call = () => {
     }
 }
 
-  async function leaveChannel() {
-    setIsLoading(true); // Start loading
-    try {
-        stopRecording();
-        await client.leave();
-        stopTimer();
-        
-        if (localAudioTrack) {
-            localAudioTrack.stop();
-            localAudioTrack.close();
-            setLocalAudioTrack(null);
-        }
-
-        if (localVideoTrack) {
-            localVideoTrack.stop();
-            localVideoTrack.close();
-            setLocalVideoTrack(null);
-        }
-
-        setRemoteUsers([]);
-        setRemoteAudioTracks([]);
-        setIsVideoEnabled(false);
-        setIsRecording(false);
-        setUserCount(0);
-        setIsJoined(false); // Reset isJoined state
-        
-
-        console.log('Left the channel and cleaned up tracks.');
-    } catch (error) {
-        console.error('Error leaving channel:', error);
-    } finally {
-        setIsLoading(false); // Stop loading
-    }
-}
-
+  
  
     
     function mixAudio(localTrack, remoteTracks) {
@@ -282,36 +301,23 @@ const uploadAudio = async (blob, isFinal) => {
         return `+234${phoneNumber.slice(1)}`;
     };  
     const phone = formatPhoneNumber(phoneNumber) 
-     const formData = new FormData();
-    formData.append('audio_file', blob, 'conversation.wav');
-    formData.append('phone_number', phone);
-
-    if (isFinal) {
-        formData.append('document', 'true'); // Add `document=true` for final recording
-    }
-
     try {
-        const token = await getAccessToken();
-        const response = await fetch('https://health.prestigedelta.com/recording/', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-            body: formData,
-        });
-
-        if (response.ok) {
-            const responseData = await response.json();
-            navigate('/show', { state: { responseData } });
-            console.log('Audio uploaded successfully:', responseData);
+        const recipient = reviewId || phone; // Use reviewId if available; otherwise, phoneNumber
+        const response = await sendAudioFile(blob, recipient, isFinal);
+        if (response?.review_id) {
+          setReview(response.review_id)
+          setReviewId(response.review_id); // Save reviewId after the first successful response
+          setData(response); // Update UI with the response
+          console.log(response)
         } else {
-            console.error('Failed to upload audio:', response.statusText);
+          console.error('Error in response:', response);
         }
-    } catch (error) {
-        console.error('Error uploading audio:', error);
-    }
+      } catch (error) {
+        console.error('Error sending audio file:', error);
+      } finally {
+        navigate('/show', { state: { dat } });
+      }
 };
-
    
       const formatDuration = (seconds) => {
         const minutes = Math.floor(seconds / 60);
@@ -322,6 +328,7 @@ const uploadAudio = async (blob, isFinal) => {
    
     return (
         <ChakraProvider>
+
         <Box position="relative" height="100vh" width="100%" bg="#2c2c2c">
             {/* Full-Screen Video */}
             <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
@@ -331,7 +338,41 @@ const uploadAudio = async (blob, isFinal) => {
             {/* Call Timer */}
             
             {/* Overlayed Controls */}
-            
+             {/* Overlayed Chat Screen */}
+   {/* Overlayed Chat Screen */}
+ {/* Chat Box - Always Visible on Desktop, Toggle on Mobile */}
+ <Box
+        position="absolute"
+        bottom={['70px', '20px']}
+        right={['10px', '20px']}
+        width={['80%', '300px']}
+        height={['50%', '370px']}
+        bg="white"
+        borderRadius="md"
+        boxShadow="lg"
+        zIndex="2"
+        display={['none', 'block']} // Hide on mobile, show on desktop
+      >
+        <Chat />
+      </Box>
+
+      {/* Chat Box for Mobile View (Visible Only When Toggled) */}
+      {isChatOpen && (
+        <Box
+          position="absolute"
+          bottom="120px"
+          right="10px"
+          width="70%"
+          height="50%"
+          bg="white"
+          borderRadius="md"
+          boxShadow="lg"
+          zIndex="2"
+          display={['block', 'none']} // Show on mobile when toggled
+        >
+          <Chat />
+        </Box>
+      )}         
             <Flex
                 position="absolute"
                 bottom="20px"
@@ -387,7 +428,23 @@ const uploadAudio = async (blob, isFinal) => {
     )}
     <Text marginTop="5px" fontSize='12px' color='white'>{isRecording ? 'Stop Recording' : 'Record'}</Text>
 </Box>
+  {/* Chat Toggle Button (Visible Only on Mobile) */}
+  <Box display={['block', 'none']} textAlign="center">
+          <IconButton
+            icon={<MdChat />}
+            colorScheme="teal"
+            fontSize="36px"
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            borderRadius="full"
+            size="lg"
+          />
+          <Text marginTop="5px" color="white" fontSize="12px">
+            {isChatOpen ? 'Close Chat' : 'Open Chat'}
+          </Text>
+        </Box>
             </Flex>
+            {/* Responsive Chat Screen */}
+      
 
             {/* Loading Spinner */}
             {isLoading && (
@@ -425,7 +482,7 @@ const uploadAudio = async (blob, isFinal) => {
                     transform="translate(-50%, -50%)"
                     textAlign="center"
                     zIndex="1">
-                        <Text>{message}</Text>
+                        <Text color='white'>{message}</Text>
                     </Box>
             
                     {isRecording && (
