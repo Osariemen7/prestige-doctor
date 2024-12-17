@@ -201,7 +201,7 @@ const Voice = () => {
 
     return (
         <ChakraProvider>
-        <Box position="relative" height="100vh" width="100%" bg="#2c2c2c">
+        <Box position="relative" height="95vh" width="100%" bg="#2c2c2c">
             {/* Full-Screen Video */}
             <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
 

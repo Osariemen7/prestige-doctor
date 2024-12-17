@@ -315,7 +315,9 @@ const uploadAudio = async (blob, isFinal) => {
       } catch (error) {
         console.error('Error sending audio file:', error);
       } finally {
-        navigate('/show', { state: { dat } });
+        if (isFinal) {
+            navigate('/show', { state: { dat } }); // Only navigate when isFinal is true
+          }
       }
 };
    
