@@ -120,7 +120,7 @@ const Call = () => {
             return;
         }
         setIsLoading(true);
-        startRecording()
+        
         try {
             const appId = '44787e17cd0348cd8b75366a2b5931e9';
             const token = null;
@@ -138,8 +138,9 @@ const Call = () => {
             setIsVideoEnabled(true);
             setIsJoined(true);
             setUserCount(1);
-            
-
+            startTimer()
+            startRecording()
+            setIsRecording(true)
             
             console.log('Joined channel with audio and video.');
         } catch (error) {
@@ -182,6 +183,11 @@ const Call = () => {
             setIsLoading(false); // Stop loading
         }
     };
+    useEffect(() => {
+        if(isJoined){
+          startRecording()
+        }
+      }, [isJoined])
 
 
   async function disableVideo() {
@@ -289,7 +295,6 @@ const Call = () => {
     }
 };
 
-
 // Upload audio function
 const uploadAudio = async (blob, isFinal) => {
     const phoneNumber = item.patient_phone_number;
@@ -348,7 +353,7 @@ const uploadAudio = async (blob, isFinal) => {
         bottom={['70px', '20px']}
         right={['10px', '20px']}
         width={['80%', '300px']}
-        height={['50%', '370px']}
+        height={['50%', '340px']}
         bg="white"
         borderRadius="md"
         boxShadow="lg"
@@ -408,28 +413,7 @@ const uploadAudio = async (blob, isFinal) => {
                     </Box>}
                    
                     
-                <Box textAlign='center'>
-    {isRecording ? (
-        <IconButton
-            icon={<BiMicrophoneOff />}
-            colorScheme="red"
-            fontSize="36px"
-            onClick={stopRecording} // Correct handler
-            borderRadius="full"
-            size="lg"
-        />
-    ) : (
-        <IconButton
-            icon={<BiMicrophone />}
-            colorScheme="green"
-            fontSize="36px"
-            onClick={startRecording} // Correct handler
-            borderRadius="full"
-            size="lg"
-        />
-    )}
-    <Text marginTop="5px" fontSize='12px' color='white'>{isRecording ? 'Stop Recording' : 'Record'}</Text>
-</Box>
+                
   {/* Chat Toggle Button (Visible Only on Mobile) */}
   <Box display={['block', 'none']} textAlign="center">
           <IconButton
