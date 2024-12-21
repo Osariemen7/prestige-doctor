@@ -14,6 +14,9 @@ import Voice from './components/voice';
 import Call from './components/voi';
 import DocDash from './components/doctordash';
 import Document from './components/show'
+import Talk from './components/talk';
+import LogPage from './components/log';
+import RegPage from './components/reg';
 import './App.css'; // Import the global styles
 
 const App = () => {
@@ -34,6 +37,9 @@ const App = () => {
           <Route path='/doctor' element={<DocDash />} />
           <Route path='/call' element={<Call />} />
           <Route path='/show' element={<Document />} />
+          <Route path='/talk' element= {<Talk />} />
+          <Route path='/log' element={<LogPage />} />
+          <Route path='/reg' element={<RegPage />} />
         </Routes>
       </div>
     </ReviewProvider>
