@@ -16,7 +16,7 @@ import {
 import WebRTCComponent from './ai';
 import { getAccessToken } from './api';
 import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
-import { BiMicrophone, BiMicrophoneOff } from 'react-icons/bi';
+import { BiMicrophone } from 'react-icons/bi';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const Talk = () => {
@@ -72,10 +72,11 @@ const Talk = () => {
             <Box position="relative" width="100%" mb="16px">
               <WebRTCComponent ephemeralKey={ephemeralKey} />
               {/* Wave animation */}
+              <Flex justifyContent='center'>
              <Button mt="16px" colorScheme="red" justifyContent='center' onClick={stopAudio}>
                          Stop
                        </Button>
-              
+                       </Flex>   
               
             </Box>
           ) : !load ? (
