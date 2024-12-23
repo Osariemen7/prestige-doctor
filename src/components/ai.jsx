@@ -146,19 +146,17 @@ const WebRTCComponent = ({ ephemeralKey, onStop }) => {
   
   const handleBackendResponse = async (backendResponse) => {
     try {
-      // Prepare the response payload for OpenAI
-      const openAiResponse = {
-        type: "function_call_result",
-        call_id: backendResponse.call_id, // Received call_id from the backend
-        result: backendResponse.result, // Backend's result
-      };
+      // Extract the call_id and result from the backend response
+      const callId = backendResponse.call_id;
+      const result = backendResponse.result;
   
-      // Send to OpenAI
-      sendToOpenAI(openAiResponse);
+      // Send the function call output to OpenAI
+      sendFunctionCallOutput(callId, result);
     } catch (error) {
       console.error("Error handling backend response:", error);
     }
   };
+  
   
   const sendToOpenAI = (responsePayload) => {
     if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
@@ -168,6 +166,43 @@ const WebRTCComponent = ({ ephemeralKey, onStop }) => {
       console.error("Data channel is not open.");
     }
   };
+  const sendResponseCreate = () => {
+    if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+      const responseCreateEvent = {
+        type: "response.create",
+      };
+  
+      // Send the event to OpenAI
+      dataChannelRef.current.send(JSON.stringify(responseCreateEvent));
+      console.log("Sent response.create event to OpenAI");
+    } else {
+      console.error("Data channel is not open.");
+    }
+  };
+  
+  const sendFunctionCallOutput = (callId, output) => {
+    if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+      const conversationItem = {
+        type: "conversation.item.create",
+        item: {
+          type: "function_call_output",
+          call_id: callId, // The call_id from the function_call event
+          output: JSON.stringify(output), // Convert the result to a JSON string
+        },
+      };
+  
+      // Send the event to OpenAI
+      dataChannelRef.current.send(JSON.stringify(conversationItem));
+      console.log("Sent function_call_output to OpenAI:", conversationItem);
+  
+      // Trigger the response.create event
+      sendResponseCreate();
+    } else {
+      console.error("Data channel is not open.");
+    }
+  };
+
+  
   
   
 
