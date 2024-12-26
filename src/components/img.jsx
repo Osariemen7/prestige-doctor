@@ -63,6 +63,7 @@ const ConversationWithImage = ({ dataChannelRef, recentTranscript }) => {
           item: {
             type: "message",
             content:responseData.completion,
+            role: 'assistant'
           },
         };
         dataChannelRef.current.send(openAIResponse);
