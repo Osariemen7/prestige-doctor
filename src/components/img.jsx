@@ -56,18 +56,19 @@ const ConversationWithImage = ({ dataChannelRef, recentTranscript }) => {
       }
 
       const responseData = await response.json();
-      setBackendResponse(responseData.completion);
-
+      
       if (dataChannelRef?.current?.readyState === "open") {
         const openAIResponse = {
           type: "conversation.item.create",
           item: {
-            type: "backend_response",
-            completion: responseData.completion,
+            type: "message",
+            content:responseData.completion,
           },
         };
-        dataChannelRef.current.send(JSON.stringify(openAIResponse));
-      } else {
+        dataChannelRef.current.send(openAIResponse);
+        sendResponseCreate(); 
+        console.log(openAIResponse)
+    } else {
         console.error("Data channel is not open.");
       }
     } catch (error) {
@@ -77,6 +78,20 @@ const ConversationWithImage = ({ dataChannelRef, recentTranscript }) => {
     }
   };
 
+  const sendResponseCreate = () => {
+    if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+      const responseCreateEvent = {
+        type: "response.create",
+      };
+  
+      // Send the event to OpenAI
+      dataChannelRef.current.send(JSON.stringify(responseCreateEvent));
+      console.log("Sent response.create event to OpenAI");
+    } else {
+      console.error("Data channel is not open.");
+    }
+  };
+  
   return (
     <Box>
     <Input
