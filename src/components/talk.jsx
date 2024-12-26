@@ -58,45 +58,42 @@ const Talk = () => {
 
     return(
         <ChakraProvider>
- <div className="back-icon" onClick={() => navigate('/log')}>
-                  <AiOutlineArrowLeft size={24} />
-                  <span className="back-text"></span>
-                </div>
-        <Flex direction="column" align="center" p="24px" gap="20px" maxW="400px" mx="auto">
-          
-          <Heading fontSize="28px" mb="16px">
-            Speak with AI
-          </Heading>
-  
-          {ephemeralKey ? (
-            <Box position="relative" width="100%" mb="16px">
-              <WebRTCComponent ephemeralKey={ephemeralKey} />
-              {/* Wave animation */}
-              <Flex justifyContent='center'>
-             <Button mt="16px" colorScheme="red" justifyContent='center' onClick={stopAudio}>
-                         Stop
-                       </Button>
-                       </Flex>   
-              
-            </Box>
-          ) : !load ? (
-            <Box textAlign="center">
-              <IconButton
-                icon={<BiMicrophone />}
-                colorScheme="green"
-                fontSize="36px"
-                onClick={getEphemeralKey}
-                borderRadius="full"
-                size="lg"
-              />
-              <Text mt="8px">Start Audio</Text>
-            </Box>
-          ) : (
-            <Spinner size="lg" />
-          )}
-  
-          
-        </Flex>
+        <Box minH="100vh" overflowY="auto">
+      <div className="back-icon" onClick={() => navigate("/log")}>
+        <AiOutlineArrowLeft size={24} />
+        <span className="back-text"></span>
+      </div>
+      <Flex direction="column" align="center" p="24px" gap="20px" maxW="400px" mx="auto">
+        <Heading fontSize="28px" mb="16px">
+          Speak with AI
+        </Heading>
+
+        {ephemeralKey ? (
+          <Box position="relative" width="100%" mb="16px">
+            <WebRTCComponent ephemeralKey={ephemeralKey} />
+            <Flex justifyContent="center">
+              <Button mt="16px" colorScheme="red" onClick={stopAudio}>
+                Stop
+              </Button>
+            </Flex>
+          </Box>
+        ) : !load ? (
+          <Box textAlign="center">
+            <IconButton
+              icon={<BiMicrophone />}
+              colorScheme="green"
+              fontSize="36px"
+              onClick={getEphemeralKey}
+              borderRadius="full"
+              size="lg"
+            />
+            <Text mt="8px">Start Audio</Text>
+          </Box>
+        ) : (
+          <Spinner size="lg" />
+        )}
+      </Flex>
+    </Box>
       </ChakraProvider>
     );
 

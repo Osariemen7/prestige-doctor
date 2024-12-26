@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Box, Button, Text } from '@chakra-ui/react';
 import { getAccessToken } from './api';
+import ConversationWithImage from './img';
 
 const WebRTCComponent = ({ ephemeralKey, onStop }) => {
   const audioRef = useRef(null);
@@ -9,37 +10,44 @@ const WebRTCComponent = ({ ephemeralKey, onStop }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeElapsed, setTimeElapsed] = useState(0); // Timer state
   const timerRef = useRef(null); // Timer reference
+  const [recentTranscript, setRecentTranscript] = useState("");
 
+  const baseUrl = 'https://api.openai.com/v1/realtime';
+  const model = 'gpt-4o-realtime-preview-2024-12-17';
   useEffect(() => {
     const initWebRTC = async () => {
       try {
         const pc = new RTCPeerConnection();
         peerConnectionRef.current = pc;
-
-        // Handle incoming audio track and play it
+  
+        // Setup tracks
         pc.ontrack = (e) => {
           if (audioRef.current) {
             audioRef.current.srcObject = e.streams[0];
             setIsPlaying(true);
-            startTimer(); // Start the timer
+            startTimer();
           }
         };
-
-        // Capture user's microphone input
+  
         const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        pc.addTrack(mediaStream.getTracks()[0]);
-
-        // Create a data channel
+        mediaStream.getTracks().forEach((track) => pc.addTrack(track));
+  
+        // Setup DataChannel
         const dc = pc.createDataChannel('oai-events');
         dataChannelRef.current = dc;
-
-        // Create an offer and set the local description
+  
+        dc.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            handleIncomingMessage(message);
+          } catch (error) {
+            console.error('Error parsing message:', error);
+          }
+        };
+  
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-
-        // Send the offer to the OpenAI Realtime API
-        const baseUrl = 'https://api.openai.com/v1/realtime';
-        const model = 'gpt-4o-realtime-preview-2024-12-17';
+  
         const response = await fetch(`${baseUrl}?model=${model}`, {
           method: 'POST',
           body: offer.sdp,
@@ -48,32 +56,27 @@ const WebRTCComponent = ({ ephemeralKey, onStop }) => {
             'Content-Type': 'application/sdp',
           },
         });
-
-        // Set the remote description with the response
-        const answer = {
-          type: 'answer',
-          sdp: await response.text(),
-        };
+  
+        const answer = { type: 'answer', sdp: await response.text() };
         await pc.setRemoteDescription(answer);
       } catch (error) {
         console.error('Error initializing WebRTC:', error);
       }
     };
-
+  
     initWebRTC();
-    
+  
     return () => {
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
       }
       if (audioRef.current) {
         audioRef.current.pause();
-        setIsPlaying(false);
       }
-      stopTimer(); // Stop the timer
+      stopTimer();
     };
   }, [ephemeralKey]);
-
+  
   const handleFunctionCall = async (functionCallData) => {
     try {
       // Parse the arguments string into an object
@@ -96,28 +99,34 @@ const WebRTCComponent = ({ ephemeralKey, onStop }) => {
   };
   
   
-  useEffect(() => {
-    if (dataChannelRef.current) {
-      dataChannelRef.current.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-      
-          if (message.type === 'response.done' && message.response) {
-            message.response.output.forEach((item) => {
-              if (item.type === 'function_call') {
-                handleFunctionCall(item); // Process the function call
-              }
-            });
-          } else {
-            console.warn('Unhandled message type:', message.type);
-          }
-        } catch (error) {
-          console.error('Error parsing incoming message:', error);
-        }
-      };      
-    }
-  }, [dataChannelRef.current]);
   
+  const handleIncomingMessage = (message) => {
+    if (message.type === "response.done" && message.response) {
+      const outputArray = message.response.output;
+      
+      // Iterate over the output array to process items
+      outputArray.forEach((item) => {
+        if (item.type === "message" && item.content) {
+          // Extract the transcript from the content array
+          const transcript = item.content
+            .map((contentItem) => contentItem.transcript || "")
+            .join(" ");
+  
+          // Update the recent transcript state
+          setRecentTranscript(transcript);
+        }
+      });
+    } else if (message.type === "response.done" && message.response) {
+      message.response.output.forEach((item) => {
+        if (item.type === "function_call") {
+          handleFunctionCall(item);
+        }
+      });
+    } else {
+      console.warn("Unhandled DataChannel message type:", message.type);
+    }
+  };
+   
   const sendToBackend = async (payload) => {
     const accessToken = await getAccessToken()
     try {
@@ -241,42 +250,40 @@ const WebRTCComponent = ({ ephemeralKey, onStop }) => {
 
   return (
     <Box textAlign="center">
-      <audio ref={audioRef} autoPlay controls style={{ display: 'none' }} />
-
-      {isPlaying && (
-        <>
-          {/* Timer */}
-          <Text fontSize="lg" fontWeight="bold" mt="8px">
-            Time: {formatTime(timeElapsed)}
-          </Text>
-
-          {/* Wave Animation */}
-          <Box
-            className="wave-animation"
-            width="100%"
-            height="80px"
-            mt="16px"
-            background="linear-gradient(90deg, #48BB78 25%, transparent 25%)"
-            backgroundSize="50px 50px"
-            animation="wave 1s infinite linear"
-          />
-          <style>
-            {`
-              @keyframes wave {
-                from {
-                  background-position: 0 0;
-                }
-                to {
-                  background-position: 50px 0;
-                }
+    <audio ref={audioRef} autoPlay controls style={{ display: "none" }} />
+    {isPlaying && (
+      <>
+        <Text fontSize="lg" fontWeight="bold" mt="8px">
+          Time: {formatTime(timeElapsed)}
+        </Text>
+        <Box
+          className="wave-animation"
+          width="100%"
+          height="80px"
+          mt="16px"
+          background="linear-gradient(90deg, #48BB78 25%, transparent 25%)"
+          backgroundSize="50px 50px"
+          animation="wave 1s infinite linear"
+        />
+        <style>
+          {`
+            @keyframes wave {
+              from {
+                background-position: 0 0;
               }
-            `}
-          </style>
-
-          {/* Stop Button */}
-                  </>
-      )}
-    </Box>
+              to {
+                background-position: 50px 0;
+              }
+            }
+          `}
+        </style>
+      </>
+    )}
+    <ConversationWithImage
+      dataChannelRef={dataChannelRef}
+      recentTranscript={recentTranscript}
+    />
+  </Box>
   );
 };
 
