@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Tab,
@@ -8,80 +8,51 @@ import {
   Tabs,
   Icon,
   ChakraProvider,
-  Badge,
 } from '@chakra-ui/react';
 import { MdMic, MdChat } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
-import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
-import axios from 'axios';
-import { useReview } from './context';
+import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
 
 const ConsultAIPage = () => {
   const [selectedTab, setSelectedTab] = useState(0);
-  const [messages, setMessages] = useState([]);
-  const [hasNewMessage, setHasNewMessage] = useState(false);
-  const navigate = useNavigate();
-  const { reviewId, setReview } = useReview();
+  const [wsStatus, setWsStatus] = useState('Disconnected');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [reviewId, setReviewId] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Function to fetch messages
-  const fetchMessages = async () => {
-    try {
-      // Retrieve the access token
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        console.error('No access token available. Cannot fetch messages.');
-        return;
-      }
-  
-      // Fetch messages with the token in the Authorization header
-      const response = await axios.get(
-        `https://health.prestigedelta.com/doctormessages/${reviewId}/`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-  
-      const newMessages = response.data;
-  
-      // Update messages and notification status if there are new messages
-      if (newMessages.length > messages.length) {
-        setHasNewMessage(true);
-        setMessages(newMessages);
-      }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
+  const ws = useRef(null);
+  const navigate = useNavigate();
+
+  const connectWebSocket = async () => {
+    if (phoneNumber.length !== 11) {
+      setErrorMessage('Please enter a valid 11-digit phone number');
+      return;
+    }
+    const token = await getAccessToken(); // Assume this function is defined elsewhere
+    let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/medical/?token=${token}`;
+
+    if (phoneNumber) wsUrl += `&phone_number=${encodeURIComponent(`+234${phoneNumber.slice(1)}`)}`;
+    if (reviewId) wsUrl += `&review_id=${encodeURIComponent(reviewId)}`;
+
+    ws.current = new WebSocket(wsUrl);
+    ws.current.onopen = () => setWsStatus('Connected');
+    ws.current.onclose = () => setWsStatus('Disconnected');
+    ws.current.onmessage = (event) => handleWebSocketMessage(event);
+  };
+
+  const handleWebSocketMessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'openai_message') {
+      setChatMessages((prev) => [...prev, { role: data.role, content: data.content }]);
     }
   };
 
-  // Poll the API every 10 seconds
-  useEffect(() => {
-    if (reviewId !== null) {
-      const intervalId = setInterval(() => {
-        fetchMessages();
-      }, 10000);
-      return () => clearInterval(intervalId); // Cleanup interval on component unmount
-    }
-  }, [messages, reviewId]);
-
-  useEffect(() => {
-    return () => {
-      console.log('Clearing reviewId on component exit...');
-      setReview(null); // Reset reviewId in the context
-    };
-  }, [setReview]);
   
-  // Clear the new message notification when switching to the Chat tab
-  useEffect(() => {
-    if (selectedTab === 1) {
-      setHasNewMessage(false);
-    }
-  }, [selectedTab]);
-
   return (
     <ChakraProvider>
       <Box display="flex" flexDirection="column" height="100vh">
@@ -97,14 +68,13 @@ const ConsultAIPage = () => {
           <span style={{ marginLeft: '8px' }}>Back</span>
         </Box>
 
-        {/* Tabs at the Top */}
+        {/* Tabs for Voice and Chat */}
         <Tabs
           index={selectedTab}
           onChange={(index) => setSelectedTab(index)}
           variant="unstyled"
           isFitted
         >
-          {/* Tab List */}
           <TabList borderBottom="1px solid #e0e0e0" boxShadow="sm">
             <Tab
               flex="1"
@@ -120,31 +90,31 @@ const ConsultAIPage = () => {
               justifyContent="center"
               _selected={{ bg: 'teal.500', color: 'white', borderRadius: 'md' }}
               padding="8px"
-              position="relative"
             >
               <Icon as={MdChat} boxSize={5} marginRight={2} />
               Chat
-              {hasNewMessage && (
-                <Badge
-                  colorScheme="red"
-                  position="absolute"
-                  top="0"
-                  right="10px"
-                  borderRadius="full"
-                >
-                  New
-                </Badge>
-              )}
             </Tab>
           </TabList>
 
-          {/* Tab Panels */}
           <TabPanels flex="1" overflow="auto">
             <TabPanel>
-              <VoiceNoteScreen />
+              <VoiceNoteScreen
+                ws={ws}
+                isRecording={isRecording}
+                setIsRecording={setIsRecording}
+                wsStatus={wsStatus}
+                connectWebSocket={connectWebSocket}
+                phoneNumber={phoneNumber}
+                setPhoneNumber={setPhoneNumber}
+                errorMessage={errorMessage}
+              />
             </TabPanel>
             <TabPanel>
-              <ChatScreen messages={messages} />
+            <ChatScreen
+          ws={ws}
+          chatMessages={chatMessages}
+          setChatMessages={setChatMessages}
+        />
             </TabPanel>
           </TabPanels>
         </Tabs>

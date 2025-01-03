@@ -1,169 +1,62 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  VStack,
-  HStack,
-  Input,
-  Button,
-  Text,
-  Flex,
-  Spinner,
-} from '@chakra-ui/react';
-import { sendMessage, getAccessToken } from './api';
-import { useReview } from './context';
-import axios from 'axios';
+import React, { useRef, useState } from 'react';
+import { Box, VStack, Input, Button, Text } from '@chakra-ui/react';
 
-const ChatScreen = () => {
-  const [userMessage, setUserMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+const ChatScreen = ({ ws, chatMessages, setChatMessages }) => {
+  const [text, setText] = useState('');
+  const textInputRef = useRef(null);
 
-  const { reviewId, setReview } = useReview();
-
-  // Fetch AI messages from the API
-  const fetchMessages = async () => {
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        console.error('No access token available. Cannot fetch messages.');
-        return;
-      }
-      const response = await axios.get(
-        `https://health.prestigedelta.com/doctormessages/${reviewId}/`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
+  // Function to handle sending text messages
+  const handleSendText = () => {
+    const trimmedText = text.trim();
+    if (trimmedText && ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(
+        JSON.stringify({
+          type: 'text',
+          content: trimmedText,
+        })
       );
-      const newMessages = response.data.map((msg) => ({
-        sender: 'ai',
-        text: msg.message_content
-        , // Adjust based on API response structure
-      }));
-
-      // Avoid duplicates and merge messages
-      setChatMessages((prevMessages) => {
-        const existingTexts = prevMessages.map((msg) => msg.text);
-        const filteredNewMessages = newMessages.filter(
-          (msg) => !existingTexts.includes(msg.text)
-        );
-        return [...prevMessages, ...filteredNewMessages];
-      });
-    } catch (error) {
-      console.error('Error fetching AI messages:', error);
-    }
-  };
-
-  // Poll for new messages
-  useEffect(() => {
-    if (reviewId !== null) {
-    fetchMessages(); // Initial fetch
-    const intervalId = setInterval(fetchMessages, 10000); // Poll every 10 seconds
-    return () => clearInterval(intervalId); // Cleanup
- } }, [reviewId]);
-
- useEffect(() => {
-  return () => {
-    console.log('Clearing reviewId on component exit...');
-    setReview(null); // Reset reviewId in the context
-  };
-}, [setReview]);
-
-
-  // Handle sending user messages
-  const handleSendMessage = async () => {
-    if (!userMessage.trim()) return;
-  
-    // Add user message to the chat UI
-    setChatMessages((prevMessages) => [
-      ...prevMessages,
-      { sender: 'user', text: userMessage },
-    ]);
-    setUserMessage('');
-    setIsLoading(true);
-  
-    try {
-      // Send the user message to the API
-      await sendMessage(userMessage, { review_id: reviewId });
-  
-      // Wait for fetchMessages to pull AI's response
-    } catch (error) {
-      console.error('Error sending message:', error);
       setChatMessages((prevMessages) => [
         ...prevMessages,
-        { sender: 'ai', text: 'Error sending message. Please try again.' },
+        { role: 'user', content: trimmedText },
       ]);
-    } finally {
-      setIsLoading(false);
+      setText(''); // Clear input field
     }
   };
 
   return (
-    <Flex direction="column" height="80vh" bg="gray.100" p={4}>
-      {/* Chat Messages */}
-      <VStack
-        flex="1"
-        spacing={4}
+    <VStack spacing={4} align="stretch">
+      {/* Chat Messages Display */}
+      <Box
+        height="400px"
         overflowY="auto"
-        bg="white"
-        borderRadius="md"
-        shadow="md"
-        p={4}
-        mb={4}
+        border="1px solid #ccc"
+        padding="10px"
+        borderRadius="5px"
       >
-        {chatMessages.map((item, index) => (
-          <Box
-            key={index}
-            alignSelf={item.sender === 'user' ? 'flex-end' : 'flex-start'}
-            bg={item.sender === 'user' ? 'teal.100' : 'gray.200'}
-            px={4}
-            py={2}
-            borderRadius="lg"
-            maxW="75%"
-          >
-            <Text>{item.text}</Text>
-          </Box>
+        {chatMessages.map((message, index) => (
+          <Text key={index} color={message.role === 'user' ? 'blue.500' : 'gray.700'}>
+            {message.content}
+          </Text>
         ))}
-        {isLoading && (
-          <Flex justifyContent="center" alignItems="center" w="100%">
-            <Spinner size="md" color="teal.500" />
-          </Flex>
-        )}
-      </VStack>
+      </Box>
 
-      {/* Input and Send Button */}
-      <HStack spacing={2}>
+      {/* Text Input and Send Button */}
+      <Box padding="10px">
         <Input
-          flex="1"
           placeholder="Type your message"
-          value={userMessage}
-          onChange={(e) => setUserMessage(e.target.value)}
-          bg="white"
-          borderColor="gray.300"
-          borderRadius="full"
-          px={4}
-          isDisabled={isLoading}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && userMessage.trim()) {
-              handleSendMessage();
-            }
+            if (e.key === 'Enter') handleSendText();
           }}
+          ref={textInputRef}
         />
-        <Button
-          colorScheme="teal"
-          borderRadius="full"
-          px={6}
-          onClick={handleSendMessage}
-          isLoading={isLoading}
-          loadingText="Sending"
-        >
+        <Button onClick={handleSendText} colorScheme="blue" marginTop="10px">
           Send
         </Button>
-      </HStack>
-    </Flex>
+      </Box>
+    </VStack>
   );
 };
 
 export default ChatScreen;
-
