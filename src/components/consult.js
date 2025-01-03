@@ -34,7 +34,7 @@ const ConsultAIPage = () => {
       return;
     }
     const token = await getAccessToken(); // Assume this function is defined elsewhere
-    let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/medical/?token=${token}`;
+    let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'wss:'}//health.prestigedelta.com/ws/medical/?token=${token}`;
 
     if (phoneNumber) wsUrl += `&phone_number=${encodeURIComponent(`+234${phoneNumber.slice(1)}`)}`;
     if (reviewId) wsUrl += `&review_id=${encodeURIComponent(reviewId)}`;
@@ -43,6 +43,10 @@ const ConsultAIPage = () => {
     ws.current.onopen = () => setWsStatus('Connected');
     ws.current.onclose = () => setWsStatus('Disconnected');
     ws.current.onmessage = (event) => handleWebSocketMessage(event);
+    ws.current.onerror = (err) => {
+      console.error("WebSocket error:", err);
+      setWsStatus("error");
+    };
   };
 
   const handleWebSocketMessage = (event) => {
