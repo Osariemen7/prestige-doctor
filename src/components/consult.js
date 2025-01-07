@@ -24,38 +24,71 @@ const ConsultAIPage = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const currentReviewId = useRef(null);
 
   const ws = useRef(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+      }
+    };
+  }, []);
 
   const connectWebSocket = async () => {
     if (phoneNumber.length !== 11) {
       setErrorMessage('Please enter a valid 11-digit phone number');
       return;
     }
-    const token = await getAccessToken(); // Assume this function is defined elsewhere
+    setErrorMessage('');
+    const token = await getAccessToken();
     let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'wss:'}//health.prestigedelta.com/ws/medical/?token=${token}`;
 
     if (phoneNumber) wsUrl += `&phone_number=${encodeURIComponent(`+234${phoneNumber.slice(1)}`)}`;
     if (reviewId) wsUrl += `&review_id=${encodeURIComponent(reviewId)}`;
 
     ws.current = new WebSocket(wsUrl);
+
     ws.current.onopen = () => setWsStatus('Connected');
+
     ws.current.onclose = () => setWsStatus('Disconnected');
-    ws.current.onmessage = (event) => handleWebSocketMessage(event);
-    ws.current.onerror = (err) => {
-      console.error("WebSocket error:", err);
-      setWsStatus("error");
+
+    ws.current.onerror = (event) => {
+      console.error('WebSocket Error:', event);
+    };
+
+    ws.current.onmessage = (event) => {
+      if (typeof event.data === 'string') {
+        try {
+          const data = JSON.parse(event.data);
+          console.log(`Received message:`, data);
+          setReviewId(data.review_id);
+
+          if (data.type === 'openai_message' && data.message) {            setChatMessages((prevMessages) => [
+              ...prevMessages,
+              { role: data.message.role, content: data.message.content[0].text },
+            ]);
+          } else if (data.type === 'oob_response') {
+            // Handle out-of-band response (if necessary)
+            console.log('OOB Response:', data.content);
+          } else if (data.type === 'documentation') {
+            // Handle documentation message (if necessary)
+            console.log('Documentation:', data.message);
+          } else if (data.type === 'session_started') {
+            currentReviewId.current = data.review_id;
+            console.log(`Session started with review ID: ${currentReviewId.current}`);
+          } else if (data.type === 'error') {
+            console.error(`OpenAI Error:`, data);
+          }
+        } catch (error) {
+          console.error('Error parsing message:', error);
+        }
+      }
     };
   };
-
-  const handleWebSocketMessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.type === 'openai_message') {
-      setChatMessages((prev) => [...prev, { role: data.role, content: data.content }]);
-    }
-  };
-
+  
   
   return (
     <ChakraProvider>
@@ -111,14 +144,15 @@ const ConsultAIPage = () => {
                 phoneNumber={phoneNumber}
                 setPhoneNumber={setPhoneNumber}
                 errorMessage={errorMessage}
+                reviewId={reviewId}
               />
             </TabPanel>
             <TabPanel>
-            <ChatScreen
-          ws={ws}
-          chatMessages={chatMessages}
-          setChatMessages={setChatMessages}
-        />
+              <ChatScreen
+                ws={ws}
+                chatMessages={chatMessages}
+                setChatMessages={setChatMessages}
+              />
             </TabPanel>
           </TabPanels>
         </Tabs>

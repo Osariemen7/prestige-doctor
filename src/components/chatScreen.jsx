@@ -1,31 +1,38 @@
-import React, { useRef, useState } from 'react';
-import { Box, VStack, Input, Button, Text } from '@chakra-ui/react';
+import React, { useRef, useState, useEffect } from 'react';
+import { Box, VStack, Input, Button, Text, Icon, HStack } from '@chakra-ui/react';
+import { MdSend } from 'react-icons/md';
 
 const ChatScreen = ({ ws, chatMessages, setChatMessages }) => {
   const [text, setText] = useState('');
   const textInputRef = useRef(null);
 
-  // Function to handle sending text messages
+  useEffect(() => {
+    if (ws.current) {
+      ws.current.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'text' || message.type === 'audio') {
+          setChatMessages((prevMessages) => [...prevMessages, { role: 'assistant', content: message.content }]);
+        }
+      };
+    }
+  }, [ws, setChatMessages]);
+
   const handleSendText = () => {
-    const trimmedText = text.trim();
-    if (trimmedText && ws.current && ws.current.readyState === WebSocket.OPEN) {
+    const messageText = text.trim();
+    if (messageText && ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(
         JSON.stringify({
           type: 'text',
-          content: trimmedText,
+          content: messageText,
         })
       );
-      setChatMessages((prevMessages) => [
-        ...prevMessages,
-        { role: 'user', content: trimmedText },
-      ]);
-      setText(''); // Clear input field
+      setChatMessages((prevMessages) => [...prevMessages, { role: 'user', content: messageText }]);
+      setText('');
     }
   };
 
   return (
     <VStack spacing={4} align="stretch">
-      {/* Chat Messages Display */}
       <Box
         height="400px"
         overflowY="auto"
@@ -40,8 +47,7 @@ const ChatScreen = ({ ws, chatMessages, setChatMessages }) => {
         ))}
       </Box>
 
-      {/* Text Input and Send Button */}
-      <Box padding="10px">
+      <HStack padding="10px">
         <Input
           placeholder="Type your message"
           value={text}
@@ -51,10 +57,10 @@ const ChatScreen = ({ ws, chatMessages, setChatMessages }) => {
           }}
           ref={textInputRef}
         />
-        <Button onClick={handleSendText} colorScheme="blue" marginTop="10px">
+        <Button onClick={handleSendText} colorScheme="blue" leftIcon={<Icon as={MdSend} />}>
           Send
         </Button>
-      </Box>
+      </HStack>
     </VStack>
   );
 };
