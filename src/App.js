@@ -17,7 +17,11 @@ import Document from './components/show'
 import Talk from './components/talk';
 import LogPage from './components/log';
 import RegPage from './components/reg';
+import HealthDashboard from './components/health';
+import MedicalRecording from './components/sample';
+import Va from './components/virtual';
 import './App.css'; // Import the global styles
+import WebSocketExample from './components/test';
 
 const App = () => {
   return (
@@ -40,6 +44,10 @@ const App = () => {
           <Route path='/talk' element= {<Talk />} />
           <Route path='/log' element={<LogPage />} />
           <Route path='/reg' element={<RegPage />} />
+          <Route path='/health' element={<HealthDashboard />} />
+          <Route path='/sample' element={<MedicalRecording />} />
+          <Route path='/test' element={<WebSocketExample />} />
+          <Route path='/virtual' element={<Va />} />
         </Routes>
       </div>
     </ReviewProvider>
