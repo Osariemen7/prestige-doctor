@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Box, Input, Text, VStack, Icon, HStack, Flex, Heading, Spinner, Divider, Textarea } from '@chakra-ui/react';
+import { Button, Box, Input, Text, Grid, VStack, Icon, HStack, Flex, Heading, Spinner, Divider, Textarea } from '@chakra-ui/react';
 import { MdMic, MdStop } from 'react-icons/md';
 import { getAccessToken, submitEdits } from './api';
 
@@ -17,6 +17,9 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
   const [editableFields, setEditableFields] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oobRequestType, setOobRequestType] = useState('summary');
+ const [oobRequestDetails, setOobRequestDetails] = useState('');
+
 
   const handleStartConsultation = async () => {
     setLoading(true); // Show spinner
@@ -49,12 +52,26 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
       console.error('Failed to send message:', error);
     }
   };
-  console.log(reviewId)
-
+ 
   useEffect(() => {
     if (isRecording) {
       getMessage();
-    } }, [reviewId]);
+     sendOobRequest();
+    } }, [isRecording]);
+
+    const sendOobRequest = () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'documentation.request',
+          content: {
+            request_type: oobRequestType,
+            details: oobRequestDetails
+          }
+        }));
+        log(`Out-of-Band request sent: Type - ${oobRequestType}, Details - ${oobRequestDetails}`);
+      }
+    };
+  
 
   const editableFieldKeys = [
     'chief_complaint',
@@ -84,8 +101,9 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
   };
 
   const handleEditSubmit = async () => {
+    
     setIsLoading(true);
-  
+    console.log('hi')
     // Create the structured payload
     const structuredPayload = {
       review_details: {
@@ -140,7 +158,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
       if (response) {
         console.log('Edit submission successful:', response);
         setIsEditing(false);
-        setData(null); // Update data with changes
+         // Update data with changes
       }
     } catch (error) {
       console.error('Error submitting edits:', error);
@@ -154,6 +172,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
     const displayValue = editableFields[key] ?? value;
   
     return (
+      
       <Box
         key={key}
         bg={isEditable ? 'gray.100' : 'white'}
@@ -305,6 +324,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
         >
           {loading ? <Spinner size="sm" /> : 'Start Consultation'}
         </Button>
+        {data ? <Button mt='10px' colorScheme='blue' onClick={handleEditSubmit}>Save</Button>: null} 
         <HStack justify="center">
         <Button
           onClick={toggleRecording}
@@ -316,7 +336,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
         >
           <Icon as={isRecording ? MdStop : MdMic} boxSize={8} />
         </Button>
-        <Text>{isRecording ? formatTime(recordingTime) : 'Start Recording'}</Text>
+        <Text>{isRecording ? formatTime(recordingTime) : 'Record'}</Text>
       </HStack>
     </Flex>
       <Box padding="10px">
@@ -328,12 +348,10 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
         <Text color="red.500">{errorMessage}</Text>
         {wsStatus !== 'Disconnected' && (
           <Text marginTop="5px" color="green.500">
-            {`WebSocket Status: ${wsStatus}`}
+            {`AI Status: ${wsStatus}`}
           </Text>
         )}
-      </Box>
-
-      
+      </Box>  
      
     </VStack>
    { data ? 
@@ -349,13 +367,14 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
             <Text>Patient ID: {data.patient_id}</Text>
           </Box>
           
-          <VStack spacing={4} align="stretch" width="100%">
+          <VStack spacing={2} align="stretch" width="100%">
+          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={1}>
           {Object.entries(data || {}).map(([key, value]) => (
     <Box key={key} width="100%">
       {renderEditableField(key, value)}
       <Divider />
     </Box>
-  ))}
+  ))}</Grid>
           </VStack>
           <Button
             colorScheme="teal"

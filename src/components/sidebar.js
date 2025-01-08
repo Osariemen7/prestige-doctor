@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaWallet, FaMoneyBillWave } from "react-icons/fa";
-import { FaHome, FaRobot, FaSignOutAlt, FaBars, FaTimes, FaUserMd  } from 'react-icons/fa';
+import { FaHome, FaRobot, FaSignOutAlt, FaBars, FaTimes, FaUserMd, FaCalendarCheck} from 'react-icons/fa';
 import './sidebar.css';
 
 const Sidebar = ({ navigate, handleLogout }) => {
@@ -49,6 +49,10 @@ useEffect(() => {
           <FaUserMd size={24} color="#003366" />
           <p className="menu-text">Dashboard</p>
         </div>
+        <div className="menu-item" onClick={() => navigate('/virtual')}>
+          <FaCalendarCheck size={24} color="#003366" />
+          <p className="menu-text">Virtual Appointment</p>
+        </div>
         <div className="menu-item" onClick={handleLogout}>
           <FaSignOutAlt size={24} color="#d32f2f" />
           <p className="menu-text">Log Out</p>
@@ -72,6 +76,10 @@ useEffect(() => {
         <div className="menu-item" onClick={() => navigate('/doctor')}>
           <FaUserMd size={24} color="#003366" />
           <p className="menu-text">Dashboard</p>
+        </div>
+        <div className="menu-item" onClick={() => navigate('/virtual')}>
+          <FaCalendarCheck size={24} color="#003366" />
+          <p className="menu-text">Virtual Appointment</p>
         </div>
         <div className="menu-item" onClick={handleLogout}>
           <FaSignOutAlt size={24} color="#d32f2f" />

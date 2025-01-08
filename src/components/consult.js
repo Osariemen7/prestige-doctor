@@ -8,6 +8,8 @@ import {
   Tabs,
   Icon,
   ChakraProvider,
+  Badge,
+  HStack,
 } from '@chakra-ui/react';
 import { MdMic, MdChat } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
@@ -24,8 +26,9 @@ const ConsultAIPage = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [hasNewMessage, setHasNewMessage] = useState(false); // New state for message indication
   const currentReviewId = useRef(null);
-
+  
   const ws = useRef(null);
   const navigate = useNavigate();
 
@@ -65,16 +68,20 @@ const ConsultAIPage = () => {
           const data = JSON.parse(event.data);
           console.log(`Received message:`, data);
           setReviewId(data.review_id);
-
-          if (data.type === 'openai_message' && data.message) {            setChatMessages((prevMessages) => [
+          
+          if (data.type === 'openai_message' && data.message) {
+            setChatMessages((prevMessages) => [
               ...prevMessages,
               { role: data.message.role, content: data.message.content[0].text },
             ]);
+
+            // Set new message indication if user is not on the Chat tab
+            if (selectedTab !== 1) {
+              setHasNewMessage(true);
+            }
           } else if (data.type === 'oob_response') {
-            // Handle out-of-band response (if necessary)
             console.log('OOB Response:', data.content);
           } else if (data.type === 'documentation') {
-            // Handle documentation message (if necessary)
             console.log('Documentation:', data.message);
           } else if (data.type === 'session_started') {
             currentReviewId.current = data.review_id;
@@ -88,8 +95,14 @@ const ConsultAIPage = () => {
       }
     };
   };
-  
-  
+
+  const handleTabChange = (index) => {
+    setSelectedTab(index);
+    if (index === 1) {
+      setHasNewMessage(false); // Remove new message indication when Chat tab is selected
+    }
+  };
+
   return (
     <ChakraProvider>
       <Box display="flex" flexDirection="column" height="100vh">
@@ -108,11 +121,12 @@ const ConsultAIPage = () => {
         {/* Tabs for Voice and Chat */}
         <Tabs
           index={selectedTab}
-          onChange={(index) => setSelectedTab(index)}
+          onChange={handleTabChange}
           variant="unstyled"
           isFitted
         >
           <TabList borderBottom="1px solid #e0e0e0" boxShadow="sm">
+            {/* Voice Note Tab */}
             <Tab
               flex="1"
               justifyContent="center"
@@ -122,14 +136,21 @@ const ConsultAIPage = () => {
               <Icon as={MdMic} boxSize={5} marginRight={2} />
               Send Voice Note
             </Tab>
+
+            {/* Chat Tab with new message indication */}
             <Tab
               flex="1"
               justifyContent="center"
               _selected={{ bg: 'teal.500', color: 'white', borderRadius: 'md' }}
               padding="8px"
             >
-              <Icon as={MdChat} boxSize={5} marginRight={2} />
-              Chat
+              <HStack spacing={2}>
+                <Icon as={MdChat} boxSize={5} />
+                <span>Chat</span>
+                {hasNewMessage && (
+                  <Badge colorScheme="red" borderRadius="full" boxSize="10px" />
+                )}
+              </HStack>
             </Tab>
           </TabList>
 
