@@ -37,9 +37,13 @@ useEffect(() => {
           <FaHome size={24} color="#003366" />
           <p className="menu-text">Home</p>
         </div>
+        <div className="menu-item" onClick={() => navigate('/virtual')}>
+          <FaCalendarCheck size={24} color="#003366" />
+          <p className="menu-text">Virtual Consultation</p>
+        </div>
         <div className="menu-item" onClick={() => navigate('/consult-ai')}>
           <FaRobot size={24} color="#003366" />
-          <p className="menu-text">Consult AI</p>
+          <p className="menu-text">Physical Consultation</p>
         </div>
         <div className="menu-item" onClick={() => navigate('/account')}>
         <FaWallet size={24} color="#003366" />
@@ -49,11 +53,7 @@ useEffect(() => {
           <FaUserMd size={24} color="#003366" />
           <p className="menu-text">Dashboard</p>
         </div>
-        <div className="menu-item" onClick={() => navigate('/virtual')}>
-          <FaCalendarCheck size={24} color="#003366" />
-          <p className="menu-text">Virtual Appointment</p>
-        </div>
-        <div className="menu-item" onClick={handleLogout}>
+                <div className="menu-item" onClick={handleLogout}>
           <FaSignOutAlt size={24} color="#d32f2f" />
           <p className="menu-text">Log Out</p>
         </div>
@@ -65,10 +65,16 @@ useEffect(() => {
           <FaHome size={24} color="#003366" />
           <p className="menu-text">Home</p>
         </div>
+        <div className="menu-item" onClick={() => navigate('/virtual')}>
+          <FaCalendarCheck size={24} color="#003366" />
+          <p className="menu-text">Virtual Consultation</p>
+        </div>
+
         <div className="menu-item" onClick={() => navigate('/consult-ai')}>
           <FaRobot size={24} color="#003366" />
-          <p className="menu-text">Consult AI</p>
+          <p className="menu-text">Physical Consultation</p>
         </div>
+       
         <div className="menu-item" onClick={() => navigate('/account')}>
         <FaWallet size={24} color="#003366" />
           <p className="menu-text">Account</p>
@@ -77,10 +83,7 @@ useEffect(() => {
           <FaUserMd size={24} color="#003366" />
           <p className="menu-text">Dashboard</p>
         </div>
-        <div className="menu-item" onClick={() => navigate('/virtual')}>
-          <FaCalendarCheck size={24} color="#003366" />
-          <p className="menu-text">Virtual Appointment</p>
-        </div>
+        
         <div className="menu-item" onClick={handleLogout}>
           <FaSignOutAlt size={24} color="#d32f2f" />
           <p className="menu-text">Log Out</p>

@@ -1,18 +1,13 @@
 import React, { useState, useEffect , useRef} from 'react';
 import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from 'agora-rtc-sdk-ng';
 import Recorder from 'recorder-js';
-import { getAccessToken } from './api';
 import { MdCall, MdCallEnd, MdVideoCall,MdChat, MdVideocam, MdVideocamOff } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, Button, VStack, Divider, Textarea } from '@chakra-ui/react';
-import {  submitEdits } from './api';
-import { BiMicrophone, BiMicrophoneOff } from 'react-icons/bi';
 import VideoDisplay from './vod';
-import { sendAudioFile} from './api'
+import { sendAudioFile, getAccessToken} from './api'
 import { useReview } from './context';
 import Chat from './chatVoice';
-
-
 
 const Call = () => {
     const { state } = useLocation();
@@ -28,7 +23,12 @@ const Call = () => {
   const [dat, setData] = useState('')
   const [isChatOpen, setIsChatOpen] = useState(false);  
     const [recordingTimer, setRecordingTimer] = useState(null);
-
+const [recordingTime, setRecordingTime] = useState(0);
+  const audioStream = useRef(null);
+  const scriptProcessor = useRef(null);
+  const desiredSampleRate = 16000;
+  const currentReviewId = useRef(null);
+   const audioContext = useRef(null);
     const [callDuration, setCallDuration] = useState(0);
     const [timerId, setTimerId] = useState(null);
     const [isJoined, setIsJoined] = useState(false);
@@ -43,10 +43,23 @@ const Call = () => {
     const [userCount, setUserCount] = useState(0);
     const [vid, setVid] = useState(false)
     const clientRef = useRef(null);
+    const [chatMessages, setChatMessages] = useState([]);
+    const ws = useRef(null);
+    const [wsStatus, setWsStatus] = useState('Disconnected');
+     const [oobRequestType, setOobRequestType] = useState('summary');
+     const [oobRequestDetails, setOobRequestDetails] = useState('');
+    const [debugLogs, setDebugLogs] = useState([]);
+    
+     useEffect(() => {
+        return () => {
+          if (ws.current) {
+            ws.current.close();
+          }
+        };
+      }, []);
 
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const destination = audioContext.createMediaStreamDestination();
 
+    
     useEffect(() => {
         clientRef.current = createClient({ mode: 'rtc', codec: 'vp8' });
         const client = clientRef.current;
@@ -115,6 +128,7 @@ const Call = () => {
     };
 
     const joinChannelWithVideo = async () => {
+      connectWebSocket();
         if (isJoined) {
             console.warn('You are already in the channel.');
             return;
@@ -139,8 +153,7 @@ const Call = () => {
             setIsJoined(true);
             setUserCount(1);
             startTimer()
-            setIsRecording(true)
-            
+           
             console.log('Joined channel with audio and video.');
         } catch (error) {
             console.error('Error joining channel with video:', error);
@@ -153,6 +166,11 @@ const Call = () => {
         try {
             stopRecording();
             setIsLoading(true)
+
+            if (ws.current) {
+              ws.current.close();
+              ws.current = null;
+          }
             await clientRef.current.leave();
             stopTimer();
 
@@ -218,114 +236,177 @@ const Call = () => {
     }
 }
 
-  
- 
-    
-    function mixAudio(localTrack, remoteTracks) {
-      if (localTrack) {
-          const localStream = new MediaStream([localTrack.getMediaStreamTrack()]);
-          const localSource = audioContext.createMediaStreamSource(localStream);
-          localSource.connect(destination);
-      }
-  
-      remoteTracks.forEach((remoteTrack) => {
-          const remoteStream = new MediaStream([remoteTrack.getMediaStreamTrack()]);
-          const remoteSource = audioContext.createMediaStreamSource(remoteStream);
-          remoteSource.connect(destination);
-      });
-  
-      console.log('Mixed audio stream:', destination.stream);
-      return destination.stream; // Returns a valid MediaStream
-  }
-      
-    const startRecording = async () => {
-      try {
-          if (!localAudioTrack) {
-              console.error('Local audio track is not available.');
-              return;
-          }
-  
-          const mixedStream = mixAudio(localAudioTrack, remoteAudioTracks);
-  
-          const recorderInstance = new Recorder(audioContext);
-          await recorderInstance.init(mixedStream);
-          await recorderInstance.start();
-  
-          setRecorder(recorderInstance);
-          setIsRecording(true);
-  
-          console.log('Recording started.');
-  
-          // Set up a timer to upload recording every 60 seconds
-          const timerId = setInterval(async () => {
-              if (recorderInstance) {
-                  const { blob } = await recorderInstance.stop();
-                  await uploadAudio(blob, false);
-                  await recorderInstance.start(); // Restart recording after upload
-              }
-          }, 60000);
-  
-          setRecordingTimer(timerId);
-      } catch (error) {
-          console.error('Error starting recording:', error);
+useEffect(() => {
+  return () => {
+      if (ws.current) {
+          ws.current.close();
+          ws.current = null;
       }
   };
-  
+}, []);
 
-  // Stop recording function
-  const stopRecording = async () => {
-    try {
-        if (recordingTimer) {
-            clearInterval(recordingTimer); // Clear the timer
-            setRecordingTimer(null);
-        }
-        setMessage('Please wait, fetching data...');
 
-        if (recorder) {
-            const { blob } = await recorder.stop();
-            await uploadAudio(blob, true); // Send with `document=true`
-            setRecorder(null);
-            console.log('Recording stopped and sent with document=true.');
+const connectWebSocket = async () => {
+  try {
+      const phone = item.patient_phone_number;
+      const formatPhoneNumber = (phoneNumber) => {
+          if (phoneNumber.startsWith('+234')) return phoneNumber;
+          return `+234${phoneNumber.slice(1)}`;
+      };
+      const phoneNumber = formatPhoneNumber(phone);
+
+      const token = await getAccessToken();
+      let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'wss:'}//health.prestigedelta.com/ws/medical/?token=${token}`;
+
+      if (phoneNumber) wsUrl += `&phone_number=${encodeURIComponent(phoneNumber)}`;
+      if (reviewId) wsUrl += `&review_id=${encodeURIComponent(reviewId)}`;
+
+      ws.current = new WebSocket(wsUrl);
+
+      ws.current.onopen = () => {
+          setWsStatus('Connected');
+          console.log('WebSocket connected.');
+          setIsRecording(true)
+           
+      };
+
+      ws.current.onclose = () => {
+          setWsStatus('Disconnected');
+          console.log('WebSocket disconnected.');
+      };
+
+      ws.current.onerror = (event) => {
+          console.error('WebSocket Error:', event);
+      };
+  } catch (error) {
+      console.error('Error connecting WebSocket:', error);
+  }
+
+  ws.current.onmessage = (event) => {
+    if (typeof event.data === 'string') {
+        try {
+            const data = JSON.parse(event.data);
+            console.log(`Received message:`, data);
+
+            if (data.type === 'openai_message' && Array.isArray(data.message?.content)) {
+                setChatMessages((prevMessages) => [
+                    ...prevMessages,
+                    { role: data.message.role, content: data.message.content[0]?.text || 'No content' },
+                ]);
+            } else if (data.type === 'oob_response') {
+                console.log('OOB Response:', data.content);
+            } else if (data.type === 'documentation') {
+                console.log('Documentation:', data.message);
+            } else if (data.type === 'session_started') {
+                currentReviewId.current = data.review_id;
+                console.log(`Session started with review ID: ${currentReviewId.current}`);
+            } else if (data.type === 'error') {
+                console.error(`OpenAI Error:`, data);
+            }
+        } catch (error) {
+            console.error('Error parsing message:', error);
         }
-    } catch (error) {
-        console.error('Error stopping recording:', error);
-    } finally {
-        setIsRecording(false);
     }
 };
-
-// Upload audio function
-const uploadAudio = async (blob, isFinal) => {
-    const phoneNumber = item.patient_phone_number;
-    
-    const formatPhoneNumber = (phoneNumber) => {
-        if (phoneNumber.startsWith('+234')) {
-            return phoneNumber;
-        }
-        return `+234${phoneNumber.slice(1)}`;
-    };  
-    const phone = formatPhoneNumber(phoneNumber) 
-    try {
-    
-        const recipient = reviewId === null ? phone : reviewId; // Use reviewId if available; otherwise, phoneNumber
-        const response = await sendAudioFile(blob, recipient, isFinal);
-        if (response?.review_id) {
-          setReview(response.review_id)
-          setReviewId(response.review_id); // Save reviewId after the first successful response
-          setData(response); // Update UI with the response
-          console.log(response)
-        } else {
-          console.error('Error in response:', response);
-        }
-      } catch (error) {
-        console.error('Error sending audio file:', error);
-      } finally {
-        if (isFinal) {
-            navigate('/show', { state: { dat } }); // Only navigate when isFinal is true
-          }
-      }
 };
-   
+    
+      const startRecording = async () => {
+        if (!ws?.current || ws.current.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket is not connected.');
+            alert('WebSocket is not connected. Please set up the session first.');
+            return;
+        }
+    
+        try {
+            if (!audioContext.current) {
+                audioContext.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: desiredSampleRate });
+            }
+    
+            audioStream.current = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: desiredSampleRate,
+                    channelCount: 1,
+                },
+            });
+    
+            const sourceNode = audioContext.current.createMediaStreamSource(audioStream.current);
+            scriptProcessor.current = audioContext.current.createScriptProcessor(2048, 1, 1);
+    
+            scriptProcessor.current.onaudioprocess = (event) => {
+                const inputBuffer = event.inputBuffer.getChannelData(0);
+                const pcmBuffer = pcmEncode(inputBuffer);
+    
+                if (ws.current?.readyState === WebSocket.OPEN) {
+                    ws.current.send(pcmBuffer);
+                }
+            };
+    
+            sourceNode.connect(scriptProcessor.current);
+            scriptProcessor.current.connect(audioContext.current.destination);
+    
+            setRecordingTime(0);
+            timerRef.current = setInterval(() => setRecordingTime((prev) => prev + 1), 1000);
+    
+            setIsRecording(true);
+            console.log('Recording started.');
+        } catch (error) {
+            console.error(`Error starting recording: ${error.message}`);
+            alert('Error accessing microphone. Please ensure microphone permissions are granted.');
+        }
+    };
+    
+    const stopRecording = () => {
+        if (scriptProcessor.current) {
+            scriptProcessor.current.disconnect();
+            scriptProcessor.current.onaudioprocess = null;
+            scriptProcessor.current = null;
+        }
+    
+        if (audioStream.current) {
+            audioStream.current.getTracks().forEach((track) => track.stop());
+            audioStream.current = null;
+        }
+    
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    
+        setIsRecording(false);
+        console.log('Recording stopped.');
+    };
+    
+    
+      const pcmEncode = (input) => {
+        const buffer = new ArrayBuffer(input.length * 2);
+        const output = new DataView(buffer);
+        for (let i = 0; i < input.length; i++) {
+          const s = Math.max(-1, Math.min(1, input[i]));
+          output.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        }
+        return buffer;
+      };
+    
+// Upload audio function
+const sendOobRequest = () => {
+  if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+    ws.current.send(
+      JSON.stringify({
+        type: 'documentation.request',
+        content: {
+          request_type: oobRequestType,
+          details: oobRequestDetails,
+        },
+      })
+    );
+    console.log(`Out-of-Band request sent: Type - ${oobRequestType}, Details - ${oobRequestDetails}`);
+  } else {
+    console.log('WebSocket is not connected. Cannot send Out-of-Band request.');
+  }
+};
+  
       const formatDuration = (seconds) => {
         const minutes = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -360,7 +441,9 @@ const uploadAudio = async (blob, isFinal) => {
         zIndex="2"
         display={['none', 'block']} // Hide on mobile, show on desktop
       >
-        <Chat />
+        <Chat ws={ws}
+                chatMessages={chatMessages}
+                setChatMessages={setChatMessages}  />
       </Box>
 
       {/* Chat Box for Mobile View (Visible Only When Toggled) */}
@@ -377,7 +460,9 @@ const uploadAudio = async (blob, isFinal) => {
           zIndex="2"
           display={['block', 'none']} // Show on mobile when toggled
         >
-          <Chat />
+          <Chat ws={ws}
+                chatMessages={chatMessages}
+                setChatMessages={setChatMessages} />
         </Box>
       )}         
             <Flex

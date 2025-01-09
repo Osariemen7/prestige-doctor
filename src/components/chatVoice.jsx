@@ -1,101 +1,80 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
+  Flex,
   Box,
   VStack,
-  HStack,
   Input,
   Button,
   Text,
-  Flex,
-  Spinner,
+  Icon,
+  HStack,
+  useToast,
 } from '@chakra-ui/react';
-import { sendMessage, getAccessToken } from './api';
-import { useReview } from './context';
-import axios from 'axios';
+import { MdSend } from 'react-icons/md';
 
-const Chat = () => {
-  const [userMessage, setUserMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+const Chat = ({ ws, chatMessages, setChatMessages }) => {
+  const [text, setText] = useState('');
+  const textInputRef = useRef(null);
+  const toast = useToast();
 
-  const { reviewId, setReview } = useReview();
-
-  // Fetch AI messages from the API
-  const fetchMessages = async () => {
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        console.error('No access token available. Cannot fetch messages.');
-        return;
-      }
-      const response = await axios.get(
-        `https://health.prestigedelta.com/doctormessages/${reviewId}/`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-      const newMessages = response.data.map((msg) => ({
-        sender: 'ai',
-        text: msg.message_content
-        , // Adjust based on API response structure
-      }));
-
-      // Avoid duplicates and merge messages
-      setChatMessages((prevMessages) => {
-        const existingTexts = prevMessages.map((msg) => msg.text);
-        const filteredNewMessages = newMessages.filter(
-          (msg) => !existingTexts.includes(msg.text)
-        );
-        return [...prevMessages, ...filteredNewMessages];
-      });
-    } catch (error) {
-      console.error('Error fetching AI messages:', error);
-    }
-  };
-
-  // Poll for new messages
   useEffect(() => {
-    if (reviewId !== null) {
-    fetchMessages(); // Initial fetch
-    const intervalId = setInterval(fetchMessages, 10000); // Poll every 10 seconds
-    return () => clearInterval(intervalId); // Cleanup
- } }, [reviewId]);
+    const handleMessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'text' || message.type === 'audio') {
+          setChatMessages((prevMessages) => [
+            ...prevMessages,
+            { role: 'assistant', content: message.content },
+          ]);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
 
- useEffect(() => {
-  return () => {
-    console.log('Clearing reviewId on component exit...');
-    setReview(null); // Reset reviewId in the context
-  };
-}, [setReview]);
+    if (ws.current) {
+      ws.current.onmessage = handleMessage;
+      ws.current.onerror = () => {
+        toast({
+          title: 'WebSocket Error',
+          description: 'An error occurred with the WebSocket connection.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      };
+    }
 
+    return () => {
+      if (ws.current) {
+        ws.current.onmessage = null;
+        ws.current.onerror = null;
+      }
+    };
+  }, [ws, setChatMessages, toast]);
 
-  // Handle sending user messages
-  const handleSendMessage = async () => {
-    if (!userMessage.trim()) return;
-  
-    // Add user message to the chat UI
-    setChatMessages((prevMessages) => [
-      ...prevMessages,
-      { sender: 'user', text: userMessage },
-    ]);
-    setUserMessage('');
-    setIsLoading(true);
-  
-    try {
-      // Send the user message to the API
-      await sendMessage(userMessage, { review_id: reviewId });
-  
-      // Wait for fetchMessages to pull AI's response
-    } catch (error) {
-      console.error('Error sending message:', error);
+  const handleSendText = () => {
+    const messageText = text.trim();
+    if (messageText && ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(
+        JSON.stringify({
+          type: 'text',
+          content: messageText,
+        })
+      );
       setChatMessages((prevMessages) => [
         ...prevMessages,
-        { sender: 'ai', text: 'Error sending message. Please try again.' },
+        { role: 'user', content: messageText },
       ]);
-    } finally {
-      setIsLoading(false);
+      setText('');
+    } else {
+      toast({
+        title: 'Message not sent',
+        description: 'WebSocket is not connected.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
@@ -107,7 +86,7 @@ const Chat = () => {
           Chat with AI
         </Text>
       </Box>
-  
+
       {/* Chat Messages */}
       <VStack
         flex="1"
@@ -122,55 +101,39 @@ const Chat = () => {
         {chatMessages.map((item, index) => (
           <Box
             key={index}
-            alignSelf={item.sender === 'user' ? 'flex-end' : 'flex-start'}
-            bg={item.sender === 'user' ? 'teal.100' : 'gray.200'}
+            alignSelf={item.role === 'user' ? 'flex-end' : 'flex-start'}
+            bg={item.role === 'user' ? 'teal.100' : 'gray.200'}
             px={4}
             py={2}
             borderRadius="lg"
             maxW="75%"
           >
-            <Text>{item.text}</Text>
+            <Text>{item.content}</Text>
           </Box>
         ))}
-        {isLoading && (
-          <Flex justifyContent="center" alignItems="center" w="100%">
-            <Spinner size="md" color="teal.500" />
-          </Flex>
-        )}
       </VStack>
-  
+
       {/* Input and Send Button */}
-      <HStack spacing={2}>
+      <HStack padding="10px">
         <Input
-          flex="1"
           placeholder="Type your message"
-          value={userMessage}
-          onChange={(e) => setUserMessage(e.target.value)}
-          bg="white"
-          borderColor="gray.300"
-          borderRadius="full"
-          px={4}
-          isDisabled={isLoading}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && userMessage.trim()) {
-              handleSendMessage();
-            }
+            if (e.key === 'Enter') handleSendText();
           }}
+          ref={textInputRef}
         />
         <Button
-          colorScheme="teal"
-          borderRadius="full"
-          px={6}
-          onClick={handleSendMessage}
-          isLoading={isLoading}
-          loadingText="Sending"
+          onClick={handleSendText}
+          colorScheme="blue"
+          leftIcon={<Icon as={MdSend} />}
         >
           Send
         </Button>
       </HStack>
     </Flex>
-  );  
+  );
 };
 
 export default Chat;
-
