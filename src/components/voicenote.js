@@ -3,7 +3,8 @@ import { Button, Box, Input, Text, Grid, VStack, Icon, HStack, Flex, Heading, Sp
 import { MdMic, MdStop } from 'react-icons/md';
 import { getAccessToken, submitEdits } from './api';
 
-const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, setPhoneNumber, ws, errorMessage }) => {
+
+const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket, phoneNumber, setPhoneNumber, ws, errorMessage }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const audioStream = useRef(null);
@@ -17,9 +18,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
   const [editableFields, setEditableFields] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [oobRequestType, setOobRequestType] = useState('summary');
- const [oobRequestDetails, setOobRequestDetails] = useState('');
-
+  
 
   const handleStartConsultation = async () => {
     setLoading(true); // Show spinner
@@ -28,6 +27,8 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
   };
 
   const getMessage = async () => {
+     
+   await sendOobRequest();
     const review_id = reviewId;
     try {
       const token = await getAccessToken();
@@ -43,6 +44,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
       
         const result = await response.json();
         setData(result)
+      
 
       } else {
         console.log('No access token available.');
@@ -65,19 +67,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
   //   }
   // }, [isRecording]);
   
-    const sendOobRequest = () => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'documentation.request',
-          content: {
-            request_type: oobRequestType,
-            details: oobRequestDetails
-          }
-        }));
-        log(`Out-of-Band request sent: Type - ${oobRequestType}, Details - ${oobRequestDetails}`);
-      }
-    };
-  
+    
 
   const editableFieldKeys = [
     'chief_complaint',
@@ -290,7 +280,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
       }, 1000);
   
       timerRef.current = interval;
-
+      sendOobRequest();
       setIsRecording(true);
       log('Recording started.');
     } catch (error) {
@@ -389,27 +379,10 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
    { data ? 
         <VStack spacing={4}>
           <Heading fontSize="lg">Patient Report</Heading>
-          <Box
-            bg="#4682b4"
-            color="white"
-            padding={3}
-            borderRadius="md"
-            width="fit-content"
-          >
-           <Text>Patient ID: {data.patient_id}</Text>
-          </Box>
-          <VStack spacing={2} align="stretch">
-            <Text>Review Time: {data.review_time}</Text>
-            <Text>Sentiment: {data.doctor_note?.sentiment}</Text>
-          </VStack>
-          <Box bg="#f0f8ff" padding={4} borderRadius="md" width="100%">
-            <Heading fontSize="md">AI Response</Heading>
-            <Text>{data.doctor_note?.response}</Text>
-          </Box>
-          
+         
           <VStack spacing={2} align="stretch" width="100%">
           <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={1}>
-          {Object.entries(data?.doctor_note?.review_details || {}).map(
+          {Object.entries(data?.doctor_note || {}).map(
               ([section, details]) => (
                 <Box key={section} width="100%">
                 <Text fontWeight="bold" mt={4} mb={2}>
@@ -443,6 +416,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, connectWebSocket, phoneNumber, se
       padding="10px"
       backgroundColor="#f9f9f9"
     />
+    
     </Box>
   );
 };

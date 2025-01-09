@@ -28,9 +28,19 @@ const ConsultAIPage = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [hasNewMessage, setHasNewMessage] = useState(false); // New state for message indication
   const currentReviewId = useRef(null);
-  
+  const [oobRequestType, setOobRequestType] = useState('summary');
+ const [oobRequestDetails, setOobRequestDetails] = useState('');
+ const [oobResponse, setOobResponse] = useState([]);
+ const [debugLogs, setDebugLogs] = useState([]);
+   
+
   const ws = useRef(null);
   const navigate = useNavigate();
+
+  const log = (message) => {
+    const time = new Date().toLocaleTimeString();
+    setDebugLogs(prev => [...prev, `[${time}] ${message}`]);
+  };
 
   useEffect(() => {
     return () => {
@@ -81,8 +91,17 @@ const ConsultAIPage = () => {
             }
           } else if (data.type === 'oob_response') {
             console.log('OOB Response:', data.content);
+            setOobResponse(prevResponses => [
+              ...prevResponses,
+              { type: data.content.request_type, data: data.content.data }
+          ]);
           } else if (data.type === 'documentation') {
             console.log('Documentation:', data.message);
+            setOobResponse(prevResponses => [
+              ...prevResponses,
+              { type: 'documentation', message: data.message }
+          ]);
+           
           } else if (data.type === 'session_started') {
             currentReviewId.current = data.review_id;
             console.log(`Session started with review ID: ${currentReviewId.current}`);
@@ -95,6 +114,24 @@ const ConsultAIPage = () => {
       }
     };
   };
+
+  const sendOobRequest = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(
+        JSON.stringify({
+          type: 'documentation.request',
+          content: {
+            request_type: oobRequestType,
+            details: oobRequestDetails,
+          },
+        })
+      );
+      log(`Out-of-Band request sent: Type - ${oobRequestType}, Details - ${oobRequestDetails}`);
+    } else {
+      log('WebSocket is not connected. Cannot send Out-of-Band request.');
+    }
+  };
+  
 
   const handleTabChange = (index) => {
     setSelectedTab(index);
@@ -148,8 +185,15 @@ const ConsultAIPage = () => {
                 <Icon as={MdChat} boxSize={5} />
                 <span>Chat</span>
                 {hasNewMessage && (
-                  <Badge colorScheme="red" borderRadius="full" boxSize="10px" />
-                )}
+  <Box
+    width="12px"
+    height="12px"
+    borderRadius="50%"
+    bg="red.500"
+    border="2px solid white" // Optional for extra border
+  />
+)}
+
               </HStack>
             </Tab>
           </TabList>
@@ -166,6 +210,7 @@ const ConsultAIPage = () => {
                 setPhoneNumber={setPhoneNumber}
                 errorMessage={errorMessage}
                 reviewId={reviewId}
+                sendOobRequest={sendOobRequest}
               />
             </TabPanel>
             <TabPanel>
