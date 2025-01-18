@@ -1,6 +1,7 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { ReviewProvider } from './components/context'; // Assuming the context file is the same
+
 // Import your components
 import RegisterPage from './components/register';
 import LoginPage from './components/login';
@@ -15,12 +16,12 @@ import Call from './components/voi';
 import DocDash from './components/doctordash';
 import Document from './components/show'
 import Talk from './components/talk';
-import LogPage from './components/log';
-import RegPage from './components/reg';
 import HealthDashboard from './components/health';
+import MedicalRecording from './components/sample';
 import Va from './components/virtual';
 import './App.css'; // Import the global styles
-
+import WebSocketExample from './components/test';
+import AvailabilitySelector from './components/available';
 
 const App = () => {
   return (
@@ -41,11 +42,11 @@ const App = () => {
           <Route path='/call' element={<Call />} />
           <Route path='/show' element={<Document />} />
           <Route path='/talk' element= {<Talk />} />
-          <Route path='/log' element={<LogPage />} />
-          <Route path='/reg' element={<RegPage />} />
           <Route path='/health' element={<HealthDashboard />} />
-         
+          <Route path='/sample' element={<MedicalRecording />} />
+          <Route path='/test' element={<WebSocketExample />} />
           <Route path='/virtual' element={<Va />} />
+          <Route path='/available' element={<AvailabilitySelector />} />
         </Routes>
       </div>
     </ReviewProvider>

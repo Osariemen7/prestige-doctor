@@ -1,4 +1,8 @@
 /* Ensure the app takes full height of the viewport */
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -7,6 +11,7 @@ html, body, #root {
   overflow: hidden; /* Prevent scrolling if not necessary */
 }
 
+/* Tailwind CSS customizations or additional styles */
 .app-container {
   display: flex;
   flex-direction: column;
