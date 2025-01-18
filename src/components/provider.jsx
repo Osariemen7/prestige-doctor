@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom'; // For navigation
 import Select from 'react-select'; // For dropdowns
 import './ProviderPage.css'; // CSS for styling
 import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
+import {
+  Box,
+  Button,
+  Container,
+  FormControl,
+  InputAdornment,
+  TextField,
+  Typography
+} from '@mui/material';
 
 
 const ProviderPage = () => {
@@ -16,6 +25,7 @@ const ProviderPage = () => {
   const [bio, setBio] = useState('');
   const [message, setMessage] = useState('');
   const [accessToken, setAccessToken] = useState('');
+  const [amount, setAmount] = useState('');
   const navigate = useNavigate();
 
   const qualificationOptions = [
@@ -57,6 +67,8 @@ const ProviderPage = () => {
       date_of_registration: dateOfRegistration,
       provider_type: providerType,
       bio: bio,
+      rate_per_minute: amount,
+      rate_currency: 'NGN',
     };
 
     try {
@@ -74,7 +86,7 @@ const ProviderPage = () => {
         setMessage(result.message || 'An error occurred');
       } else {
         localStorage.setItem('user-info', JSON.stringify(result));
-        navigate('/organization'); // Redirect to LoginPage
+        navigate('/available'); // Redirect to LoginPage
       }
     } catch (error) {
       console.error(error);
@@ -129,6 +141,19 @@ const ProviderPage = () => {
         value={bio}
         onChange={(e) => setBio(e.target.value)}
       ></textarea>
+      <FormControl fullWidth margin="normal">
+          <TextField
+            label="Amount to be paid per minute"
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            required
+            InputProps={{
+              startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+            }}
+          />
+        </FormControl>
+
 
       {message && <p className="provider-message">{message}</p>}
 
