@@ -25,7 +25,8 @@ import { Select } from "@chakra-ui/react";
 const Details = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
     const [startTime, setStartTime] = useState('');
-    const [date, setDate] = useState('')
+    const [date, setDate] = useState('');
+    const [phoneNumber, setPhone] = useState('');
     const [reason, setReason] = useState('');
     const [info, setInfo] = useState([])
     const [loading, setLoading] = useState(true);
@@ -40,26 +41,39 @@ const Details = () => {
     return isoString.replace('T', ' ').slice(0, 16); // Ensures 'YYYY-MM-DD HH:MM' format
   };
   const handleSubmit = async () => {
-    setButtonVisible(true)
+    setButtonVisible(true);
+
+    const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
     const formattedStartTime = formatDateTime(startTime);
-    const data = {
+
+    // Base data object
+    let data = {
         patient_id: item.id,
         start_time: formattedStartTime,
         reason,
+        phone_number
     };
+
+    // Condition to modify the data object
+    if (phone_number === '') {
+        delete data.phone_number; // Remove phone_number if it's empty
+    } else {
+        delete data.patient_id; // Remove patient_id if phone_number is provided
+    }
+
     const token = await getAccessToken();
+
     try {
         const response = await fetch('https://health.prestigedelta.com/appointments/book/', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify(data),
         });
 
         if (response.ok) {
-          
             toast({
                 title: 'Appointment booked successfully!',
                 description: `Your appointment is scheduled for ${startTime}.`,
@@ -68,8 +82,6 @@ const Details = () => {
                 isClosable: true,
             });
             onClose(); // Close the modal
-            
-            
         } else {
             throw new Error('Failed to book the appointment.');
         }
@@ -82,9 +94,10 @@ const Details = () => {
             isClosable: true,
         });
     } finally {
-      setButtonVisible(false); // Reset loading state
-  }
+        setButtonVisible(false); // Reset loading state
+    }
 };
+
 
 useEffect(() => {
   if (date) {
@@ -167,6 +180,7 @@ const options = info.map((slot) => (
             <Button colorScheme="blue" onClick={onOpen} mb='10px'>
                 Schedule Call Appointment
             </Button>
+            
       <Flex
         direction="column"
         bg="white"
@@ -191,11 +205,13 @@ const options = info.map((slot) => (
         <Text>
           <strong>Health Score:</strong> {item.health_score || "N/A"}
         </Text>
-        <Text>
-          <strong>Most Recent Review:</strong>{" "}
-          {new Date(item.most_recent_review).toLocaleString()}
-        </Text>
-   
+        {item.most_recent_review ? (
+  <Text>
+    <strong>Most Recent Review:</strong>{" "}
+    {new Date(item.most_recent_review).toLocaleString()}
+  </Text>
+) : null}
+
         {healthSummary?.health_summary && (
           <Text>
             <strong>Overall Health Status:</strong> {healthSummary.health_summary.overall_health_status}
@@ -280,6 +296,7 @@ const options = info.map((slot) => (
                 </ModalContent>
             </Modal>
 
+            
   
     </ChakraProvider>
   );

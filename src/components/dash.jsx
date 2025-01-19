@@ -111,10 +111,13 @@ const DashboardPage = () => {
         <Text>
           <strong>Phone:</strong> {patient.phone_number}
         </Text>
-        <Text>
-          <strong>Most Recent Review:</strong>{" "}
-          {new Date(patient.most_recent_review).toLocaleString()}
-        </Text>
+        {patient.most_recent_review ? (
+  <Text>
+    <strong>Most Recent Review:</strong>{" "}
+    {new Date(patient.most_recent_review).toLocaleString()}
+  </Text>
+) : null}
+
         <Button colorScheme="blue" onClick={() => handleViewDetails(patient)}>
           View Details
         </Button>
