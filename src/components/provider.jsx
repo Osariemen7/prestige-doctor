@@ -92,7 +92,7 @@ const ProviderPage = () => {
       console.error(error);
       setMessage('An error occurred during updating');
     }
-    alert('Form Submitted: ' + JSON.stringify(formData, null, 2));
+    
   };
 
   return (
