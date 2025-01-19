@@ -38,7 +38,15 @@ const LoginPage = () => {
         }  else if(result.user.organization_set !== true){
           localStorage.setItem('user-info', JSON.stringify(result));
           navigate('/organization')
-        }else {
+        } else if(result.user.provider_rate_set !== true){
+          localStorage.setItem('user-info', JSON.stringify(result));
+          navigate('/provider')
+        }
+        else if(result.user.availability_set !== true){
+          localStorage.setItem('user-info', JSON.stringify(result));
+          navigate('/available')
+        }
+        else {
           localStorage.setItem('user-info', JSON.stringify(result));
           navigate('/dashboard');
         }
