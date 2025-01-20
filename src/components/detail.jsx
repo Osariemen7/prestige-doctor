@@ -31,6 +31,7 @@ const Details = () => {
     const [info, setInfo] = useState([])
     const [loading, setLoading] = useState(true);
     const [buttonVisible, setButtonVisible] = useState(false);
+    const [message, setmessage] = useState('');
     const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate()
@@ -83,6 +84,8 @@ const Details = () => {
             });
             onClose(); // Close the modal
         } else {
+          const errorResult = await response.json()
+          setmessage(errorResult.message)
             throw new Error('Failed to book the appointment.');
         }
     } catch (error) {
@@ -278,6 +281,7 @@ const options = info.map((slot) => (
                                 placeholder="Enter the reason for your appointment"
                             />
                         </FormControl>
+                     <Text color='red'>{message}</Text>
                     </ModalBody>
 
                     <ModalFooter>
