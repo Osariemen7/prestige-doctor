@@ -16,6 +16,13 @@ import axios from "axios";
 import { getAccessToken } from "./api";
 import {useNavigate} from 'react-router-dom';
 import Sidebar from './sidebar'; // Import Sidebar component
+import {
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  useColorModeValue,
+} from "@chakra-ui/react";
 
 const DocDash = () => {
   const [data, setData] = useState(null);
@@ -23,6 +30,11 @@ const DocDash = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate()
 
+  const headingColor = useColorModeValue("gray.800", "white");
+  const textColor = useColorModeValue("gray.700", "gray.300");
+  const statBg = useColorModeValue("white", "gray.700");
+  const borderColor = useColorModeValue("gray.200", "gray.600");
+  const statNumberColor = useColorModeValue("blue.600","blue.300")
   
     const CopyButton = ({ textToCopy }) => {
       const textRef = useRef(null);
@@ -130,61 +142,62 @@ const DocDash = () => {
       <Box p={5} >
       <Sidebar navigate={navigate} handleLogout={handleLogout} />
 
-        <Heading textAlign='center' fontSize="24px" mb={4}>
-          Doctor's Dashboard
-        </Heading>
+      <Box p={5}  >
+      <Heading textAlign="center" fontSize="2xl" mb={6} color={headingColor}>
+        Doctor's Dashboard
+      </Heading>
 
-        <Box mb={6}>
-          {data ? (
-            <>
-              <Text>Total Subscribers: {total_subscribers}</Text>
-              <Text>Current Earnings: {`₦${current_earnings}`}</Text>
-              <Text>Projected Earnings: {`₦${projected_earnings}`}</Text>
-              <Text>Patients Assigned: {num_patients_assigned}</Text>
-              <Text>Subscribers Rate: {`${subscription_rate}%`}</Text>
-              <Text>Subscribers Patients: {subscribing_patients.length}</Text>
-              <Text>Non-Subscribing Patients: {non_subscribing_patients.length}</Text>
-            </>
-          ) : (
-            <Text color="gray.500">No Data Available</Text>
-          )}
-        </Box>
+      <Box mb={8}  >
+        {data ? (
+          <Flex direction={{ base: "column", md: "row" }} wrap="wrap"  gap={4} >
+            <Stat boxShadow="md" bg={statBg} p={4} borderRadius="md" border="1px" borderColor={borderColor}>
+              <StatLabel  color={textColor}>Total Subscribers</StatLabel>
+              <StatNumber color={statNumberColor}>{total_subscribers}</StatNumber>
+              {/* <StatHelpText>...</StatHelpText>  optional */}
+            </Stat>
 
-        <Divider mb={4} />
+             <Stat boxShadow="md" bg={statBg} p={4} borderRadius="md" border="1px" borderColor={borderColor}>
+              <StatLabel  color={textColor}>Current Earnings</StatLabel>
+              <StatNumber color={statNumberColor}>{`₦${current_earnings}`}</StatNumber>
+              {/* <StatHelpText>...</StatHelpText>  optional */}
+            </Stat>
 
-        <Heading fontSize="20px" mb={4}>
-          Call Schedules
-        </Heading>
+              <Stat boxShadow="md" bg={statBg} p={4} borderRadius="md" border="1px" borderColor={borderColor}>
+              <StatLabel  color={textColor}>Projected Earnings</StatLabel>
+              <StatNumber color={statNumberColor}>{`₦${projected_earnings}`}</StatNumber>
+              {/* <StatHelpText>...</StatHelpText>  optional */}
+            </Stat>
 
-        <VStack spacing={4} align="stretch">
-          {bookedItems.length > 0 ? (
-            bookedItems.map((item, index) => {
-              const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.channel_name}`;
-              return (
-                <Box
-                  key={index}
-                  p={4}
-                  bg="white"
-                  shadow="md"
-                  borderRadius="md"
-                  onClick={() => handleCalls(item)}
-                >
-                  <Text fontSize="md" fontWeight="bold" color="blue.500">
-                    Patient ID: {item.patient_id}
-                  </Text>
-                  <Text fontSize="sm">Time: {new Date(item.start_time).toLocaleString()}</Text>
-                 <Flex gap='15px'>
-                  <Text>Patient link: {dynamicLink}</Text>
-                  <CopyButton textToCopy={dynamicLink} />
-                  </Flex>
-                  <Button colorScheme='blue'>Start call</Button>
-                </Box>
-              );
-            })
-          ) : (
-            <Text color="gray.500">No booked appointments available.</Text>
-          )}
-        </VStack>
+             <Stat boxShadow="md" bg={statBg} p={4} borderRadius="md" border="1px" borderColor={borderColor}>
+              <StatLabel  color={textColor}>Patients Assigned</StatLabel>
+              <StatNumber color={statNumberColor}>{num_patients_assigned}</StatNumber>
+              {/* <StatHelpText>...</StatHelpText>  optional */}
+            </Stat>
+
+               <Stat boxShadow="md" bg={statBg} p={4} borderRadius="md" border="1px" borderColor={borderColor}>
+              <StatLabel color={textColor}>Subscribers Rate</StatLabel>
+              <StatNumber color={statNumberColor}>{`${subscription_rate}%`}</StatNumber>
+              {/* <StatHelpText>...</StatHelpText>  optional */}
+            </Stat>
+
+               <Stat boxShadow="md" bg={statBg} p={4} borderRadius="md" border="1px" borderColor={borderColor}>
+              <StatLabel  color={textColor}>Subscribers Patients</StatLabel>
+              <StatNumber color={statNumberColor}>{subscribing_patients?.length}</StatNumber>
+              {/* <StatHelpText>...</StatHelpText>  optional */}
+            </Stat>
+
+             <Stat boxShadow="md" bg={statBg} p={4} borderRadius="md" border="1px" borderColor={borderColor}>
+              <StatLabel color={textColor}>Non-Subscribing Patients</StatLabel>
+              <StatNumber color={statNumberColor}>{non_subscribing_patients?.length}</StatNumber>
+              {/* <StatHelpText>...</StatHelpText>  optional */}
+            </Stat>
+          </Flex>
+        ) : (
+          <Text color="gray.500">No Data Available</Text>
+        )}
+      </Box>
+      <Divider mb={4} borderColor={borderColor} />
+    </Box>
       </Box>
       </div>
       </div>
