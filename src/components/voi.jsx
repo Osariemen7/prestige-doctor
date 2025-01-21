@@ -174,7 +174,7 @@ const Call = () => {
     try {
       stopRecording();
       setIsLoading(true);
-
+      handleBilling();
       if (ws.current) {
         ws.current.close();
         ws.current = null;
@@ -255,64 +255,63 @@ const Call = () => {
   // Establish WebSocket connection
   const connectWebSocket = async () => {
     try {
-      const phone = item.patient_phone_number;
-      const formatPhoneNumber = (phoneNumber) => {
-        if (phoneNumber.startsWith('+234')) return phoneNumber;
-        return `+234${phoneNumber.slice(1)}`;
-      };
-      const phoneNumber = formatPhoneNumber(phone);
+        const phone = item.patient_phone_number;
+        const formatPhoneNumber = (phoneNumber) => {
+            if (phoneNumber.startsWith('+234')) return phoneNumber;
+            return `+234${phoneNumber.slice(1)}`;
+        };
+        const phoneNumber = formatPhoneNumber(phone);
 
-      const token = await getAccessToken();
+        const token = await getAccessToken();
         let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'wss:'}//health.prestigedelta.com/ws/medical/?token=${token}`;
 
+        if (phoneNumber) wsUrl += `&phone_number=${encodeURIComponent(phoneNumber)}`;
+        if (reviewId) wsUrl += `&review_id=${encodeURIComponent(reviewId)}`;
+        const webSocket = new WebSocket(wsUrl);
+       
+        webSocket.onopen = () => {
+            console.log('WebSocket connected.');
+            setIsRecording(true);
+        };
 
-      if (phoneNumber) wsUrl += `&phone_number=${encodeURIComponent(phoneNumber)}`;
-      if (reviewId) wsUrl += `&review_id=${encodeURIComponent(reviewId)}`;
+        webSocket.onclose = () => {
+            console.log('WebSocket disconnected.');
+        };
 
-      ws.current = new WebSocket(wsUrl);
+        webSocket.onerror = (event) => {
+            console.error('WebSocket Error:', event);
+        };
 
-      ws.current.onopen = () => {
-        console.log('WebSocket connected.');
-        setIsRecording(true);
-      };
-
-      ws.current.onclose = () => {
-        console.log('WebSocket disconnected.');
-      };
-
-      ws.current.onerror = (event) => {
-        console.error('WebSocket Error:', event);
-      };
+        webSocket.onmessage = (event) => { // Set onmessage within the callback
+            if (typeof event.data === 'string') {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log(`Received message:`, data);
+                    setReviewId(data.review_id);
+                    if (data.type === 'openai_message' && Array.isArray(data.message?.content)) {
+                        setChatMessages((prevMessages) => [
+                            ...prevMessages,
+                            { role: data.message.role, content: data.message.content[0]?.text || 'No content' },
+                        ]);
+                    } else if (data.type === 'oob_response') {
+                        console.log('OOB Response:', data.content);
+                    } else if (data.type === 'documentation') {
+                        console.log('Documentation:', data.message);
+                    } else if (data.type === 'session_started') {
+                        console.log(`Session started with review ID: ${data.review_id}`);
+                    } else if (data.type === 'error') {
+                        console.error(`OpenAI Error:`, data);
+                    }
+                } catch (error) {
+                    console.error('Error parsing message:', error);
+                }
+            }
+        };
+         ws.current = webSocket // Assign the valid WebSocket to the ref
     } catch (error) {
-      console.error('Error connecting WebSocket:', error);
+        console.error('Error connecting WebSocket:', error);
     }
-
-    ws.current.onmessage = (event) => {
-      if (typeof event.data === 'string') {
-        try {
-          const data = JSON.parse(event.data);
-          console.log(`Received message:`, data);
-          setReviewId(data.review_id);
-          if (data.type === 'openai_message' && Array.isArray(data.message?.content)) {
-            setChatMessages((prevMessages) => [
-              ...prevMessages,
-              { role: data.message.role, content: data.message.content[0]?.text || 'No content' },
-            ]);
-          } else if (data.type === 'oob_response') {
-            console.log('OOB Response:', data.content);
-          } else if (data.type === 'documentation') {
-            console.log('Documentation:', data.message);
-          } else if (data.type === 'session_started') {
-            console.log(`Session started with review ID: ${data.review_id}`);
-          } else if (data.type === 'error') {
-            console.error(`OpenAI Error:`, data);
-          }
-        } catch (error) {
-          console.error('Error parsing message:', error);
-        }
-      }
-    };
-  };
+};
   // Start Audio Recording
   const startRecording = async () => {
       if (!ws?.current || ws.current.readyState !== WebSocket.OPEN) {
@@ -393,6 +392,46 @@ const Call = () => {
       console.log('WebSocket is not connected. Cannot send Out-of-Band request.');
     }
   };
+  const handleBilling = async () => {
+  
+    try {
+      const phone = item.patient_phone_number;
+      const formatPhoneNumber = (phoneNumber) => {
+        if (phoneNumber.startsWith('+234')) return phoneNumber;
+        return `+234${phoneNumber.slice(1)}`;
+      };
+      const phoneNumber = formatPhoneNumber(phone);
+
+      const item = {
+        cost_bearer: "doctor",
+    patient_phone_number: phoneNumber,
+    expertise: "trainee",
+    seconds_used: callDuration
+      };
+      const response = await fetch('https://health.prestigedelta.com/billing/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify(item),
+      });
+
+      const result = await response.json();
+      if (response.status !== 201) {
+        setMessage(result.message|| 'An error occurred');
+      } else {
+        setMessage(result.message || 'Billing successful'); 
+        navigate('/log');
+      }
+    } catch (error) {
+      console.log(error);
+    
+    } finally {
+
+    }
+  };
+
 // Format duration for call timer
   const formatDuration = (seconds) => {
     const minutes = Math.floor(seconds / 60);
