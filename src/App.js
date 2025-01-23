@@ -20,6 +20,7 @@ import HealthDashboard from './components/health';
 import Va from './components/virtual';
 import './App.css'; // Import the global styles
 import AvailabilitySelector from './components/available';
+import SettingPage from './components/setting';
 
 const App = () => {
   return (
@@ -43,6 +44,7 @@ const App = () => {
           <Route path='/health' element={<HealthDashboard />} />
           <Route path='/virtual' element={<Va />} />
           <Route path='/available' element={<AvailabilitySelector />} />
+           <Route path='/setting' element={<SettingPage />} />
         </Routes>
       </div>
     </ReviewProvider>
