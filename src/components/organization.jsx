@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Typography, TextField, Autocomplete } from '@mui/material';
+import { Typography, Box, TextField, Autocomplete } from '@mui/material';
 import { BootstrapButton, ValidationTextField } from "./material";
-import { getAccessToken } from './api';
 import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
 
 
@@ -20,7 +19,38 @@ const Organization =()=>{
   const [name, setOrgName] = useState('')
   const navigate = useNavigate();
  
-  
+  const getRefreshToken = async () => {
+    try {
+      const userInfo = localStorage.getItem('user-info');
+      const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
+      if (parsedUserInfo) {
+        return parsedUserInfo.refresh;
+      }
+      console.log('No user information found in storage.');
+      return null;
+    } catch (error) {
+      console.error('Error fetching token:', error);
+      return null;
+    }
+  };
+
+  const getAccessToken = async () => {
+    let refresh = await getRefreshToken();
+    let term = { refresh };
+    let rep = await fetch('https://health.prestigedelta.com/tokenrefresh/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'accept': 'application/json'
+      },
+      body: JSON.stringify(term)
+    });
+    rep = await rep.json();
+    if (rep) {
+      return rep.access;
+    }
+  };
+
    
   
  const handleBank = (event, newValue) => {
@@ -129,6 +159,7 @@ const handleAddress=(event)=> {
     useEffect(() => {
       fetchDa()
     }, [])
+    
     const options = info.map((item) => ({
       label: item.bank_name,
       value: item.bank_code,
@@ -205,7 +236,7 @@ const handleAddress=(event)=> {
     } 
 
   return(
-    <div style={{backgroundColor:'#F0F8FF', maxHeight:'100%', height: '100vh', padding:'5%', zIndex:'0', alignItems: 'center', justifyContent: 'center', overflow:'auto' }}>
+    <div style={{backgroundColor:'#F0F8FF', maxHeight:'100%', height: '100vh', padding:'5%', zIndex:'0', alignItems: 'center', justifyContent: 'center' , overflow:'auto'}}>
        <Link to='/provider'><i class="fa-solid fa-chevron-left bac"></i></Link>
       
             <h3>Set Organization</h3>

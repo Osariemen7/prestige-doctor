@@ -76,7 +76,7 @@ const AvailabilitySelector = () => {
       if (response.status !== 200) {
         setMessage(result.message || 'An error occurred');
       } else {
-        localStorage.setItem('user-info', JSON.stringify(result));
+        
         navigate('/organization');
       }
     } catch (error) {

@@ -85,7 +85,6 @@ const ProviderPage = () => {
       if (response.status !== 200) {
         setMessage(result.message || 'An error occurred');
       } else {
-        localStorage.setItem('user-info', JSON.stringify(result));
         navigate('/available'); // Redirect to LoginPage
       }
     } catch (error) {

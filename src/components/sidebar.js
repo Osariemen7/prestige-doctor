@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaWallet, FaMoneyBillWave } from "react-icons/fa";
+import { IoMdSettings } from "react-icons/io";
 import { FaHome, FaRobot, FaSignOutAlt, FaBars, FaTimes, FaUserMd, FaCalendarCheck} from 'react-icons/fa';
 import './sidebar.css';
 
@@ -53,6 +54,10 @@ useEffect(() => {
           <FaUserMd size={24} color="#003366" />
           <p className="menu-text">Dashboard</p>
         </div>
+        <div className="menu-item" onClick={() => navigate('/setting')}>
+          <IoMdSettings size={24} color="#003366" />
+          <p className="menu-text">Settings</p>
+        </div>
                 <div className="menu-item" onClick={handleLogout}>
           <FaSignOutAlt size={24} color="#d32f2f" />
           <p className="menu-text">Log Out</p>
@@ -83,7 +88,10 @@ useEffect(() => {
           <FaUserMd size={24} color="#003366" />
           <p className="menu-text">Dashboard</p>
         </div>
-        
+        <div className="menu-item" onClick={() => navigate('/setting')}>
+          <IoMdSettings size={24} color="#003366" />
+          <p className="menu-text">Settings</p>
+        </div> 
         <div className="menu-item" onClick={handleLogout}>
           <FaSignOutAlt size={24} color="#d32f2f" />
           <p className="menu-text">Log Out</p>
