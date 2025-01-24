@@ -14,7 +14,8 @@ import {
   InputAdornment,
   Tabs,
   Tab,
-  IconButton
+  IconButton,
+  Snackbar,
 } from '@mui/material';
 import { 
   Person as PersonIcon, 
@@ -60,6 +61,11 @@ const SettingPage = () => {
 
   // State for availabilities
   const [availabilities, setAvailabilities] = useState([]);
+
+    // State for success snackbar
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+
 
   // Fetch provider data on component mount
   useEffect(() => {
@@ -110,6 +116,11 @@ const SettingPage = () => {
     fetchProviderData();
   }, []);
 
+    // Function to handle snackbar close
+    const handleSnackbarClose = () => {
+        setSnackbarOpen(false);
+      };
+
   // Save provider data
   const handleSaveProviderData = async () => {
     try {
@@ -129,6 +140,9 @@ const SettingPage = () => {
       if (response.ok) {
         setProviderData(tempProviderData);
         setEditMode(prev => ({ ...prev, profile: false }));
+         // Show success Snackbar
+         setSnackbarMessage('Profile saved successfully!');
+         setSnackbarOpen(true);
       } else {
         const errorData = await response.json();
         console.error('Save failed:', errorData);
@@ -142,18 +156,37 @@ const SettingPage = () => {
   const handleSaveAvailabilities = async () => {
     try {
       const accessToken = await getAccessToken();
+      
+      // Transform availabilities to match expected format
+      const formattedAvailabilities = tempAvailabilities.map(availability => ({
+        day_of_week: availability.day_of_week,
+        start_time: {
+          hour: parseInt(availability.start_time.split(':')[0]),
+          minute: parseInt(availability.start_time.split(':')[1])
+        },
+        end_time: {
+          hour: parseInt(availability.end_time.split(':')[0]),
+          minute: parseInt(availability.end_time.split(':')[1])
+        }
+      }));
+      const formData = {
+        availabilities: formattedAvailabilities,
+      };
       const response = await fetch('https://health.prestigedelta.com/availability/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(tempAvailabilities),
+        body: JSON.stringify(formData),
       });
-
+  
       if (response.ok) {
         setAvailabilities(tempAvailabilities);
         setEditMode(prev => ({ ...prev, availability: false }));
+        // Show success Snackbar
+        setSnackbarMessage('Availabilities saved successfully!');
+        setSnackbarOpen(true);
       } else {
         const errorData = await response.json();
         console.error('Save failed:', errorData);
@@ -233,7 +266,7 @@ const SettingPage = () => {
           startIcon={<CloseIcon />}
           sx={{ ml: 2 }}
         >
-          Cancel
+          Close
         </Button>
       </Grid>
     </Grid>
@@ -273,7 +306,7 @@ const SettingPage = () => {
           startIcon={<CloseIcon />}
           sx={{ ml: 2 }}
         >
-          Cancel
+          Close
         </Button>
       </Grid>
     </Grid>
@@ -379,7 +412,7 @@ const SettingPage = () => {
           startIcon={<CloseIcon />}
           sx={{ ml: 2 }}
         >
-          Cancel
+          Close
         </Button>
       </Grid>
     </Grid>
@@ -468,6 +501,13 @@ const SettingPage = () => {
       {renderActiveSection()}
     </Container>
     </div>
+        <Snackbar
+            open={snackbarOpen}
+            autoHideDuration={3000}
+            onClose={handleSnackbarClose}
+            message={snackbarMessage}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        />
     </div>
   );
 };
