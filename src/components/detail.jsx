@@ -32,6 +32,7 @@ const Details = () => {
     const [loading, setLoading] = useState(true);
     const [buttonVisible, setButtonVisible] = useState(false);
     const [message, setmessage] = useState('');
+    const [isInstance, setInstance] = useState(false)
     const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate()
@@ -46,13 +47,13 @@ const Details = () => {
 
     const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
     const formattedStartTime = formatDateTime(startTime);
-
+    
     // Base data object
     let data = {
         patient_id: item.id,
         start_time: formattedStartTime,
         reason,
-        phone_number
+        is_instant: isInstance
     };
 
     // Condition to modify the data object
@@ -133,6 +134,7 @@ const options = info.map((slot) => (
   </option>
 ));
   
+const opt =['Yes', 'No']
   const healthSummary = JSON.parse(item.health_summary || "{}");
 
   const deleteDet = async () => {
@@ -255,6 +257,17 @@ const options = info.map((slot) => (
                     <ModalHeader>Book Call Appointment</ModalHeader>
                     <ModalCloseButton />
                     <ModalBody>
+                    <FormLabel>Do you want to start an Instant call?</FormLabel>
+                        <Select
+                placeholder="Select Yes or No"
+              
+                onChange={(e) => setInstance(e.target.value === 'Yes')}
+              > {opt.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+              </Select>
                     <FormControl mb={4}>
                     <FormLabel>Set Date</FormLabel>
                             <Input
