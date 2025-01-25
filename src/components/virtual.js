@@ -44,9 +44,11 @@ const Va = () => {
     const [startTime, setStartTime] = useState('');
     const toast = useToast();
     const [message, setmessage] = useState('')
-      
+    const [isInstance, setInstance] = useState(false)
+    const [link, setLink] = useState('')  
   
   const navigate = useNavigate()
+  const opt =['Yes', 'No']
 
   const handleSubmit = async () => {
     setButtonVisible(true);
@@ -59,7 +61,8 @@ const Va = () => {
       
         start_time: formattedStartTime,
         reason,
-        phone_number
+        phone_number,
+        is_instant: isInstance
     };
 
     // Condition to modify the data object
@@ -80,7 +83,7 @@ const Va = () => {
             },
             body: JSON.stringify(data),
         });
-
+      
         if (response.ok) {
             toast({
                 title: 'Appointment booked successfully!',
@@ -89,8 +92,14 @@ const Va = () => {
                 duration: 5000,
                 isClosable: true,
             });
+            const result = await response.json()
+            setLink(result)
             onClose(); // Close the modal
-        } else {
+        } else if (response.ok && isInstance === true){
+          const result = await response.json()
+             setLink(result)
+        }
+        else {
           const errorResult = await response.json()
           setmessage(errorResult.message)
             throw new Error('Failed to book the appointment.');
@@ -169,7 +178,7 @@ const options = info.map((slot) => (
           </div>
         );
       };
-
+console.log(link)
       
   // Fetch doctor subscribers data
   useEffect(() => {
@@ -218,6 +227,13 @@ const options = info.map((slot) => (
     navigate('/call', { state: { item } }); // Navigate using the ID
   };
 
+  const handleInstCalls = () => {
+    const item = link.appointment
+    navigate('/call', { state: { item } }); // Navigate using the ID
+  };
+  const cLink = link?.appointment?.channel_name
+  ? `https://prestige-doctor.vercel.app/appointment?channel=${link.appointment.channel_name}`
+  : '';
 
   if (loading) {
     return (
@@ -256,7 +272,7 @@ const options = info.map((slot) => (
         <VStack spacing={4} align="stretch">
           {bookedItems.length > 0 ? (
             bookedItems.map((item, index) => {
-              const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.channel_name}`;
+              const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.appointment.channel_name}`;
               return (
                 <Box
                   key={index}
@@ -279,7 +295,20 @@ const options = info.map((slot) => (
               );
             })
           ) : (
+            
+            <div>
             <Text color="gray.500">No booked appointments available.</Text>
+         
+  {cLink ? (
+    <> <Flex gap="15px">
+      <Text>Patient link: {cLink}</Text>
+      <CopyButton textToCopy={cLink} /></Flex> 
+      <Button colorScheme='blue' onClick={handleInstCalls}>Start call</Button>
+    </>
+  ) : (
+    <Text color="gray.500"></Text>
+  )}
+     </div>
           )}
         </VStack>
       </Box>
@@ -292,6 +321,17 @@ const options = info.map((slot) => (
                           <ModalHeader>Book Call Appointment</ModalHeader>
                           <ModalCloseButton />
                           <ModalBody>
+                           <FormLabel>Do you want to start an Instant call?</FormLabel>
+                                                  <Select
+                                          placeholder="Select Yes or No"
+                                        
+                                          onChange={(e) => setInstance(e.target.value === 'Yes')}
+                                        > {opt.map((option) => (
+                                    <option key={option} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                        </Select>
                           <FormControl mb={4}>
                           <FormLabel>Set Date</FormLabel>
                                   <Input
