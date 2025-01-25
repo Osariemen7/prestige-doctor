@@ -25,7 +25,7 @@ const Voice = () => {
     const [recorder, setRecorder] = useState(null);
     const [isLoading, setIsLoading] = useState(false); // New loading state
     const [userCount, setUserCount] = useState(0);
-    const [callDuration, setCallDuration] = useState(0);
+    const [callDuration, setCallDuration] = useState(60); // Countdown from 60 seconds
     const [timerId, setTimerId] = useState(null);
     const navigate = useNavigate()
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -68,9 +68,15 @@ const Voice = () => {
       
 
       const startTimer = () => {
-        setCallDuration(0); // Reset duration
+        setCallDuration(900); // Reset duration
         const id = setInterval(() => {
-          setCallDuration((prev) => prev + 1);
+           setCallDuration((prev) => {
+             if (prev <= 1) {
+                leaveChannel();
+               return 0;
+             }
+             return prev -1;
+           });
         }, 1000);
         setTimerId(id);
       };
@@ -97,11 +103,17 @@ const Voice = () => {
             const channel = item.channel_name || chanel;
     
             await client.join(appId, channel, token, null);
-    
-            const audioTrack = await createMicrophoneAudioTrack();
-            await client.publish(audioTrack);
-            setLocalAudioTrack(audioTrack);
-    
+           
+                const audioTrack = await createMicrophoneAudioTrack({
+                    constraints: {
+                        audio: true
+                    }
+                });
+
+                await client.publish(audioTrack);
+                setLocalAudioTrack(audioTrack);
+             console.log('Local Audio Track Published', audioTrack);
+
             const videoTrack = await createCameraVideoTrack();
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
@@ -140,44 +152,46 @@ const Voice = () => {
     }
       
 
-    async function leaveChannel() {
-        setIsLoading(true); // Start loading
-        try {
-            if (isJoined) {
-                console.log('Leaving channel...');
-                await client.leave();
-                stopTimer();
-            }
-    
-            if (localAudioTrack) {
-                localAudioTrack.stop();
-                localAudioTrack.close();
-                setLocalAudioTrack(null);
-            }
-    
-            if (localVideoTrack) {
-                localVideoTrack.stop();
-                localVideoTrack.close();
-                setLocalVideoTrack(null);
-            }
-    
-            remoteAudioTracks.forEach((track) => track.stop());
-            setRemoteAudioTracks([]);
-    
-            setRemoteUsers([]);
-            setIsVideoEnabled(false);
-            setIsRecording(false);
-            setUserCount(0);
-            setIsJoined(false);
-    
-            console.log('Left the channel and cleaned up tracks.');
-        } catch (error) {
-            console.error('Error leaving channel:', error);
-        } finally {
-            setIsLoading(false); // Stop loading
-            navigate('https://prestige-health.vercel.app/');
+   async function leaveChannel() {
+    setIsLoading(true); // Start loading
+    try {
+        if (isJoined) {
+            console.log('Leaving channel...');
+            await client.leave();
+            stopTimer();
         }
+
+        if (localAudioTrack) {
+            localAudioTrack.stop();
+            localAudioTrack.close();
+            setLocalAudioTrack(null);
+        }
+
+        if (localVideoTrack) {
+            localVideoTrack.stop();
+            localVideoTrack.close();
+            setLocalVideoTrack(null);
+        }
+
+        remoteAudioTracks.forEach((track) => track.stop());
+        setRemoteAudioTracks([]);
+
+        setRemoteUsers([]);
+        setIsVideoEnabled(false);
+        setIsRecording(false);
+        setUserCount(0);
+        setIsJoined(false);
+
+        console.log('Left the channel and cleaned up tracks.');
+    } catch (error) {
+        console.error('Error leaving channel:', error);
+    } finally {
+        setIsLoading(false); // Stop loading
+        navigate('/');
+            window.location.href = 'https://prestige-health.vercel.app/';
     }
+}
+
     
     
     async function enableVideo() {
