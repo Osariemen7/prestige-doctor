@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from 'agora-rtc-sdk-ng';
 import Recorder from 'recorder-js';
 import { getAccessToken } from './api';
@@ -6,6 +6,7 @@ import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff } from 'react
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar } from '@chakra-ui/react';
 import VideoDisplay from './vod';
+
 
 const Voice = () => {
     const { state } = useLocation();
@@ -27,6 +28,7 @@ const Voice = () => {
     const [userCount, setUserCount] = useState(0);
     const [callDuration, setCallDuration] = useState(60); // Countdown from 60 seconds
     const [timerId, setTimerId] = useState(null);
+    const timerIdRef = useRef('')
     const navigate = useNavigate()
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const destination = audioContext.createMediaStreamDestination();
@@ -69,17 +71,25 @@ const Voice = () => {
 
       const startTimer = () => {
         setCallDuration(900); // Reset duration
+        if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear any existing interval
         const id = setInterval(() => {
-           setCallDuration((prev) => {
-             if (prev <= 1) {
-                leaveChannel();
-               return 0;
-             }
-             return prev -1;
-           });
+            setCallDuration((prev) => {
+                if (prev <= 1) {
+                    clearInterval(id);
+                    leaveChannel();
+                    return 0;
+                }
+                return prev - 1;
+            });
         }, 1000);
-        setTimerId(id);
-      };
+        timerIdRef.current = id; // Store interval ID in useRef
+    };
+    
+    useEffect(() => {
+        return () => {
+            if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear timer on component unmount
+        };
+    }, []);
       
     
       const stopTimer = () => {

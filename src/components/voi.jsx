@@ -32,6 +32,7 @@ import Chat from './chatVoice';
 import VoiceDocu from './voidocu';
 
 
+
 const Call = () => {
   const { state } = useLocation();
   const item = state?.item || {};
@@ -39,16 +40,18 @@ const Call = () => {
   const chanel = searchParams.get('channel');
   const navigate = useNavigate();
   const [message, setMessage] = useState('');
-  const timerRef = useRef(null);
+   const [callDuration, setCallDuration] = useState(60);
+   const [timerId, setTimerId] = useState(null);
   const startTimeRef = useRef(null);
+  const timerIdRef = useRef('')
   const { setReview } = useReview();
   const [reviewId, setReviewId] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isVoiceDocuOpen, setIsVoiceDocuOpen] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
   const [isJoined, setIsJoined] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState([]);
   const [localAudioTrack, setLocalAudioTrack] = useState(null);
+    const [remoteAudioTracks, setRemoteAudioTracks] = useState([]);
   const [localVideoTrack, setLocalVideoTrack] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
@@ -70,18 +73,29 @@ const Call = () => {
   const [debugLogs, setDebugLogs] = useState([]);
   const { isOpen: isChatModalOpen, onOpen: onChatModalOpen, onClose: onChatModalClose } = useDisclosure();
   const { isOpen: isDocuModalOpen, onOpen: onDocuModalOpen, onClose: onDocuModalClose } = useDisclosure();
-
-  // Set up Agora client on mount
-  useEffect(() => {
-    clientRef.current = createClient({ mode: 'rtc', codec: 'vp8' });
-    const client = clientRef.current;
-
-    const handleUserPublished = async (user, mediaType) => {
-      await client.subscribe(user, mediaType);
-
-      if (mediaType === 'video') {
-        setRemoteUsers((prev) => [...prev, user]);
+     const stopRecording = () => {
+      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        ws.current.send(
+          JSON.stringify({
+            type: 'documentation.stop',
+          })
+        );
       }
+     
+      setIsRecording(false);
+      console.log('Recording stopped.');
+  };
+  // Set up Agora client on mount
+  const handleUserPublished = async (user, mediaType) => {
+       await clientRef.current.subscribe(user, mediaType);
+
+          if (mediaType === 'video') {
+              setRemoteUsers((prev) => [...prev, user]);
+          } else if (mediaType === 'audio') {
+              user.audioTrack.play();
+             setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
+        }
+
 
       setUserCount((prev) => {
         const newCount = prev + 1;
@@ -91,47 +105,65 @@ const Call = () => {
         return newCount;
       });
     };
-
     const handleUserUnpublished = (user) => {
       setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-      setUserCount((prev) => {
-        const newCount = Math.max(prev - 1, 0);
-        if (newCount === 0) {
-          stopTimer();
-        }
-        return newCount;
-      });
-    };
+        setRemoteAudioTracks((prev) =>
+            prev.filter((track) => track.getUserId() !== user.uid)
+        );
 
-    client.on('user-published', handleUserPublished);
-    client.on('user-unpublished', handleUserUnpublished);
-
-    return () => {
-      client.off('user-published', handleUserPublished);
-      client.off('user-unpublished', handleUserUnpublished);
-      stopTimer();
+        setUserCount((prev) => {
+          const newCount = Math.max(prev - 1, 0);
+          if (newCount === 0) {
+            stopTimer();
+          }
+          return newCount;
+        });
     };
+    useEffect(() => {
+      clientRef.current = createClient({ mode: 'rtc', codec: 'vp8'});
+      const client = clientRef.current;
+  
+  
+  
+      client.on('user-published', handleUserPublished);
+          client.on('user-unpublished', handleUserUnpublished);
+  
+      return () => {
+        client.off('user-published', handleUserPublished);
+          client.off('user-unpublished', handleUserUnpublished);
+        stopTimer();
+      };
+    }, []);
+
+    const startTimer = () => {
+      setCallDuration(900); // Reset duration
+      if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear any existing interval
+      const id = setInterval(() => {
+          setCallDuration((prev) => {
+              if (prev <= 1) {
+                  clearInterval(id);
+                  leaveChannel();
+                  return 0;
+              }
+              return prev - 1;
+          });
+      }, 1000);
+      timerIdRef.current = id; // Store interval ID in useRef
+  };
+  
+  useEffect(() => {
+      return () => {
+          if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear timer on component unmount
+      };
   }, []);
-
-  // Timer logic
-  const startTimer = () => {
-    if (timerRef.current) return; // Prevent multiple timers
-
-    setCallDuration(0);
-    startTimeRef.current = Date.now();
-
-    timerRef.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      setCallDuration(elapsed);
-    }, 1000);
-  };
-
-  const stopTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
+     
+    
+    const stopTimer = () => {
+        if (timerId) {
+            clearInterval(timerId);
+            setTimerId(null);
+        }
+    };
 
   // Joining channel with video
   const joinChannelWithVideo = async () => {
@@ -141,17 +173,22 @@ const Call = () => {
       return;
     }
     setIsLoading(true);
-
+   
+  
     try {
       const appId = '44787e17cd0348cd8b75366a2b5931e9';
       const token = null;
       const channel = item.channel_name;
 
       await clientRef.current.join(appId, channel, token, null);
-
-      const audioTrack = await createMicrophoneAudioTrack();
+          const audioTrack = await createMicrophoneAudioTrack({
+                    constraints: {
+                        audio: true
+                    }
+                });
       await clientRef.current.publish(audioTrack);
-      setLocalAudioTrack(audioTrack);
+          setLocalAudioTrack(audioTrack);
+     console.log('Local Audio Track Published', audioTrack);
 
       const videoTrack = await createCameraVideoTrack();
       await clientRef.current.publish(videoTrack);
@@ -159,9 +196,8 @@ const Call = () => {
       setIsVideoEnabled(true);
       setIsJoined(true);
       setUserCount(1);
-      startTimer();
-
-      console.log('Joined channel with audio and video.');
+         
+          //Start Timer
     } catch (error) {
       console.error('Error joining channel with video:', error);
     } finally {
@@ -194,6 +230,9 @@ const Call = () => {
         setLocalVideoTrack(null);
       }
 
+       remoteAudioTracks.forEach((track) => track.stop());
+            setRemoteAudioTracks([]);
+
       setRemoteUsers([]);
       setIsVideoEnabled(false);
       setIsRecording(false);
@@ -205,6 +244,7 @@ const Call = () => {
       console.error('Error leaving channel:', error);
     } finally {
       setIsLoading(false);
+       navigate('/virtual');
     }
   };
 
@@ -233,7 +273,13 @@ const Call = () => {
   // Enable video
   async function enableVideo() {
     try {
-      const videoTrack = await createCameraVideoTrack();
+      const videoTrack = await createCameraVideoTrack({
+        encoderConfig: {
+            resolution: '1280x720', // Options: '120p', '360p', '720p', '1080p'
+            frameRate: 30,         // Frame rate: 15, 30
+            bitrateMax: 1130,      // Adjust bitrate (Kbps) for better quality
+        },
+    }); 
       setLocalVideoTrack(videoTrack);
       setIsVideoEnabled(true);
       console.log('Video enabled.');
@@ -286,7 +332,7 @@ const Call = () => {
             if (typeof event.data === 'string') {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log(`Received message:`, data);
+                    console.log('Received message:', data);
                     setReviewId(data.review_id);
                     if (data.type === 'openai_message' && Array.isArray(data.message?.content)) {
                         setChatMessages((prevMessages) => [
@@ -298,9 +344,9 @@ const Call = () => {
                     } else if (data.type === 'documentation') {
                         console.log('Documentation:', data.message);
                     } else if (data.type === 'session_started') {
-                        console.log(`Session started with review ID: ${data.review_id}`);
+                        console.log('Session started with review ID:', data.review_id);
                     } else if (data.type === 'error') {
-                        console.error(`OpenAI Error:`, data);
+                        console.error('OpenAI Error:', data);
                     }
                 } catch (error) {
                     console.error('Error parsing message:', error);
@@ -314,57 +360,44 @@ const Call = () => {
 };
   // Start Audio Recording
   const startRecording = async () => {
-      if (!ws?.current || ws.current.readyState !== WebSocket.OPEN) {
-        console.error('WebSocket is not connected.');
-        alert('WebSocket is not connected. Please set up the session first.');
-        return;
+    if (!ws?.current || ws.current.readyState !== WebSocket.OPEN) {
+      console.error('WebSocket is not connected.');
+      alert('WebSocket is not connected. Please set up the session first.');
+      return;
+  }
+
+    try {
+          // Create audio context
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                sampleRate: 16000,
+                channelCount: 1,
+            },
+        });
+
+        const sourceNode = audioContext.createMediaStreamSource(audioStream);
+        const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+        scriptProcessor.onaudioprocess = (event) => {
+            const inputBuffer = event.inputBuffer.getChannelData(0);
+            const pcmBuffer = pcmEncode(inputBuffer);
+            if (ws.current?.readyState === WebSocket.OPEN) {
+                ws.current.send(pcmBuffer);
+            }
+        };
+
+        sourceNode.connect(scriptProcessor);
+        scriptProcessor.connect(audioContext.destination);
+        setIsRecording(true);
+        console.log('Recording started.');
+        sendOobRequest();
+    } catch (error) {
+        console.error(`Error starting recording: ${error.message}`);
+        alert('Error accessing microphone. Please ensure microphone permissions are granted.');
     }
-  
-      try {
-            // Create audio context
-          const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-          const audioStream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  sampleRate: 16000,
-                  channelCount: 1,
-              },
-          });
-  
-          const sourceNode = audioContext.createMediaStreamSource(audioStream);
-          const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
-          scriptProcessor.onaudioprocess = (event) => {
-              const inputBuffer = event.inputBuffer.getChannelData(0);
-              const pcmBuffer = pcmEncode(inputBuffer);
-              if (ws.current?.readyState === WebSocket.OPEN) {
-                  ws.current.send(pcmBuffer);
-              }
-          };
-  
-          sourceNode.connect(scriptProcessor);
-          scriptProcessor.connect(audioContext.destination);
-          setIsRecording(true);
-          console.log('Recording started.');
-          sendOobRequest();
-      } catch (error) {
-          console.error(`Error starting recording: ${error.message}`);
-          alert('Error accessing microphone. Please ensure microphone permissions are granted.');
-      }
-  };
-  // Stop Recording Audio
-  const stopRecording = () => {
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        ws.current.send(
-          JSON.stringify({
-            type: 'documentation.stop',
-          })
-        );
-      }
-     
-      setIsRecording(false);
-      console.log('Recording stopped.');
-  };
+};
 // Encode to PCM
   const pcmEncode = (input) => {
     const buffer = new ArrayBuffer(input.length * 2);
@@ -387,7 +420,7 @@ const Call = () => {
           },
         })
       );
-      console.log(`Out-of-Band request sent: Type - ${oobRequestType}, Details - ${oobRequestDetails}`);
+     
     } else {
       console.log('WebSocket is not connected. Cannot send Out-of-Band request.');
     }
@@ -399,7 +432,7 @@ const Call = () => {
       const formatPhoneNumber = (phoneNumber) => {
         if (phoneNumber.startsWith('+234')) return phoneNumber;
         return `+234${phoneNumber.slice(1)}`;
-      };
+    };
       const phoneNumber = formatPhoneNumber(phone);
 
       const item = {
@@ -433,11 +466,11 @@ const Call = () => {
   };
 
 // Format duration for call timer
-  const formatDuration = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
+const formatDuration = (seconds) => {
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
   // Main UI Rendering
   return (
     <ChakraProvider>

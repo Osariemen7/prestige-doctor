@@ -41,11 +41,13 @@ const Va = () => {
   const [phoneNumber, setPhone] = useState('');
     const [reason, setReason] = useState('');
     const [buttonVisible, setButtonVisible] = useState(false);
-    const [startTime, setStartTime] = useState('');
+    const [startTime, setStartTime] = useState('2025-01-25 09:00');
     const toast = useToast();
     const [message, setmessage] = useState('')
     const [isInstance, setInstance] = useState(false)
     const [link, setLink] = useState('')  
+    const modal1 = useDisclosure()
+    const modal2 = useDisclosure()
   
   const navigate = useNavigate()
   const opt =['Yes', 'No']
@@ -262,9 +264,14 @@ console.log(link)
           Virtual Appointment
         </Heading>
 
-        <Button colorScheme="blue" onClick={onOpen} mb='10px'>
-                Schedule Call with New patient
+<Button colorScheme="blue" onClick={modal1.onOpen} mb='10px'>
+                Schedule Call with patient
             </Button>
+            <Button colorScheme="blue" onClick={modal2.onOpen} mb='10px'>
+                Start Instant Call
+            </Button>
+
+       
         <Heading fontSize="20px" mb={4}>
           Call Schedules
         </Heading>
@@ -315,24 +322,13 @@ console.log(link)
       </div>
       </div>
 
-      <Modal isOpen={isOpen} onClose={onClose}>
+      <Modal isOpen={modal1.isOpen} onClose={modal1.onClose}>
                       <ModalOverlay />
                       <ModalContent>
                           <ModalHeader>Book Call Appointment</ModalHeader>
                           <ModalCloseButton />
                           <ModalBody>
-                           <FormLabel>Do you want to start an Instant call?</FormLabel>
-                                                  <Select
-                                          placeholder="Select Yes or No"
-                                        
-                                          onChange={(e) => setInstance(e.target.value === 'Yes')}
-                                        > {opt.map((option) => (
-                                    <option key={option} value={option}>
-                                      {option}
-                                    </option>
-                                  ))}
-                                        </Select>
-                          <FormControl mb={4}>
+                               <FormControl mb={4}>
                           <FormLabel>Set Date</FormLabel>
                                   <Input
                                       type="date"
@@ -380,13 +376,66 @@ console.log(link)
                               >
                                   {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
                               </Button>
-                              <Button variant="ghost" onClick={onClose}>
+                              <Button variant="ghost" onClick={modal1.onClose}>
                                   Cancel
                               </Button>
                           </ModalFooter>
                       </ModalContent>
                   </Modal>
+                  <Modal isOpen={modal2.isOpen} onClose={modal2.onClose}>
+                      <ModalOverlay />
+                      <ModalContent>
+                          <ModalHeader>Start Instant Call</ModalHeader>
+                          <ModalCloseButton />
+                          <ModalBody>
+                           <FormLabel>Do you want to start an Instant call?</FormLabel>
+                                                  <Select
+                                          placeholder="Select Yes or No"
+                                        
+                                          onChange={(e) => setInstance(e.target.value === 'Yes')}
+                                        > {opt.map((option) => (
+                                    <option key={option} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                        </Select>
+                              <FormControl>
+                              <FormLabel>Phone Number</FormLabel>
+                                  <Input
+                                      type="number"
+                                      value={phoneNumber}
+                                      onChange={(e) => setPhone(e.target.value)}
+                                      placeholder="Input Phone Number"
+                                  />
       
+                              </FormControl>
+                              <FormControl>
+                                  <FormLabel>Reason for Appointment</FormLabel>
+                                  <Textarea
+                                      value={reason}
+                                      onChange={(e) => setReason(e.target.value)}
+                                      placeholder="Enter the reason for your appointment"
+                                  />
+                              </FormControl>
+                              <Text color='red'>{message}</Text>
+                          </ModalBody>
+      
+                          <ModalFooter>
+                              <Button
+                                  colorScheme="blue"
+                                  mr={3}
+                                  onClick={handleSubmit}
+                                  isDisabled={loading} // Disable button while loading
+                              >
+                                  {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
+                              </Button>
+                              <Button variant="ghost" onClick={modal2.onClose}>
+                                  Cancel
+                              </Button>
+                          </ModalFooter>
+                      </ModalContent>
+                  </Modal>
+     
     </ChakraProvider>
   );
 };

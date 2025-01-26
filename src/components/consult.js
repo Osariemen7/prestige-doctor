@@ -50,12 +50,59 @@ const ConsultAIPage = () => {
     };
   }, []);
 
+  const handleSubmit = async () => {
+  
+      const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
+     
+      // Base data object
+      let data = {
+        
+          start_time: '2025-01-25 09:00',
+          reason: 'Routine Check',
+          phone_number,
+          is_instant: true
+      };
+  
+      // Condition to modify the data object
+      if (phone_number === '') {
+          delete data.phone_number; // Remove phone_number if it's empty
+      } else {
+          delete data.patient_id; // Remove patient_id if phone_number is provided
+      }
+  
+      const token = await getAccessToken();
+  
+      try {
+          const response = await fetch('https://health.prestigedelta.com/appointments/book/', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify(data),
+          });
+        
+          if (response.ok) {
+              console.log('call begins')
+              ; // Close the modal
+          }
+          else {
+
+              throw new Error('Failed to book the appointment.');
+              
+          }
+      } catch (error) {
+          
+      }
+  };
+
   const connectWebSocket = async () => {
     if (phoneNumber.length !== 11) {
       setErrorMessage('Please enter a valid 11-digit phone number');
       return;
     }
     setErrorMessage('');
+    handleSubmit()
     const token = await getAccessToken();
     let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'wss:'}//health.prestigedelta.com/ws/medical/?token=${token}`;
 
