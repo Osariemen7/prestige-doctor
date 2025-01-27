@@ -32,7 +32,7 @@ const ConsultAIPage = () => {
  const [oobRequestDetails, setOobRequestDetails] = useState('');
  const [oobResponse, setOobResponse] = useState([]);
  const [debugLogs, setDebugLogs] = useState([]);
-   
+  const [ite, setItem] = useState({});
 
   const ws = useRef(null);
   const navigate = useNavigate();
@@ -51,7 +51,6 @@ const ConsultAIPage = () => {
   }, []);
 
   const handleSubmit = async () => {
-  
       const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
      
       // Base data object
@@ -83,6 +82,8 @@ const ConsultAIPage = () => {
           });
         
           if (response.ok) {
+            const result = await response.json();
+            setItem(result.appointment);
               console.log('call begins')
               ; // Close the modal
           }
@@ -95,6 +96,7 @@ const ConsultAIPage = () => {
           
       }
   };
+
 
   const connectWebSocket = async () => {
     if (phoneNumber.length !== 11) {
@@ -124,14 +126,14 @@ const ConsultAIPage = () => {
         try {
           const data = JSON.parse(event.data);
           console.log(`Received message:`, data);
-          setReviewId(data.review_id);
+          
           
           if (data.type === 'openai_message' && data.message) {
             setChatMessages((prevMessages) => [
               ...prevMessages,
               { role: data.message.role, content: data.message.content[0].text },
             ]);
-
+            setReviewId(data.review_id);
             // Set new message indication if user is not on the Chat tab
             if (selectedTab !== 1) {
               setHasNewMessage(true);
@@ -258,6 +260,7 @@ const ConsultAIPage = () => {
                 errorMessage={errorMessage}
                 reviewId={reviewId}
                 sendOobRequest={sendOobRequest}
+                ite={ite}
               />
             </TabPanel>
             <TabPanel>

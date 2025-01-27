@@ -4,7 +4,7 @@ import { MdMic, MdStop } from 'react-icons/md';
 import { getAccessToken, submitEdits } from './api';
 
 
-const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket, phoneNumber, setPhoneNumber, ws, errorMessage }) => {
+const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSocket, phoneNumber, setPhoneNumber, ws, errorMessage }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const audioStream = useRef(null);
@@ -19,6 +19,46 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket,
   const [isLoading, setIsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   
+  const handleBilling = async () => {
+  
+    try {
+      const phone = ite.patient_phone_number;
+      const formatPhoneNumber = (phoneNumber) => {
+        if (phoneNumber.startsWith('+234')) return phoneNumber;
+        return `+234${phoneNumber.slice(1)}`;
+    };
+      const phoneNumber = formatPhoneNumber(phone);
+      const token = await getAccessToken();
+      const item = {
+        cost_bearer: "doctor",
+    appointment_id: ite.id,
+    expertise: "trainee",
+    seconds_used: recordingTime
+      };
+      const response = await fetch('https://health.prestigedelta.com/billing/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(item),
+      });
+
+      const result = await response.json();
+      if (response.status !== 201) {
+        console.log(result.message|| 'An error occurred');
+      } else {
+        console.log(result.message || 'Billing successful'); 
+      
+      }
+    } catch (error) {
+      console.log(error);
+    
+    } finally {
+
+    }
+  };
 
   const handleStartConsultation = async () => {
     setLoading(true); // Show spinner
@@ -67,7 +107,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket,
   //   }
   // }, [isRecording]);
   
-    
+    console.log(reviewId)
 
   const editableFieldKeys = [
     'chief_complaint',
@@ -289,7 +329,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket,
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     log('Attempting to stop recording...');
     if (scriptProcessor.current) {
       scriptProcessor.current.disconnect();
@@ -302,6 +342,9 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket,
     }
     setIsRecording(false);
     log('Recording stopped.');
+
+    // Trigger billing after recording has stopped
+    await handleBilling();
   };
 
   const pcmEncode = (input) => {
@@ -381,7 +424,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket,
           <Heading fontSize="lg">Patient Report</Heading>
          
           <VStack spacing={2} align="stretch" width="100%">
-          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={1}>
+          
           {Object.entries(data?.doctor_note || {}).map(
               ([section, details]) => (
                 <Box key={section} width="100%">
@@ -400,7 +443,7 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, sendOobRequest, connectWebSocket,
                   <Divider />
                 </Box>
               )
-            )}</Grid>
+            )}
           </VStack>
           <Button
             colorScheme="teal"

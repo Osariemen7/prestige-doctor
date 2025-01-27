@@ -119,7 +119,73 @@ const Va = () => {
         setButtonVisible(false); // Reset loading state
     }
 };
+const handleSubmit2 = async () => {
+  setButtonVisible(true);
 
+  const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
+  const formattedStartTime = formatDateTime(startTime);
+
+  // Base data object
+  let data = {
+    
+      start_time: formattedStartTime,
+      reason,
+      phone_number,
+      is_instant: true
+  };
+
+  // Condition to modify the data object
+  if (phone_number === '') {
+      delete data.phone_number; // Remove phone_number if it's empty
+  } else {
+      delete data.patient_id; // Remove patient_id if phone_number is provided
+  }
+
+  const token = await getAccessToken();
+
+  try {
+      const response = await fetch('https://health.prestigedelta.com/appointments/book/', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(data),
+      });
+    
+      if (response.ok) {
+          toast({
+              title: 'Appointment booked successfully!',
+              description: `Your appointment is scheduled for ${startTime}.`,
+              status: 'success',
+              duration: 5000,
+              isClosable: true,
+          });
+          const result = await response.json()
+          setLink(result)
+          onClose(); // Close the modal
+      } else if (response.ok && isInstance === true){
+        const result = await response.json()
+           setLink(result)
+      }
+      else {
+        const errorResult = await response.json()
+        setmessage(errorResult.message)
+          throw new Error('Failed to book the appointment.');
+          
+      }
+  } catch (error) {
+      toast({
+          title: 'Error',
+          description: error.message,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+      });
+  } finally {
+      setButtonVisible(false); // Reset loading state
+  }
+};
 
 useEffect(() => {
   if (date) {
@@ -266,7 +332,7 @@ console.log(link)
 
 <Button colorScheme="blue" onClick={modal1.onOpen} mb='10px'>
                 Schedule Call with patient
-            </Button>
+            </Button><br/>
             <Button colorScheme="blue" onClick={modal2.onOpen} mb='10px'>
                 Start Instant Call
             </Button>
@@ -388,17 +454,6 @@ console.log(link)
                           <ModalHeader>Start Instant Call</ModalHeader>
                           <ModalCloseButton />
                           <ModalBody>
-                           <FormLabel>Do you want to start an Instant call?</FormLabel>
-                                                  <Select
-                                          placeholder="Select Yes or No"
-                                        
-                                          onChange={(e) => setInstance(e.target.value === 'Yes')}
-                                        > {opt.map((option) => (
-                                    <option key={option} value={option}>
-                                      {option}
-                                    </option>
-                                  ))}
-                                        </Select>
                               <FormControl>
                               <FormLabel>Phone Number</FormLabel>
                                   <Input
@@ -424,7 +479,7 @@ console.log(link)
                               <Button
                                   colorScheme="blue"
                                   mr={3}
-                                  onClick={handleSubmit}
+                                  onClick={handleSubmit2}
                                   isDisabled={loading} // Disable button while loading
                               >
                                   {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
