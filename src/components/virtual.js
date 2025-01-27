@@ -96,7 +96,7 @@ const Va = () => {
             });
             const result = await response.json()
             setLink(result)
-            onClose(); // Close the modal
+            modal1.onClose(); // Close the modal
         } else if (response.ok && isInstance === true){
           const result = await response.json()
              setLink(result)
@@ -163,7 +163,7 @@ const handleSubmit2 = async () => {
           });
           const result = await response.json()
           setLink(result)
-          onClose(); // Close the modal
+          modal2.onClose(); // Close the modal
       } else if (response.ok && isInstance === true){
         const result = await response.json()
            setLink(result)
