@@ -17,11 +17,13 @@ import DocDash from './components/doctordash';
 import Document from './components/show'
 import Talk from './components/talk';
 import HealthDashboard from './components/health';
+import MedicalRecording from './components/sample';
 import Va from './components/virtual';
 import './App.css'; // Import the global styles
+import WebSocketExample from './components/test';
 import AvailabilitySelector from './components/available';
 import SettingPage from './components/setting';
-
+import SearchBox from './components/ask';
 const App = () => {
   return (
     
@@ -42,9 +44,12 @@ const App = () => {
           <Route path='/show' element={<Document />} />
           <Route path='/talk' element= {<Talk />} />
           <Route path='/health' element={<HealthDashboard />} />
+          <Route path='/sample' element={<MedicalRecording />} />
+          <Route path='/test' element={<WebSocketExample />} />
           <Route path='/virtual' element={<Va />} />
           <Route path='/available' element={<AvailabilitySelector />} />
-           <Route path='/setting' element={<SettingPage />} />
+          <Route path='/setting' element={<SettingPage />} />
+          <Route path='/ask' element={<SearchBox />} />
         </Routes>
       </div>
     </ReviewProvider>
