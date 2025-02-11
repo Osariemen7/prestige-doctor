@@ -1,91 +1,130 @@
+// voicenote.js
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Box, Input, Text, Grid, VStack, Icon, HStack, Flex, Heading, Spinner, Divider, Textarea } from '@chakra-ui/react';
-import { MdMic, MdStop } from 'react-icons/md';
-import { getAccessToken, submitEdits } from './api';
+import {
+  Button,
+  Box,
+  Input,
+  Text,
+  VStack,
+  Icon,
+  HStack,
+  Flex,
+  Heading,
+  Spinner,
+  Divider,
+  Textarea,
+} from '@chakra-ui/react';
+import { MdMic, MdStop, MdSearch } from 'react-icons/md';
+import { getAccessToken } from './api';
 
-
-const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSocket, phoneNumber, setPhoneNumber, ws, errorMessage }) => {
+const VoiceNoteScreen = ({
+  wsStatus,
+  reviewId,
+  ite,
+  sendOobRequest,
+  connectWebSocket,
+  phoneNumber,
+  setPhoneNumber,
+  ws,
+  errorMessage,
+  disconnectWebSocket,
+  searchText,
+  setSearchText,
+  removePhoneNumberInput,
+}) => {
+  // States for recording and editing
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
+  const [recordingTime, setRecordingTime] = useState(900);
+  const [timeElapsed, setTimeElapsed] = useState(0); // Track time
+  const [data, setData] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableFields, setEditableFields] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // New state: flag that tells us we want to start recording once connected
+  const [shouldStartRecording, setShouldStartRecording] = useState(false);
+
+  // New state: index for animation messages
+  const [animationIndex, setAnimationIndex] = useState(0);
+  const animationMessages = [
+    "Warming up the microphone...",
+    "Connecting to our magic server...",
+    "Preparing a fun consultation...",
+    "Almost ready!",
+  ];
+
   const audioStream = useRef(null);
   const audioContext = useRef(null);
   const scriptProcessor = useRef(null);
   const desiredSampleRate = 16000;
   const debugLogRef = useRef(null);
-  const timerRef = useRef(null)
-  const [data, setData] = useState('')
-  const [isEditing, setIsEditing] = useState(false);
-  const [editableFields, setEditableFields] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [loading, setLoading] = useState(false);
-  
+  const timerRef = useRef(null);
+
+  // ---------------------------
+  // Billing and Editing Helpers
+  // ---------------------------
   const handleBilling = async () => {
-  
     try {
       const phone = ite.patient_phone_number;
       const formatPhoneNumber = (phoneNumber) => {
         if (phoneNumber.startsWith('+234')) return phoneNumber;
         return `+234${phoneNumber.slice(1)}`;
-    };
+      };
       const phoneNumber = formatPhoneNumber(phone);
       const token = await getAccessToken();
       const item = {
-        cost_bearer: "doctor",
-    appointment_id: ite.id,
-    expertise: "trainee",
-    seconds_used: recordingTime
+        cost_bearer: 'doctor',
+        appointment_id: ite.id,
+        expertise: 'trainee',
+        seconds_used: timeElapsed, // Use timeElapsed for billing
       };
       const response = await fetch('https://health.prestigedelta.com/billing/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(item),
       });
-
       const result = await response.json();
       if (response.status !== 201) {
-        console.log(result.message|| 'An error occurred');
+        console.log(result.message || 'An error occurred');
       } else {
-        console.log(result.message || 'Billing successful'); 
-      
+        console.log(result.message || 'Billing successful');
       }
     } catch (error) {
       console.log(error);
-    
-    } finally {
-
     }
   };
 
   const handleStartConsultation = async () => {
-    setLoading(true); // Show spinner
-    await connectWebSocket(); // Wait for connection
-    setLoading(false); // Hide spinner after connection
+    setLoading(true);
+    await connectWebSocket();
+    setLoading(false);
+    // Set the flag so that once wsStatus changes to Connected, we start recording.
+    setShouldStartRecording(true);
   };
 
   const getMessage = async () => {
-     
-   await sendOobRequest();
+    await sendOobRequest();
     const review_id = reviewId;
     try {
       const token = await getAccessToken();
       if (token) {
-        const response = await fetch(`https://health.prestigedelta.com/updatereview/${review_id}/`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          
-        });
-      
+        const response = await fetch(
+          `https://health.prestigedelta.com/updatereview/${review_id}/`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
         const result = await response.json();
-        setData(result)
-      
-
+        setData(result);
       } else {
         console.log('No access token available.');
         return null;
@@ -94,20 +133,6 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
       console.error('Failed to send message:', error);
     }
   };
- 
-  // useEffect(() => {
-  //   if (isRecording) {
-  //     const timer = setTimeout(() => {
-  //       getMessage();
-  //       sendOobRequest();
-  //     }, 10000); // 10 seconds delay
-  
-  //     // Cleanup the timeout if `isRecording` changes or the component unmounts
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [isRecording]);
-  
-    console.log(reviewId)
 
   const editableFieldKeys = [
     'chief_complaint',
@@ -138,10 +163,8 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
 
   const handleEditSubmit = async () => {
     setIsLoading(true);
-    console.log('hi');
-  
+    console.log('Submitting edits...');
     try {
-      // Create the structured payload
       const structuredPayload = {
         review_details: {
           patient_medical_history: {
@@ -151,71 +174,71 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
             surgeries: editableFields.surgeries || data.surgeries || [],
             family_history: editableFields.family_history || data.family_history || [],
             past_medical_history: editableFields.past_medical_history || data.past_medical_history || [],
-            social_history: editableFields.social_history || data.social_history || "",
+            social_history: editableFields.social_history || data.social_history || '',
           },
           subjective: {
-            chief_complaint: editableFields.chief_complaint || data.chief_complaint || "",
-            history_of_present_illness: editableFields.history_of_present_illness || data.history_of_present_illness || "",
+            chief_complaint: editableFields.chief_complaint || data.chief_complaint || '',
+            history_of_present_illness: editableFields.history_of_present_illness || data.history_of_present_illness || '',
           },
           objective: {
-            examination_findings: editableFields.physical_examination_findings || data.physical_examination_findings || "",
+            examination_findings: editableFields.physical_examination_findings || data.physical_examination_findings || '',
             investigations: editableFields.investigations || data.investigations || [],
           },
           review_of_systems: {
             system_assessment: {
-              cardiovascular: editableFields.cardiovascular || data.cardiovascular || "",
-              respiratory: editableFields.respiratory || data.respiratory || "",
+              cardiovascular: editableFields.cardiovascular || data.cardiovascular || '',
+              respiratory: editableFields.respiratory || data.respiratory || '',
             },
           },
           assessment: {
-            primary_diagnosis: editableFields.assessment_diagnosis || data.assessment_diagnosis || "",
+            primary_diagnosis: editableFields.assessment_diagnosis || data.assessment_diagnosis || '',
             differential_diagnosis: editableFields.differential_diagnosis || data.differential_diagnosis || [],
-            status: editableFields.status || data.status || "",
+            status: editableFields.status || data.status || '',
             health_score: editableFields.health_score || data.health_score || null,
           },
           plan: {
-            management: editableFields.management_plan || data.management_plan || "",
-            lifestyle_advice: editableFields.lifestyle_advice || data.lifestyle_advice || "",
-            follow_up: editableFields.follow_up || data.follow_up || "",
-            patient_education: editableFields.patient_education || data.patient_education || "",
-            treatment_goal: editableFields.treatment_goal || data.treatment_goal || "",
-            next_review: editableFields.next_review || data.next_review || "",
+            management: editableFields.management_plan || data.management_plan || '',
+            lifestyle_advice: editableFields.lifestyle_advice || data.lifestyle_advice || '',
+            follow_up: editableFields.follow_up || data.follow_up || '',
+            patient_education: editableFields.patient_education || data.patient_education || '',
+            treatment_goal: editableFields.treatment_goal || data.treatment_goal || '',
+            next_review: editableFields.next_review || data.next_review || '',
           },
           reasoning: {
-            diagnosis_reasoning: editableFields.diagnosis_reason || data.diagnosis_reason || "",
-            plan_reasoning: editableFields.management_plan_reason || data.management_plan_reason || "",
+            diagnosis_reasoning: editableFields.diagnosis_reason || data.diagnosis_reason || '',
+            plan_reasoning: editableFields.management_plan_reason || data.management_plan_reason || '',
           },
           investigations: editableFields.investigations || data.investigations || [],
           prescriptions: editableFields.prescriptions || data.prescriptions || [],
         },
       };
-  
+
       const token = await getAccessToken();
       if (!token) {
         console.log('No access token available.');
         return;
       }
-  
-      const response = await fetch(`https://health.prestigedelta.com/updatereview/${reviewId}/`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(structuredPayload),
-      });
-  
+      const response = await fetch(
+        `https://health.prestigedelta.com/updatereview/${reviewId}/`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(structuredPayload),
+        }
+      );
       if (!response.ok) {
         console.error(`Failed to submit edits: ${response.statusText}`);
         alert(`Error: ${response.statusText}`);
         return null;
       }
-      setIsEditing(false)
+      setIsEditing(false);
       const result = await response.json();
       console.log('Submission successful:', result);
       return result;
-      
     } catch (error) {
       console.error('Error submitting edits:', error);
       alert('Failed to submit edits');
@@ -223,12 +246,10 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
       setIsLoading(false);
     }
   };
-  
 
   const renderEditableField = (key, value) => {
     const isEditable = editableFieldKeys.includes(key);
     const displayValue = editableFields[key] ?? value;
-  
     return (
       <Box
         key={key}
@@ -239,11 +260,11 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
         borderColor={isEditable ? 'teal.300' : 'transparent'}
       >
         <Text fontWeight="bold" mb={2}>
-  {key
-    .replace(/_/g, ' ') // Replace underscores with spaces
-    .toLowerCase()      // Convert the entire string to lowercase
-    .replace(/^\w/, (c) => c.toUpperCase())}: {/* Capitalize the first letter */}
-</Text>
+          {key
+            .replace(/_/g, ' ')
+            .toLowerCase()
+            .replace(/^\w/, (c) => c.toUpperCase())}:
+        </Text>
         {isEditable && isEditing ? (
           <Textarea
             value={displayValue}
@@ -261,7 +282,6 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
     );
   };
 
-  
   const log = (message) => {
     const time = new Date().toLocaleTimeString();
     if (debugLogRef.current) {
@@ -272,12 +292,41 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
     }
   };
 
+  // Clean up on unmount.
   useEffect(() => {
     return () => {
-      stopRecording();
+      stopRecording(false);
     };
   }, []);
 
+  // ---------------------------
+  // New Effect: Wait for connection and then start recording
+  // ---------------------------
+  useEffect(() => {
+    if (wsStatus === 'Connected' && shouldStartRecording && !isRecording) {
+      startRecording();
+      setShouldStartRecording(false);
+    }
+  }, [wsStatus, shouldStartRecording, isRecording]);
+
+  // ---------------------------
+  // New Effect: Animation messages (change every 10 seconds while loading)
+  // ---------------------------
+  useEffect(() => {
+    let animationInterval;
+    if (loading && wsStatus !== 'Connected') {
+      animationInterval = setInterval(() => {
+        setAnimationIndex((prevIndex) => (prevIndex + 1) % animationMessages.length);
+      }, 10000);
+    }
+    return () => {
+      if (animationInterval) clearInterval(animationInterval);
+    };
+  }, [loading, wsStatus, animationMessages.length]);
+
+  // ---------------------------
+  // Recording Functions
+  // ---------------------------
   const startRecording = async () => {
     log('Attempting to start recording...');
     if (!ws?.current || ws.current.readyState !== WebSocket.OPEN) {
@@ -285,11 +334,12 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
       alert('WebSocket is not connected. Please set up the session first.');
       return;
     }
-
     try {
       audioContext.current =
-        audioContext.current || new (window.AudioContext || window.webkitAudioContext)({ sampleRate: desiredSampleRate });
-
+        audioContext.current ||
+        new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: desiredSampleRate,
+        });
       audioStream.current = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -298,27 +348,30 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
           channelCount: 1,
         },
       });
-
       const sourceNode = audioContext.current.createMediaStreamSource(audioStream.current);
       scriptProcessor.current = audioContext.current.createScriptProcessor(2048, 1, 1);
-
       scriptProcessor.current.onaudioprocess = (audioProcessingEvent) => {
         const inputBuffer = audioProcessingEvent.inputBuffer.getChannelData(0);
         const pcmBuffer = pcmEncode(inputBuffer);
-
         if (ws.current?.readyState === WebSocket.OPEN) {
           ws.current.send(pcmBuffer);
         }
       };
-
       sourceNode.connect(scriptProcessor.current);
       scriptProcessor.current.connect(audioContext.current.destination);
-
-      setRecordingTime(0); // Reset the timer
+      // Timer setup
+      setTimeElapsed(0);
+      setRecordingTime(900);
       const interval = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
+        setTimeElapsed((prev) => prev + 1);
+        setRecordingTime((prev) => {
+          if (prev <= 0) {
+            stopRecording(true);
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
-  
       timerRef.current = interval;
       sendOobRequest();
       setIsRecording(true);
@@ -329,8 +382,12 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
     }
   };
 
-  const stopRecording = async () => {
+  const stopRecording = async (shouldDisconnect) => {
     log('Attempting to stop recording...');
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     if (scriptProcessor.current) {
       scriptProcessor.current.disconnect();
       scriptProcessor.current.onaudioprocess = null;
@@ -340,11 +397,13 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
       audioStream.current.getTracks().forEach((track) => track.stop());
       audioStream.current = null;
     }
+    setRecordingTime(900);
     setIsRecording(false);
     log('Recording stopped.');
-
-    // Trigger billing after recording has stopped
     await handleBilling();
+    if (shouldDisconnect) {
+      disconnectWebSocket();
+    }
   };
 
   const pcmEncode = (input) => {
@@ -357,8 +416,13 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
     return buffer;
   };
 
-  const toggleRecording = () => {
-    isRecording ? stopRecording() : startRecording();
+  const toggleRecording = async () => {
+    if (isRecording) {
+      await stopRecording(true);
+    } else {
+      // If recording isn’t active, start the recording process
+      await startRecording();
+    }
   };
 
   const formatTime = (timeInSeconds) => {
@@ -367,99 +431,111 @@ const VoiceNoteScreen = ({ wsStatus, reviewId, ite, sendOobRequest, connectWebSo
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
+  // ---------------------------
+  // Render Section
+  // ---------------------------
   return (
     <Box overflowY="auto" padding="2px" height="87vh" display="flex" flexDirection="column">
-    <VStack spacing={4} align="stretch">
-    <Flex
-      bg="#f0f4f8"
-      padding={2}
-      justifyContent="space-between"
-      alignItems="center"
-      boxShadow="md"
-    >
-     <Button
-          onClick={handleStartConsultation}
-          isDisabled={wsStatus === 'Connected' || loading}
-          colorScheme="teal"
-          marginTop="10px"
-        >
-          {loading ? <Spinner size="sm" /> : 'Start Consultation'}
-        </Button>
-        {data ? <Button mt='10px' colorScheme='blue' onClick={handleEditSubmit}>Save</Button>: null} 
-        <HStack justify="center">
-        <Button
-          onClick={toggleRecording}
-          isDisabled={wsStatus !== 'Connected'}
-          colorScheme={isRecording ? 'red' : 'teal'}
-          borderRadius="50%"
-          width="40px"
-          height="40px"
-        >
-          <Icon as={isRecording ? MdStop : MdMic} boxSize={8} />
-        </Button>
-        <Text>{isRecording ? formatTime(recordingTime) : 'Record'}</Text>
-      </HStack>
-    </Flex>
-      <Box padding="10px">
-        <Input
-          placeholder="Enter phone number of Patient"
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-        />
-        <Text color="red.500">{errorMessage}</Text>
-        {wsStatus !== 'Disconnected' && (
-          <Text marginTop="5px" color="green.500">
-            {`AI Status: ${wsStatus}`}
-          </Text>
-        )}
-            </Box>   
-    <Box>
-    {!data ? <Button m={3} onClick={getMessage} colorScheme='purple'>Document</Button> : 
-    <Button onClick={getMessage} colorScheme='purple'>Update Document</Button>}
- 
-    </Box>
-    </VStack>
-   { data ? 
+      <VStack spacing={4} align="stretch">
+        <Flex bg="#f0f4f8" padding={2} justifyContent="space-between" alignItems="center" boxShadow="md">
+          <Button
+            onClick={handleStartConsultation}
+            isDisabled={wsStatus === 'Connected' || loading}
+            colorScheme="teal"
+            marginTop="10px"
+          >
+            {loading ? <Spinner size="sm" /> : 'Start Consultation'}
+          </Button>
+          {/* When loading and not yet connected, show a fun animation message */}
+          {loading && wsStatus !== 'Connected' && (
+            <Box mt={2} textAlign="center">
+              <Text fontSize="lg" fontWeight="bold">
+                {animationMessages[animationIndex]}
+              </Text>
+            </Box>
+          )}
+          {data ? (
+            <Button mt="10px" colorScheme="blue" onClick={handleEditSubmit}>
+              Save
+            </Button>
+          ) : null}
+          <HStack justify="center">
+            <Button
+              onClick={toggleRecording}
+              colorScheme={isRecording ? 'red' : 'teal'}
+              borderRadius="50%"
+              width="40px"
+              height="40px"
+            >
+              <Icon as={isRecording ? MdStop : MdMic} boxSize={8} />
+            </Button>
+            <Text>{isRecording ? formatTime(recordingTime) : 'Record'}</Text>
+          </HStack>
+        </Flex>
+        <Box padding="10px">
+          {!removePhoneNumberInput && (
+            <Input
+              placeholder="Enter phone number of Patient"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+            />
+          )}
+          <Text color="red.500">{errorMessage}</Text>
+          {wsStatus !== 'Disconnected' && (
+            <Text marginTop="5px" color="green.500">
+              {`AI Status: ${wsStatus}`}
+            </Text>
+          )}
+        </Box>
+        <Box>
+          {!data ? (
+            <Button m={3} onClick={getMessage} colorScheme="purple">
+              Document
+            </Button>
+          ) : (
+            <Button onClick={getMessage} colorScheme="purple">
+              Update Document
+            </Button>
+          )}
+        </Box>
+      </VStack>
+      {data ? (
         <VStack spacing={4}>
           <Heading fontSize="lg">Patient Report</Heading>
-         
           <VStack spacing={2} align="stretch" width="100%">
-          
-          {Object.entries(data?.doctor_note || {}).map(
-              ([section, details]) => (
-                <Box key={section} width="100%">
+            {Object.entries(data?.doctor_note || {}).map(([section, details]) => (
+              <Box key={section} width="100%">
                 <Text fontWeight="bold" mt={4} mb={2}>
-  {section
-    .replace(/_/g, ' ') // Replace underscores with spaces
-    .toLowerCase()      // Convert the entire string to lowercase
-    .replace(/^\w/, (c) => c.toUpperCase())}: {/* Capitalize the first letter */}
-</Text>
-                 
-                  {typeof details === 'object'
-                    ? Object.entries(details).map(([key, value]) =>
-                        renderEditableField(key, value)
-                      )
-                    : renderEditableField(section, details)}
-                  <Divider />
-                </Box>
-              )
-            )}
+                  {section
+                    .replace(/_/g, ' ')
+                    .toLowerCase()
+                    .replace(/^\w/, (c) => c.toUpperCase())}
+                  :
+                </Text>
+                {typeof details === 'object'
+                  ? Object.entries(details).map(([key, value]) => renderEditableField(key, value))
+                  : renderEditableField(section, details)}
+                <Divider />
+              </Box>
+            ))}
           </VStack>
           <Button
             colorScheme="teal"
             onClick={isEditing ? handleEditSubmit : () => setIsEditing(true)}
-          >{isEditing ? <div>{isLoading ? <Spinner/>: 'Submit Edits'}</div> : 'Edit'}</Button>
-          </VStack> : null}
-          <Box
-      ref={debugLogRef}
-      height="150px"
-      overflowY="scroll"
-      border="1px solid #ccc"
-      borderRadius="5px"
-      padding="10px"
-      backgroundColor="#f9f9f9"
-    />
-    
+          >
+            {isEditing ? <div>{isLoading ? <Spinner /> : 'Submit Edits'}</div> : 'Edit'}
+          </Button>
+        </VStack>
+      ) : null}
+      <Box
+        ref={debugLogRef}
+        height="150px"
+        overflowY="scroll"
+        border="1px solid #ccc"
+        borderRadius="5px"
+        padding="10px"
+        backgroundColor="#f9f9f9"
+      />
     </Box>
   );
 };

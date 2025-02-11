@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FaWallet, FaMoneyBillWave } from "react-icons/fa";
+import { FaWallet, FaSearch } from "react-icons/fa";
 import { IoMdSettings } from "react-icons/io";
 import { FaHome, FaRobot, FaSignOutAlt, FaBars, FaTimes, FaUserMd, FaCalendarCheck} from 'react-icons/fa';
 import './sidebar.css';
@@ -46,6 +46,10 @@ useEffect(() => {
           <FaRobot size={24} color="#003366" />
           <p className="menu-text">Physical Consultation</p>
         </div>
+        <div className="menu-item" onClick={() => navigate('/ask')}>
+        <FaSearch size={24} color="#003366" />
+          <p className="menu-text">Research</p>
+        </div>
         <div className="menu-item" onClick={() => navigate('/account')}>
         <FaWallet size={24} color="#003366" />
           <p className="menu-text">Account</p>
@@ -79,7 +83,10 @@ useEffect(() => {
           <FaRobot size={24} color="#003366" />
           <p className="menu-text">Physical Consultation</p>
         </div>
-       
+        <div className="menu-item" onClick={() => navigate('/ask')}>
+        <FaSearch size={24} color="#003366" />
+          <p className="menu-text">Research</p>
+        </div>
         <div className="menu-item" onClick={() => navigate('/account')}>
         <FaWallet size={24} color="#003366" />
           <p className="menu-text">Account</p>
