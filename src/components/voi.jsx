@@ -40,8 +40,9 @@ const Call = () => {
     const chanel = searchParams.get('channel');
     const navigate = useNavigate();
     const [message, setMessage] = useState('');
-    const [callDuration, setCallDuration] = useState(900); // Start with 15 min duration, reset when needed
-    const timerIdRef = useRef(null); // Only use ref for timer ID
+    const [callDuration, setCallDuration] = useState(900); // Initialize callDuration
+    const [timerId, setTimerId] = useState(null);
+    const startTimeRef = useRef(null);
     const { setReview } = useReview();
     const [reviewId, setReviewId] = useState(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -71,6 +72,9 @@ const Call = () => {
     const [debugLogs, setDebugLogs] = useState([]);
     const { isOpen: isChatModalOpen, onOpen: onChatModalOpen, onClose: onChatModalClose } = useDisclosure();
     const { isOpen: isDocuModalOpen, onOpen: onDocuModalOpen, onClose: onDocuModalClose } = useDisclosure();
+    
+    const appointment_id = item?.id
+
     const stopRecording = () => {
         if (ws.current && ws.current.readyState === WebSocket.OPEN) {
             ws.current.send(
@@ -133,34 +137,40 @@ const Call = () => {
         };
     }, []);
 
+
     const startTimer = () => {
-        setCallDuration(900); // Reset duration to 15 mins
-        if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear any existing interval
-        const id = setInterval(() => {
-            setCallDuration((prev) => {
-                if (prev <= 1) {
-                    clearInterval(id);
-                    timerIdRef.current = null; // Clear timerId in ref
+        if (!startTimeRef.current) {
+            startTimeRef.current = Date.now();
+            const id = setInterval(() => {
+                const elapsedTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                const remainingTime = 900 - elapsedTime;
+                
+                if (remainingTime <= 0) {
                     leaveChannel();
-                    return 0;
+                    clearInterval(id);
+                    setTimerId(null);
+                    setCallDuration(0);
+                } else {
+                    setCallDuration(remainingTime);
                 }
-                return prev - 1;
-            });
-        }, 1000);
-        timerIdRef.current = id; // Store interval ID in useRef
+            }, 1000);
+            setTimerId(id);
+        }
     };
 
     useEffect(() => {
         return () => {
-            stopTimer();
+            if (timerId) {
+                clearInterval(timerId);
+            }
         };
     }, []);
 
-
     const stopTimer = () => {
-        if (timerIdRef.current) { // Check if the ref has a value
-            clearInterval(timerIdRef.current);
-            timerIdRef.current = null; // Clear timerId in ref
+        if (timerId) {
+            clearInterval(timerId);
+            setTimerId(null);
+             startTimeRef.current = null;
         }
     };
 
@@ -205,18 +215,24 @@ const Call = () => {
     };
 
     // Leave channel logic
+    
+    // Modified leaveChannel function
     const leaveChannel = async () => {
         try {
             stopRecording();
             setIsLoading(true);
-            handleBilling();
+            
+            // Ensure we handle billing before cleaning up
+            if (startTimeRef.current) {
+                await handleBilling();
+            }
+
             if (ws.current) {
                 ws.current.close();
                 ws.current = null;
             }
-            await clientRef.current.leave();
-            stopTimer();
 
+            // Clean up tracks and state
             if (localAudioTrack) {
                 localAudioTrack.stop();
                 localAudioTrack.close();
@@ -232,20 +248,25 @@ const Call = () => {
             remoteAudioTracks.forEach((track) => track.stop());
             setRemoteAudioTracks([]);
 
+            await clientRef.current.leave();
+            stopTimer();
+            
             setRemoteUsers([]);
             setIsVideoEnabled(false);
             setIsRecording(false);
             setIsJoined(false);
             setUserCount(0);
 
-            console.log('Left the channel and cleaned up tracks.');
+            console.log('Successfully left the channel and cleaned up.');
         } catch (error) {
             console.error('Error leaving channel:', error);
+            setMessage('Error leaving channel');
         } finally {
             setIsLoading(false);
             navigate('/virtual');
         }
     };
+
 
     // Start recording after joining channel
     useEffect(() => {
@@ -307,11 +328,12 @@ const Call = () => {
             };
             const phoneNumber = formatPhoneNumber(phone);
 
+
             const token = await getAccessToken();
             let wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'wss:'}//health.prestigedelta.com/ws/medical/?token=${token}`;
 
-            if (phoneNumber) wsUrl += `&phone_number=${encodeURIComponent(phoneNumber)}`;
             if (reviewId) wsUrl += `&review_id=${encodeURIComponent(reviewId)}`;
+            if (appointment_id) wsUrl += `&appointment_id=${encodeURIComponent(appointment_id)}`;
             const webSocket = new WebSocket(wsUrl);
 
             webSocket.onopen = () => {
@@ -416,6 +438,7 @@ const Call = () => {
                     content: {
                         request_type: oobRequestType,
                         details: oobRequestDetails,
+                        appointment_id: item.id,
                     },
                 })
             );
@@ -424,46 +447,56 @@ const Call = () => {
             console.log('WebSocket is not connected. Cannot send Out-of-Band request.');
         }
     };
-    const handleBilling = async () => {
-
-        try {
-            const phone = item.patient_phone_number;
-            const formatPhoneNumber = (phoneNumber) => {
-                if (phoneNumber.startsWith('+234')) return phoneNumber;
-                return `+234${phoneNumber.slice(1)}`;
-            };
-            const phoneNumber = formatPhoneNumber(phone);
-            const token = await getAccessToken();
-            const item = {
-                cost_bearer: "doctor",
-                appointment_id: item.id,
-                expertise: "trainee",
-                seconds_used: callDuration
-            };
-            const response = await fetch('https://health.prestigedelta.com/billing/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    accept: 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(item),
-            });
-
-            const result = await response.json();
-            if (response.status !== 201) {
-                setMessage(result.message || 'An error occurred');
-            } else {
-                setMessage(result.message || 'Billing successful');
-                navigate('/virtual');
+        // Modified handleBilling function
+        const handleBilling = async () => {
+            try {
+                const phone = item.patient_phone_number;
+                const formatPhoneNumber = (phoneNumber) => {
+                    if (!phoneNumber) return '';
+                    if (phoneNumber.startsWith('+234')) return phoneNumber;
+                    return `+234${phoneNumber.slice(1)}`;
+                };
+                const phoneNumber = formatPhoneNumber(phone);
+                const token = await getAccessToken();
+                
+                // Calculate seconds used based on start time
+                const secondsUsed = startTimeRef.current 
+                    ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+                    : 0;
+    
+                const billingData = {
+                    cost_bearer: "doctor",
+                    appointment_id: item?.id, // Add optional chaining
+                    expertise: "trainee",
+                    seconds_used: Math.min(secondsUsed, 900) // Ensure we don't exceed 900 seconds
+                };
+    
+                console.log('Sending billing data:', billingData); // Debug log
+    
+                const response = await fetch('https://health.prestigedelta.com/billing/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(billingData),
+                });
+    
+                const result = await response.json();
+                console.log('Billing response:', result); // Debug log
+    
+                if (response.status !== 201) {
+                    setMessage(result.message || 'An error occurred during billing');
+                    console.error('Billing error:', result);
+                } else {
+                    setMessage(result.message || 'Billing successful');
+                    navigate('/virtual');
+                }
+            } catch (error) {
+                console.error('Billing error:', error);
+                setMessage('Failed to process billing');
             }
-        } catch (error) {
-            console.log(error);
-
-        } finally {
-
         }
-    };
 
     // Format duration for call timer
     const formatDuration = (seconds) => {
