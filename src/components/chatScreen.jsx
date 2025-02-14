@@ -15,7 +15,8 @@ import {
   CircularProgress,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Snackbar
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
@@ -33,62 +34,148 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAccessToken } from './api';
 
-const ChatScreen = ({ phoneNumber, setChatMessages, chatMessages, sendOobRequest, isModal = false }) => {
+// ----------------------------------------------------
+// 1. CustomText: Converts citation markers like [1], [2], etc. into clickable links.
+// ----------------------------------------------------
+const CustomText = ({ children, citations }) => {
+  const text = React.Children.toArray(children).join('');
+  const parts = text.split(/(\[\d+\])/g);
+  return (
+    <>
+      {parts.map((part, index) => {
+        const match = part.match(/^\[(\d+)\]$/);
+        if (match) {
+          const citationIndex = parseInt(match[1], 10) - 1;
+          if (citations && citations[citationIndex]) {
+            return (
+              <Link
+                key={index}
+                href={citations[citationIndex]}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{
+                  color: '#87CEFA', // Light sky blue
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                }}
+              >
+                {part}
+              </Link>
+            );
+          }
+        }
+        return <React.Fragment key={index}>{part}</React.Fragment>;
+      })}
+    </>
+  );
+};
+
+// ----------------------------------------------------
+// 2. ThoughtAccordion: Displays the model thought at the top with a toggle label.
+// ----------------------------------------------------
+const ThoughtAccordion = ({ thinkContent, citations }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <Accordion
+      expanded={expanded}
+      onChange={() => setExpanded((prev) => !prev)}
+      sx={{ mt: 1 }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Typography variant="subtitle2" sx={{ fontSize: '0.75rem' }}>
+          {expanded ? 'Hide Thought' : 'Show Thought'}
+        </Typography>
+      </AccordionSummary>
+      <AccordionDetails sx={{ fontSize: '0.75rem', color: 'grey' }}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            text: ({ node, children }) => (
+              <CustomText citations={citations} children={children} />
+            ),
+          }}
+        >
+          {thinkContent}
+        </ReactMarkdown>
+      </AccordionDetails>
+    </Accordion>
+  );
+};
+
+const ChatScreen = ({
+  phoneNumber,
+  setChatMessages,
+  chatMessages,
+  sendOobRequest,
+  isModal = false
+}) => {
   const [message, setMessage] = useState('');
   const [apiResponse, setApiResponse] = useState(null);
   const [threadId, setThreadId] = useState(null);
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
-  const theme = createTheme();
   const [isResponseLoading, setIsResponseLoading] = useState(false);
+  const [error, setError] = useState('');
+  const theme = createTheme();
 
   const handleSendMessage = useCallback(async () => {
+    if (!message.trim()) return;
+
+    // Clear the input immediately for UX.
+    const currentMessage = message;
+    setMessage('');
+    setIsResponseLoading(true);
+
     try {
       const token = await getAccessToken();
+      const apiUrl = 'https://health.prestigedelta.com/research/';
 
-      if (message.trim()) {
-        let apiUrl = 'https://health.prestigedelta.com/research/';
-        if (threadId) {
-          apiUrl = `https://health.prestigedelta.com/research/?thread_id=${threadId}`;
-        }
-
-        const userMessage = { role: 'user', content: message };
-        setChatMessages(prevMessages => [...prevMessages, userMessage]);
-        setIsResponseLoading(true);
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ query: message, patient_phone: phoneNumber, expertise_level: "high" }),
-        });
-
-        const data = await response.json();
-        console.log('API Response:', data);
-
-        setApiResponse(data);
-        if (data.thread_id) {
-          setThreadId(data.thread_id);
-        }
-        setIsSourcesVisible(false);
-
-        if (data.assistant_response) {
-          const assistantMessage = { role: 'assistant', content: data.assistant_response, citations: data.citations };
-          setChatMessages(prevMessages => [...prevMessages, assistantMessage]);
-        }
+      // Prepare payload with thread_id if available.
+      const payload = { query: currentMessage, expertise_level: 'high' };
+      if (threadId) {
+        payload.thread_id = threadId;
       }
 
-      setMessage('');
+      // Add user message to chat.
+      const userMessage = { role: 'user', content: currentMessage };
+      setChatMessages((prevMessages) => [...prevMessages, userMessage]);
+
+      // Make the API request.
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      console.log('API Response:', data);
+
+      setApiResponse(data);
+      if (data.thread_id) {
+        setThreadId(data.thread_id);
+      }
+      setIsSourcesVisible(false);
+
+      if (data.assistant_response) {
+        const assistantMessage = {
+          role: 'assistant',
+          content: data.assistant_response,
+          citations: data.citations
+        };
+        setChatMessages((prevMessages) => [...prevMessages, assistantMessage]);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
+      setError('Sorry, I encountered an error. Please try again later.');
       setApiResponse({
-        assistant_response: "Sorry, I encountered an error. Please try again later.",
+        assistant_response: 'Sorry, I encountered an error. Please try again later.',
         citations: []
       });
-      setChatMessages(prevMessages => [
+      setChatMessages((prevMessages) => [
         ...prevMessages,
-        { role: 'assistant', content: "Sorry, I encountered an error. Please try again later." }
+        { role: 'assistant', content: 'Sorry, I encountered an error. Please try again later.' }
       ]);
     } finally {
       setIsResponseLoading(false);
@@ -105,12 +192,12 @@ const ChatScreen = ({ phoneNumber, setChatMessages, chatMessages, sendOobRequest
   };
 
   const handleSourcesToggle = () => {
-    setIsSourcesVisible(!isSourcesVisible);
+    setIsSourcesVisible((prev) => !prev);
   };
 
   const handleTyping = (event) => {
     setMessage(event.target.value);
-    if (event.target.value.trim() !== "") {
+    if (event.target.value.trim() !== '') {
       sendOobRequest();
     }
   };
@@ -121,12 +208,6 @@ const ChatScreen = ({ phoneNumber, setChatMessages, chatMessages, sendOobRequest
     const thinkContent = thinkMatch ? thinkMatch[1].trim() : null;
     const remainingContent = text.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
     return { thinkContent, remainingContent };
-  };
-
-  // Optionally remove the <think> tags entirely.
-  const formatAssistantResponse = (text) => {
-    if (!text) return '';
-    return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   };
 
   return (
@@ -160,33 +241,24 @@ const ChatScreen = ({ phoneNumber, setChatMessages, chatMessages, sendOobRequest
                   }
                   secondary={
                     <React.Fragment>
-                      {chat.role === 'assistant' && chat.content && !isResponseLoading && (
-                        // Render the assistant response with collapsible <think> content.
-                        (() => {
-                          const { thinkContent, remainingContent } = extractThinkContent(chat.content);
-                          return (
-                            <Box sx={{ mt: 1, mb: 1 }}>
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {remainingContent}
-                              </ReactMarkdown>
-                              {thinkContent && (
-                                <Accordion sx={{ mt: 1 }}>
-                                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                    <Typography variant="subtitle1">Model Thoughts</Typography>
-                                  </AccordionSummary>
-                                  <AccordionDetails>
-                                    <Typography variant="body2" color="textSecondary">
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {thinkContent}
-                                      </ReactMarkdown>
-                                    </Typography>
-                                  </AccordionDetails>
-                                </Accordion>
-                              )}
-                            </Box>
-                          );
-                        })()
-                      )}
+                      {chat.role === 'assistant' && chat.content && !isResponseLoading && (() => {
+                        const { thinkContent, remainingContent } = extractThinkContent(chat.content);
+                        return (
+                          <Box sx={{ mt: 1, mb: 1 }}>
+                            {/* Render ThoughtAccordion at the top if there is thinkContent */}
+                            {thinkContent && (
+                              <ThoughtAccordion thinkContent={thinkContent} citations={chat.citations} />
+                            )}
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                              text: ({ node, children }) => (
+                                <CustomText citations={chat.citations} children={children} />
+                              ),
+                            }}>
+                              {remainingContent}
+                            </ReactMarkdown>
+                          </Box>
+                        );
+                      })()}
                       {chat.role === 'assistant' &&
                         chat.citations &&
                         chat.citations.length > 0 &&
@@ -218,13 +290,18 @@ const ChatScreen = ({ phoneNumber, setChatMessages, chatMessages, sendOobRequest
                                   Citations:
                                 </Typography>
                                 {chat.citations.map((citation, citationIndex) => (
-                                  <Typography key={citationIndex} variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+                                  <Typography
+                                    key={citationIndex}
+                                    variant="caption"
+                                    color="textSecondary"
+                                    sx={{ display: 'block', mb: 0.5 }}
+                                  >
                                     {citationIndex + 1}.{' '}
                                     <Link
                                       href={citation}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      sx={{ ml: 0.5, fontSize: '0.75rem' }}
+                                      sx={{ ml: 0.5, fontSize: '0.75rem', color: '#2b6cb0', textDecoration: 'underline' }}
                                     >
                                       {getDomainFromUrl(citation)}
                                     </Link>
@@ -294,6 +371,14 @@ const ChatScreen = ({ phoneNumber, setChatMessages, chatMessages, sendOobRequest
           </IconButton>
         </Box>
       </Box>
+
+      {/* Error Toast */}
+      <Snackbar
+        open={Boolean(error)}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        message={error}
+      />
     </ThemeProvider>
   );
 };
