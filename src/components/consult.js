@@ -1,3 +1,4 @@
+// ConsultAIPage.js
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
@@ -16,12 +17,13 @@ import {
   useToast,
   Badge,
 } from '@chakra-ui/react';
-import { MdMic, MdChat } from 'react-icons/md';
+import { MdSearch } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
+import Sidebar from './sidebar';
 
 const ConsultAIPage = () => {
   const [wsStatus, setWsStatus] = useState('Disconnected');
@@ -37,43 +39,72 @@ const ConsultAIPage = () => {
   const [oobResponse, setOobResponse] = useState([]);
   const [debugLogs, setDebugLogs] = useState([]);
   const [ite, setItem] = useState({});
-  const [isChatModalOpen, setIsChatModalOpen] = useState(false); // Controls modal visibility
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [lastDocumentedAt, setLastDocumentedAt] = useState(null);
+  const [showDocumentDialog, setShowDocumentDialog] = useState(false);
+  const [patientInfo, setPatientInfo] = useState(null);
 
   const ws = useRef(null);
   const navigate = useNavigate();
   const toast = useToast();
 
-  // Log messages to a debug log state
   const log = (message) => {
     const time = new Date().toLocaleTimeString();
     setDebugLogs((prev) => [...prev, `[${time}] ${message}`]);
   };
 
-  useEffect(() => {
-    return () => {
-      disconnectWebSocket();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+ 
 
-  // Book an appointment before starting the WebSocket connection
-  const handleSubmit = async () => {
+  // When the phone number is entered (11 digits), fetch patient info.
+  useEffect( () => {
+    const token =  getAccessToken(); // Assuming this function retrieves the token
+  
+    if (phoneNumber.length === 11) {
+      fetch(`https://health.prestigedelta.com/patientreviews/${phoneNumber}/`, {
+        headers: {
+          Authorization: `Bearer ${token}`, // Add the token to the Authorization header
+          'Content-Type': 'application/json', // Optionally, specify the content type
+        },
+      })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return res.json();
+        })
+        .then((data) => setPatientInfo(data))
+        .catch((error) => {
+          console.error("Failed to fetch patient info:", error);
+        });
+    } else {
+      setPatientInfo(null);
+    }
+  }, [phoneNumber]);
+
+  const startConsultationSession = async () => {
+    if (phoneNumber.length !== 11) {
+      setErrorMessage('Please enter a valid 11-digit phone number');
+      toast({
+        title: 'Invalid Phone Number',
+        description: 'Please enter a valid 11-digit phone number',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    setErrorMessage('');
+    
     const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
-    let data = {
+    const data = {
       start_time: '2025-01-25 09:00',
       reason: 'Routine Check',
       phone_number,
       is_instant: true,
     };
-
-    if (phone_number === '') {
-      delete data.phone_number;
-    } else {
-      delete data.patient_id;
-    }
-
+  
     const token = await getAccessToken();
-
+  
     try {
       const response = await fetch(
         'https://health.prestigedelta.com/appointments/book/',
@@ -86,11 +117,12 @@ const ConsultAIPage = () => {
           body: JSON.stringify(data),
         }
       );
-
+  
       if (response.ok) {
         const result = await response.json();
         setItem(result.appointment);
         console.log('Appointment booked, call begins');
+        await connectWebSocket(result.appointment.id);
       } else {
         throw new Error('Failed to book the appointment.');
       }
@@ -106,8 +138,7 @@ const ConsultAIPage = () => {
     }
   };
 
-  // Connect to the WebSocket server
-  const connectWebSocket = async () => {
+  const connectWebSocket = async (appointment_id) => {
     if (phoneNumber.length !== 11) {
       setErrorMessage('Please enter a valid 11-digit phone number');
       toast({
@@ -120,8 +151,7 @@ const ConsultAIPage = () => {
       return;
     }
     setErrorMessage('');
-    await handleSubmit();
-    const appointment_id = ite.id;
+    
     const token = await getAccessToken();
     let wsUrl = `${
       window.location.protocol === 'https:' ? 'wss:' : 'wss:'
@@ -193,7 +223,6 @@ const ConsultAIPage = () => {
     };
   };
 
-  // Send an out-of-band request via the WebSocket
   const sendOobRequest = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(
@@ -223,10 +252,26 @@ const ConsultAIPage = () => {
     }
   };
 
-  // Toggle the chat modal and clear the new message indicator
   const toggleChatModal = () => {
     setIsChatModalOpen(!isChatModalOpen);
     setHasNewMessage(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user-info');
+    navigate('/');
+  };
+
+  // Handle Back button click: if a consultation is active but no documentation has been done in the last 60 seconds, show a modal.
+  const handleBackClick = () => {
+    if (wsStatus === 'Connected') {
+      const now = new Date();
+      if (!lastDocumentedAt || now - lastDocumentedAt > 10000) {
+        setShowDocumentDialog(true);
+        return;
+      }
+    }
+    navigate('/dashboard');
   };
 
   return (
@@ -243,7 +288,7 @@ const ConsultAIPage = () => {
           top="0"
           zIndex="1"
         >
-          <Flex align="center" cursor="pointer" onClick={() => navigate('/dashboard')}>
+          <Flex align="center" cursor="pointer" onClick={handleBackClick}>
             <Icon as={AiOutlineArrowLeft} w={6} h={6} mr="2" />
             <Text fontSize="lg" fontWeight="medium">
               Back
@@ -254,28 +299,29 @@ const ConsultAIPage = () => {
           </Badge>
         </Flex>
 
-        {/* Toggle Buttons */}
-        <Flex p="4" justify="center" bg="white" boxShadow="sm">
+        {/* Patient Info Display */}
+        {patientInfo && (
+          <Box bg="white" p="4" mb="4" borderRadius="md" boxShadow="md" mx="4">
+            <Text fontWeight="bold" mb="2">Patient Information</Text>
+            {Object.entries(patientInfo).map(([key, value]) => (
+              <Text key={key}>
+                <strong>{key}:</strong> {value}
+              </Text>
+            ))}
+          </Box>
+        )}
+
+        {/* Single Toggle Button for Research */}
+        <Flex p="4" justify="center" bg="white" boxShadow="sm" mx="4">
           <Button
-            flex="1"
-            mr="2"
-            onClick={() => setIsChatModalOpen(false)}
-            variant={!isChatModalOpen ? 'solid' : 'outline'}
-            leftIcon={<MdMic />}
-            size="lg"
-          >
-            Voice Note
-          </Button>
-          <Button
-            flex="1"
-            ml="2"
             onClick={toggleChatModal}
             variant={isChatModalOpen ? 'solid' : 'outline'}
-            leftIcon={<MdChat />}
+            leftIcon={<MdSearch />}
             size="lg"
+            width="100%"
             position="relative"
           >
-            Chat
+            Research
             {hasNewMessage && (
               <Box
                 position="absolute"
@@ -290,25 +336,23 @@ const ConsultAIPage = () => {
           </Button>
         </Flex>
 
-        {/* Main Content Area */}
         <Box flex="1" overflow="auto" p="4">
-          <VoiceNoteScreen
-            ws={ws}
-            isRecording={isRecording}
-            setIsRecording={setIsRecording}
-            wsStatus={wsStatus}
-            connectWebSocket={connectWebSocket}
-            disconnectWebSocket={disconnectWebSocket}
-            phoneNumber={phoneNumber}
-            setPhoneNumber={setPhoneNumber}
-            errorMessage={errorMessage}
-            reviewId={reviewId}
-            sendOobRequest={sendOobRequest}
-            ite={ite}
-          />
+        <VoiceNoteScreen
+  ws={ws}
+  wsStatus={wsStatus}
+  connectWebSocket={startConsultationSession} // <-- renamed function now!
+  disconnectWebSocket={disconnectWebSocket}
+  phoneNumber={phoneNumber}
+  setPhoneNumber={setPhoneNumber}
+  errorMessage={errorMessage}
+  reviewId={reviewId}
+  sendOobRequest={sendOobRequest}
+  ite={ite}
+  updateLastDocumented={setLastDocumentedAt}
+/>
         </Box>
 
-        {/* Chat Modal */}
+        {/* Research Modal */}
         <Modal
           isOpen={isChatModalOpen}
           onClose={toggleChatModal}
@@ -341,6 +385,29 @@ const ConsultAIPage = () => {
             <ModalFooter bg="gray.50">
               <Button colorScheme="blue" onClick={toggleChatModal}>
                 Close
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Document Required Dialog */}
+        <Modal
+          isOpen={showDocumentDialog}
+          onClose={() => setShowDocumentDialog(false)}
+          isCentered
+        >
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Document Required</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <Text>
+                You have not documented in the last 30 seconds. Please document your consultation notes before leaving.
+              </Text>
+            </ModalBody>
+            <ModalFooter>
+              <Button colorScheme="blue" onClick={() => setShowDocumentDialog(false)}>
+                Ok
               </Button>
             </ModalFooter>
           </ModalContent>

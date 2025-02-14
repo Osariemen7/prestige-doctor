@@ -31,25 +31,22 @@ const VoiceNoteScreen = ({
   searchText,
   setSearchText,
   removePhoneNumberInput,
+  updateLastDocumented, // new callback prop from parent
 }) => {
-  // States for recording and editing
+  // (States for recording, editing, animation, etc.)
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(900);
-  const [timeElapsed, setTimeElapsed] = useState(0); // Track time
+  const [timeElapsed, setTimeElapsed] = useState(0);
   const [data, setData] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editableFields, setEditableFields] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // New state: flag that tells us we want to start recording once connected
   const [shouldStartRecording, setShouldStartRecording] = useState(false);
-
-  // New state: index for animation messages
   const [animationIndex, setAnimationIndex] = useState(0);
   const animationMessages = [
     "Warming up the microphone...",
-    "Connecting to our magic server...",
+    "Connecting to our server...",
     "Preparing a fun consultation...",
     "Almost ready!",
   ];
@@ -71,13 +68,11 @@ const VoiceNoteScreen = ({
         if (phoneNumber.startsWith('+234')) return phoneNumber;
         return `+234${phoneNumber.slice(1)}`;
       };
-      const phoneNumber = formatPhoneNumber(phone);
+      const formattedPhone = formatPhoneNumber(phone);
       const token = await getAccessToken();
       const item = {
-        cost_bearer: 'doctor',
         appointment_id: ite.id,
-        expertise: 'trainee',
-        seconds_used: timeElapsed, // Use timeElapsed for billing
+        seconds_used: timeElapsed,
       };
       const response = await fetch('https://health.prestigedelta.com/billing/', {
         method: 'POST',
@@ -103,7 +98,6 @@ const VoiceNoteScreen = ({
     setLoading(true);
     await connectWebSocket();
     setLoading(false);
-    // Set the flag so that once wsStatus changes to Connected, we start recording.
     setShouldStartRecording(true);
   };
 
@@ -125,6 +119,10 @@ const VoiceNoteScreen = ({
         );
         const result = await response.json();
         setData(result);
+        // Update the last documented timestamp in the parent
+        if (typeof updateLastDocumented === 'function') {
+          updateLastDocumented(new Date());
+        }
       } else {
         console.log('No access token available.');
         return null;
@@ -299,9 +297,7 @@ const VoiceNoteScreen = ({
     };
   }, []);
 
-  // ---------------------------
-  // New Effect: Wait for connection and then start recording
-  // ---------------------------
+  // Start recording once the WebSocket is connected.
   useEffect(() => {
     if (wsStatus === 'Connected' && shouldStartRecording && !isRecording) {
       startRecording();
@@ -309,9 +305,7 @@ const VoiceNoteScreen = ({
     }
   }, [wsStatus, shouldStartRecording, isRecording]);
 
-  // ---------------------------
-  // New Effect: Animation messages (change every 10 seconds while loading)
-  // ---------------------------
+  // Animation messages effect.
   useEffect(() => {
     let animationInterval;
     if (loading && wsStatus !== 'Connected') {
@@ -401,11 +395,14 @@ const VoiceNoteScreen = ({
     setIsRecording(false);
     log('Recording stopped.');
     await handleBilling();
+  
+    // Only disconnect WebSocket if the session is truly over.
     if (shouldDisconnect) {
-      disconnectWebSocket();
+      // disconnectWebSocket();
+      // For testing, comment out the disconnect to see if the WebSocket stays connected.
     }
   };
-
+  
   const pcmEncode = (input) => {
     const buffer = new ArrayBuffer(input.length * 2);
     const output = new DataView(buffer);
@@ -420,7 +417,6 @@ const VoiceNoteScreen = ({
     if (isRecording) {
       await stopRecording(true);
     } else {
-      // If recording isn’t active, start the recording process
       await startRecording();
     }
   };
@@ -431,9 +427,6 @@ const VoiceNoteScreen = ({
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
-  // ---------------------------
-  // Render Section
-  // ---------------------------
   return (
     <Box overflowY="auto" padding="2px" height="87vh" display="flex" flexDirection="column">
       <VStack spacing={4} align="stretch">
@@ -446,7 +439,6 @@ const VoiceNoteScreen = ({
           >
             {loading ? <Spinner size="sm" /> : 'Start Consultation'}
           </Button>
-          {/* When loading and not yet connected, show a fun animation message */}
           {loading && wsStatus !== 'Connected' && (
             <Box mt={2} textAlign="center">
               <Text fontSize="lg" fontWeight="bold">
@@ -487,19 +479,21 @@ const VoiceNoteScreen = ({
             </Text>
           )}
         </Box>
-        <Box>
-          {!data ? (
-            <Button m={3} onClick={getMessage} colorScheme="purple">
-              Document
-            </Button>
-          ) : (
-            <Button onClick={getMessage} colorScheme="purple">
-              Update Document
-            </Button>
-          )}
-        </Box>
+        {wsStatus === 'Connected' && (
+          <Box>
+            {!data ? (
+              <Button m={3} onClick={getMessage} colorScheme="purple">
+                Document
+              </Button>
+            ) : (
+              <Button onClick={getMessage} colorScheme="purple">
+                Update Document
+              </Button>
+            )}
+          </Box>
+        )}
       </VStack>
-      {data ? (
+      {wsStatus === 'Connected' && data ? (
         <VStack spacing={4}>
           <Heading fontSize="lg">Patient Report</Heading>
           <VStack spacing={2} align="stretch" width="100%">
