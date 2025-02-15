@@ -103,10 +103,13 @@ const DashboardPage = () => {
 
   
   const PatientCard = ({ patient }) => (
-    <Box borderWidth="1px" borderRadius="lg" p={4} shadow="md" backgroundColor='#f0f8ff'>
-      <VStack align="start" spacing={7}>
+    <Box borderWidth="1px" borderRadius="lg" p={5} shadow="md" backgroundColor='#f0f8ff'>
+      <VStack align="start" spacing={3}>
         <Text>
           <strong>Patient ID:</strong> {patient.id}
+        </Text>
+        <Text>
+          <strong>Patient Name:</strong> {patient.full_name}
         </Text>
         <Text>
           <strong>Phone:</strong> {patient.phone_number}
@@ -136,7 +139,7 @@ const DashboardPage = () => {
       <Box flex="1" overflow="auto">
   
     {/* Tab Content Below */}
-        <Heading fontSize='22px' textAlign='center'>Patient Health Dashboard</Heading>
+        <Heading fontSize='22px' textAlign='center'>Patient List</Heading>
         {loading ? (
           <Box textAlign="center" mt={8}>
             <Spinner size="xl" />

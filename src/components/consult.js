@@ -264,16 +264,24 @@ const ConsultAIPage = () => {
   // Modified Back button handler:
   // Disconnect the WebSocket (if connected) and then, if no documentation has been done in the last 14 seconds, show the modal.
   const handleBackClick = () => {
-    if (wsStatus === 'Connected') {
-      disconnectWebSocket();
+    // If WebSocket was never connected, allow navigation.
+    if (wsStatus === 'Disconnected') {
+      navigate('/dashboard');
+      return;
     }
+    
+    // For an active session, check if documentation was done within the last 14 seconds.
     const now = new Date();
     if (!lastDocumentedAt || now - lastDocumentedAt > 14000) {
       setShowDocumentDialog(true);
       return;
     }
+    
+    // Documentation is up to date: disconnect the WebSocket and navigate away.
+    disconnectWebSocket();
     navigate('/dashboard');
   };
+  
 
   // New handler for the Documentation Modal.
   // It sends the documentation request and then navigates away.
@@ -426,7 +434,7 @@ const ConsultAIPage = () => {
             </ModalBody>
             <ModalFooter>
               <Button colorScheme="blue" onClick={handleDocumentAndExit}>
-                Document
+                Okay
               </Button>
             </ModalFooter>
           </ModalContent>

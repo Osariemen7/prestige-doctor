@@ -315,6 +315,12 @@ const VoiceNoteScreen = ({
     }
   }, [wsStatus, shouldStartRecording, isRecording]);
 
+  useEffect(() => {
+    if (wsStatus === 'Disconnected' && documen === true) {
+      handleBilling();
+    }
+  }, [wsStatus, documen]);
+
   // Animation messages effect.
   useEffect(() => {
     let animationInterval;

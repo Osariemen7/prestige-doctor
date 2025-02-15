@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Box,
@@ -13,7 +13,9 @@ import {
   AccordionSummary,
   AccordionDetails,
   Button,
-  Snackbar
+  Snackbar,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -101,6 +103,9 @@ const SearchBox = () => {
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [error, setError] = useState('');
+  const [datalist, setDataList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const theme = createTheme();
   const navigate = useNavigate();
 
@@ -120,6 +125,15 @@ const SearchBox = () => {
       const payload = { query: currentMessage, expertise_level: 'high' };
       if (threadId) {
         payload.thread_id = threadId;
+      }
+      
+      // If a patient is selected, add either patient_phone or patient_id to the payload.
+      if (selectedPatient) {
+        if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== '') {
+          payload.patient_phone = selectedPatient.phone_number;
+        } else {
+          payload.patient_id = selectedPatient.id;
+        }
       }
 
       // Optimistically add the user's message.
@@ -167,7 +181,7 @@ const SearchBox = () => {
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId]);
+  }, [message, threadId, selectedPatient]);
 
   const getDomainFromUrl = (url) => {
     try {
@@ -181,6 +195,36 @@ const SearchBox = () => {
   const handleSourcesToggle = () => {
     setIsSourcesVisible((prev) => !prev);
   };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      try {
+        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (response.status === 401) {
+          navigate('/');
+        } else {
+          const result = await response.json();
+          setDataList(result);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [navigate]);
 
   // Extract the <think> block from the assistant response.
   const extractThinkContent = (text) => {
@@ -394,6 +438,36 @@ const SearchBox = () => {
                 InputProps={{
                   disableUnderline: true,
                   style: { fontSize: '16px' },
+                  // Dropdown added as a start adornment inside the TextField.
+                  startAdornment: (
+                    <Select
+                      value={selectedPatient ? selectedPatient.id : ''}
+                      onChange={(e) => {
+                        const patientId = e.target.value;
+                        const patient = datalist.find((p) => p.id === patientId);
+                        setSelectedPatient(patient);
+                      }}
+                      displayEmpty
+                      sx={{
+                        marginRight: '8px',
+                        fontSize: '16px',
+                        '& .MuiSelect-select': {
+                          padding: '0 4px',
+                        },
+                      }}
+                    >
+                      <MenuItem value="">
+                        <em>Choose Patient</em>
+                      </MenuItem>
+                      {datalist.map((patient) => (
+                        <MenuItem key={patient.id} value={patient.id}>
+                          {patient.full_name
+                            ? `${patient.full_name} (${patient.id})`
+                            : `Patient (${patient.id})`}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  ),
                 }}
                 sx={{
                   flex: 1,
