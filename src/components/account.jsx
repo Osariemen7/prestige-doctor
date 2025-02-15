@@ -256,7 +256,7 @@ const Account = () => {
           {balance && balance.available_balance !== undefined ? (
             <>
               <Text fontSize="2xl" fontWeight="bold" color="blue.700">
-                ₦{(balance.available_balance)}
+                ₦{(balance.available_balance).toLocaleString('en-US')}
               </Text>
               <Button colorScheme='blue' size='sm' mt={2} onClick={withDraw} isLoading={loading}> {/* Consider adding loading state to button */}
                 Withdraw
@@ -273,19 +273,19 @@ const Account = () => {
       {/* Transaction History - Example, you'll need to populate this dynamically */}
       <Box bg="white" p={4} borderRadius="md" shadow="sm" mt={6}>
         <Text fontSize="md" fontWeight="bold" mb={4}>
-          Transaction History (Example)
+          Transaction History 
         </Text>
         <Box border="1px" borderColor="gray.200" p={3} borderRadius="md">
           <Flex justify="space-between" align="center">
             <Text fontSize="sm" fontWeight="medium">
-              Example Transaction
+              Transaction
             </Text>
             <Text fontSize="sm" color="green.500">
-              +₦100.00
+              +₦0.00
             </Text>
           </Flex>
           <Text fontSize="xs" color="gray.500">
-            2024-08-07 10:00 AM
+            00:00
           </Text>
         </Box>
         {/* Add more transaction history items here */}

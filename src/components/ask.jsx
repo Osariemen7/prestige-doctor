@@ -16,6 +16,7 @@ import {
   Snackbar,
   Select,
   MenuItem,
+  Alert
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -26,6 +27,7 @@ import Skeleton from '@mui/material/Skeleton';
 import Sidebar from './sidebar';
 import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
+
 
 // ----------------------------------------------------
 // 1. CustomText: converts citation markers like [1], [2], etc. into clickable links.
@@ -108,6 +110,23 @@ const SearchBox = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const theme = createTheme();
   const navigate = useNavigate();
+  const [snackbarOpen, setSnackbarOpen] = useState(false); // State for Snackbar open/close
+  const [snackbarMessage, setSnackbarMessage] = useState(''); // State for Snackbar message
+  const [snackbarSeverity, setSnackbarSeverity] = useState('error'); // State for Snackbar severity
+
+  const showSnackbar = useCallback((newMessage, newSeverity) => {
+    setSnackbarMessage(newMessage);
+    setSnackbarSeverity(newSeverity);
+    setSnackbarOpen(true);
+  }, [setSnackbarMessage, setSnackbarSeverity, setSnackbarOpen]);
+
+  const handleSnackbarClose = useCallback((event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
+  }, [setSnackbarOpen]);
+
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim()) return;
@@ -126,7 +145,7 @@ const SearchBox = () => {
       if (threadId) {
         payload.thread_id = threadId;
       }
-      
+
       // If a patient is selected, add either patient_phone or patient_id to the payload.
       if (selectedPatient) {
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== '') {
@@ -164,6 +183,9 @@ const SearchBox = () => {
         };
         setChatMessages((prev) => [...prev, assistantMessage]);
       }
+      if (!response.ok) {
+        showSnackbar(data.error || 'Request failed due to an error.', 'error');
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       setError('Sorry, I encountered an error. Please try again later.');
@@ -181,7 +203,7 @@ const SearchBox = () => {
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient]);
+  }, [message, threadId, selectedPatient, showSnackbar]);
 
   const getDomainFromUrl = (url) => {
     try {
@@ -490,13 +512,25 @@ const SearchBox = () => {
         </ThemeProvider>
       </div>
 
-      {/* Error Toast */}
+      {/* Snackbar for error messages */}
       <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Existing Error Snackbar - consider removing if you only want one Snackbar */}
+      {/* <Snackbar
         open={Boolean(error)}
         autoHideDuration={6000}
         onClose={() => setError('')}
         message={error}
-      />
+      /> */}
     </div>
   );
 };
