@@ -13,6 +13,7 @@ import {
   Spinner,
   Divider,
   Textarea,
+  useToast,
 } from '@chakra-ui/react';
 import { MdMic, MdStop, MdSearch } from 'react-icons/md';
 import { getAccessToken } from './api';
@@ -28,6 +29,7 @@ const VoiceNoteScreen = ({
   ws,
   errorMessage,
   disconnectWebSocket,
+  documen,
   searchText,
   setSearchText,
   removePhoneNumberInput,
@@ -51,6 +53,7 @@ const VoiceNoteScreen = ({
     "Almost ready!",
   ];
 
+  const toast = useToast();
   const audioStream = useRef(null);
   const audioContext = useRef(null);
   const scriptProcessor = useRef(null);
@@ -236,6 +239,13 @@ const VoiceNoteScreen = ({
       setIsEditing(false);
       const result = await response.json();
       console.log('Submission successful:', result);
+      toast({
+        title: 'Successfully submitted',
+        description: result.message || ' Documentation submitted successfully.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
       return result;
     } catch (error) {
       console.error('Error submitting edits:', error);
@@ -473,9 +483,9 @@ const VoiceNoteScreen = ({
             <Text marginTop="5px" color="green.500">
               {`AI Status: ${wsStatus}`}
             </Text>
-          )}
+          )} 
         </Box>
-        {wsStatus === 'Connected' && (
+        {wsStatus === 'Connected' || documen === true && (
           <Box>
             {!data ? (
               <Button m={3} onClick={getMessage} colorScheme="purple">
@@ -489,7 +499,7 @@ const VoiceNoteScreen = ({
           </Box>
         )}
       </VStack>
-      {wsStatus === 'Connected' && data ? (
+      {wsStatus === 'Connected' || documen === true && data ? (
         <VStack spacing={4}>
           <Heading fontSize="lg">Patient Report</Heading>
           <VStack spacing={2} align="stretch" width="100%">

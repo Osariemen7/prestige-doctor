@@ -42,6 +42,7 @@ const ConsultAIPage = () => {
   const [lastDocumentedAt, setLastDocumentedAt] = useState(null);
   const [showDocumentDialog, setShowDocumentDialog] = useState(false);
   const [patientInfo, setPatientInfo] = useState(null);
+  const [documen, setDocumen] = useState(false);
 
   const ws = useRef(null);
   const navigate = useNavigate();
@@ -55,7 +56,6 @@ const ConsultAIPage = () => {
   // When the phone number is entered (11 digits), fetch patient info.
   useEffect(() => {
     const token = getAccessToken();
-
     if (phoneNumber.length === 11) {
       fetch(`https://health.prestigedelta.com/patientreviews/${phoneNumber}/`, {
         headers: {
@@ -262,9 +262,7 @@ const ConsultAIPage = () => {
   };
 
   // Modified Back button handler:
-  // If WebSocket is connected, disconnect it.
-  // Then, if no documentation has been done in the last 14 seconds, show a modal.
-  // Otherwise, navigate to the dashboard.
+  // Disconnect the WebSocket (if connected) and then, if no documentation has been done in the last 14 seconds, show the modal.
   const handleBackClick = () => {
     if (wsStatus === 'Connected') {
       disconnectWebSocket();
@@ -275,6 +273,18 @@ const ConsultAIPage = () => {
       return;
     }
     navigate('/dashboard');
+  };
+
+  // New handler for the Documentation Modal.
+  // It sends the documentation request and then navigates away.
+  const handleDocumentAndExit = () => {
+    sendOobRequest();
+    // Allow some time for the documentation to register (optional: add more robust checking).
+    setTimeout(() => {
+      setShowDocumentDialog(false);
+      setDocumen(true)
+    
+    }, 500);
   };
 
   return (
@@ -329,6 +339,7 @@ const ConsultAIPage = () => {
             reviewId={reviewId}
             sendOobRequest={sendOobRequest}
             ite={ite}
+            documen={documen}
             updateLastDocumented={setLastDocumentedAt}
           />
         </Box>
@@ -378,12 +389,7 @@ const ConsultAIPage = () => {
             borderTopRadius="lg"
             overflow="hidden"
           >
-            <ModalHeader
-              textAlign="center"
-              fontSize="2xl"
-              bg="blue.500"
-              color="white"
-            >
+            <ModalHeader textAlign="center" fontSize="2xl" bg="blue.500" color="white">
               What do you want to know?
             </ModalHeader>
             <ModalCloseButton color="white" />
@@ -406,7 +412,7 @@ const ConsultAIPage = () => {
         {/* Documentation Required Modal */}
         <Modal
           isOpen={showDocumentDialog}
-          onClose={() => setShowDocumentDialog(false)}
+          onClose={() => {}}
           isCentered
         >
           <ModalOverlay />
@@ -415,16 +421,12 @@ const ConsultAIPage = () => {
             <ModalCloseButton />
             <ModalBody>
               <Text>
-                You have not documented in the last 14 seconds. Please document
-                your consultation notes before leaving.
+                You have not documented in the last 14 seconds. Please click the Document button  to document your consultation notes and save before leaving.
               </Text>
             </ModalBody>
             <ModalFooter>
-              <Button
-                colorScheme="blue"
-                onClick={() => setShowDocumentDialog(false)}
-              >
-                Ok
+              <Button colorScheme="blue" onClick={handleDocumentAndExit}>
+                Document
               </Button>
             </ModalFooter>
           </ModalContent>
