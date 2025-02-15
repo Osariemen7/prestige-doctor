@@ -48,7 +48,7 @@ useEffect(() => {
         </div>
         <div className="menu-item" onClick={() => navigate('/ask')}>
         <FaSearch size={24} color="#003366" />
-          <p className="menu-text">Research</p>
+          <p className="menu-text">Researcher</p>
         </div>
         <div className="menu-item" onClick={() => navigate('/account')}>
         <FaWallet size={24} color="#003366" />
@@ -85,7 +85,7 @@ useEffect(() => {
         </div>
         <div className="menu-item" onClick={() => navigate('/ask')}>
         <FaSearch size={24} color="#003366" />
-          <p className="menu-text">Research</p>
+          <p className="menu-text">Researcher</p>
         </div>
         <div className="menu-item" onClick={() => navigate('/account')}>
         <FaWallet size={24} color="#003366" />

@@ -77,7 +77,7 @@ const AvailabilitySelector = () => {
         setMessage(result.message || 'An error occurred');
       } else {
         
-        navigate('/organization');
+        navigate('/');
       }
     } catch (error) {
       console.error(error);

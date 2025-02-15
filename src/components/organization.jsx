@@ -114,7 +114,7 @@ const Organization =()=>{
       if (response.ok) {
         const result = await response.json();
         console.log('Submission successful:', result);
-        navigate('/')
+        navigate('/account')
         // Handle success logic here
       } else {
         console.error('Failed to submit:', response.statusText);

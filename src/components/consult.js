@@ -1,4 +1,3 @@
-// ConsultAIPage.js
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
@@ -53,17 +52,15 @@ const ConsultAIPage = () => {
     setDebugLogs((prev) => [...prev, `[${time}] ${message}`]);
   };
 
- 
-
   // When the phone number is entered (11 digits), fetch patient info.
-  useEffect( () => {
-    const token =  getAccessToken(); // Assuming this function retrieves the token
-  
+  useEffect(() => {
+    const token = getAccessToken();
+
     if (phoneNumber.length === 11) {
       fetch(`https://health.prestigedelta.com/patientreviews/${phoneNumber}/`, {
         headers: {
-          Authorization: `Bearer ${token}`, // Add the token to the Authorization header
-          'Content-Type': 'application/json', // Optionally, specify the content type
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       })
         .then((res) => {
@@ -74,7 +71,7 @@ const ConsultAIPage = () => {
         })
         .then((data) => setPatientInfo(data))
         .catch((error) => {
-          console.error("Failed to fetch patient info:", error);
+          console.error('Failed to fetch patient info:', error);
         });
     } else {
       setPatientInfo(null);
@@ -94,7 +91,7 @@ const ConsultAIPage = () => {
       return;
     }
     setErrorMessage('');
-    
+
     const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
     const data = {
       start_time: '2025-01-25 09:00',
@@ -102,9 +99,9 @@ const ConsultAIPage = () => {
       phone_number,
       is_instant: true,
     };
-  
+
     const token = await getAccessToken();
-  
+
     try {
       const response = await fetch(
         'https://health.prestigedelta.com/appointments/book/',
@@ -117,7 +114,7 @@ const ConsultAIPage = () => {
           body: JSON.stringify(data),
         }
       );
-  
+
       if (response.ok) {
         const result = await response.json();
         setItem(result.appointment);
@@ -151,7 +148,7 @@ const ConsultAIPage = () => {
       return;
     }
     setErrorMessage('');
-    
+
     const token = await getAccessToken();
     let wsUrl = `${
       window.location.protocol === 'https:' ? 'wss:' : 'wss:'
@@ -238,6 +235,8 @@ const ConsultAIPage = () => {
       log(
         `Out-of-Band request sent: Type - ${oobRequestType}, Details - ${oobRequestDetails}`
       );
+      // Update last documented time when a request is sent.
+      setLastDocumentedAt(new Date());
     } else {
       log('WebSocket is not connected. Cannot send Out-of-Band request.');
     }
@@ -262,14 +261,18 @@ const ConsultAIPage = () => {
     navigate('/');
   };
 
-  // Handle Back button click: if a consultation is active but no documentation has been done in the last 60 seconds, show a modal.
+  // Modified Back button handler:
+  // If WebSocket is connected, disconnect it.
+  // Then, if no documentation has been done in the last 14 seconds, show a modal.
+  // Otherwise, navigate to the dashboard.
   const handleBackClick = () => {
     if (wsStatus === 'Connected') {
-      const now = new Date();
-      if (!lastDocumentedAt || now - lastDocumentedAt > 10000) {
-        setShowDocumentDialog(true);
-        return;
-      }
+      disconnectWebSocket();
+    }
+    const now = new Date();
+    if (!lastDocumentedAt || now - lastDocumentedAt > 14000) {
+      setShowDocumentDialog(true);
+      return;
     }
     navigate('/dashboard');
   };
@@ -302,7 +305,9 @@ const ConsultAIPage = () => {
         {/* Patient Info Display */}
         {patientInfo && (
           <Box bg="white" p="4" mb="4" borderRadius="md" boxShadow="md" mx="4">
-            <Text fontWeight="bold" mb="2">Patient Information</Text>
+            <Text fontWeight="bold" mb="2">
+              Patient Information
+            </Text>
             {Object.entries(patientInfo).map(([key, value]) => (
               <Text key={key}>
                 <strong>{key}:</strong> {value}
@@ -311,7 +316,24 @@ const ConsultAIPage = () => {
           </Box>
         )}
 
-        {/* Single Toggle Button for Research */}
+        {/* Main Content Area */}
+        <Box flex="1" overflow="auto" p="4">
+          <VoiceNoteScreen
+            ws={ws}
+            wsStatus={wsStatus}
+            connectWebSocket={startConsultationSession} // renamed function now!
+            disconnectWebSocket={disconnectWebSocket}
+            phoneNumber={phoneNumber}
+            setPhoneNumber={setPhoneNumber}
+            errorMessage={errorMessage}
+            reviewId={reviewId}
+            sendOobRequest={sendOobRequest}
+            ite={ite}
+            updateLastDocumented={setLastDocumentedAt}
+          />
+        </Box>
+
+        {/* Research Button Moved to the Bottom */}
         <Flex p="4" justify="center" bg="white" boxShadow="sm" mx="4">
           <Button
             onClick={toggleChatModal}
@@ -320,8 +342,10 @@ const ConsultAIPage = () => {
             size="lg"
             width="100%"
             position="relative"
+            background="teal"
+            color="white"
           >
-            Research
+            Launch Researcher
             {hasNewMessage && (
               <Box
                 position="absolute"
@@ -335,22 +359,6 @@ const ConsultAIPage = () => {
             )}
           </Button>
         </Flex>
-
-        <Box flex="1" overflow="auto" p="4">
-        <VoiceNoteScreen
-  ws={ws}
-  wsStatus={wsStatus}
-  connectWebSocket={startConsultationSession} // <-- renamed function now!
-  disconnectWebSocket={disconnectWebSocket}
-  phoneNumber={phoneNumber}
-  setPhoneNumber={setPhoneNumber}
-  errorMessage={errorMessage}
-  reviewId={reviewId}
-  sendOobRequest={sendOobRequest}
-  ite={ite}
-  updateLastDocumented={setLastDocumentedAt}
-/>
-        </Box>
 
         {/* Research Modal */}
         <Modal
@@ -370,7 +378,12 @@ const ConsultAIPage = () => {
             borderTopRadius="lg"
             overflow="hidden"
           >
-            <ModalHeader textAlign="center" fontSize="2xl" bg="blue.500" color="white">
+            <ModalHeader
+              textAlign="center"
+              fontSize="2xl"
+              bg="blue.500"
+              color="white"
+            >
               What do you want to know?
             </ModalHeader>
             <ModalCloseButton color="white" />
@@ -390,7 +403,7 @@ const ConsultAIPage = () => {
           </ModalContent>
         </Modal>
 
-        {/* Document Required Dialog */}
+        {/* Documentation Required Modal */}
         <Modal
           isOpen={showDocumentDialog}
           onClose={() => setShowDocumentDialog(false)}
@@ -398,15 +411,19 @@ const ConsultAIPage = () => {
         >
           <ModalOverlay />
           <ModalContent>
-            <ModalHeader>Document Required</ModalHeader>
+            <ModalHeader>Documentation Required</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <Text>
-                You have not documented in the last 30 seconds. Please document your consultation notes before leaving.
+                You have not documented in the last 14 seconds. Please document
+                your consultation notes before leaving.
               </Text>
             </ModalBody>
             <ModalFooter>
-              <Button colorScheme="blue" onClick={() => setShowDocumentDialog(false)}>
+              <Button
+                colorScheme="blue"
+                onClick={() => setShowDocumentDialog(false)}
+              >
                 Ok
               </Button>
             </ModalFooter>

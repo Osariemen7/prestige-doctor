@@ -367,7 +367,6 @@ const VoiceNoteScreen = ({
         });
       }, 1000);
       timerRef.current = interval;
-      sendOobRequest();
       setIsRecording(true);
       log('Recording started.');
     } catch (error) {
@@ -395,14 +394,11 @@ const VoiceNoteScreen = ({
     setIsRecording(false);
     log('Recording stopped.');
     await handleBilling();
-  
-    // Only disconnect WebSocket if the session is truly over.
     if (shouldDisconnect) {
-      // disconnectWebSocket();
-      // For testing, comment out the disconnect to see if the WebSocket stays connected.
+      disconnectWebSocket();
     }
   };
-  
+
   const pcmEncode = (input) => {
     const buffer = new ArrayBuffer(input.length * 2);
     const output = new DataView(buffer);
