@@ -4,30 +4,28 @@ import {
   Typography,
   Card,
   CardContent,
-  List,
-  ListItem,
-  ListItemText,
+  Grid,
   CircularProgress,
   Alert,
   ThemeProvider,
   createTheme,
-  Grid,
   useMediaQuery,
+  Divider,
 } from '@mui/material';
 import { getAccessToken } from './api';
-import Sidebar from './sidebar'; // Updated component name casing if needed
+import Sidebar from './sidebar';
 import { useNavigate } from 'react-router-dom';
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#1565C0', // A refined blue shade
+      main: '#1565C0', // Primary blue
     },
     secondary: {
-      main: '#ffffff',
+      main: '#ffffff', // White for text on blue headers
     },
     background: {
-      default: '#f5f5f5', // Light grey background for contrast
+      default: '#e3f2fd', // Soft blue background for full-screen layout
       paper: '#ffffff',
     },
   },
@@ -45,6 +43,9 @@ const theme = createTheme({
     body1: {
       fontSize: '1rem',
     },
+    subtitle1: {
+      fontWeight: 600,
+    },
   },
   components: {
     MuiCard: {
@@ -53,13 +54,6 @@ const theme = createTheme({
           marginBottom: '24px',
           boxShadow: '0 2px 8px rgba(21, 101, 192, 0.15)',
           borderRadius: '8px',
-        },
-      },
-    },
-    MuiListItem: {
-      styleOverrides: {
-        root: {
-          padding: '12px 16px',
         },
       },
     },
@@ -95,7 +89,7 @@ const DocDash = () => {
         }
         const jsonData = await response.json();
         if (jsonData && jsonData.length > 0) {
-          setData(jsonData[0]); // Use the first element of the returned array
+          setData(jsonData[0]);
         } else {
           setData({});
         }
@@ -139,105 +133,143 @@ const DocDash = () => {
   if (!data) {
     return (
       <Box p={3}>
-        <Alert severity="warning">No doctor data available.</Alert>
+        <Alert severity="warning">No doctor subscriber data available.</Alert>
       </Box>
     );
   }
 
+  // Helper component to render a patient table
+  const PatientTable = ({ title, patients }) => (
+    <Card>
+      <CardContent sx={{ p: 0 }}>
+        {/* Header for Patient Table */}
+        <Box
+          sx={{
+            backgroundColor: theme.palette.primary.main,
+            color: theme.palette.secondary.main,
+            px: 2,
+            py: 1,
+            borderTopLeftRadius: '8px',
+            borderTopRightRadius: '8px',
+          }}
+        >
+          <Typography variant="h6">{title}</Typography>
+        </Box>
+        <Box sx={{ p: 2 }}>
+          {/* Table column headers */}
+          <Grid container spacing={1} sx={{ fontWeight: 'bold', mb: 1 }}>
+            <Grid item xs={4}>
+              <Typography variant="subtitle1">First Name</Typography>
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="subtitle1">Last Name</Typography>
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="subtitle1">Phone Number</Typography>
+            </Grid>
+          </Grid>
+          <Divider sx={{ mb: 1 }} />
+          {/* Data rows with dividers */}
+          {patients && patients.length > 0 ? (
+            patients.map((patient, index) => (
+              <React.Fragment key={index}>
+                <Grid container spacing={1} sx={{ py: 1 }}>
+                  <Grid item xs={4}>
+                    <Typography variant="body1">{patient.user__first_name}</Typography>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <Typography variant="body1">{patient.user__last_name}</Typography>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <Typography variant="body1">
+                      {formatPhoneNumber(patient.user__phone_number)}
+                    </Typography>
+                  </Grid>
+                </Grid>
+                {index !== patients.length - 1 && <Divider />}
+              </React.Fragment>
+            ))
+          ) : (
+            <Typography variant="body1">No data available.</Typography>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <ThemeProvider theme={theme}>
-      <div className='dashboard-container'>
-        <Sidebar navigate={navigate} handleLogout={handleLogout} />
-        <div className='main-content'>
+      <div className="dashboard-container">
+        <Sidebar handleLogout={handleLogout} />
+        <div className="main-content">
           <Box
             bgcolor="background.default"
             minHeight="100vh"
             p={isMobile ? 2 : 4}
             overflowY="auto"
           >
-            <Typography variant="h4" component="h1" gutterBottom color="primary" align="center">
+            <Typography
+              variant="h4"
+              component="h1"
+              gutterBottom
+              color="primary"
+              align="center"
+            >
               Doctor's Dashboard
             </Typography>
 
-            <Grid container spacing={isMobile ? 2 : 3} justifyContent="center">
-              <Grid item xs={12} md={8} lg={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" component="h2" mb={2}>
-                      Summary
+            {/* Summary Card */}
+            <Card>
+              <CardContent sx={{ p: 0 }}>
+                {/* Summary Header */}
+                <Box
+                  sx={{
+                    backgroundColor: theme.palette.primary.main,
+                    color: theme.palette.secondary.main,
+                    px: 2,
+                    py: 1,
+                    borderTopLeftRadius: '8px',
+                    borderTopRightRadius: '8px',
+                  }}
+                >
+                  <Typography variant="h6">Summary</Typography>
+                </Box>
+                {/* Summary Data */}
+                <Box sx={{ p: 2 }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Typography variant="body1">
+                      <strong>Total Consultations:</strong> {data.total_consultations}
                     </Typography>
-                    <Box display="flex" flexDirection="column" gap={1}>
-                      <Typography variant="body1">
-                        <strong>Total Consultations:</strong> {data.total_consultations}
-                      </Typography>
-                      <Typography variant="body1">
-                        <strong>Current Earnings:</strong> ₦{data.current_earnings}
-                      </Typography>
-                      <Typography variant="body1">
-                        <strong>Projected Earnings:</strong> ₦{data.projected_earnings}
-                      </Typography>
-                      <Typography variant="body1">
-                        <strong>Number of Patients Consulted:</strong> {data.num_patients_consulted}
-                      </Typography>
-                      <Typography variant="body1">
-                        <strong>Consultation Rate:</strong> {data.consultation_rate}
-                      </Typography>
-                      
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                    <Typography variant="body1">
+                      <strong>Current Earnings:</strong> ₦{data.current_earnings}
+                    </Typography>
+                    <Typography variant="body1">
+                      <strong>Projected Earnings:</strong> ₦{data.projected_earnings}
+                    </Typography>
+                    <Typography variant="body1">
+                      <strong>Number of Patients Consulted:</strong> {data.num_patients_consulted}
+                    </Typography>
+                    <Typography variant="body1">
+                      <strong>Consultation Rate:</strong> {data.consultation_rate}
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
 
-              <Grid item xs={12} md={8} lg={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" component="h2" mb={2}>
-                      Consulting Patients
-                    </Typography>
-                    <List>
-                      {data.consulting_patients && data.consulting_patients.length > 0 ? (
-                        data.consulting_patients.map((patient, index) => (
-                          <ListItem key={index} divider>
-                            <ListItemText
-                              primary={`${patient.user__first_name} ${patient.user__last_name}`}
-                              secondary={`Phone: ${formatPhoneNumber(patient.user__phone_number)}`}
-                            />
-                          </ListItem>
-                        ))
-                      ) : (
-                        <ListItem>
-                          <ListItemText primary="No consulting patients at the moment." />
-                        </ListItem>
-                      )}
-                    </List>
-                  </CardContent>
-                </Card>
+            {/* Patient Tables - arranged side by side on larger screens */}
+            <Grid container spacing={isMobile ? 2 : 3}>
+              <Grid item xs={12} md={6}>
+                <PatientTable
+                  title="Consulting Patients"
+                  patients={data.consulting_patients}
+                />
               </Grid>
-
-              <Grid item xs={12} md={8} lg={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" component="h2" mb={2}>
-                      Non-Consulting Patients
-                    </Typography>
-                    <List>
-                      {data.non_consulting_patients && data.non_consulting_patients.length > 0 ? (
-                        data.non_consulting_patients.map((patient, index) => (
-                          <ListItem key={index} divider>
-                            <ListItemText
-                              primary={`${patient.user__first_name} ${patient.user__last_name}`}
-                              secondary={`Phone: ${formatPhoneNumber(patient.user__phone_number) || 'N/A'}`}
-                            />
-                          </ListItem>
-                        ))
-                      ) : (
-                        <ListItem>
-                          <ListItemText primary="No non-consulting patients." />
-                        </ListItem>
-                      )}
-                    </List>
-                  </CardContent>
-                </Card>
+              <Grid item xs={12} md={6}>
+                <PatientTable
+                  title="Non-Consulting Patients"
+                  patients={data.non_consulting_patients}
+                />
               </Grid>
             </Grid>
           </Box>
