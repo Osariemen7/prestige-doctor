@@ -13,7 +13,7 @@ import {
 } from '@chakra-ui/react';
 import { getAccessToken } from './api';
 import axios from "axios";
-
+import { Search } from 'lucide-react';
 
 
 const DashboardPage = () => {
@@ -24,6 +24,8 @@ const DashboardPage = () => {
   const [selectedTab, setSelectedTab] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [date, setDate] = useState('');
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+  
     
   const filteredPatients = data.filter((patient) =>
     patient.phone_number.toLowerCase().includes(searchTerm.toLowerCase())
@@ -103,38 +105,47 @@ const DashboardPage = () => {
 
   
   const PatientCard = ({ patient }) => (
-    <Box borderWidth="1px" borderRadius="lg" p={5} shadow="md" backgroundColor='#f0f8ff'>
-      <VStack align="start" spacing={3}>
-        <Text>
-          <strong>Patient ID:</strong> {patient.id}
-        </Text>
-        <Text>
-          <strong>Patient Name:</strong> {patient.full_name}
-        </Text>
-        <Text>
-          <strong>Phone:</strong> {patient.phone_number}
-        </Text>
-        {patient.most_recent_review ? (
-  <Text>
-    <strong>Most Recent Review:</strong>{" "}
-    {new Date(patient.most_recent_review).toLocaleString()}
-  </Text>
-) : null}
-
-        <Button colorScheme="blue" onClick={() => handleViewDetails(patient)}>
-          View Details
-        </Button>
-      </VStack>
-    </Box>
+    <div className="bg-white rounded-lg p-6 shadow-sm">
+      <div className="space-y-4">
+        <div className="flex items-center space-x-2">
+          <span className="text-blue-600 text-sm">Patient ID: {patient.id}</span>
+        </div>
+        <h3 className="font-medium">
+          {patient.full_name || "Unnamed Patient"}
+        </h3>
+        <div className="flex items-center space-x-2 text-gray-600">
+          <span className="text-sm">{patient.phone_number}</span>
+        </div>
+        {patient.health_score && (
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Health Score</span>
+              <span className="text-sm font-medium">{patient.health_score}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full" 
+                style={{ width: `${patient.health_score}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
+
   
   return (
     <div className="dashboard-container">
       {/* Persistent Sidebar */}
-      <Sidebar navigate={navigate} handleLogout={handleLogout} />
-
+      <Sidebar 
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
+      onNavigate={(path) => navigate(path)} 
+      onLogout={handleLogout}
+    />
       {/* Main Content */}
-      <div className="main-content">
+      <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
+      <div className="min-h-screen bg-gray-50 p-6">
       <ChakraProvider>
       <Box flex="1" overflow="auto">
   
@@ -150,13 +161,18 @@ const DashboardPage = () => {
             <Text fontSize="20px" fontWeight="bold" mb={4}>
               Patient Records
             </Text>
+            <div className="relative">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
             <Box mb={6}>
-              <Input
-                placeholder="Search by phone number"
+              <Input pl='34px'
+                placeholder="    Search by phone number"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </Box>
+            </div>
             
             <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={6}>
               {filteredPatients.length > 0 ? (
@@ -176,6 +192,7 @@ const DashboardPage = () => {
 
       </ChakraProvider>
 
+             </div>
              </div>
     </div>
   );

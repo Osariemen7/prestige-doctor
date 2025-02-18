@@ -33,7 +33,7 @@ import { getAccessToken } from './api';
 // 1. CustomText: converts citation markers like [1], [2], etc. into clickable links.
 // ----------------------------------------------------
 const CustomText = ({ children, citations }) => {
-  const text = React.Children.toArray(children).join('');
+  const text = React.Children.toArray(children).join("");
   const parts = text.split(/(\[\d+\])/g);
   return (
     <>
@@ -49,7 +49,7 @@ const CustomText = ({ children, citations }) => {
                 target="_blank"
                 rel="noopener noreferrer"
                 sx={{
-                  color: '#87CEFA', // Light sky blue
+                  color: '#87CEFA', // light sky blue
                   textDecoration: 'none',
                   cursor: 'pointer',
                 }}
@@ -113,6 +113,7 @@ const SearchBox = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false); // State for Snackbar open/close
   const [snackbarMessage, setSnackbarMessage] = useState(''); // State for Snackbar message
   const [snackbarSeverity, setSnackbarSeverity] = useState('error'); // State for Snackbar severity
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
 
   const showSnackbar = useCallback((newMessage, newSeverity) => {
     setSnackbarMessage(newMessage);
@@ -130,81 +131,107 @@ const SearchBox = () => {
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim()) return;
-
+  
     // Clear the input immediately.
     const currentMessage = message;
-    setMessage('');
+    setMessage("");
     setIsResponseLoading(true);
-
+  
     try {
       const token = await getAccessToken();
-      const apiUrl = 'https://health.prestigedelta.com/research/';
-
+      const apiUrl = "https://health.prestigedelta.com/research/";
+  
       // Prepare payload with thread_id if available.
-      const payload = { query: currentMessage, expertise_level: 'high' };
+      const payload = { query: currentMessage, expertise_level: "high" };
       if (threadId) {
         payload.thread_id = threadId;
       }
-
+  
       // If a patient is selected, add either patient_phone or patient_id to the payload.
       if (selectedPatient) {
-        if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== '') {
+        if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
           payload.patient_phone = selectedPatient.phone_number;
         } else {
           payload.patient_id = selectedPatient.id;
         }
       }
-
+  
       // Optimistically add the user's message.
-      const userMessage = { role: 'user', content: currentMessage };
+      const userMessage = { role: "user", content: currentMessage };
       setChatMessages((prev) => [...prev, userMessage]);
-
+  
       const response = await fetch(apiUrl, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
-
-      const data = await response.json();
-      if (data.thread_id) {
-        setThreadId(data.thread_id);
+  
+      if (!response.body) {
+        throw new Error("No response body");
       }
-      setIsSourcesVisible(false);
-
-      // Append the assistant's response.
-      if (data.assistant_response) {
-        const assistantMessage = {
-          role: 'assistant',
-          content: data.assistant_response,
-          citations: data.citations,
-        };
-        setChatMessages((prev) => [...prev, assistantMessage]);
-      }
-      if (!response.ok) {
-        showSnackbar(data.error || 'Request failed due to an error.', 'error');
+  
+      // Create an empty assistant message for streaming updates.
+      let assistantMessage = { role: "assistant", content: "", citations: [] };
+      setChatMessages((prev) => [...prev, assistantMessage]);
+  
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let buffer = "";
+  
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        // Append the new chunk to any buffered text.
+        buffer += decoder.decode(value, { stream: true });
+        // Split the buffer on newlines (each chunk is a JSON object on a new line).
+        const parts = buffer.split("\n");
+        // The last part might be incomplete – save it back to buffer.
+        buffer = parts.pop();
+  
+        parts.forEach((part) => {
+          if (part.trim()) {
+            try {
+              const parsed = JSON.parse(part);
+              // Check for thread_id update.
+              if (parsed.thread_id) {
+                setThreadId(parsed.thread_id);
+              }
+              // If we receive an assistant response chunk, update the assistant message.
+              if (parsed.assistant_response_chunk) {
+                assistantMessage.content = parsed.accumulated_response;
+                assistantMessage.citations = parsed.citations;
+                // Update the last message (assistant) in the chatMessages array.
+                setChatMessages((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { ...assistantMessage };
+                  return updated;
+                });
+              }
+            } catch (error) {
+              console.error("Error parsing JSON chunk:", error);
+            }
+          }
+        });
       }
     } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Sorry, I encountered an error. Please try again later.');
-      setApiResponse({
-        assistant_response: 'Sorry, I encountered an error. Please try again later.',
-        citations: [],
-      });
+      console.error("Error sending message:", error);
+      setError("Sorry, I encountered an error. Please try again later.");
       setChatMessages((prev) => [
         ...prev,
         {
-          role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again later.',
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please try again later.",
         },
       ]);
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, showSnackbar]);
-
+  }, [message, threadId, selectedPatient, getAccessToken]);
+  
   const getDomainFromUrl = (url) => {
     try {
       const urlObj = new URL(url);
@@ -264,10 +291,13 @@ const SearchBox = () => {
   return (
     <div className="dashboard-container">
       {/* Persistent Sidebar */}
-      <Sidebar navigate={navigate} handleLogout={handleLogout} />
-
+      <Sidebar 
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
+      onNavigate={(path) => navigate(path)} 
+      onLogout={handleLogout}
+    />
       {/* Main Content */}
-      <div className="main-content">
+      <div  className={`${isSidebarMinimized ? 'ml-0 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
         <ThemeProvider theme={theme}>
           <Box
             sx={{
@@ -297,7 +327,7 @@ const SearchBox = () => {
               sx={{
                 overflowY: 'auto',
                 width: '100%',
-                maxWidth: '600px',
+                maxWidth: '740px',
                 mb: 2,
               }}
             >
@@ -320,7 +350,7 @@ const SearchBox = () => {
                             backgroundColor: '#f0f0f0',
                             padding: '10px',
                             borderRadius: '8px',
-                            maxWidth: '80%',
+                            maxWidth: '98%',
                             wordWrap: 'break-word',
                           }}
                         >
@@ -417,7 +447,7 @@ const SearchBox = () => {
                             backgroundColor: '#e0f7fa',
                             padding: '10px',
                             borderRadius: '8px',
-                            maxWidth: '80%',
+                            maxWidth: '90%',
                             wordWrap: 'break-word',
                           }}
                         >

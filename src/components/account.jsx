@@ -13,6 +13,7 @@ const Account = () => {
     const [loading, setLoading] = useState(true); // You are setting loading to true but not using it to control UI. Consider using it.
     const [message, setMessage] = useState('');
     const toast = useToast();
+const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
 
     const userInfo = localStorage.getItem('user-info');
     const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
@@ -217,8 +218,12 @@ const Account = () => {
 
   return (
     <ChakraProvider >
-     <Sidebar navigate={navigate} handleLogout={handleLogout} />
-     <div className='main-content'>
+    <Sidebar 
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
+      onNavigate={(path) => navigate(path)} 
+      onLogout={handleLogout}
+    />
+    <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
     <Box bg="blue.50" minH="100vh" p={4} >
       {/* Header */}
       <Text fontSize="xl" fontWeight="bold" mb={6}>

@@ -1,112 +1,114 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { FaWallet, FaSearch } from "react-icons/fa";
-import { IoMdSettings } from "react-icons/io";
-import { FaHome, FaRobot, FaSignOutAlt, FaBars, FaTimes, FaUserMd, FaCalendarCheck} from 'react-icons/fa';
-import './sidebar.css';
+import React, { useState } from 'react';
+import { 
+  Home, 
+  Users, 
+  Activity, 
+  DollarSign, 
+  FileText, 
+  Settings,
+  Search,
+  LogOut,
+  Menu
+} from 'lucide-react';
 
-const Sidebar = ({ navigate, handleLogout }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState('');
-  const sidebarRef = useRef(null);
- 
+const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  
+  const menuItems = [
+    { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
+    { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
+    { icon: <Activity size={20} />, text: 'Virtual Consultations', path: '/virtual' },
+    { icon: <Search size={20} />, text: 'Research', path: '/ask' },
+    { icon: <DollarSign size={20} />, text: 'Earnings', path: '/account' },
+    { icon: <FileText size={20} />, text: 'Dashboard', path: '/doctor' },
+    { icon: <Settings size={20} />, text: 'Settings', path: '/setting' },
+  ];
 
   const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-  const handleClickOutside = (event) => {
-    if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-      setIsSidebarOpen(false);
-    }
+    setIsMinimized((prev) => {
+      const newState = !prev;
+      onToggleSidebar(newState);
+      return newState;
+    });
   };
 
-useEffect(() => {
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+  const toggleMobile = () => {
+    setIsMobileOpen(!isMobileOpen);
+  };
 
   return (
     <>
-    <div className='mobile-view'>
-    <div className="hamburger" onClick={toggleSidebar}>
-        {isSidebarOpen ? <FaTimes size={24} color="#003366" /> : <FaBars size={24} color="#003366" />}
-      </div>
+      {/* Mobile Menu Button */}
+      <button 
+  style={{ left: isMinimized ? '5rem' : '22rem' }}
+  className="fixed top-4 z-50 p-2 rounded-md hover:bg-gray-100 lg:hidden"
+  onClick={toggleMobile}
+>
+  <Menu size={24} />
+</button>
+
+
+      {/* Sidebar Backdrop for Mobile */}
+      {isMobileOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
 
       {/* Sidebar */}
-      <div className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-        <div className="menu-item" onClick={() => navigate('/dashboard')}>
-          <FaHome size={24} color="#003366" />
-          <p className="menu-text">Home</p>
+      <div className={`
+        fixed top-0 left-0 h-screen bg-white shadow-md flex flex-col z-40
+        transition-all duration-300 ease-in-out
+        ${isMinimized ? 'w-16' : 'w-64'}
+        lg:translate-x-0
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Header */}
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          {!isMinimized && (
+            <h1 className="text-xl font-semibold text-blue-600">PrestigeHealth</h1>
+          )}
+          <button 
+            onClick={toggleSidebar}
+            className="p-2 rounded-md hover:bg-gray-100 lg:block hidden"
+          >
+            <Menu size={20} />
+          </button>
         </div>
-        <div className="menu-item" onClick={() => navigate('/virtual')}>
-          <FaCalendarCheck size={24} color="#003366" />
-          <p className="menu-text">Virtual Consultation</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/consult-ai')}>
-          <FaRobot size={24} color="#003366" />
-          <p className="menu-text">Physical Consultation</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/ask')}>
-        <FaSearch size={24} color="#003366" />
-          <p className="menu-text">Researcher</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/account')}>
-        <FaWallet size={24} color="#003366" />
-          <p className="menu-text">Account</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/doctor')}>
-          <FaUserMd size={24} color="#003366" />
-          <p className="menu-text">Dashboard</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/setting')}>
-          <IoMdSettings size={24} color="#003366" />
-          <p className="menu-text">Settings</p>
-        </div>
-                <div className="menu-item" onClick={handleLogout}>
-          <FaSignOutAlt size={24} color="#d32f2f" />
-          <p className="menu-text">Log Out</p>
-        </div>
-      </div>
-    </div>
-    <div className='desktop-view'>
-    <div className='sidebar'>
-    <div className="menu-item" onClick={() => navigate('/dashboard')}>
-          <FaHome size={24} color="#003366" />
-          <p className="menu-text">Home</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/virtual')}>
-          <FaCalendarCheck size={24} color="#003366" />
-          <p className="menu-text">Virtual Consultation</p>
-        </div>
+        
+        {/* Navigation */}
+        <nav className="flex-1 pt-4">
+          {menuItems.map((item, index) => (
+            <button
+              key={index}
+              onClick={() => onNavigate(item.path)}
+              className="w-full px-4 py-3 flex items-center text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              title={isMinimized ? item.text : ''}
+            >
+              <span className="text-gray-500 group-hover:text-blue-600">
+                {item.icon}
+              </span>
+              {!isMinimized && (
+                <span className="ml-3 text-sm font-medium">{item.text}</span>
+              )}
+            </button>
+          ))}
+        </nav>
 
-        <div className="menu-item" onClick={() => navigate('/consult-ai')}>
-          <FaRobot size={24} color="#003366" />
-          <p className="menu-text">Physical Consultation</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/ask')}>
-        <FaSearch size={24} color="#003366" />
-          <p className="menu-text">Researcher</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/account')}>
-        <FaWallet size={24} color="#003366" />
-          <p className="menu-text">Account</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/doctor')}>
-          <FaUserMd size={24} color="#003366" />
-          <p className="menu-text">Dashboard</p>
-        </div>
-        <div className="menu-item" onClick={() => navigate('/setting')}>
-          <IoMdSettings size={24} color="#003366" />
-          <p className="menu-text">Settings</p>
-        </div> 
-        <div className="menu-item" onClick={handleLogout}>
-          <FaSignOutAlt size={24} color="#d32f2f" />
-          <p className="menu-text">Log Out</p>
-        </div>
-        </div>
-    </div>
-      {/* Hamburger Icon */}
-      
+        {/* Logout Button */}
+        <button
+          onClick={onLogout}
+          className="w-full px-4 py-3 flex items-center text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"
+          title={isMinimized ? 'Logout' : ''}
+        >
+          <LogOut size={20} />
+          {!isMinimized && (
+            <span className="ml-3 text-sm font-medium">Log Out</span>
+          )}
+        </button>
+      </div>
     </>
   );
 };

@@ -446,7 +446,7 @@ const VoiceNoteScreen = ({
           <Button
             onClick={handleStartConsultation}
             isDisabled={wsStatus === 'Connected' || loading}
-            colorScheme="teal"
+            colorScheme="blue"
             marginTop="10px"
           >
             {loading ? <Spinner size="sm" /> : 'Start Consultation'}
@@ -466,7 +466,7 @@ const VoiceNoteScreen = ({
           <HStack justify="center">
             <Button
               onClick={toggleRecording}
-              colorScheme={isRecording ? 'red' : 'teal'}
+              colorScheme={isRecording ? 'red' : 'blue'}
               borderRadius="50%"
               width="40px"
               height="40px"

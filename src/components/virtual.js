@@ -48,6 +48,8 @@ const Va = () => {
     const [link, setLink] = useState('')  
     const modal1 = useDisclosure()
     const modal2 = useDisclosure()
+    const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+    
   
   const navigate = useNavigate()
   const opt =['Yes', 'No']
@@ -320,23 +322,50 @@ console.log(link)
   };
   
   return (
-    <ChakraProvider>
     <div className="dashboard-container">
-    <div className="main-content">
+    <Sidebar 
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
+      onNavigate={(path) => navigate(path)} 
+      onLogout={handleLogout}
+    />
+    <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}> 
+    <ChakraProvider>
       <Box p={5} >
-      <Sidebar navigate={navigate} handleLogout={handleLogout} />
-
-        <Heading textAlign='center' fontSize="24px" mb={4}>
+      
+        <Heading textAlign='center' fontSize="24px" mb={9}>
           Virtual Appointment
         </Heading>
 
-<Button colorScheme="blue" onClick={modal1.onOpen} mb='10px'>
-                Schedule Call with patient
-            </Button><br/>
-            <Button colorScheme="blue" onClick={modal2.onOpen} mb='10px'>
-                Start Instant Call
-            </Button>
-
+        <Flex
+  direction={['column', 'row']}
+  gap="6"
+  justify="center"
+  align="center"
+  my="4"
+>
+  <Button
+    colorScheme="blue"
+    size="lg"
+    px="8"
+    py="6"
+    boxShadow="md"
+    _hover={{ bg: 'blue.500', transform: 'scale(1.02)' }}
+    onClick={modal1.onOpen}
+  >
+    Schedule Call
+  </Button>
+  <Button
+    colorScheme="blue"
+    size="lg"
+    px="8"
+    py="6"
+    boxShadow="md"
+    _hover={{ bg: 'blue.500', transform: 'scale(1.02)' }}
+    onClick={modal2.onOpen}
+  >
+    Start Instant Call
+  </Button>
+</Flex>
        
         <Heading fontSize="20px" mb={4}>
           Call Schedules
@@ -385,9 +414,7 @@ console.log(link)
           )}
         </VStack>
       </Box>
-      </div>
-      </div>
-
+      
       <Modal isOpen={modal1.isOpen} onClose={modal1.onClose}>
                       <ModalOverlay />
                       <ModalContent>
@@ -492,6 +519,9 @@ console.log(link)
                   </Modal>
      
     </ChakraProvider>
+    </div>
+      </div>
+
   );
 };
 

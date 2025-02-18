@@ -38,6 +38,7 @@ const SettingPage = () => {
     { label: 'MD', value: 'MD' },
     { label: 'MBChB', value: 'MBChB' },
   ];
+const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
 
   // State for provider profile
   const [providerData, setProviderData] = useState({
@@ -487,8 +488,12 @@ const SettingPage = () => {
 
   return (
     <div className='dashboard-container'>
-    <Sidebar navigate={navigate} handleLogout={handleLogout} />
-    <div className='main-content'>
+     <Sidebar 
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
+      onNavigate={(path) => navigate(path)} 
+      onLogout={handleLogout}
+    />
+    <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}> 
     <Container maxWidth="md" sx={{ mt: 4 }}>
     <Typography variant='h6'>Settings</Typography>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
