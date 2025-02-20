@@ -130,6 +130,11 @@ const DashboardPage = () => {
             </div>
           </div>
         )}
+        <Button
+          onClick={() => handleViewDetails(patient)}
+          colorScheme="blue"
+          size="sm"
+          variant="outline" >View Details</Button>
       </div>
     </div>
   );
@@ -150,7 +155,7 @@ const DashboardPage = () => {
       <Box flex="1" overflow="auto">
   
     {/* Tab Content Below */}
-        <Heading fontSize='22px' textAlign='center'>Patient List</Heading>
+        <Heading fontSize='22px' textAlign='center'>Patient Records</Heading>
         {loading ? (
           <Box textAlign="center" mt={8}>
             <Spinner size="xl" />
@@ -159,7 +164,7 @@ const DashboardPage = () => {
         ) : (
           <Box p={4}>
             <Text fontSize="20px" fontWeight="bold" mb={4}>
-              Patient Records
+              Patient List
             </Text>
             <div className="relative">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
