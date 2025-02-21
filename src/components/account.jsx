@@ -20,17 +20,20 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
     const bvnStatus = parsedUserInfo ? parsedUserInfo.user.bvn_verified : "NOT_VERIFIED" ; // Default to NOT_VERIFIED if no user info
 
     const withDraw = async () => {
-        if (bvnStatus === "NOT_VERIFIED") {
-          toast({
-            title: 'BVN not Verified',
-            description: 'Your BVN is not verified. Please verify your BVN to proceed with withdrawals.',
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-          });
+      if (bvnStatus === "NOT_VERIFIED") {
+        toast({
+          title: 'BVN not Verified',
+          description: 'Your BVN is not verified. Please verify your BVN to proceed with withdrawals.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        // Delay navigation by 1 second (1000ms)
+        setTimeout(() => {
           navigate('/organization');
-          return;
-        }
+        }, 2000);
+        return;
+      }
 
         if (!balance || balance.available_balance <= 0) { // Access available_balance from balance object
           toast({
