@@ -378,7 +378,7 @@ const DocDash = () => {
                 <Typography variant="body2" color="textSecondary">
                   Expires:{" "}
                   {doctorData[0].subscription_expires
-                    ? new Date(doctorData[0].subscription_expires).toLocaleDateString()
+                    ? new Date(doctorData[0].subscription_expires).toLocaleDateString('en-GB')
                     : "N/A"}
                 </Typography>
               </Box>
@@ -395,6 +395,7 @@ const DocDash = () => {
                 Subscribe - ₦30,000
               </Button>
             </Box>
+            <Typography>Subscription is on a monthly basis</Typography>
           </CardContent>
         </Card>
       {/* Stats Grid */}
