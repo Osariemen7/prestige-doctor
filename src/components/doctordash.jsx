@@ -15,7 +15,8 @@ import {
   TableHead,
   TableRow,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Snackbar // Import Snackbar
 } from '@mui/material';
 import {
   MdLocalHospital,
@@ -24,8 +25,17 @@ import {
   MdTrendingUp
 } from 'react-icons/md';
 import { getAccessToken } from './api';
-import Sidebar from './sidebar'; // Import Sidebar 
+import Sidebar from './sidebar'; // Import Sidebar
 import { useNavigate } from 'react-router-dom';
+import {
+  CardHeader,
+  Avatar,
+  Chip,
+  Button,
+  IconButton, // Import IconButton
+} from "@mui/material";
+import { CalendarDays, GraduationCap, Stethoscope, Building2 } from "lucide-react";
+import CloseIcon from '@mui/icons-material/Close'; // Import CloseIcon
 
 const DocDash = () => {
   const [data, setData] = useState(null);
@@ -35,12 +45,64 @@ const DocDash = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
-
+  const [doctorData, setDoctorData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+   const [buttonVisible, setButtonVisible] = useState(false);
+  const [message, setMessage] = useState('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
   const handleLogout = () => {
     localStorage.removeItem('user-info');
     navigate('/');
   };
+
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
+  };
+
+  const handleSubmit = async () => {
+    setButtonVisible(true);
+    const subscription_type = 'monthly';
+    const subscriptionData = { subscription_type };
+
+    const token = await getAccessToken();
+
+    try {
+      const response = await fetch(`https://health.prestigedelta.com/providersub/${doctorData[0].id}/subscribe/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(subscriptionData),
+      });
+
+      if (response.ok) {
+        setSnackbarMessage('Subscription successful! Your subscription is now active.');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+      } else {
+        const errorResult = await response.json();
+        setMessage(errorResult.message);
+        setSnackbarMessage(errorResult.message || 'Failed to subscribe.'); // Use error message from response if available
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true); // Open snackbar even on error to show the message
+        throw new Error('Failed to subscribe.');
+      }
+    } catch (error) {
+      setSnackbarMessage(error.message);
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setButtonVisible(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       const accessToken = await getAccessToken();
@@ -51,9 +113,9 @@ const DocDash = () => {
             'content-type': 'application/json',
           },
         });
-        
+
         if (!response.ok) throw new Error('Failed to fetch data');
-        
+
         const jsonData = await response.json();
         setData(jsonData[0] || {});
       } catch (err) {
@@ -66,12 +128,43 @@ const DocDash = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    const fetchDat = async () => {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      try {
+        const response = await fetch("https://health.prestigedelta.com/provider/", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (response.status === 401) {
+          navigate("/login");
+        } else {
+          const result = await response.json();
+          setDoctorData(result);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDat();
+  }, [navigate]);
+
+  console.log(doctorData)
   const formatPhoneNumber = (phone) => {
     if (!phone) return 'N/A';
     return phone.replace('+234', '0');
   };
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -91,12 +184,12 @@ const DocDash = () => {
     <Card sx={{ height: '100%' }}>
       <CardContent>
         <Box display="flex" alignItems="center">
-          <Box 
-            sx={{ 
-              backgroundColor: ' #dae7ff', 
-              borderRadius: '50%', 
-              p: 1, 
-              mr: 2 
+          <Box
+            sx={{
+              backgroundColor: ' #dae7ff',
+              borderRadius: '50%',
+              p: 1,
+              mr: 2
             }}
           >
             <Icon size={24} color={theme.palette.primary.main} />
@@ -154,38 +247,158 @@ const DocDash = () => {
 
   return (
     <div className='dashboard-container'>
-    <Sidebar 
-      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
-      onNavigate={(path) => navigate(path)} 
+    <Sidebar
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
+      onNavigate={(path) => navigate(path)}
       onLogout={handleLogout}
     />
-    <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}> 
-    <Box sx={{ 
-      p: isMobile ? 2 : 4, 
+    <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
+    <Box sx={{
+      p: isMobile ? 2 : 4,
       backgroundColor: 'rgb(248, 248, 248)',
       minHeight: '100vh'
     }}>
-      <Typography 
-        variant="h5" 
-        component="h1" 
-        gutterBottom 
+      <Typography
+        variant="h5"
+        component="h1"
+        gutterBottom
         align="left"
         color="primary"
         sx={{ mb: 0 }}
       >
         Dashboard Overview
       </Typography>
-      <Typography 
-        variant="body1" 
-        component="p" 
-        gutterBottom 
+      <Typography
+        variant="body1"
+        component="p"
+        gutterBottom
         align="left"
         sx={{ mb: 4 }}>
       Monitor your healthcare practice performance
       </Typography>
+      <Card
+          sx={{
+            backdropFilter: "blur(10px)",
+            backgroundColor: "rgba(255, 255, 255, 0.8)",
+            boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+            border: 0,
+          }}
+        >
+          <CardHeader
+            sx={{ p: 2 }}
+            avatar={
+              <Avatar
+                src={doctorData[0].profile_picture || ""}
+                sx={{ width: 96, height: 96 }}
+              >
+                {!doctorData[0].profile_picture && "DR."}
+              </Avatar>
+            }
+            title={
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
 
+                <Typography variant="h5" sx={{ fontWeight: "bold", color: "#333" }}>
+                  .{" "}
+                  {doctorData[0].bio
+                    ? doctorData[0].bio.split(" ").slice(1).join(" ")
+                    : ""}
+                </Typography>
+                <Typography variant="subtitle1" sx={{ color: "#0EA5E9" }}>
+                  {doctorData[0].specialty}
+                </Typography>
+              </Box>
+            }
+          />
+          <CardContent sx={{ p: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <GraduationCap size={20} color="#0EA5E9" />
+                  <Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Qualifications
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: "medium" }}>
+                      {doctorData[0].qualifications}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 2 }}>
+                  <CalendarDays size={20} color="#0EA5E9" />
+                  <Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Registered Since
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: "medium" }}>
+                      {new Date(doctorData[0].date_of_registration).toLocaleDateString()}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Stethoscope size={20} color="#0EA5E9" />
+                  <Box>
+                    <Typography variant="body2" color="textSecondary">
+                      GPT Sessions
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: "medium" }}>
+                      {doctorData[0].gpt_session_count}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 2 }}>
+                  <Building2 size={20} color="#0EA5E9" />
+                  <Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Organization
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: "medium" }}>
+                      {doctorData[0].organization}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+
+            <Box
+              sx={{
+                mt: 3,
+                pt: 2,
+                borderTop: "1px solid #e0e0e0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: "bold", mb: 1 }}>
+                  Subscription Status
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Expires:{" "}
+                  {doctorData[0].subscription_expires
+                    ? new Date(doctorData[0].subscription_expires).toLocaleDateString()
+                    : "N/A"}
+                </Typography>
+              </Box>
+              <Button
+               onClick={handleSubmit}
+               disabled={buttonVisible}
+                variant="contained"
+                sx={{
+                  bgcolor: "#2196F3",
+                  "&:hover": { bgcolor: "#1976D2" },
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Subscribe - ₦30,000
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
       {/* Stats Grid */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={3} sx={{ mb: 4,mt: 2 }}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Consultations"
@@ -219,21 +432,40 @@ const DocDash = () => {
       {/* Patient Tables */}
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
-          <PatientTable 
-            title="Consulting Patients" 
-            patients={data?.consulting_patients} 
+          <PatientTable
+            title="Consulting Patients"
+            patients={data?.consulting_patients}
           />
         </Grid>
         <Grid item xs={12} md={6}>
-          <PatientTable 
-            title="Non-Consulting Patients" 
-            patients={data?.non_consulting_patients} 
+          <PatientTable
+            title="Non-Consulting Patients"
+            patients={data?.non_consulting_patients}
           />
         </Grid>
       </Grid>
     </Box>
     </div>
-
+     {/* Snackbar */}
+     <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        message={snackbarMessage}
+        severity={snackbarSeverity}
+        action={
+          <React.Fragment>
+            <IconButton
+              aria-label="close"
+              color="inherit"
+              sx={{ p: 0.5 }}
+              onClick={handleSnackbarClose}
+            >
+              <CloseIcon />
+            </IconButton>
+          </React.Fragment>
+        }
+      />
     </div>
   );
 };

@@ -1,5 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Paper,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Button,
+  IconButton,
+  Snackbar,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const AvailabilitySelector = () => {
   const allDaysOfWeek = [
@@ -9,7 +28,7 @@ const AvailabilitySelector = () => {
     'Wednesday',
     'Thursday',
     'Friday',
-    'Saturday'
+    'Saturday',
   ];
 
   const [availabilities, setAvailabilities] = useState([]);
@@ -17,20 +36,19 @@ const AvailabilitySelector = () => {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [message, setMessage] = useState('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Calculate available days by filtering out already selected days
+  // Filter out days already selected
   const availableDays = allDaysOfWeek.filter(
-    day => !availabilities.some(availability => availability.day_of_week === day)
+    (day) => !availabilities.some((availability) => availability.day_of_week === day)
   );
 
   const getRefreshToken = async () => {
     try {
       const userInfo = localStorage.getItem('user-info');
       const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
-      if (parsedUserInfo) {
-        return parsedUserInfo.refresh;
-      }
+      if (parsedUserInfo) return parsedUserInfo.refresh;
       console.log('No user information found in storage.');
       return null;
     } catch (error) {
@@ -40,27 +58,23 @@ const AvailabilitySelector = () => {
   };
 
   const getAccessToken = async () => {
-    let refresh = await getRefreshToken();
-    let term = { refresh };
+    const refresh = await getRefreshToken();
+    const term = { refresh };
     let rep = await fetch('https://health.prestigedelta.com/tokenrefresh/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'accept': 'application/json'
+        accept: 'application/json',
       },
-      body: JSON.stringify(term)
+      body: JSON.stringify(term),
     });
     rep = await rep.json();
-    if (rep) {
-      return rep.access;
-    }
+    if (rep) return rep.access;
   };
 
   const handleSubmit = async () => {
     const token = await getAccessToken();
-    const formData = {
-      availabilities: availabilities,
-    };
+    const formData = { availabilities };
 
     try {
       const response = await fetch('https://health.prestigedelta.com/availability/', {
@@ -75,13 +89,14 @@ const AvailabilitySelector = () => {
       const result = await response.json();
       if (response.status !== 200) {
         setMessage(result.message || 'An error occurred');
+        setSnackbarOpen(true);
       } else {
-        
         navigate('/');
       }
     } catch (error) {
       console.error(error);
       setMessage('An error occurred during updating');
+      setSnackbarOpen(true);
     }
   };
 
@@ -94,99 +109,180 @@ const AvailabilitySelector = () => {
     const newAvailability = {
       day_of_week: selectedDay,
       start_time: { hour: startHour, minute: startMinute },
-      end_time: { hour: endHour, minute: endMinute }
+      end_time: { hour: endHour, minute: endMinute },
     };
 
     setAvailabilities([...availabilities, newAvailability]);
-    // Only reset the selected day, keep the times
+    // Reset selection and times after adding
     setSelectedDay('');
+    setStartTime('');
+    setEndTime('');
   };
 
   const handleRemoveAvailability = (index) => {
-    const newAvailabilities = availabilities.filter((_, i) => i !== index);
-    setAvailabilities(newAvailabilities);
+    setAvailabilities(availabilities.filter((_, i) => i !== index));
   };
 
-  const formatTime = (time) => {
-    return `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`;
-  };
+  const formatTime = (time) =>
+    `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`;
 
   return (
-    <div className="provider">
-      <div className="p-6 max-w-2xl mx-auto">
-        <h2 className="text-2xl font-medium mb-4">Set your Available Days</h2>
-        <div className="mb-8 space-y-4">
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-medium">Day of Week</label>
-            <select
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(45deg, rgb(152, 202, 243) 30%, #BBDEFB 90%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 2,
+      }}
+    >
+      <Paper
+        elevation={3}
+        sx={{
+          width: '100%',
+          maxWidth: 600,
+          p: 4,
+          borderRadius: 2,
+          bgcolor: 'rgba(255, 255, 255, 0.95)',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ color: '#2196F3' }}>
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h5" sx={{ ml: 1, color: '#2196F3' }}>
+            Set Your Available Days
+          </Typography>
+        </Box>
+
+        <Box
+          component="form"
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            justifyContent: 'center',
+          }}
+        >
+          <FormControl fullWidth>
+            <InputLabel id="day-select-label">Day of Week</InputLabel>
+            <Select
+              labelId="day-select-label"
               value={selectedDay}
+              label="Day of Week"
               onChange={(e) => setSelectedDay(e.target.value)}
-              className="p-2 border rounded-md"
+              sx={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
             >
-              <option value="">Select a day</option>
-              {availableDays.map(day => (
-                <option key={day} value={day}>{day}</option>
+              <MenuItem value="">
+                <em>Select a day</em>
+              </MenuItem>
+              {availableDays.map((day) => (
+                <MenuItem key={day} value={day}>
+                  {day}
+                </MenuItem>
               ))}
-            </select>
-          </div>
+            </Select>
+          </FormControl>
 
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-medium">Start Time</label>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="p-2 border rounded-md"
-            />
-          </div>
+          <TextField
+            label="Start Time"
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ step: 300 }}
+            sx={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
+          />
 
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-medium">End Time</label>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="p-2 border rounded-lg"
-            />
-          </div>
+          <TextField
+            label="End Time"
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ step: 300 }}
+            sx={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
+          />
 
-          <button
+          <Button
+            variant="contained"
             onClick={handleAddAvailability}
             disabled={!selectedDay || !startTime || !endTime}
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 disabled:bg-blue-300 disabled:cursor-not-allowed"
+            sx={{
+              bgcolor: '#2196F3',
+              '&:hover': { bgcolor: '#1976D2' },
+              py: 1.5,
+            }}
           >
             Add Available Day
-          </button>
-        </div>
+          </Button>
+        </Box>
 
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">Selected Available Days</h3>
-          {availabilities.map((availability, index) => (
-            <div key={index} className="flex justify-between items-center p-4 border rounded-md">
-              <div>
-                <span className="font-medium">{availability.day_of_week}</span>
-                <span className="ml-4">
-                  {formatTime(availability.start_time)} - {formatTime(availability.end_time)}
-                </span>
-              </div>
-              <button
-                onClick={() => handleRemoveAvailability(index)}
-                className="text-red-500 hover:text-red-600"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-        <p className="text-red-500">{message}</p>
-        <button
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" sx={{ mb: 2, color: '#2196F3' }}>
+            Selected Available Days
+          </Typography>
+          {availabilities.length === 0 ? (
+            <Typography variant="body2">No days added yet.</Typography>
+          ) : (
+            <List>
+              {availabilities.map((availability, index) => (
+                <ListItem
+                  key={index}
+                  sx={{
+                    border: '1px solid #ccc',
+                    borderRadius: 1,
+                    mb: 1,
+                  }}
+                >
+                  <ListItemText
+                    primary={availability.day_of_week}
+                    secondary={`${formatTime(availability.start_time)} - ${formatTime(
+                      availability.end_time
+                    )}`}
+                  />
+                  <ListItemSecondaryAction>
+                    <IconButton
+                      edge="end"
+                      onClick={() => handleRemoveAvailability(index)}
+                      sx={{ color: 'red' }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Box>
+        {message && (
+          <Typography variant="body2" sx={{ mt: 2, color: 'red', textAlign: 'center' }}>
+            {message}
+          </Typography>
+        )}
+        <Button
+          variant="contained"
           onClick={handleSubmit}
-          className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600"
+          fullWidth
+          sx={{
+            bgcolor: '#2196F3',
+            '&:hover': { bgcolor: '#1976D2' },
+            mt: 3,
+            py: 1.5,
+          }}
         >
           Submit
-        </button>
-      </div>
-    </div>
+        </Button>
+      </Paper>
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message={message || 'Submission Successful'}
+      />
+    </Box>
   );
 };
 

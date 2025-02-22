@@ -1,11 +1,37 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Typography, Box, TextField, Autocomplete } from '@mui/material';
+
 import { BootstrapButton, ValidationTextField } from "./material";
-import { AiOutlineArrowLeft } from 'react-icons/ai'; // Import the back arrow icon
+import {
+  Box,
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  Autocomplete,
+  IconButton,
+  styled
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(4),
+  marginTop: theme.spacing(3),
+  [theme.breakpoints.up('sm')]: {
+    padding: theme.spacing(6),
+  }
+}));
 
-  
+const StyledTextField = styled(TextField)(({ theme }) => ({
+  marginBottom: theme.spacing(3),
+  '& .MuiOutlinedInput-root': {
+    '&.Mui-focused fieldset': {
+      borderColor: theme.palette.primary.main,
+    },
+  },
+}));
+
 const Organization =()=>{
   const [info, setInfo] = useState([])
   const [account_number, setNuban] = useState('')
@@ -236,87 +262,121 @@ const handleAddress=(event)=> {
     } 
 
   return(
-    <div style={{backgroundColor:'#F0F8FF', maxHeight:'100%', height: '100vh', padding:'5%', zIndex:'0', alignItems: 'center', justifyContent: 'center' , overflow:'auto'}}>
-       <Link to='/account'><i class="fa-solid fa-chevron-left bac"></i></Link>
-      
-            <h3>Set Organization</h3>
-           
-          <form >
-          
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <ValidationTextField
-  
-  onChange={handleOrg}
-label="Name of Organization"
-type='text'
-required
-variant="outlined"
-id="validation-outlined-input"
-/> </div> <br/>
-
-<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-<ValidationTextField
-  
-  onChange={handleAddress}
-label="Address of Organization"
-type='text'
-required
-variant="outlined"
-id="validation-outlined-input"
-/>  </div><br/> 
-<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>  
-          <ValidationTextField
-  
-  onChange={handleBVN}
-label="Bank Verification Number"
-type='number'
-required
-variant="outlined"
-id="validation-outlined-input"
-/> </div><br/>
-      
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Autocomplete
-      id="combo-box-demo"
-      value={selectedOption}
-      options={options}
-      onChange={handleBank}
+    <Box
       sx={{
-        width: '100%', // Default width for mobile
-        maxWidth: '88%', // Max width for desktop
-        align: 'center',
-        '@media (min-width: 600px)': { // Adjustments for desktop view
-          width: '40%', // Decrease width for larger screens
-          maxWidth: 'none', // Remove maximum width for larger screens
-        },
+        minHeight: '100vh',
+        backgroundColor: '#F5F5F5',
+        overflowY: 'auto',
+        py: 4
       }}
-      renderInput={(params) => <TextField {...params} label="Select Bank" />}
-    />
-           </div>
-    <br/>
-    
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <ValidationTextField
-  onChange={handleAcct}
-label="Account Number"
-type='number'
-required
-variant="outlined"
-id="validation-outlined-input"
-/> </div>
-    
-             
-                <div>{users ? <p style={{color:'#000', textAlign:'center'}}>{users.account_name}</p> : null}</div>
-               
-<br/>
-<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BootstrapButton variant="contained" onClick={handleSubmit} disableRipple>
-                   Next
-      </BootstrapButton> </div>
-               
-                <div className="message">{message ? <p>{message}</p> : null}</div>
-      </form>
-    </div>
+    >
+      <Container maxWidth="md">
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4,  }}>  
+          <IconButton
+            component={Link}
+            to="/account"
+            sx={{ mr: 2 }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h4" component="h1">
+            Set Organization
+          </Typography>
+        </Box>
+
+        <StyledPaper elevation={3}>
+          <form>
+            <StyledTextField
+              fullWidth
+              label="Name of Organization"
+              variant="outlined"
+              onChange={handleOrg}
+              required
+            />
+
+            <StyledTextField
+              fullWidth
+              label="Address of Organization"
+              variant="outlined"
+              onChange={handleAddress}
+              required
+            />
+
+            <StyledTextField
+              fullWidth
+              label="Bank Verification Number"
+              variant="outlined"
+              type="number"
+              onChange={handleBVN}
+              required
+            />
+
+            <Autocomplete
+              value={selectedOption}
+              options={options}
+              onChange={(event, newValue) => handleBank(newValue)}
+              renderInput={(params) => (
+                <StyledTextField
+                  {...params}
+                  label="Select Bank"
+                  required
+                />
+              )}
+            />
+
+            <StyledTextField
+              fullWidth
+              label="Account Number"
+              variant="outlined"
+              type="number"
+              onChange={handleAcct}
+              required
+            />
+
+            {users?.account_name && (
+              <Typography
+                sx={{
+                  textAlign: 'center',
+                  my: 2,
+                  color: 'text.primary',
+                  fontWeight: 'medium'
+                }}
+              >
+                {users.account_name}
+              </Typography>
+            )}
+
+            {message && (
+              <Typography
+                sx={{
+                  textAlign: 'center',
+                  my: 2,
+                  color: 'error.main'
+                }}
+              >
+                {message}
+              </Typography>
+            )}
+
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={handleSubmit}
+              sx={{
+                mt: 3,
+                py: 1.5,
+                backgroundColor: 'primary.main',
+                '&:hover': {
+                  backgroundColor: 'primary.dark',
+                },
+              }}
+            >
+              Next
+            </Button>
+          </form>
+        </StyledPaper>
+      </Container>
+    </Box>
   )
     
 }
