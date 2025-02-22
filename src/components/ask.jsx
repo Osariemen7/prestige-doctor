@@ -104,7 +104,6 @@ const SearchBox = () => {
   const [threadId, setThreadId] = useState(null);
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
-  const [error, setError] = useState('');
   const [datalist, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -131,22 +130,22 @@ const SearchBox = () => {
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim()) return;
-  
+
     // Clear the input immediately.
     const currentMessage = message;
     setMessage("");
     setIsResponseLoading(true);
-  
+
     try {
       const token = await getAccessToken();
       const apiUrl = "https://health.prestigedelta.com/research/";
-  
+
       // Prepare payload with thread_id if available.
       const payload = { query: currentMessage, expertise_level: "high" };
       if (threadId) {
         payload.thread_id = threadId;
       }
-  
+
       // If a patient is selected, add either patient_phone or patient_id to the payload.
       if (selectedPatient) {
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
@@ -155,11 +154,11 @@ const SearchBox = () => {
           payload.patient_id = selectedPatient.id;
         }
       }
-  
+
       // Optimistically add the user's message.
       const userMessage = { role: "user", content: currentMessage };
       setChatMessages((prev) => [...prev, userMessage]);
-  
+
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
@@ -168,20 +167,20 @@ const SearchBox = () => {
         },
         body: JSON.stringify(payload),
       });
-  
+
       if (!response.body) {
         throw new Error("No response body");
       }
-  
+
       // Create an empty assistant message for streaming updates.
       let assistantMessage = { role: "assistant", content: "", citations: [] };
       setChatMessages((prev) => [...prev, assistantMessage]);
-  
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
       let buffer = "";
-  
+
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
@@ -191,7 +190,7 @@ const SearchBox = () => {
         const parts = buffer.split("\n");
         // The last part might be incomplete – save it back to buffer.
         buffer = parts.pop();
-  
+
         parts.forEach((part) => {
           if (part.trim()) {
             try {
@@ -219,7 +218,7 @@ const SearchBox = () => {
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      setError("Sorry, I encountered an error. Please try again later.");
+      showSnackbar("Sorry, I encountered an error. Please try again later.", 'error');
       setChatMessages((prev) => [
         ...prev,
         {
@@ -230,8 +229,8 @@ const SearchBox = () => {
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, getAccessToken]);
-  
+  }, [message, threadId, selectedPatient, getAccessToken, showSnackbar]);
+
   const getDomainFromUrl = (url) => {
     try {
       const urlObj = new URL(url);
@@ -267,13 +266,14 @@ const SearchBox = () => {
         }
       } catch (error) {
         console.error('Error fetching data:', error);
+        showSnackbar("Failed to fetch patient list.", 'error');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [navigate]);
+  }, [navigate, showSnackbar]);
 
   // Extract the <think> block from the assistant response.
   const extractThinkContent = (text) => {
@@ -291,9 +291,9 @@ const SearchBox = () => {
   return (
     <div className="dashboard-container">
       {/* Persistent Sidebar */}
-      <Sidebar 
-      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
-      onNavigate={(path) => navigate(path)} 
+      <Sidebar
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
+      onNavigate={(path) => navigate(path)}
       onLogout={handleLogout}
     />
       {/* Main Content */}
@@ -553,14 +553,6 @@ const SearchBox = () => {
           {snackbarMessage}
         </Alert>
       </Snackbar>
-
-      {/* Existing Error Snackbar - consider removing if you only want one Snackbar */}
-      {/* <Snackbar
-        open={Boolean(error)}
-        autoHideDuration={6000}
-        onClose={() => setError('')}
-        message={error}
-      /> */}
     </div>
   );
 };
