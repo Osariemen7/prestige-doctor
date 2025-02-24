@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
-  Icon,
   ChakraProvider,
   Button,
   Flex,
@@ -13,23 +12,25 @@ import {
   ModalBody,
   ModalFooter,
   Text,
-  useToast,
   Badge,
+  IconButton,
+  useMediaQuery,
+  useToast,
 } from '@chakra-ui/react';
-import { MdSearch } from 'react-icons/md';
+import { MdSearch, MdNotes, MdClose } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
 import Sidebar from './sidebar';
+import PatientProfileDisplay from './document';
 
 const ConsultAIPage = () => {
   const [wsStatus, setWsStatus] = useState('Disconnected');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [reviewId, setReviewId] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
-  const [isRecording, setIsRecording] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const currentReviewId = useRef(null);
@@ -43,7 +44,9 @@ const ConsultAIPage = () => {
   const [showDocumentDialog, setShowDocumentDialog] = useState(false);
   const [patientInfo, setPatientInfo] = useState(null);
   const [documen, setDocumen] = useState(false);
-
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMobile] = useMediaQuery('(max-width: 768px)');
+  
   const ws = useRef(null);
   const navigate = useNavigate();
   const toast = useToast();
@@ -53,7 +56,6 @@ const ConsultAIPage = () => {
     setDebugLogs((prev) => [...prev, `[${time}] ${message}`]);
   };
 
-  // When the phone number is entered (11 digits), fetch patient info.
   useEffect(() => {
     const token = getAccessToken();
     if (phoneNumber.length === 11) {
@@ -178,6 +180,10 @@ const ConsultAIPage = () => {
       if (typeof event.data === 'string') {
         try {
           const data = JSON.parse(event.data);
+          if (data.type === 'authentication_success') {
+            setReviewId(data.review_id);
+          }
+          
           console.log(`Received message:`, data);
           if (data.type === 'openai_message' && data.message) {
             setChatMessages((prevMessages) => [
@@ -187,7 +193,7 @@ const ConsultAIPage = () => {
                 content: data.message.content[0].text,
               },
             ]);
-            setReviewId(data.review_id);
+            
             if (isChatModalOpen) {
               setHasNewMessage(false);
             } else {
@@ -235,7 +241,6 @@ const ConsultAIPage = () => {
       log(
         `Out-of-Band request sent: Type - ${oobRequestType}, Details - ${oobRequestDetails}`
       );
-      // Update last documented time when a request is sent.
       setLastDocumentedAt(new Date());
     } else {
       log('WebSocket is not connected. Cannot send Out-of-Band request.');
@@ -261,44 +266,45 @@ const ConsultAIPage = () => {
     navigate('/');
   };
 
-  // Modified Back button handler:
-  // Disconnect the WebSocket (if connected) and then, if no documentation has been done in the last 14 seconds, show the modal.
   const handleBackClick = () => {
-  // If WebSocket was never connected, allow navigation.
-  if (wsStatus === 'Disconnected') {
+    if (wsStatus === 'Disconnected') {
+      navigate('/dashboard');
+      return;
+    }
+
+    const now = new Date();
+    if (!lastDocumentedAt || now - lastDocumentedAt > 14000) {
+      setShowDocumentDialog(true);
+      return;
+    }
+
+    disconnectWebSocket();
     navigate('/dashboard');
-    return;
-  }
-  
-  // For an active session, check if documentation was done within the last 14 seconds.
-  const now = new Date();
-  if (!lastDocumentedAt || now - lastDocumentedAt > 14000) {
-    setShowDocumentDialog(true);
-    return;
-  }
-  
-  // Documentation is up to date: disconnect the WebSocket and navigate away.
-  disconnectWebSocket();
-  navigate('/dashboard');
-};
+  };
 
-
-  // New handler for the Documentation Modal.
-  // It sends the documentation request and then navigates away.
   const handleDocumentAndExit = () => {
     sendOobRequest();
-    // Allow some time for the documentation to register (optional: add more robust checking).
     setTimeout(() => {
       setShowDocumentDialog(false);
-      setDocumen(true)
-    
+      setDocumen(true);
     }, 500);
   };
 
+  // Toggle the Patient Profile display (Document panel) using isProfileOpen
+  const toggleProfile = () => {
+    // Optionally, you could send a documentation request here before toggling.
+    setIsProfileOpen((prev) => !prev);
+  };
+
+  const closeProfile = () => {
+    setIsProfileOpen(false);
+    sendOobRequest();
+  };
+console.log(reviewId)
   return (
     <ChakraProvider>
       <Flex direction="column" height="100vh" bg="gray.50">
-        {/* Header with Back Button and Connection Status */}
+        {/* Header */}
         <Flex
           align="center"
           justify="space-between"
@@ -310,7 +316,12 @@ const ConsultAIPage = () => {
           zIndex="1"
         >
           <Flex align="center" cursor="pointer" onClick={handleBackClick}>
-            <Icon as={AiOutlineArrowLeft} w={6} h={6} mr="2" />
+            <IconButton
+              icon={<AiOutlineArrowLeft />}
+              aria-label="Back"
+              mr="2"
+              variant="ghost"
+            />
             <Text fontSize="lg" fontWeight="medium">
               Back
             </Text>
@@ -320,46 +331,84 @@ const ConsultAIPage = () => {
           </Badge>
         </Flex>
 
-        {/* Patient Info Display */}
-        {patientInfo && (
-          <Box bg="white" p="4" mb="4" borderRadius="md" boxShadow="md" mx="4">
-            <Text fontWeight="bold" mb="2">
-              Patient Information
-            </Text>
-            {Object.entries(patientInfo).map(([key, value]) => (
-              <Text key={key}>
-                <strong>{key}:</strong> {value}
-              </Text>
-            ))}
+        {/* Content Area */}
+        <Flex flex="1" overflow="hidden">
+          <Box
+            flex="1"
+            overflow="auto"
+            p="2"
+            maxWidth={isProfileOpen && !isMobile ? '40%' : '100%'}
+            transition="max-width 0.3s"
+          >
+            {patientInfo && (
+              <Box bg="white" p="4" mb="4" borderRadius="md" boxShadow="md" mx="0">
+                <Text fontWeight="bold" mb="2">
+                  Patient Information
+                </Text>
+                {Object.entries(patientInfo).map(([key, value]) => (
+                  <Text key={key}>
+                    <strong>{key}:</strong> {value}
+                  </Text>
+                ))}
+              </Box>
+            )}
+            <VoiceNoteScreen
+              ws={ws}
+              wsStatus={wsStatus}
+              connectWebSocket={startConsultationSession}
+              disconnectWebSocket={disconnectWebSocket}
+              phoneNumber={phoneNumber}
+              setPhoneNumber={setPhoneNumber}
+              errorMessage={errorMessage}
+              reviewId={reviewId}
+              sendOobRequest={sendOobRequest}
+              ite={ite}
+              documen={documen}
+              updateLastDocumented={setLastDocumentedAt}
+            />
           </Box>
-        )}
 
-        {/* Main Content Area */}
-        <Box flex="1" overflow="auto" p="4">
-          <VoiceNoteScreen
-            ws={ws}
-            wsStatus={wsStatus}
-            connectWebSocket={startConsultationSession} // renamed function now!
-            disconnectWebSocket={disconnectWebSocket}
-            phoneNumber={phoneNumber}
-            setPhoneNumber={setPhoneNumber}
-            errorMessage={errorMessage}
-            reviewId={reviewId}
-            sendOobRequest={sendOobRequest}
-            ite={ite}
-            documen={documen}
-            updateLastDocumented={setLastDocumentedAt}
-          />
-        </Box>
+          {/* Patient Profile Display (Document panel) */}
+          {(isMobile || isProfileOpen) && (
+            <Box
+              position={isMobile ? 'fixed' : 'relative'}
+              top="0"
+              right={isMobile ? (isProfileOpen ? '0' : '-100%') : (isProfileOpen ? '0' : '-60%')}
+              height={isMobile ? '100vh' : '100%'}
+              width={isMobile ? '100%' : '64%'}
+              maxWidth={isMobile ? '100%' : '100%'}
+              bg="white"
+              boxShadow="md"
+              transition={isMobile ? 'right 0.3s' : 'right 0.3s, max-width 0.3s'}
+              zIndex="2"
+              overflowY="auto"
+              p={1}
+            >
+              <Flex justify="space-between" align="center" mb={1}>
+                <Text fontWeight="bold" fontSize="lg">
+                  Patient Profile
+                </Text>
+                <IconButton
+                  icon={<MdClose />}
+                  aria-label="Close profile"
+                  onClick={closeProfile}
+                  size="sm"
+                />
+              </Flex>
+              <PatientProfileDisplay reviewid={reviewId}
+              wsStatus={wsStatus} />
+            </Box>
+          )}
+        </Flex>
 
-        {/* Research Button Moved to the Bottom */}
-        <Flex p="4" justify="center" bg="white" boxShadow="sm" mx="4">
+        {/* Bottom Buttons */}
+        <Flex p="2" justify="space-around" bg="white" boxShadow="sm" mx="4">
           <Button
             onClick={toggleChatModal}
             variant={isChatModalOpen ? 'solid' : 'outline'}
             leftIcon={<MdSearch />}
             position="relative"
-            colorScheme='blue'
+            colorScheme="blue"
           >
             Launch Researcher
             {hasNewMessage && (
@@ -373,6 +422,16 @@ const ConsultAIPage = () => {
                 bg="red.500"
               />
             )}
+          </Button>
+
+          {/* Document Button toggles the sliding panel */}
+          <Button
+            leftIcon={<MdNotes />}
+            onClick={toggleProfile}
+            colorScheme="blue"
+            variant="outline"
+          >
+            Document
           </Button>
         </Flex>
 
@@ -415,18 +474,14 @@ const ConsultAIPage = () => {
         </Modal>
 
         {/* Documentation Required Modal */}
-        <Modal
-          isOpen={showDocumentDialog}
-          onClose={() => {}}
-          isCentered
-        >
+        <Modal isOpen={showDocumentDialog} onClose={() => {}} isCentered>
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>Documentation Required</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <Text>
-                You have not documented in the last 14 seconds. Please click the Document button  to document your consultation notes and save before leaving.
+                You have not documented in the last 14 seconds. Please click the Document button to document your consultation notes and save before leaving.
               </Text>
             </ModalBody>
             <ModalFooter>
