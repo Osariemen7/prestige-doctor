@@ -37,17 +37,25 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
     setIsMobileOpen(!isMobileOpen);
   };
 
+  // Mobile menu button left offset remains as before (adjust as needed)
+  const getMobileMenuButtonLeft = () => {
+    if (isMobileOpen) {
+      return isMinimized ? '70px' : '13rem';
+    } else {
+      return '16px';
+    }
+  };
+
   return (
     <>
       {/* Mobile Menu Button */}
       <button 
-  style={{ left: isMinimized ? '5rem' : '22rem' }}
-  className="fixed top-4 z-50 p-2 rounded-md hover:bg-gray-100 lg:hidden"
-  onClick={toggleMobile}
->
-  <Menu size={24} />
-</button>
-
+        style={{ left: getMobileMenuButtonLeft() }}
+        className="fixed top-4 z-50 p-2 rounded-md hover:bg-gray-100 lg:hidden"
+        onClick={toggleMobile}
+      >
+        <Menu size={24} />
+      </button>
 
       {/* Sidebar Backdrop for Mobile */}
       {isMobileOpen && (
@@ -72,32 +80,35 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
           )}
           <button 
             onClick={toggleSidebar}
-            className="p-2 rounded-md hover:bg-gray-100 lg:block hidden"
+            className="p-2 rounded-md hover:bg-gray-100 hidden lg:block"
           >
             <Menu size={20} />
           </button>
         </div>
         
-        {/* Navigation */}
-        <nav className="flex-1 pt-4">
-          {menuItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={() => onNavigate(item.path)}
-              className="w-full px-4 py-3 flex items-center text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-              title={isMinimized ? item.text : ''}
-            >
-              <span className="text-gray-500 group-hover:text-blue-600">
-                {item.icon}
-              </span>
-              {!isMinimized && (
-                <span className="ml-3 text-sm font-medium">{item.text}</span>
-              )}
-            </button>
-          ))}
-        </nav>
+        {/* Navigation Container */}
+        {/* Limit the nav container's height so the logout button always stays in view */}
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+          <nav className="pt-4">
+            {menuItems.map((item, index) => (
+              <button
+                key={index}
+                onClick={() => onNavigate(item.path)}
+                className="w-full px-4 py-3 flex items-center text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                title={isMinimized ? item.text : ''}
+              >
+                <span className="text-gray-500">
+                  {item.icon}
+                </span>
+                {!isMinimized && (
+                  <span className="ml-3 text-sm font-medium">{item.text}</span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
 
-        {/* Logout Button */}
+        {/* Logout Button (shifted up by having the nav container scroll) */}
         <button
           onClick={onLogout}
           className="w-full px-4 py-3 flex items-center text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"
