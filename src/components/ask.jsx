@@ -16,7 +16,9 @@ import {
   Snackbar,
   Select,
   MenuItem,
-  Alert
+  Alert,
+  InputAdornment,
+  FormControl
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -27,7 +29,7 @@ import Skeleton from '@mui/material/Skeleton';
 import Sidebar from './sidebar';
 import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
-
+import PatientProfileDisplay from './document';
 
 // ----------------------------------------------------
 // 1. CustomText: converts citation markers like [1], [2], etc. into clickable links.
@@ -106,6 +108,7 @@ const SearchBox = () => {
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [datalist, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expertLevel, setExpertLevel] = useState('low')
   const [selectedPatient, setSelectedPatient] = useState(null);
   const theme = createTheme();
   const navigate = useNavigate();
@@ -141,7 +144,7 @@ const SearchBox = () => {
       const apiUrl = "https://health.prestigedelta.com/research/";
 
       // Prepare payload with thread_id if available.
-      const payload = { query: currentMessage, expertise_level: "high" };
+      const payload = { query: currentMessage, expertise_level: expertLevel };
       if (threadId) {
         payload.thread_id = threadId;
       }
@@ -327,7 +330,7 @@ const SearchBox = () => {
               sx={{
                 overflowY: 'auto',
                 width: '100%',
-                maxWidth: '740px',
+                maxWidth: '840px',
                 mb: 2,
               }}
             >
@@ -466,78 +469,95 @@ const SearchBox = () => {
             </Box>
 
             <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                width: '100%',
-                maxWidth: '600px',
-                borderRadius: '24px',
-                boxShadow: '0px 2px 10px rgba(0,0,0,0.1)',
-                backgroundColor: 'white',
-                padding: '8px 16px',
-                marginTop: chatMessages.length > 0 ? 'auto' : '0',
-                position: chatMessages.length > 0 ? 'sticky' : 'relative',
-                bottom: chatMessages.length > 0 ? '20px' : 'auto',
-              }}
-            >
-              <TextField
-                fullWidth
-                placeholder="Ask anything..."
-                variant="standard"
-                multiline
-                minRows={1}
-                maxRows={4}
-                InputProps={{
-                  disableUnderline: true,
-                  style: { fontSize: '16px' },
-                  // Dropdown added as a start adornment inside the TextField.
-                  startAdornment: (
-                    <Select
-                      value={selectedPatient ? selectedPatient.id : ''}
-                      onChange={(e) => {
-                        const patientId = e.target.value;
-                        const patient = datalist.find((p) => p.id === patientId);
-                        setSelectedPatient(patient);
-                      }}
-                      displayEmpty
-                      sx={{
-                        marginRight: '8px',
-                        fontSize: '16px',
-                        '& .MuiSelect-select': {
-                          padding: '0 4px',
-                        },
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>Choose Patient</em>
-                      </MenuItem>
-                      {datalist.map((patient) => (
-                        <MenuItem key={patient.id} value={patient.id}>
-                          {patient.full_name
-                            ? `${patient.full_name} (${patient.id})`
-                            : `Patient (${patient.id})`}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  ),
-                }}
-                sx={{
-                  flex: 1,
-                  fontSize: '16px',
-                }}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-              />
-              <IconButton color="primary" onClick={handleSendMessage} disabled={!message.trim()}>
-                <SendIcon />
-              </IconButton>
-            </Box>
+  sx={{
+    width: '100%',
+    maxWidth: '700px',
+    borderRadius: '24px',
+    boxShadow: '0px 2px 10px rgba(0,0,0,0.1)',
+    backgroundColor: 'white',
+    padding: '8px 16px',
+    marginTop: chatMessages.length > 0 ? 'auto' : '0',
+    position: chatMessages.length > 0 ? 'sticky' : 'relative',
+    bottom: chatMessages.length > 0 ? '20px' : 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+  }}
+>
+  {/* Top Row: Text input and Send Button */}
+  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+    <TextField
+      fullWidth
+      placeholder="Ask anything..."
+      variant="standard"
+      multiline
+      minRows={1}
+      maxRows={4}
+      InputProps={{
+        disableUnderline: true,
+        style: { fontSize: '16px' },
+      }}
+      sx={{ marginBottom: '8px' }}
+      value={message}
+      onChange={(e) => setMessage(e.target.value)}
+      onKeyPress={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleSendMessage();
+        }
+      }}
+    />
+    <IconButton color="primary" onClick={handleSendMessage} disabled={!message.trim()}>
+      <SendIcon />
+    </IconButton>
+  </Box>
+
+  {/* Bottom Row: Dropdowns */}
+  <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap:'10px' }}>
+    <FormControl variant="standard">
+      <Select
+        value={selectedPatient ? selectedPatient.id : ''}
+        onChange={(e) => {
+          const patientId = e.target.value;
+          const patient = datalist.find((p) => p.id === patientId);
+          setSelectedPatient(patient);
+        }}
+        displayEmpty
+        sx={{ fontSize: '14px' }}
+        renderValue={(selected) =>
+          selected
+            ? datalist.find((p) => p.id === selected)?.full_name || `Patient (${selected})`
+            : <em>Choose Patient</em>
+        }
+      >
+        <MenuItem value="">
+          <em>Choose Patient</em>
+        </MenuItem>
+        {datalist.map((patient) => (
+          <MenuItem key={patient.id} value={patient.id}>
+            {patient.full_name
+              ? `${patient.full_name} (${patient.id})`
+              : `Patient (${patient.id})`}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+    <FormControl variant="standard">
+      <Select
+        value={expertLevel}
+        onChange={(e) => setExpertLevel(e.target.value)}
+        sx={{ fontSize: '14px' }}
+    
+      >
+        
+        <MenuItem value="low">Expert Level</MenuItem>
+        <MenuItem value="low">Basic</MenuItem>
+        <MenuItem value="medium">Intermediate</MenuItem>
+        <MenuItem value="high">Advance</MenuItem>
+      </Select>
+    </FormControl>
+  </Box>
+</Box>
+
           </Box>
         </ThemeProvider>
       </div>
