@@ -17,13 +17,12 @@ import {
   useMediaQuery,
   useToast,
 } from '@chakra-ui/react';
-import { MdSearch, MdNotes, MdClose } from 'react-icons/md';
+import { MdNotes, MdClose } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
-import Sidebar from './sidebar';
 import PatientProfileDisplay from './document';
 
 const ConsultAIPage = () => {
@@ -39,14 +38,15 @@ const ConsultAIPage = () => {
   const [oobResponse, setOobResponse] = useState([]);
   const [debugLogs, setDebugLogs] = useState([]);
   const [ite, setItem] = useState({});
-  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [lastDocumentedAt, setLastDocumentedAt] = useState(null);
   const [showDocumentDialog, setShowDocumentDialog] = useState(false);
   const [patientInfo, setPatientInfo] = useState(null);
   const [documen, setDocumen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  // New state to toggle between VoiceNoteScreen and ChatScreen
+  const [activeScreen, setActiveScreen] = useState("voice");
   const [isMobile] = useMediaQuery('(max-width: 768px)');
-  
+
   const ws = useRef(null);
   const navigate = useNavigate();
   const toast = useToast();
@@ -93,6 +93,9 @@ const ConsultAIPage = () => {
       return;
     }
     setErrorMessage('');
+    const date = new Date('2025-01-25 09:00');
+const formattedDate = date.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:MM"
+console.log(formattedDate);
 
     const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
     const data = {
@@ -183,7 +186,6 @@ const ConsultAIPage = () => {
           if (data.type === 'authentication_success') {
             setReviewId(data.review_id);
           }
-          
           console.log(`Received message:`, data);
           if (data.type === 'openai_message' && data.message) {
             setChatMessages((prevMessages) => [
@@ -193,12 +195,7 @@ const ConsultAIPage = () => {
                 content: data.message.content[0].text,
               },
             ]);
-            
-            if (isChatModalOpen) {
-              setHasNewMessage(false);
-            } else {
-              setHasNewMessage(true);
-            }
+            setHasNewMessage(true);
           } else if (data.type === 'oob_response') {
             console.log('OOB Response:', data.content);
             setOobResponse((prevResponses) => [
@@ -256,11 +253,6 @@ const ConsultAIPage = () => {
     }
   };
 
-  const toggleChatModal = () => {
-    setIsChatModalOpen(!isChatModalOpen);
-    setHasNewMessage(false);
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('user-info');
     navigate('/');
@@ -286,13 +278,12 @@ const ConsultAIPage = () => {
     sendOobRequest();
     setTimeout(() => {
       setShowDocumentDialog(false);
-      setDocumen(true);
     }, 500);
   };
 
-  // Toggle the Patient Profile display (Document panel) using isProfileOpen
-  const toggleProfile = () => {
-    // Optionally, you could send a documentation request here before toggling.
+  // Toggle the Patient Profile display (Document panel)
+  const toggleProfile = async () => {
+    await sendOobRequest();
     setIsProfileOpen((prev) => !prev);
   };
 
@@ -300,10 +291,25 @@ const ConsultAIPage = () => {
     setIsProfileOpen(false);
     sendOobRequest();
   };
-console.log(reviewId)
+
+  // Toggle between VoiceNoteScreen and ChatScreen without unmounting the VoiceNoteScreen
+  const toggleActiveScreen = () => {
+    setActiveScreen((prev) => (prev === "voice" ? "chat" : "voice"));
+    if (activeScreen === "voice") {
+      setHasNewMessage(false);
+    }
+  };
+
+  // When WebSocket is connected, automatically open the Document panel.
+  useEffect(() => {
+    if (wsStatus === 'Connected') {
+      setIsProfileOpen(true);
+    }
+  }, [wsStatus]);
+
   return (
     <ChakraProvider>
-      <Flex direction="column" height="100vh" bg="gray.50">
+      <Flex direction="column" height="90vh" bg="gray.50">
         {/* Header */}
         <Flex
           align="center"
@@ -352,20 +358,35 @@ console.log(reviewId)
                 ))}
               </Box>
             )}
-            <VoiceNoteScreen
-              ws={ws}
-              wsStatus={wsStatus}
-              connectWebSocket={startConsultationSession}
-              disconnectWebSocket={disconnectWebSocket}
-              phoneNumber={phoneNumber}
-              setPhoneNumber={setPhoneNumber}
-              errorMessage={errorMessage}
-              reviewId={reviewId}
-              sendOobRequest={sendOobRequest}
-              ite={ite}
-              documen={documen}
-              updateLastDocumented={setLastDocumentedAt}
-            />
+            {/* Both screens are always mounted; visibility is toggled via CSS */}
+            <Box display={activeScreen === "voice" ? "block" : "none"}>
+              <VoiceNoteScreen
+                ws={ws}
+                wsStatus={wsStatus}
+                connectWebSocket={startConsultationSession}
+                disconnectWebSocket={disconnectWebSocket}
+                phoneNumber={phoneNumber}
+                setPhoneNumber={setPhoneNumber}
+                errorMessage={errorMessage}
+                reviewId={reviewId}
+                sendOobRequest={sendOobRequest}
+                ite={ite}
+                documen={documen}
+                updateLastDocumented={setLastDocumentedAt}
+              />
+            </Box>
+            <Box display={activeScreen === "chat" ? "block" : "none"}>
+              <ChatScreen
+                chatMessages={chatMessages}
+                setChatMessages={setChatMessages}
+                ws={ws}
+                wsStatus={wsStatus}
+                reviewId={reviewId}
+                setReviewId={setReviewId}
+                sendOobRequest={sendOobRequest}
+                ite={ite}
+              />
+            </Box>
           </Box>
 
           {/* Patient Profile Display (Document panel) */}
@@ -373,7 +394,7 @@ console.log(reviewId)
             <Box
               position={isMobile ? 'fixed' : 'relative'}
               top="0"
-              right={isMobile ? (isProfileOpen ? '0' : '-100%') : (isProfileOpen ? '0' : '-60%')}
+              right={isMobile ? (isProfileOpen ? '0' : '-100%') : isProfileOpen ? '0' : '-60%'}
               height={isMobile ? '100vh' : '100%'}
               width={isMobile ? '100%' : '64%'}
               maxWidth={isMobile ? '100%' : '100%'}
@@ -395,83 +416,57 @@ console.log(reviewId)
                   size="sm"
                 />
               </Flex>
-              <PatientProfileDisplay reviewid={reviewId}
-              wsStatus={wsStatus} />
+              <PatientProfileDisplay reviewid={reviewId} wsStatus={wsStatus} />
             </Box>
           )}
         </Flex>
 
-        {/* Bottom Buttons */}
-        <Flex p="2" justify="space-around" bg="white" boxShadow="sm" mx="4">
-          <Button
-            onClick={toggleChatModal}
-            variant={isChatModalOpen ? 'solid' : 'outline'}
-            leftIcon={<MdSearch />}
-            position="relative"
-            colorScheme="blue"
+        {/* Bottom Buttons – Only render when WebSocket is Connected */}
+        {wsStatus === 'Connected' && (
+          <Flex
+            p="2"
+            justify="space-around"
+            bg="white"
+            boxShadow="sm"
+            mx="4"
+            position={isMobile ? 'fixed' : 'static'}
+            bottom={isMobile ? '10px' : undefined}
+            left={isMobile ? '10px' : undefined}
+            right={isMobile ? '10px' : undefined}
+            zIndex="1000"
           >
-            Launch Researcher
-            {hasNewMessage && (
-              <Box
-                position="absolute"
-                top="2"
-                right="2"
-                width="10px"
-                height="10px"
-                borderRadius="50%"
-                bg="red.500"
-              />
-            )}
-          </Button>
+            {/* Document Button on the Left */}
+            <Button
+              leftIcon={<MdNotes />}
+              onClick={toggleProfile}
+              colorScheme="blue"
+              variant="outline"
+            >
+              Document
+            </Button>
 
-          {/* Document Button toggles the sliding panel */}
-          <Button
-            leftIcon={<MdNotes />}
-            onClick={toggleProfile}
-            colorScheme="blue"
-            variant="outline"
-          >
-            Document
-          </Button>
-        </Flex>
-
-        {/* Research Modal */}
-        <Modal
-          isOpen={isChatModalOpen}
-          onClose={toggleChatModal}
-          size="xl"
-          scrollBehavior="inside"
-        >
-          <ModalOverlay />
-          <ModalContent
-            maxW="container.md"
-            mx="auto"
-            mt="auto"
-            mb="0"
-            height="80vh"
-            maxWidth="100%"
-            borderTopRadius="lg"
-            overflow="hidden"
-          >
-            <ModalHeader textAlign="center" fontSize="2xl" bg="blue.500" color="white">
-              What do you want to know?
-            </ModalHeader>
-            <ModalCloseButton color="white" />
-            <ModalBody p="4" bg="gray.50">
-              <ChatScreen
-                phoneNumber={phoneNumber}
-                setChatMessages={setChatMessages}
-                chatMessages={chatMessages}
-                sendOobRequest={sendOobRequest}
-              />
-            </ModalBody>
-            <ModalFooter bg="gray.50">
-              <Button colorScheme="blue" onClick={toggleChatModal}>
-                Close
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+            {/* Toggle Screen Button on the Right */}
+            <Button
+              onClick={toggleActiveScreen}
+              variant="outline"
+              colorScheme="blue"
+              position="relative"
+            >
+              {activeScreen === "voice" ? "Launch Researcher" : "Voice Note"}
+              {hasNewMessage && activeScreen === "voice" && (
+                <Box
+                  position="absolute"
+                  top="2"
+                  right="2"
+                  width="10px"
+                  height="10px"
+                  borderRadius="50%"
+                  bg="red.500"
+                />
+              )}
+            </Button>
+          </Flex>
+        )}
 
         {/* Documentation Required Modal */}
         <Modal isOpen={showDocumentDialog} onClose={() => {}} isCentered>

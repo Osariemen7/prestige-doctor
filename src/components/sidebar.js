@@ -19,7 +19,7 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
     { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
     { icon: <Activity size={20} />, text: 'Virtual Consultations', path: '/virtual' },
-    { icon: <Search size={20} />, text: 'Research', path: '/ask' },
+    { icon: <Search size={20} />, text: 'Researcher', path: '/ask' },
     { icon: <DollarSign size={20} />, text: 'Earnings', path: '/account' },
     { icon: <FileText size={20} />, text: 'Dashboard', path: '/doctor' },
     { icon: <Settings size={20} />, text: 'Settings', path: '/setting' },
@@ -37,21 +37,11 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
     setIsMobileOpen(!isMobileOpen);
   };
 
-  // Mobile menu button left offset remains as before (adjust as needed)
-  const getMobileMenuButtonLeft = () => {
-    if (isMobileOpen) {
-      return isMinimized ? '70px' : '13rem';
-    } else {
-      return '16px';
-    }
-  };
-
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Mobile Menu Button - Positioned at top-right */}
       <button 
-        style={{ left: getMobileMenuButtonLeft() }}
-        className="fixed top-4 z-50 p-2 rounded-md hover:bg-gray-100 lg:hidden"
+        className="fixed top-4 right-4 z-50 p-2 rounded-md hover:bg-gray-100 lg:hidden"
         onClick={toggleMobile}
       >
         <Menu size={24} />
@@ -87,7 +77,6 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
         </div>
         
         {/* Navigation Container */}
-        {/* Limit the nav container's height so the logout button always stays in view */}
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
           <nav className="pt-4">
             {menuItems.map((item, index) => (
@@ -108,7 +97,7 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
           </nav>
         </div>
 
-        {/* Logout Button (shifted up by having the nav container scroll) */}
+        {/* Logout Button (inside the sidebar) */}
         <button
           onClick={onLogout}
           className="w-full px-4 py-3 flex items-center text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"

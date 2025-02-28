@@ -4,28 +4,19 @@ import {
   Box,
   Typography,
   TextField,
-  Button,
   IconButton,
   Link,
   Collapse,
   List,
   ListItem,
   ListItemText,
-  Divider,
   CircularProgress,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Snackbar
+  Snackbar,
+  Paper
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
-import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
-import ImageIcon from '@mui/icons-material/Image';
-import DescriptionIcon from '@mui/icons-material/Description';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import EditIcon from '@mui/icons-material/Edit';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import Skeleton from '@mui/material/Skeleton';
@@ -54,7 +45,7 @@ const CustomText = ({ children, citations }) => {
                 target="_blank"
                 rel="noopener noreferrer"
                 sx={{
-                  color: '#87CEFA', // Light sky blue
+                  color: '#87CEFA',
                   textDecoration: 'underline',
                   cursor: 'pointer',
                 }}
@@ -71,7 +62,7 @@ const CustomText = ({ children, citations }) => {
 };
 
 // ----------------------------------------------------
-// 2. ThoughtAccordion: Displays the model thought at the top with a toggle label.
+// 2. ThoughtAccordion: Displays the model thought with a toggle label.
 // ----------------------------------------------------
 const ThoughtAccordion = ({ thinkContent, citations }) => {
   const [expanded, setExpanded] = useState(false);
@@ -106,8 +97,7 @@ const ChatScreen = ({
   phoneNumber,
   setChatMessages,
   chatMessages,
-  sendOobRequest,
-  isModal = false
+  sendOobRequest
 }) => {
   const [message, setMessage] = useState('');
   const [apiResponse, setApiResponse] = useState(null);
@@ -120,7 +110,6 @@ const ChatScreen = ({
   const handleSendMessage = useCallback(async () => {
     if (!message.trim()) return;
 
-    // Clear the input immediately for UX.
     const currentMessage = message;
     setMessage('');
     setIsResponseLoading(true);
@@ -128,8 +117,6 @@ const ChatScreen = ({
     try {
       const token = await getAccessToken();
       const apiUrl = 'https://health.prestigedelta.com/research/';
-
-      // Prepare payload with thread_id if available.
       const payload = { query: currentMessage, expertise_level: 'high' };
       if (threadId) {
         payload.thread_id = threadId;
@@ -139,7 +126,6 @@ const ChatScreen = ({
       const userMessage = { role: 'user', content: currentMessage };
       setChatMessages((prevMessages) => [...prevMessages, userMessage]);
 
-      // Make the API request.
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -202,7 +188,6 @@ const ChatScreen = ({
     }
   };
 
-  // Extract the <think> section from the response text.
   const extractThinkContent = (text) => {
     const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
     const thinkContent = thinkMatch ? thinkMatch[1].trim() : null;
@@ -212,13 +197,29 @@ const ChatScreen = ({
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'sans-serif' }}>
-        {isModal && (
-          <Typography variant="h6" component="h2" align="center" mb={2}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          fontFamily: 'sans-serif'
+        }}
+      >
+        {/* Header */}
+        <Box
+          sx={{
+            backgroundColor: '#1976d2',
+            padding: '10px',
+            color: 'white',
+            textAlign: 'center'
+          }}
+        >
+          <Typography variant="h6" component="h2">
             What do you want to know?
           </Typography>
-        )}
+        </Box>
 
+        {/* Chat messages */}
         <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
           <List>
             {chatMessages.map((chat, index) => (
@@ -232,7 +233,6 @@ const ChatScreen = ({
               >
                 <ListItemText
                   primary={
-                    // If the assistant message is loading, show a spinner in primary.
                     chat.role === 'assistant' && isResponseLoading && index === chatMessages.length - 1 ? (
                       <CircularProgress size={24} />
                     ) : chat.role !== 'assistant' ? (
@@ -240,20 +240,22 @@ const ChatScreen = ({
                     ) : null
                   }
                   secondary={
-                    <React.Fragment>
+                    <>
                       {chat.role === 'assistant' && chat.content && !isResponseLoading && (() => {
                         const { thinkContent, remainingContent } = extractThinkContent(chat.content);
                         return (
                           <Box sx={{ mt: 1, mb: 1 }}>
-                            {/* Render ThoughtAccordion at the top if there is thinkContent */}
                             {thinkContent && (
                               <ThoughtAccordion thinkContent={thinkContent} citations={chat.citations} />
                             )}
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-                              text: ({ node, children }) => (
-                                <CustomText citations={chat.citations} children={children} />
-                              ),
-                            }}>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                text: ({ node, children }) => (
+                                  <CustomText citations={chat.citations} children={children} />
+                                ),
+                              }}
+                            >
                               {remainingContent}
                             </ReactMarkdown>
                           </Box>
@@ -264,26 +266,18 @@ const ChatScreen = ({
                         chat.citations.length > 0 &&
                         !isResponseLoading && (
                           <Box sx={{ mt: 1 }}>
-                            <Button
-                              variant="outlined"
+                            <IconButton
                               onClick={handleSourcesToggle}
-                              startIcon={<FactCheckIcon />}
                               size="small"
                               sx={{
+                                border: '1px solid #ccc',
                                 borderRadius: '20px',
-                                textTransform: 'none',
-                                padding: '2px 10px',
-                                borderColor: '#ccc',
-                                backgroundColor: 'white',
-                                '&:hover': { backgroundColor: '#f0f0f0' },
+                                p: '2px',
                                 mr: 1
                               }}
                             >
-                              Sources
-                              <sup style={{ marginLeft: '5px', fontSize: '0.7em' }}>
-                                {chat.citations.length}
-                              </sup>
-                            </Button>
+                              <FactCheckIcon fontSize="small" />
+                            </IconButton>
                             <Collapse in={isSourcesVisible} timeout="auto" unmountOnExit>
                               <Box sx={{ mt: 1, pl: 2, borderLeft: '2px solid #ccc' }}>
                                 <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
@@ -311,7 +305,7 @@ const ChatScreen = ({
                             </Collapse>
                           </Box>
                         )}
-                    </React.Fragment>
+                    </>
                   }
                   sx={{
                     textAlign: chat.role === 'user' ? 'right' : 'left',
@@ -327,40 +321,34 @@ const ChatScreen = ({
             ))}
             {isResponseLoading && chatMessages.length > 0 && (
               <ListItem alignItems="flex-start" sx={{ justifyContent: 'flex-start' }}>
-                <ListItemText
-                  primary={<Skeleton variant="text" width={200} height={24} />}
-                  sx={{ textAlign: 'left' }}
-                />
+                <ListItemText primary={<Skeleton variant="text" width={200} height={24} />} sx={{ textAlign: 'left' }} />
               </ListItem>
             )}
           </List>
         </Box>
 
-        <Box
+        {/* Chat input at the bottom */}
+        <Paper
+          elevation={3}
           sx={{
-            borderTop: '1px solid #ccc',
             padding: '10px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            backgroundColor: 'white'
+            borderTop: '1px solid #ccc'
           }}
         >
-          <Box sx={{ flexGrow: 1, mr: 1 }}>
-            <TextField
-              fullWidth
-              placeholder="Message Assistant"
-              variant="outlined"
-              value={message}
-              onChange={handleTyping}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleSendMessage();
-                }
-              }}
-            />
-          </Box>
-
+          <TextField
+            fullWidth
+            placeholder="Message Assistant"
+            variant="outlined"
+            value={message}
+            onChange={handleTyping}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSendMessage();
+              }
+            }}
+          />
           <IconButton
             color="primary"
             aria-label="send"
@@ -369,7 +357,7 @@ const ChatScreen = ({
           >
             <SendIcon />
           </IconButton>
-        </Box>
+        </Paper>
       </Box>
 
       {/* Error Toast */}

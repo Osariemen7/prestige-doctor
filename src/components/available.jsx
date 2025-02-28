@@ -91,7 +91,13 @@ const AvailabilitySelector = () => {
         setMessage(result.message || 'An error occurred');
         setSnackbarOpen(true);
       } else {
-        navigate('/');
+        setMessage('Registration successful!');
+        setSnackbarOpen(true);
+        
+        // Delay navigation by 2 seconds
+        setTimeout(() => {
+          navigate('/');
+        }, 2000);
       }
     } catch (error) {
       console.error(error);

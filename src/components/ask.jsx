@@ -17,7 +17,6 @@ import {
   Select,
   MenuItem,
   Alert,
-  InputAdornment,
   FormControl
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
@@ -101,40 +100,37 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
 
 const SearchBox = () => {
   const [message, setMessage] = useState('');
-  const [apiResponse, setApiResponse] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [threadId, setThreadId] = useState(null);
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [datalist, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expertLevel, setExpertLevel] = useState('low')
+  const [expertLevel, setExpertLevel] = useState('low');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const theme = createTheme();
   const navigate = useNavigate();
-  const [snackbarOpen, setSnackbarOpen] = useState(false); // State for Snackbar open/close
-  const [snackbarMessage, setSnackbarMessage] = useState(''); // State for Snackbar message
-  const [snackbarSeverity, setSnackbarSeverity] = useState('error'); // State for Snackbar severity
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('error');
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
 
   const showSnackbar = useCallback((newMessage, newSeverity) => {
     setSnackbarMessage(newMessage);
     setSnackbarSeverity(newSeverity);
     setSnackbarOpen(true);
-  }, [setSnackbarMessage, setSnackbarSeverity, setSnackbarOpen]);
+  }, []);
 
   const handleSnackbarClose = useCallback((event, reason) => {
     if (reason === 'clickaway') {
       return;
     }
     setSnackbarOpen(false);
-  }, [setSnackbarOpen]);
-
+  }, []);
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim()) return;
 
-    // Clear the input immediately.
     const currentMessage = message;
     setMessage("");
     setIsResponseLoading(true);
@@ -142,14 +138,11 @@ const SearchBox = () => {
     try {
       const token = await getAccessToken();
       const apiUrl = "https://health.prestigedelta.com/research/";
-
-      // Prepare payload with thread_id if available.
       const payload = { query: currentMessage, expertise_level: expertLevel };
       if (threadId) {
         payload.thread_id = threadId;
       }
 
-      // If a patient is selected, add either patient_phone or patient_id to the payload.
       if (selectedPatient) {
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
           payload.patient_phone = selectedPatient.phone_number;
@@ -158,7 +151,6 @@ const SearchBox = () => {
         }
       }
 
-      // Optimistically add the user's message.
       const userMessage = { role: "user", content: currentMessage };
       setChatMessages((prev) => [...prev, userMessage]);
 
@@ -175,7 +167,6 @@ const SearchBox = () => {
         throw new Error("No response body");
       }
 
-      // Create an empty assistant message for streaming updates.
       let assistantMessage = { role: "assistant", content: "", citations: [] };
       setChatMessages((prev) => [...prev, assistantMessage]);
 
@@ -187,26 +178,20 @@ const SearchBox = () => {
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
-        // Append the new chunk to any buffered text.
         buffer += decoder.decode(value, { stream: true });
-        // Split the buffer on newlines (each chunk is a JSON object on a new line).
         const parts = buffer.split("\n");
-        // The last part might be incomplete – save it back to buffer.
         buffer = parts.pop();
 
         parts.forEach((part) => {
           if (part.trim()) {
             try {
               const parsed = JSON.parse(part);
-              // Check for thread_id update.
               if (parsed.thread_id) {
                 setThreadId(parsed.thread_id);
               }
-              // If we receive an assistant response chunk, update the assistant message.
               if (parsed.assistant_response_chunk) {
                 assistantMessage.content = parsed.accumulated_response;
                 assistantMessage.citations = parsed.citations;
-                // Update the last message (assistant) in the chatMessages array.
                 setChatMessages((prev) => {
                   const updated = [...prev];
                   updated[updated.length - 1] = { ...assistantMessage };
@@ -232,7 +217,7 @@ const SearchBox = () => {
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, getAccessToken, showSnackbar]);
+  }, [message, threadId, selectedPatient, expertLevel, showSnackbar]);
 
   const getDomainFromUrl = (url) => {
     try {
@@ -293,14 +278,12 @@ const SearchBox = () => {
 
   return (
     <div className="dashboard-container">
-      {/* Persistent Sidebar */}
       <Sidebar
-      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
-      onNavigate={(path) => navigate(path)}
-      onLogout={handleLogout}
-    />
-      {/* Main Content */}
-      <div  className={`${isSidebarMinimized ? 'ml-0 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
+        onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
+        onNavigate={(path) => navigate(path)}
+        onLogout={handleLogout}
+      />
+      <div className={`${isSidebarMinimized ? 'ml-0 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
         <ThemeProvider theme={theme}>
           <Box
             sx={{
@@ -337,9 +320,7 @@ const SearchBox = () => {
               <List>
                 {chatMessages.map((chat, index) => {
                   if (chat.role === 'assistant') {
-                    // Separate <think> from the visible portion.
                     const { thinkContent, remainingContent } = extractThinkContent(chat.content);
-
                     return (
                       <ListItem
                         key={index}
@@ -357,12 +338,9 @@ const SearchBox = () => {
                             wordWrap: 'break-word',
                           }}
                         >
-                          {/* If thinkContent exists, show ThoughtAccordion at the top */}
                           {thinkContent && (
                             <ThoughtAccordion thinkContent={thinkContent} citations={chat.citations} />
                           )}
-
-                          {/* Main assistant response */}
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
@@ -373,7 +351,6 @@ const SearchBox = () => {
                           >
                             {remainingContent}
                           </ReactMarkdown>
-
                           {chat.citations && chat.citations.length > 0 && (
                             <Box sx={{ mt: 1 }}>
                               <Button
@@ -398,11 +375,7 @@ const SearchBox = () => {
                               </Button>
                               <Collapse in={isSourcesVisible} timeout="auto" unmountOnExit>
                                 <Box sx={{ mt: 1, pl: 2, borderLeft: '2px solid #ccc' }}>
-                                  <Typography
-                                    variant="caption"
-                                    color="textSecondary"
-                                    sx={{ display: 'block', mb: 0.5 }}
-                                  >
+                                  <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
                                     Citations:
                                   </Typography>
                                   {chat.citations.map((citation, citationIndex) => (
@@ -436,7 +409,6 @@ const SearchBox = () => {
                       </ListItem>
                     );
                   } else {
-                    // Render user messages.
                     return (
                       <ListItem
                         key={index}
@@ -468,101 +440,117 @@ const SearchBox = () => {
               </List>
             </Box>
 
+            {/* Input Box */}
             <Box
-  sx={{
-    width: '100%',
-    maxWidth: '700px',
-    borderRadius: '24px',
-    boxShadow: '0px 2px 10px rgba(0,0,0,0.1)',
-    backgroundColor: 'white',
-    padding: '8px 16px',
-    marginTop: chatMessages.length > 0 ? 'auto' : '0',
-    position: chatMessages.length > 0 ? 'sticky' : 'relative',
-    bottom: chatMessages.length > 0 ? '20px' : 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-  }}
->
-  {/* Top Row: Text input and Send Button */}
-  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-    <TextField
-      fullWidth
-      placeholder="Ask anything..."
-      variant="standard"
-      multiline
-      minRows={1}
-      maxRows={4}
-      InputProps={{
-        disableUnderline: true,
-        style: { fontSize: '16px' },
-      }}
-      sx={{ marginBottom: '8px' }}
-      value={message}
-      onChange={(e) => setMessage(e.target.value)}
-      onKeyPress={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          handleSendMessage();
-        }
-      }}
-    />
-    <IconButton color="primary" onClick={handleSendMessage} disabled={!message.trim()}>
-      <SendIcon />
-    </IconButton>
-  </Box>
+              sx={{
+                width: '100%',
+                maxWidth: '700px',
+                borderRadius: '24px',
+                boxShadow: '0px 2px 10px rgba(0,0,0,0.1)',
+                backgroundColor: 'white',
+                padding: '8px 16px',
+                marginTop: chatMessages.length > 0 ? 'auto' : '0',
+                position: chatMessages.length > 0 ? 'sticky' : 'relative',
+                bottom: chatMessages.length > 0 ? '20px' : 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              {/* Top Row: Text input and Send Button */}
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <TextField
+                  fullWidth
+                  placeholder="Ask anything..."
+                  variant="standard"
+                  multiline
+                  minRows={1}
+                  maxRows={4}
+                  InputProps={{
+                    disableUnderline: true,
+                    style: { fontSize: '16px' },
+                  }}
+                  sx={{ marginBottom: '8px' }}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                />
+                <IconButton color="primary" onClick={handleSendMessage} disabled={!message.trim()}>
+                  <SendIcon />
+                </IconButton>
+              </Box>
 
-  {/* Bottom Row: Dropdowns */}
-  <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap:'10px' }}>
-    <FormControl variant="standard">
-      <Select
-        value={selectedPatient ? selectedPatient.id : ''}
-        onChange={(e) => {
-          const patientId = e.target.value;
-          const patient = datalist.find((p) => p.id === patientId);
-          setSelectedPatient(patient);
-        }}
-        displayEmpty
-        sx={{ fontSize: '14px' }}
-        renderValue={(selected) =>
-          selected
-            ? datalist.find((p) => p.id === selected)?.full_name || `Patient (${selected})`
-            : <em>Choose Patient</em>
-        }
-      >
-        <MenuItem value="">
-          <em>Choose Patient</em>
-        </MenuItem>
-        {datalist.map((patient) => (
-          <MenuItem key={patient.id} value={patient.id}>
-            {patient.full_name
-              ? `${patient.full_name} (${patient.id})`
-              : `Patient (${patient.id})`}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-    <FormControl variant="standard">
-      <Select
-        value={expertLevel}
-        onChange={(e) => setExpertLevel(e.target.value)}
-        sx={{ fontSize: '14px' }}
-    
-      >
-        
-        <MenuItem value="low">Expert Level</MenuItem>
-        <MenuItem value="low">Basic</MenuItem>
-        <MenuItem value="medium">Intermediate</MenuItem>
-        <MenuItem value="high">Advance</MenuItem>
-      </Select>
-    </FormControl>
-  </Box>
-</Box>
-
+              {/* Bottom Row: Styled Selects */}
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: '10px' }}>
+                <FormControl variant="standard">
+                  <Select
+                    value={selectedPatient ? selectedPatient.id : ''}
+                    onChange={(e) => {
+                      const patientId = e.target.value;
+                      const patient = datalist.find((p) => p.id === patientId);
+                      setSelectedPatient(patient);
+                    }}
+                    displayEmpty
+                    sx={{
+                      fontSize: '14px',
+                      backgroundColor: '#1E90FF',
+                      color: 'white',
+                      borderRadius: '4px',
+                      padding: '4px 12px',
+                      '& .MuiSelect-icon': { color: 'white' },
+                      '&:hover': { backgroundColor: '#187bcd' },
+                    }}
+                    renderValue={(selected) =>
+                      selected
+                        ? datalist.find((p) => p.id === selected)?.full_name || `Patient (${selected})`
+                        : 'Choose Patient'
+                    }
+                  >
+                    <MenuItem value="">
+                      <em>Choose Patient</em>
+                    </MenuItem>
+                    {datalist.map((patient) => (
+                      <MenuItem key={patient.id} value={patient.id}>
+                        {patient.full_name
+                          ? `${patient.full_name} (${patient.id})`
+                          : `Patient (${patient.id})`}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl variant="standard">
+                  <Select
+                    value={expertLevel}
+                    onChange={(e) => setExpertLevel(e.target.value)}
+                    sx={{
+                      fontSize: '14px',
+                      backgroundColor: 'skyblue',
+                      color: '#1E90FF',
+                      borderRadius: '4px',
+                      padding: '4px 12px',
+                      '& .MuiSelect-icon': { color: '#187bcd' },
+                      '&:hover': { backgroundColor: 'white' },
+                    }}
+                  >
+                  
+                  <MenuItem value="">
+                      <em>AI Level</em>
+                    </MenuItem>
+                    <MenuItem value="low">Basic</MenuItem>
+                    <MenuItem value="medium">Intermediate</MenuItem>
+                    <MenuItem value="high">Advanced</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </Box>
           </Box>
         </ThemeProvider>
       </div>
 
-      {/* Snackbar for error messages */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}

@@ -24,7 +24,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import axios from 'axios';
 import { getAccessToken } from './api';
-import { Edit as EditIcon, Schedule as ScheduleIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Schedule as ScheduleIcon, FileCopy as FileCopyIcon } from '@mui/icons-material'; // Import FileCopy Icon
 
 // Custom theme with your settings
 const theme = createTheme({
@@ -247,6 +247,66 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
     });
   };
 
+  // Function to extract text content from a section for copying
+  const extractTextContent = (sectionName) => {
+    let textContent = '';
+    if (sectionName === 'profile') {
+      textContent = getTextFromObject(profile_data?.profile_data);
+    } else if (sectionName === 'goals') {
+      textContent = getTextFromObject(goal_data?.goal_data);
+    } else if (sectionName === 'review') {
+      textContent = getTextFromObject(review_data?.doctor_note_data);
+    }
+    return textContent;
+  };
+
+  // Helper function to recursively get text from objects, handling arrays and nested objects
+  const getTextFromObject = (obj, indent = '') => {
+    if (!obj) return '';
+    let text = '';
+    for (const [key, value] of Object.entries(obj)) {
+      if (value === null || value === undefined) continue;
+      const label = key.replace(/_/g, ' ');
+      if (Array.isArray(value)) {
+        if (value.length > 0) {
+          text += `${indent}${label}:\n`;
+          value.forEach(item => {
+            if (typeof item === 'object') {
+              text += getTextFromObject(item, indent + '  '); // Indent array of objects
+            } else {
+              text += `${indent}  - ${item}\n`; // Indent array items
+            }
+          });
+        } else {
+          text += `${indent}${label}: None\n`;
+        }
+      } else if (typeof value === 'object') {
+        text += `${indent}${label}:\n`;
+        text += getTextFromObject(value, indent + '  '); // Indent nested objects
+      } else {
+        text += `${indent}${label}: ${value}\n`;
+      }
+    }
+    return text;
+  };
+
+
+  const handleCopyToClipboard = async (sectionName) => {
+    const textToCopy = extractTextContent(sectionName);
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setSnackbarSeverity('success');
+      setSnackbarMessage(`${sectionName.charAt(0).toUpperCase() + sectionName.slice(1)} section copied to clipboard!`);
+      setSnackbarOpen(true);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      setSnackbarSeverity('error');
+      setSnackbarMessage(`Failed to copy ${sectionName} section.`);
+      setSnackbarOpen(true);
+    }
+  };
+
+
   // On save, send all sections (even unchanged ones) in the payload.
   const handleSubmit = async () => {
     // Validate required fields based on the section being edited.
@@ -342,17 +402,25 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                     width="100%"
                     justifyContent="space-between"
                     backgroundColor="#1976d2"
-                     
+
                   >
                     <Typography variant="h5" color="white">
                       Patient Profile
                     </Typography>
-                    <IconButton
-                      onClick={() => handleEditClick('profile')}
-                      sx={{ color: 'white' }}
-                    >
-                      <EditIcon />
-                    </IconButton>
+                    <Box display="flex"> {/* Container for icons */}
+                      <IconButton
+                        onClick={() => handleEditClick('profile')}
+                        sx={{ color: 'white', marginRight: 1 }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => handleCopyToClipboard('profile')}
+                        sx={{ color: 'white' }}
+                      >
+                        <FileCopyIcon />
+                      </IconButton>
+                    </Box>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>
@@ -373,9 +441,9 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                               </Typography>
                               {isEditing && editingSection === 'profile'
                                 ? renderEditableObject(
-                                    editableData?.profile_data?.profile_data?.[section.field],
-                                    ['profile_data', 'profile_data', section.field]
-                                  )
+                                  editableData?.profile_data?.profile_data?.[section.field],
+                                  ['profile_data', 'profile_data', section.field]
+                                )
                                 : renderObject(profile_data?.profile_data?.[section.field])}
                             </Paper>
                           </Grid>
@@ -417,12 +485,20 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                     <Typography variant="h5" color="white">
                       Health Goals
                     </Typography>
-                    <IconButton
-                      onClick={() => handleEditClick('goals')}
-                      sx={{ color: 'white' }}
-                    >
-                      <EditIcon />
-                    </IconButton>
+                    <Box display="flex"> {/* Container for icons */}
+                      <IconButton
+                        onClick={() => handleEditClick('goals')}
+                        sx={{ color: 'white', marginRight: 1 }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => handleCopyToClipboard('goals')}
+                        sx={{ color: 'white' }}
+                      >
+                        <FileCopyIcon />
+                      </IconButton>
+                    </Box>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>
@@ -473,12 +549,20 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                     <Typography variant="h5" color="white">
                       Medical Review
                     </Typography>
-                    <IconButton
-                      onClick={() => handleEditClick('review')}
-                      sx={{ color: 'white' }}
-                    >
-                      <EditIcon />
-                    </IconButton>
+                    <Box display="flex"> {/* Container for icons */}
+                      <IconButton
+                        onClick={() => handleEditClick('review')}
+                        sx={{ color: 'white', marginRight: 1 }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => handleCopyToClipboard('review')}
+                        sx={{ color: 'white' }}
+                      >
+                        <FileCopyIcon />
+                      </IconButton>
+                    </Box>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>
@@ -492,9 +576,9 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                             </Typography>
                             {isEditing && editingSection === 'review'
                               ? renderEditableObject(
-                                  editableData?.review_data?.doctor_note_data?.subjective,
-                                  ['review_data', 'doctor_note_data', 'subjective']
-                                )
+                                editableData?.review_data?.doctor_note_data?.subjective,
+                                ['review_data', 'doctor_note_data', 'subjective']
+                              )
                               : renderObject(review_data?.doctor_note_data?.subjective)}
                           </Paper>
                           <Paper variant="outlined" sx={{ p: 2 }}>
@@ -503,9 +587,9 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                             </Typography>
                             {isEditing && editingSection === 'review'
                               ? renderEditableObject(
-                                  editableData?.review_data?.doctor_note_data?.objective,
-                                  ['review_data', 'doctor_note_data', 'objective']
-                                )
+                                editableData?.review_data?.doctor_note_data?.objective,
+                                ['review_data', 'doctor_note_data', 'objective']
+                              )
                               : renderObject(review_data?.doctor_note_data?.objective)}
                           </Paper>
                         </Grid>
@@ -516,9 +600,9 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                             </Typography>
                             {isEditing && editingSection === 'review'
                               ? renderEditableObject(
-                                  editableData?.review_data?.doctor_note_data?.assessment,
-                                  ['review_data', 'doctor_note_data', 'assessment']
-                                )
+                                editableData?.review_data?.doctor_note_data?.assessment,
+                                ['review_data', 'doctor_note_data', 'assessment']
+                              )
                               : renderObject(review_data?.doctor_note_data?.assessment)}
                           </Paper>
                           <Paper variant="outlined" sx={{ p: 2 }}>
@@ -527,9 +611,9 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                             </Typography>
                             {isEditing && editingSection === 'review'
                               ? renderEditableObject(
-                                  editableData?.review_data?.doctor_note_data?.plan,
-                                  ['review_data', 'doctor_note_data', 'plan']
-                                )
+                                editableData?.review_data?.doctor_note_data?.plan,
+                                ['review_data', 'doctor_note_data', 'plan']
+                              )
                               : renderObject(review_data?.doctor_note_data?.plan)}
                           </Paper>
                         </Grid>
@@ -616,9 +700,9 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                       <Paper variant="outlined" sx={{ p: 2 }}>
                         {isEditing && editingSection === 'review'
                           ? renderEditableObject(
-                              editableData?.review_data?.doctor_note_data?.summary,
-                              ['review_data', 'doctor_note_data', 'summary']
-                            )
+                            editableData?.review_data?.doctor_note_data?.summary,
+                            ['review_data', 'doctor_note_data', 'summary']
+                          )
                           : renderObject(review_data?.doctor_note_data?.summary)}
                       </Paper>
                       {isEditing && editingSection === 'review' && (
