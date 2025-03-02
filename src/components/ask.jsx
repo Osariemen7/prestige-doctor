@@ -528,7 +528,7 @@ const SearchBox = () => {
                     onChange={(e) => setExpertLevel(e.target.value)}
                     sx={{
                       fontSize: '14px',
-                      backgroundColor: 'skyblue',
+                      backgroundColor: '#F0F8FF',
                       color: '#1E90FF',
                       borderRadius: '4px',
                       padding: '4px 12px',
@@ -540,12 +540,17 @@ const SearchBox = () => {
                   <MenuItem value="">
                       <em>AI Level</em>
                     </MenuItem>
-                    <MenuItem value="low">Basic</MenuItem>
-                    <MenuItem value="medium">Intermediate</MenuItem>
-                    <MenuItem value="high">Advanced</MenuItem>
+                    <MenuItem value="low">Basic ₦50</MenuItem>
+                    <MenuItem value="medium">Intermediate ₦200</MenuItem>
+                    <MenuItem value="high">Advanced ₦500</MenuItem>
                   </Select>
                 </FormControl>
               </Box>
+              {expertLevel === 'high' && (
+  <Typography variant="caption" color="textSecondary" sx={{ marginTop: '8px' }}>
+    Advanced responses might take a few minutes.
+  </Typography>
+)}
             </Box>
           </Box>
         </ThemeProvider>

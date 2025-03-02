@@ -15,7 +15,10 @@ import {
   AccordionSummary,
   AccordionDetails,
   Snackbar,
-  Paper
+  Paper,
+  ToggleButton,
+  ToggleButtonGroup,
+  useMediaQuery
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -93,80 +96,97 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
   );
 };
 
+// ----------------------------------------------------
+// 3. ChatScreen: Now supports two message sources and lets the user choose which AI to chat with.
+// ----------------------------------------------------
 const ChatScreen = ({
   phoneNumber,
-  setChatMessages,
-  chatMessages,
-  sendOobRequest
+  ws,          // WebSocket reference (passed in from parent)
+  wsStatus,
+  reviewId,
+  sendOobRequest,
+  chatMessages,   // WebSocket messages state (prop)
+  setChatMessages // Setter for WebSocket messages (prop)
 }) => {
+  // Local state for researcher API messages
+  const [researcherMessages, setResearcherMessages] = useState([]); // Renamed to researcherMessages
   const [message, setMessage] = useState('');
-  const [apiResponse, setApiResponse] = useState(null);
   const [threadId, setThreadId] = useState(null);
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [error, setError] = useState('');
+  // New state to track which AI to send messages to: 'researcher' or 'websocket'
+  const [activeAI, setActiveAI] = useState('researcher');
   const theme = createTheme();
+
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim()) return;
-
     const currentMessage = message;
     setMessage('');
-    setIsResponseLoading(true);
+    const timestamp = Date.now();
 
-    try {
-      const token = await getAccessToken();
-      const apiUrl = 'https://health.prestigedelta.com/research/';
-      const payload = { query: currentMessage, expertise_level: 'high' };
-      if (threadId) {
-        payload.thread_id = threadId;
-      }
+    if (activeAI === 'researcher') {
+      // Researcher API flow:
+      setIsResponseLoading(true);
+      try {
+        const token = await getAccessToken();
+        const apiUrl = 'https://health.prestigedelta.com/research/';
+        const payload = { query: currentMessage, expertise_level: 'high' };
+        if (threadId) payload.thread_id = threadId;
 
-      // Add user message to chat.
-      const userMessage = { role: 'user', content: currentMessage };
-      setChatMessages((prevMessages) => [...prevMessages, userMessage]);
+        // Add user's message to the researcher conversation - using setResearcherMessages
+        const userMessage = { role: 'user', content: currentMessage, timestamp, source: 'researcher' };
+        setResearcherMessages((prev) => [...prev, userMessage]); // Using setResearcherMessages
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        console.log("Researcher API Response:", data); // Log the response for debugging
+        if (data.thread_id) setThreadId(data.thread_id);
+        setIsSourcesVisible(false);
 
-      const data = await response.json();
-      console.log('API Response:', data);
-
-      setApiResponse(data);
-      if (data.thread_id) {
-        setThreadId(data.thread_id);
-      }
-      setIsSourcesVisible(false);
-
-      if (data.assistant_response) {
-        const assistantMessage = {
+        if (data.assistant_response) {
+          const assistantMessage = {
+            role: 'assistant',
+            content: data.assistant_response,
+            citations: data.citations,
+            timestamp: Date.now(),
+            source: 'researcher'
+          };
+          setResearcherMessages((prev) => [...prev, assistantMessage]); // Using setResearcherMessages
+        }
+      } catch (error) {
+        console.error('Error sending message to Researcher API:', error);
+        setError('Sorry, I encountered an error with Researcher AI. Please try again later.');
+        const errorMessage = {
           role: 'assistant',
-          content: data.assistant_response,
-          citations: data.citations
+          content: 'Sorry, I encountered an error with Researcher AI. Please try again later.',
+          timestamp: Date.now(),
+          source: 'researcher'
         };
-        setChatMessages((prevMessages) => [...prevMessages, assistantMessage]);
+        setResearcherMessages((prev) => [...prev, errorMessage]); // Using setResearcherMessages
+      } finally {
+        setIsResponseLoading(false);
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Sorry, I encountered an error. Please try again later.');
-      setApiResponse({
-        assistant_response: 'Sorry, I encountered an error. Please try again later.',
-        citations: []
-      });
-      setChatMessages((prevMessages) => [
-        ...prevMessages,
-        { role: 'assistant', content: 'Sorry, I encountered an error. Please try again later.' }
-      ]);
-    } finally {
-      setIsResponseLoading(false);
+    } else if (activeAI === 'websocket') {
+      // WebSocket flow:
+      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        const userMessage = { role: 'user', content: currentMessage, timestamp, source: 'websocket' };
+        setChatMessages((prev) => [...prev, userMessage]); // Using setChatMessages for websocket messages
+        ws.current.send(JSON.stringify({ type: 'chat_message', message: currentMessage })); // Changed type to 'chat_message'
+      } else {
+        setError('WebSocket is not connected.');
+      }
     }
-  }, [message, phoneNumber, threadId, setChatMessages]);
+  }, [message, activeAI, threadId, ws, setChatMessages, setResearcherMessages]); // Added setResearcherMessages to useCallback dependencies
 
   const getDomainFromUrl = (url) => {
     try {
@@ -183,9 +203,8 @@ const ChatScreen = ({
 
   const handleTyping = (event) => {
     setMessage(event.target.value);
-    if (event.target.value.trim() !== '') {
-      sendOobRequest();
-    }
+    // Optionally, trigger an out-of-band request here
+    // if (event.target.value.trim() !== '') sendOobRequest();
   };
 
   const extractThinkContent = (text) => {
@@ -195,48 +214,73 @@ const ChatScreen = ({
     return { thinkContent, remainingContent };
   };
 
+  // Combine both message arrays and sort by timestamp so that conversation flows naturally
+  const combinedMessages = [...chatMessages, ...researcherMessages].sort((a, b) => a.timestamp - b.timestamp); // Using researcherMessages
+
+  // A simple function to determine the styling based on message source and role.
+  const getMessageStyle = (message) => {
+    if (message.role === 'user') {
+      return {
+        backgroundColor: '#d1e7dd', // Light green for user
+        textAlign: 'right',
+      };
+    } else if (message.role === 'assistant') {
+      // Use different colors for the two AIs:
+      if (message.source === 'researcher') {
+        return {
+          backgroundColor: '#f8d7da', // Light red for researcher AI
+          textAlign: 'left',
+        };
+      } else if (message.source === 'websocket') {
+        return {
+          backgroundColor: '#cff4fc', // Light blue for websocket AI
+          textAlign: 'left',
+        };
+      }
+    }
+    return {};
+  };
+
   return (
     <ThemeProvider theme={theme}>
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          fontFamily: 'sans-serif'
-        }}
-      >
-        {/* Header */}
-        <Box
-          sx={{
-            backgroundColor: '#1976d2',
-            padding: '10px',
-            color: 'white',
-            textAlign: 'center'
-          }}
-        >
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'sans-serif' }}>
+        {/* Header with AI selection */}
+        <Box sx={{ backgroundColor: 'white', padding: '10px', color: '#000', textAlign: 'center' }}>
           <Typography variant="h6" component="h2">
             What do you want to know?
           </Typography>
+          <ToggleButtonGroup
+            value={activeAI}
+            exclusive
+            onChange={(e, newAI) => {
+              if (newAI !== null) setActiveAI(newAI);
+            }}
+            sx={{ mt: 1 }}
+          >
+            <ToggleButton value="researcher" sx={{ color: '#1976d2', borderColor: '#1976d2' }}>
+              Researcher AI
+            </ToggleButton>
+            {/* <ToggleButton value="websocket" sx={{ color: '#1976d2', borderColor: '#1976d2' }}>
+              Consult AI
+            </ToggleButton> */}
+          </ToggleButtonGroup>
         </Box>
 
         {/* Chat messages */}
-        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
+        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2, }}>
           <List>
-            {chatMessages.map((chat, index) => (
+            {combinedMessages.map((chat, index) => (
               <ListItem
                 key={index}
                 alignItems="flex-start"
-                sx={{
-                  flexDirection: chat.role === 'user' ? 'row-reverse' : 'row',
-                  justifyContent: 'flex-start'
-                }}
+                sx={{ flexDirection: chat.role === 'user' ? 'row-reverse' : 'row' }}
               >
                 <ListItemText
                   primary={
-                    chat.role === 'assistant' && isResponseLoading && index === chatMessages.length - 1 ? (
+                    chat.role === 'assistant' && isResponseLoading && index === combinedMessages.length - 1 ? (
                       <CircularProgress size={24} />
-                    ) : chat.role !== 'assistant' ? (
-                      chat.content
+                    ) :  chat.role !== 'assistant' ? (
+                      chat.content // Display user message here directly
                     ) : null
                   }
                   secondary={
@@ -273,7 +317,7 @@ const ChatScreen = ({
                                 border: '1px solid #ccc',
                                 borderRadius: '20px',
                                 p: '2px',
-                                mr: 1
+                                mr: 1,
                               }}
                             >
                               <FactCheckIcon fontSize="small" />
@@ -295,7 +339,12 @@ const ChatScreen = ({
                                       href={citation}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      sx={{ ml: 0.5, fontSize: '0.75rem', color: '#2b6cb0', textDecoration: 'underline' }}
+                                      sx={{
+                                        ml: 0.5,
+                                        fontSize: '0.75rem',
+                                        color: '#2b6cb0',
+                                        textDecoration: 'underline',
+                                      }}
                                     >
                                       {getDomainFromUrl(citation)}
                                     </Link>
@@ -308,45 +357,40 @@ const ChatScreen = ({
                     </>
                   }
                   sx={{
-                    textAlign: chat.role === 'user' ? 'right' : 'left',
-                    backgroundColor: chat.role === 'user' ? '#e0f7fa' : '#f0f0f0',
+                    ...getMessageStyle(chat),
                     padding: '10px',
                     borderRadius: '8px',
                     display: 'inline-block',
                     maxWidth: '80%',
-                    wordWrap: 'break-word'
+                    wordWrap: 'break-word',
                   }}
                 />
               </ListItem>
             ))}
-            {isResponseLoading && chatMessages.length > 0 && (
+            {isResponseLoading && combinedMessages.length > 0 && (
               <ListItem alignItems="flex-start" sx={{ justifyContent: 'flex-start' }}>
-                <ListItemText primary={<Skeleton variant="text" width={200} height={24} />} sx={{ textAlign: 'left' }} />
+                <ListItemText
+                  primary={<Skeleton variant="text" width={200} height={24} />}
+                  sx={{ textAlign: 'left' }}
+                />
               </ListItem>
             )}
           </List>
         </Box>
 
-        {/* Chat input at the bottom */}
+        {/* Chat input */}
         <Paper
           elevation={3}
-          sx={{
-            padding: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            borderTop: '1px solid #ccc'
-          }}
+          sx={{ padding: '10px', display: 'flex', alignItems: 'center', borderTop: '1px solid #ccc' }}
         >
           <TextField
             fullWidth
-            placeholder="Message Assistant"
+            placeholder={`Message ${activeAI === 'researcher' ? 'Researcher AI' : 'Consult AI'}`}
             variant="outlined"
             value={message}
             onChange={handleTyping}
             onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleSendMessage();
-              }
+              if (e.key === 'Enter') handleSendMessage();
             }}
           />
           <IconButton
@@ -359,14 +403,7 @@ const ChatScreen = ({
           </IconButton>
         </Paper>
       </Box>
-
-      {/* Error Toast */}
-      <Snackbar
-        open={Boolean(error)}
-        autoHideDuration={6000}
-        onClose={() => setError('')}
-        message={error}
-      />
+      <Snackbar open={Boolean(error)} autoHideDuration={6000} onClose={() => setError('')} message={error} />
     </ThemeProvider>
   );
 };

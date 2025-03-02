@@ -16,8 +16,17 @@ import {
   IconButton,
   useMediaQuery,
   useToast,
+  Tabs,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
+  HStack,
+  Icon,
+  Spinner,
+  Center // Import Center
 } from '@chakra-ui/react';
-import { MdNotes, MdClose } from 'react-icons/md';
+import { MdNotes, MdClose, MdMic, MdStop } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
@@ -43,13 +52,32 @@ const ConsultAIPage = () => {
   const [patientInfo, setPatientInfo] = useState(null);
   const [documen, setDocumen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  // New state to toggle between VoiceNoteScreen and ChatScreen
-  const [activeScreen, setActiveScreen] = useState("voice");
+  const [activeScreen, setActiveScreen] = useState("voice"); // Default to voice on initial load - Corrected default to voice
   const [isMobile] = useMediaQuery('(max-width: 768px)');
+  const [bottomTabIndex, setBottomTabIndex] = useState(0);
+
+  // States lifted from VoiceNoteScreen for persistent controls
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(900);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [shouldStartRecording, setShouldStartRecording] = useState(false);
+  const [animationIndex, setAnimationIndex] = useState(0);
+  const animationMessages = [
+    "Warming up the microphone...",
+    "Connecting to our server...",
+    "Preparing consultation...",
+    "Almost ready!",
+  ];
+  const timerRef = useRef(null);
 
   const ws = useRef(null);
   const navigate = useNavigate();
   const toast = useToast();
+  const audioContext = useRef(null);
+  const audioStream = useRef(null);
+  const scriptProcessor = useRef(null);
+  const desiredSampleRate = 16000;
 
   const log = (message) => {
     const time = new Date().toLocaleTimeString();
@@ -93,9 +121,8 @@ const ConsultAIPage = () => {
       return;
     }
     setErrorMessage('');
-    const date = new Date('2025-01-25 09:00');
-const formattedDate = date.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:MM"
-console.log(formattedDate);
+
+    setLoading(true);
 
     const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
     const data = {
@@ -137,8 +164,154 @@ console.log(formattedDate);
         duration: 5000,
         isClosable: true,
       });
+    } finally {
+      setLoading(false);
     }
   };
+
+    // ---------------------------
+  // Recording Functions
+  // ---------------------------
+  const startRecording = async () => {
+    if (isRecording) return; // Prevent starting recording if already recording
+
+    log('Attempting to start recording...');
+    if (!ws?.current || ws.current.readyState !== WebSocket.OPEN) {
+      log('WebSocket is not connected.');
+      alert('WebSocket is not connected. Please set up the session first.');
+      return;
+    }
+    try {
+      audioContext.current =
+        audioContext.current ||
+        new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: desiredSampleRate,
+        });
+      audioStream.current = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: desiredSampleRate,
+          channelCount: 1,
+        },
+      });
+      const sourceNode = audioContext.current.createMediaStreamSource(audioStream.current);
+      scriptProcessor.current = audioContext.current.createScriptProcessor(2048, 1, 1);
+      scriptProcessor.current.onaudioprocess = (audioProcessingEvent) => {
+        const inputBuffer = audioProcessingEvent.inputBuffer.getChannelData(0);
+        const pcmBuffer = pcmEncode(inputBuffer);
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          ws.current.send(pcmBuffer);
+        }
+      };
+      sourceNode.connect(scriptProcessor.current);
+      scriptProcessor.current.connect(audioContext.current.destination);
+      // Timer setup
+      setTimeElapsed(0);
+      setRecordingTime(900);
+      const interval = setInterval(() => {
+        setTimeElapsed((prev) => prev + 1);
+        setRecordingTime((prev) => {
+          if (prev <= 0) {
+            stopRecording(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      timerRef.current = interval;
+      setIsRecording(true);
+      log('Recording started.');
+    } catch (error) {
+      log(`Error starting recording: ${error.message}`);
+      alert('Error accessing microphone. Please ensure microphone permissions are granted.');
+    }
+  };
+
+  const stopRecording = async (shouldDisconnect) => {
+    log('Attempting to stop recording...');
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (scriptProcessor.current) {
+      scriptProcessor.current.disconnect();
+      scriptProcessor.current.onaudioprocess = null;
+      scriptProcessor.current = null;
+    }
+    if (audioStream.current) {
+      audioStream.current.getTracks().forEach((track) => track.stop());
+      audioStream.current = null;
+    }
+    setRecordingTime(900);
+    setIsRecording(false);
+    log('Recording stopped.');
+    handleBilling();
+    if (shouldDisconnect) {
+      disconnectWebSocket();
+    }
+  };
+
+  const pcmEncode = (input) => {
+    const buffer = new ArrayBuffer(input.length * 2);
+    const output = new DataView(buffer);
+    for (let i = 0; i < input.length; i++) {
+      const s = Math.max(-1, Math.min(1, input[i]));
+      output.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return buffer;
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      await stopRecording(true);
+    } else {
+      await startRecording();
+    }
+  };
+
+  const formatTime = (timeInSeconds) => {
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = timeInSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+    // ---------------------------
+  // Billing and Editing Helpers
+  // ---------------------------
+  const handleBilling = async () => {
+    try {
+      const phone = ite.patient_phone_number;
+      const formatPhoneNumber = (phoneNumber) => {
+        if (phoneNumber.startsWith('+234')) return phoneNumber;
+        return `+234${phoneNumber.slice(1)}`;
+      };
+      const formattedPhone = formatPhoneNumber(phone);
+      const token = await getAccessToken();
+      const item = {
+        appointment_id: ite.id,
+        seconds_used: timeElapsed,
+      };
+      const response = await fetch('https://health.prestigedelta.com/billing/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(item),
+      });
+      const result = await response.json();
+      if (response.status !== 201) {
+        console.log(result.message || 'An error occurred');
+      } else {
+        console.log(result.message || 'Billing successful');
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
 
   const connectWebSocket = async (appointment_id) => {
     if (phoneNumber.length !== 11) {
@@ -168,15 +341,35 @@ console.log(formattedDate);
     ws.current.onopen = () => {
       setWsStatus('Connected');
       log('WebSocket connected');
+      setActiveScreen('chat'); // Set ChatScreen as active screen on connection
+      setIsProfileOpen(true);
+      setBottomTabIndex(0);
+      startRecording(); // <---- Start recording automatically on connection
     };
     ws.current.onclose = () => {
       setWsStatus('Disconnected');
       log('WebSocket disconnected');
+      setActiveScreen('voice'); // Set VoiceNoteScreen as active on disconnect
+      setIsRecording(false);
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      setRecordingTime(900);
+      setTimeElapsed(0);
+      setBottomTabIndex(0);
+      setLoading(false);
     };
     ws.current.onerror = (event) => {
       console.error('WebSocket Error:', event);
       setWsStatus('Disconnected');
       log('WebSocket encountered an error');
+      setActiveScreen('voice'); // Set VoiceNoteScreen as active on error
+      setIsRecording(false);
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      setRecordingTime(900);
+      setTimeElapsed(0);
+      setBottomTabIndex(0);
+      setLoading(false);
     };
 
     ws.current.onmessage = (event) => {
@@ -281,7 +474,6 @@ console.log(formattedDate);
     }, 500);
   };
 
-  // Toggle the Patient Profile display (Document panel)
   const toggleProfile = async () => {
     await sendOobRequest();
     setIsProfileOpen((prev) => !prev);
@@ -292,24 +484,47 @@ console.log(formattedDate);
     sendOobRequest();
   };
 
-  // Toggle between VoiceNoteScreen and ChatScreen without unmounting the VoiceNoteScreen
-  const toggleActiveScreen = () => {
-    setActiveScreen((prev) => (prev === "voice" ? "chat" : "voice"));
-    if (activeScreen === "voice") {
+  const toggleActiveScreen = (screenName) => {
+    setActiveScreen(screenName);
+    if (screenName === "chat") {
       setHasNewMessage(false);
     }
   };
 
-  // When WebSocket is connected, automatically open the Document panel.
-  useEffect(() => {
+  const handleBottomTabChange = (index) => {
+    setBottomTabIndex(index);
     if (wsStatus === 'Connected') {
-      setIsProfileOpen(true);
+      if (index === 0) {
+        toggleActiveScreen('chat');
+      } else if (index === 1) {
+        toggleProfile();
+      }
+    } else {
+      if (index === 0) {
+        toggleActiveScreen('voice');
+      } else if (index === 1) {
+        toggleProfile();
+      }
     }
-  }, [wsStatus]);
+  };
+
+    // Animation messages effect.
+    useEffect(() => {
+      let animationInterval;
+      if (loading && wsStatus !== 'Connected') {
+        animationInterval = setInterval(() => {
+          setAnimationIndex((prevIndex) => (prevIndex + 1) % animationMessages.length);
+        }, 8000);
+      }
+      return () => {
+        if (animationInterval) clearInterval(animationInterval);
+      };
+    }, [loading, wsStatus]);
+
 
   return (
     <ChakraProvider>
-      <Flex direction="column" height="90vh" bg="gray.50">
+      <Flex direction="column" height="100vh" bg="gray.50"> {/* Changed height to 100vh to fill screen */}
         {/* Header */}
         <Flex
           align="center"
@@ -336,6 +551,39 @@ console.log(formattedDate);
             {wsStatus}
           </Badge>
         </Flex>
+
+        {/* Persistent Recording Controls */}
+        <Flex bg="#f0f4f8" padding={2} justifyContent="space-between" alignItems="center" boxShadow="md">
+          <Button
+            onClick={startConsultationSession}
+            isDisabled={wsStatus === 'Connected' || loading}
+            colorScheme="blue"
+            marginTop="10px"
+          >
+            {loading ? <Spinner size="sm" /> : 'Start Consultation'}
+          </Button>
+          {loading && wsStatus !== 'Connected' && (
+            <Box mt={2} textAlign="center">
+              <Text fontSize="lg" fontWeight="bold">
+                {animationMessages[animationIndex]}
+              </Text>
+            </Box>
+          )}
+
+          <HStack justify="center">
+            <Button
+              onClick={toggleRecording}
+              colorScheme={isRecording ? 'red' : 'blue'}
+              borderRadius="50%"
+              width="40px"
+              height="40px"
+            >
+              <Icon as={isRecording ? MdStop : MdMic} boxSize={8} />
+            </Button>
+            <Text>{isRecording ? formatTime(recordingTime) : 'Record'}</Text>
+          </HStack>
+        </Flex>
+
 
         {/* Content Area */}
         <Flex flex="1" overflow="hidden">
@@ -373,6 +621,8 @@ console.log(formattedDate);
                 ite={ite}
                 documen={documen}
                 updateLastDocumented={setLastDocumentedAt}
+                removePhoneNumberInput={wsStatus === 'Connected'}
+                phoneNumberVisible={wsStatus === 'Disconnected'} // <--- Prop to control phone input visibility
               />
             </Box>
             <Box display={activeScreen === "chat" ? "block" : "none"}>
@@ -421,52 +671,50 @@ console.log(formattedDate);
           )}
         </Flex>
 
-        {/* Bottom Buttons – Only render when WebSocket is Connected */}
-        {wsStatus === 'Connected' && (
-          <Flex
-            p="2"
-            justify="space-around"
-            bg="white"
-            boxShadow="sm"
-            mx="4"
-            position={isMobile ? 'fixed' : 'static'}
-            bottom={isMobile ? '10px' : undefined}
-            left={isMobile ? '10px' : undefined}
-            right={isMobile ? '10px' : undefined}
-            zIndex="1000"
+        {/* Bottom Tabs - Centered and Full Width */}
+        <Center w="100%" mx="auto" position={isMobile ? 'fixed' : 'static'} bottom={isMobile ? '0' : undefined} left="0" right="0" zIndex="1000" bg="white" boxShadow="md" pb={4} borderRadius="md"> {/* Use Center and fixed positioning */}
+          <Tabs
+            index={bottomTabIndex}
+            onChange={handleBottomTabChange}
+            isFitted
+            variant="enclosed-colored"
+            colorScheme="blue"
+            maxwidth="100%"
+            p='0, 10px' // control width of tabs
+            align="center" // Ensure tabs are centered within container
+            style={{ display: wsStatus === 'Connected' ? 'flex' : 'none' }}
           >
-            {/* Document Button on the Left */}
-            <Button
-              leftIcon={<MdNotes />}
-              onClick={toggleProfile}
-              colorScheme="blue"
-              variant="outline"
-            >
-              Document
-            </Button>
+            <TabList bg="white" borderRadius="md" justifyContent="center"> {/* Center TabList content */}
+                <>
+                  <Tab
+                    _selected={{ color: 'white', bg: 'blue.500' }}
+                    position="relative" width="14rem"
+                  >
+                    Researcher
+                    {hasNewMessage && activeScreen === "chat" && (
+                      <Box
+                        position="absolute"
+                        top="-2px"
+                        right="-2px"
+                        width="8px"
+                        height="8px"
+                        borderRadius="50%"
+                        bg="red.500"
+                        border="1px solid white"
+                      />
+                    )}
+                  </Tab>
+                  <Tab _selected={{ color: 'white', bg: 'blue.500' }}>
+                    <Flex align="center">
+                      <MdNotes style={{ marginRight: '0.5rem' }} />
+                      Document
+                    </Flex>
+                  </Tab>
+                </>
+            </TabList>
+          </Tabs>
+        </Center>
 
-            {/* Toggle Screen Button on the Right */}
-            <Button
-              onClick={toggleActiveScreen}
-              variant="outline"
-              colorScheme="blue"
-              position="relative"
-            >
-              {activeScreen === "voice" ? "Launch Researcher" : "Voice Note"}
-              {hasNewMessage && activeScreen === "voice" && (
-                <Box
-                  position="absolute"
-                  top="2"
-                  right="2"
-                  width="10px"
-                  height="10px"
-                  borderRadius="50%"
-                  bg="red.500"
-                />
-              )}
-            </Button>
-          </Flex>
-        )}
 
         {/* Documentation Required Modal */}
         <Modal isOpen={showDocumentDialog} onClose={() => {}} isCentered>
