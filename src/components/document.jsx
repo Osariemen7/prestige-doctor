@@ -146,6 +146,10 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
         (editingSection === 'goals' && key === 'goal_name') ||
         (editingSection === 'profile' && key === 'name');
       const showError = isRequiredField && (!currentValue || currentValue.toString().trim() === '');
+      let inputType = 'text';
+      if (key === 'next_review' && editingSection === 'review') {
+        inputType = 'datetime-local'; // Set input type to datetime-local for next_review
+      }
 
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         return (
@@ -182,7 +186,7 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                     <TextField
                       label={`${key}[${index}]`}
                       value={currentValue}
-                      onChange={(e) => handleFieldChange([...currentSectionKeys], e.target.value)}
+                      onChange={(e) => handleFieldChange([...currentSectionKeys, index.toString()], e.target.value)}
                       fullWidth
                       multiline
                       required={isRequiredField}
@@ -205,6 +209,7 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
               required={isRequiredField}
               error={showError}
               helperText={showError ? 'This field is required' : ''}
+              type={inputType} // Set input type here
             />
           </div>
         );
@@ -628,6 +633,7 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
                         <Typography variant="body1" mt={1}>
                           {isEditing && editingSection === 'review' ? (
                             <TextField
+                              type="datetime-local" // set type to datetime-local
                               value={editableData?.review_data?.doctor_note_data?.next_review || ''}
                               onChange={(e) =>
                                 handleFieldChange(['review_data', 'doctor_note_data', 'next_review'], e.target.value)
