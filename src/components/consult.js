@@ -25,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
 import PatientProfileDisplay from './document';
-import { AssemblyAI } from 'assemblyai'; // used only for token generation in this example
+
 
 const ConsultAIPage = () => {
   // Basic state & refs
