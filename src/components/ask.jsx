@@ -537,7 +537,7 @@ const SearchBox = () => {
                     }}
                   >
                   
-                  <MenuItem value="">
+                  <MenuItem value="low">
                       <em>AI Level</em>
                     </MenuItem>
                     <MenuItem value="low">Basic ₦50</MenuItem>

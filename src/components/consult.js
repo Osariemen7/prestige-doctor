@@ -18,7 +18,7 @@ import {
   Tooltip,
   Badge,
 } from '@chakra-ui/react';
-import { MdNotes, MdClose, MdMic, MdStop, MdTextFields } from 'react-icons/md'; // Using MdTextFields for pen icon
+import { MdNotes, MdClose, MdMic, MdStop, MdTextFields } from 'react-icons/md';
 import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
@@ -26,9 +26,8 @@ import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
 import PatientProfileDisplay from './document';
 
-
 const ConsultAIPage = () => {
-  // Basic state & refs
+  // ... (rest of your state variables and refs - same as before)
   const [phoneNumber, setPhoneNumber] = useState('');
   const [reviewId, setReviewId] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
@@ -41,16 +40,12 @@ const ConsultAIPage = () => {
   const [bottomTabIndex, setBottomTabIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [ite, setIte] = useState('');
-  const [isBottomTabVisible, setIsBottomTabVisible] = useState(false); // For bottom tab visibility
-  const [timeLeft, setTimeLeft] = useState(900); // Timer state
-  const [isTranscriptionPanelOpen, setIsTranscriptionPanelOpen] = useState(false); // For transcription panel visibility
-
-  // Realtime transcription states
+  const [isBottomTabVisible, setIsBottomTabVisible] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(900);
+  const [isTranscriptionPanelOpen, setIsTranscriptionPanelOpen] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [realtimeStarted, setRealtimeStarted] = useState(false);
-
-  // Animation messages (optional)
   const [animationIndex, setAnimationIndex] = useState(0);
   const animationMessages = [
     "Warming up the microphone...",
@@ -59,28 +54,66 @@ const ConsultAIPage = () => {
     "Almost ready!",
   ];
   const timerRef = useRef(null);
-  const timerIntervalRef = useRef(null); // Ref for the timer interval
-
+  const timerIntervalRef = useRef(null);
   const navigate = useNavigate();
   const toast = useToast();
-  const [isMobile] = useMediaQuery('(max-width: 768px)');
-
-  // Refs for realtime transcription via WebSocket and audio processing
+  const [isMobileOriginal] = useMediaQuery('(max-width: 768px)'); // Renamed original isMobile
+  const [isDocumentTabMobileForced, setIsDocumentTabMobileForced] = useState(false); // New state for forced mobile doc tab
+  const isMobile = isMobileOriginal || isDocumentTabMobileForced; // Combined mobile check
   const wsRef = useRef(null);
   const audioContextRef = useRef(null);
   const processorRef = useRef(null);
-
-  // AssemblyAI token state
   const [toke, setTok] = useState('');
-
-  // Function to format time in MM:SS
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
   };
 
-  // Fetch the AssemblyAI token from your endpoint
+  // Drag state and handlers for transcription box
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartPosition, setDragStartPosition] = useState({ x: 0, y: 0 });
+  const [boxPosition, setBoxPosition] = useState({ top: 100, left: 20 }); // Initial position
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStartPosition({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+
+    const deltaX = e.clientX - dragStartPosition.x;
+    const deltaY = e.clientY - dragStartPosition.y;
+
+    setBoxPosition((prevPosition) => ({
+      top: prevPosition.top + deltaY,
+      left: prevPosition.left + deltaX,
+    }));
+
+    setDragStartPosition({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragStartPosition]);
+
+
   useEffect(() => {
     const fetchTranscriptWithToken = async () => {
       const tok = await getAccessToken();
@@ -103,9 +136,11 @@ const ConsultAIPage = () => {
       }
     };
     fetchTranscriptWithToken();
+    const interval = setInterval(() => {
+      fetchTranscriptWithToken();
+    }, 249000);
+    return () => clearInterval(interval);
   }, []);
-
-  // Fetch patient info when phone number has correct length
   useEffect(() => {
     const token = getAccessToken();
     if (phoneNumber.length === 11) {
@@ -126,10 +161,7 @@ const ConsultAIPage = () => {
     }
   }, [phoneNumber]);
 
-  console.log(reviewId)
-  // --- Realtime Transcription Functions ---
-
-  // Start realtime transcription by opening the WebSocket connection
+  // --- Realtime Transcription Functions --- (same as before - important: keep the FinalTranscript logic)
   const startRealtimeTranscription = () => {
     const sampleRate = 16000;
     if (!toke) {
@@ -144,17 +176,17 @@ const ConsultAIPage = () => {
       startAudioStream();
       setIsTranscribing(true);
       setRealtimeStarted(true);
-      setIsBottomTabVisible(true); // Show bottom tab on connection
-      setIsTranscriptionPanelOpen(true); // Open transcription panel by default on desktop
+      setIsBottomTabVisible(true);
+      setIsTranscriptionPanelOpen(false);
       setWsStatus('Connected');
-      // Start Timer
+      setIsProfileOpen(true); // Auto-open Patient Profile on WebSocket connect - FIX for auto slide-in
       setTimeLeft(900);
       timerIntervalRef.current = setInterval(() => {
         setTimeLeft((prevTime) => {
           if (prevTime <= 1) {
             clearInterval(timerIntervalRef.current);
-            stopRealtimeTranscription(); // Auto disconnect on timer end
-            setIsBottomTabVisible(false); // Hide bottom tab after disconnect if needed
+            stopRealtimeTranscription();
+            setIsBottomTabVisible(false);
             return 0;
           } else {
             return prevTime - 1;
@@ -167,8 +199,20 @@ const ConsultAIPage = () => {
       try {
         const data = JSON.parse(event.data);
         console.log('Transcription data:', data);
-        if (data.text) {
-          setTranscript(prev => prev + ' ' + data.text);
+
+        if (data.message_type === 'FinalTranscript') { // Only process FinalTranscript
+          if (data.text) {
+            let newText = data.text;
+            const lastTranscriptPart = transcript.slice(-newText.length);
+
+            if (lastTranscriptPart.trim() === newText.trim() && lastTranscriptPart.trim() !== "") {
+              console.log("Detected repetition (FinalTranscript), skipping:", newText);
+              return;
+            }
+            setTranscript(prev => prev + ' ' + newText);
+          }
+        } else if (data.message_type === 'PartialTranscript') {
+          console.log("Ignoring PartialTranscript message:", data);
         }
       } catch (err) {
         console.error('Error parsing message:', err);
@@ -177,8 +221,8 @@ const ConsultAIPage = () => {
 
     wsRef.current.onerror = (error) => {
       console.error('WebSocket error:', error);
-      clearInterval(timerIntervalRef.current); // Clear timer on error
-      setIsBottomTabVisible(false); // Hide bottom tab on error if needed
+      clearInterval(timerIntervalRef.current);
+      setIsBottomTabVisible(false);
     };
 
     wsRef.current.onclose = () => {
@@ -186,12 +230,11 @@ const ConsultAIPage = () => {
       setWsStatus('Disconnected');
       setIsTranscribing(false);
       setRealtimeStarted(false);
-      clearInterval(timerIntervalRef.current); // Clear timer on close
-      setIsBottomTabVisible(false); // Hide bottom tab on close if needed
+      clearInterval(timerIntervalRef.current);
+      setIsBottomTabVisible(false);
     };
   };
 
-  // Capture and stream audio via the Web Audio API
   const startAudioStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -213,7 +256,6 @@ const ConsultAIPage = () => {
     }
   };
 
-  // Convert Float32Array to 16-bit PCM ArrayBuffer
   const convertFloat32ToInt16 = (buffer) => {
     const l = buffer.length;
     const int16Buffer = new Int16Array(l);
@@ -224,7 +266,6 @@ const ConsultAIPage = () => {
     return int16Buffer.buffer;
   };
 
-  // Stop realtime transcription by closing the WebSocket and cleaning up audio streams
   const stopRealtimeTranscription = () => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -241,11 +282,10 @@ const ConsultAIPage = () => {
 
     setIsTranscribing(false);
     setRealtimeStarted(false);
-    clearInterval(timerIntervalRef.current); // Clear timer when manually stopped
-    setIsBottomTabVisible(false); // Hide bottom tab when manually stopped if needed
+    clearInterval(timerIntervalRef.current);
+    setIsBottomTabVisible(false);
   };
 
-  // Toggle realtime transcription on/off
   const toggleTranscription = () => {
     if (isTranscribing) {
       stopRealtimeTranscription();
@@ -256,7 +296,7 @@ const ConsultAIPage = () => {
 
   // --- End Realtime Transcription Functions ---
 
-  // Modified Start Consultation function (does not switch screens automatically)
+  // ... (rest of your functions - same as before)
   const startConsultationSession = async () => {
     if (phoneNumber.length !== 11) {
       setErrorMessage('Please enter a valid 11-digit phone number');
@@ -297,7 +337,6 @@ const ConsultAIPage = () => {
         setIte(result);
         setReviewId(result.appointment.review_id);
         console.log('Appointment booked, starting realtime transcription');
-        // Start realtime transcription but do not switch to chat screen automatically.
         startRealtimeTranscription();
       } else {
         throw new Error('Failed to book the appointment.');
@@ -316,7 +355,6 @@ const ConsultAIPage = () => {
     }
   };
 
-  // Navigation and UI helper functions
   const handleBackClick = () => {
     navigate('/dashboard');
   };
@@ -327,6 +365,7 @@ const ConsultAIPage = () => {
 
   const closeProfile = () => {
     setIsProfileOpen(false);
+    setIsDocumentTabMobileForced(false); // Also reset forced mobile view when closing profile
   };
 
   const toggleActiveScreen = (screenName) => {
@@ -341,14 +380,22 @@ const ConsultAIPage = () => {
     if (wsStatus === 'Connected') {
       if (index === 0) {
         toggleActiveScreen('chat');
+        setIsProfileOpen(false); // Close profile when switching to Researcher tab
+        setIsDocumentTabMobileForced(false); // Reset forced mobile view
       } else if (index === 1) {
-        toggleProfile();
+        toggleActiveScreen('document'); // Optionally set activeScreen to document if needed
+        setIsProfileOpen(true);
+        setIsDocumentTabMobileForced(true); // Force mobile style for Document tab on desktop
       }
     } else {
       if (index === 0) {
         toggleActiveScreen('voice');
+        setIsProfileOpen(false); // Close profile when switching to Voice tab
+        setIsDocumentTabMobileForced(false); // Reset forced mobile view
       } else if (index === 1) {
-        toggleProfile();
+        toggleActiveScreen('document'); // Optionally set activeScreen to document if needed
+        setIsProfileOpen(true);
+        setIsDocumentTabMobileForced(true); // Force mobile style for Document tab on desktop
       }
     }
   };
@@ -358,7 +405,6 @@ const ConsultAIPage = () => {
     setIsTranscriptionPanelOpen(!isTranscriptionPanelOpen);
   };
 
-  // Animation messages effect
   useEffect(() => {
     let animationInterval;
     if (loading) {
@@ -371,13 +417,12 @@ const ConsultAIPage = () => {
     };
   }, [loading]);
 
-  // Cleanup on component unmount
   useEffect(() => {
     return () => {
       if (wsRef.current) wsRef.current.close();
       if (processorRef.current) processorRef.current.disconnect();
       if (audioContextRef.current) audioContextRef.current.close();
-      clearInterval(timerIntervalRef.current); // Clear timer on unmount
+      clearInterval(timerIntervalRef.current);
     };
   }, []);
 
@@ -408,20 +453,16 @@ const ConsultAIPage = () => {
             <Button onClick={startConsultationSession} isDisabled={loading} colorScheme="blue" marginTop="10px" mr={2}>
               {loading ? <Spinner size="sm" /> : 'Start Consultation'}
             </Button>
-            
-              <Tooltip label={isTranscriptionPanelOpen ? "Hide Transcription" : "Show Transcription"} placement="bottom">
-                <IconButton
-                  icon={<MdTextFields />}
-                  aria-label="Toggle Transcription"
-                  variant="ghost"
-                  onClick={toggleTranscriptionPanel}
-                  isRound={true}
-                />
-              </Tooltip>
-             
+            <Tooltip label={isTranscriptionPanelOpen ? "Hide Transcription" : "Show Transcription"} placement="bottom">
+              <IconButton
+                icon={<MdTextFields />}
+                aria-label="Toggle Transcription"
+                variant="ghost"
+                onClick={toggleTranscriptionPanel}
+                isRound={true}
+              />
+            </Tooltip>
           </Flex>
-
-
           <HStack mt={2} justify="center">
             <Button
               onClick={toggleTranscription}
@@ -429,7 +470,7 @@ const ConsultAIPage = () => {
               borderRadius="50%"
               width="40px"
               height="40px"
-              isDisabled={wsStatus !== 'Connected'} // Disable when not connected
+              isDisabled={wsStatus !== 'Connected'}
             >
               <Icon as={isTranscribing ? MdStop : MdMic} boxSize={8} />
             </Button>
@@ -437,56 +478,18 @@ const ConsultAIPage = () => {
           </HStack>
         </Flex>
 
-        {/* Transcription Section (Desktop - Above Content in full width) */}
-       
-
-
         {/* Content Area */}
-        <Flex flex="1" overflow="hidden" direction={!isMobile && isBottomTabVisible ? "row" : "column" }> {/* Row direction on desktop with bottom tab visible */}
+        <Flex flex="1" overflow="hidden" direction={!isMobile && isBottomTabVisible ? "row" : "column" }>
 
-          {/* Launch Researcher (Chat Screen) - Left on Desktop */}
-          {(!isMobile && isBottomTabVisible) && (
-            <Box
-              width="30%"
-              overflow="auto"
-              p="2"
-              bg="white"
-              boxShadow="md"
-              borderRadius="md"
-              mr={2}
-              order={1} // Position to the left
-              display={activeScreen === "chat" ? "block" : "none"} // Show ChatScreen
-            >
-              <ChatScreen
-                chatMessages={chatMessages}
-                setChatMessages={setChatMessages}
-                reviewId={reviewId}
-                setReviewId={setReviewId}
-                ite={ite}
-              />
-            </Box>
-          )}
-           {/* Transcription Section (Desktop) - Middle */}
-          {(!isMobile && isBottomTabVisible && isTranscriptionPanelOpen) && (
-            <Box
-              width="26%" // Desktop Transcription width
-              overflow="auto"
-              p="2"
-              bg="white"
-              boxShadow="md"
-              borderRadius="md"
-              mr={2} // Add some right margin
-              order={2} // Position in the middle
-            >
-              <Text fontSize="sm" color="gray.600" fontWeight="bold" mb="2">Transcription</Text>
-              <Box bg="gray.100" p={2} borderRadius="md" h="calc(100% - 50px)" overflowY="auto"> {/* Adjust height as needed */}
-                <Text fontSize="md">{transcript}</Text>
-              </Box>
-            </Box>
-          )}
-
-          <Box flex="1" overflow="auto" p="2" maxWidth={(!isMobile && isBottomTabVisible) ? 'auto' : (isProfileOpen && !isMobile ? '40%' : '100%')} transition="max-width 0.3s" order={(!isMobile && isBottomTabVisible) ? 3 : 1 }>
-            {patientInfo && !(!isMobile && isBottomTabVisible) && ( // Hide patient info section on desktop when bottom tab is visible and layout is changed
+          {/* Left Side (ChatScreen/VoiceNote) - 70% on Desktop */}
+          <Box
+            width={!isMobile && isBottomTabVisible ? "30%" : "100%"}
+            flex="1" // Take remaining space on mobile
+            overflow="auto"
+            p="2"
+            position="relative" // For transcription overlay positioning
+          >
+            {patientInfo && !(!isMobile && isBottomTabVisible) && ( // Patient Info on top for mobile/default desktop
               <Box bg="white" p="4" mb="4" borderRadius="md" boxShadow="md">
                 <Text fontWeight="bold" mb="2">Patient Information</Text>
                 {Object.entries(patientInfo).map(([key, value]) => (
@@ -494,7 +497,6 @@ const ConsultAIPage = () => {
                 ))}
               </Box>
             )}
-            {/* Both screens are always mounted; visibility toggled via CSS */}
             <Box display={activeScreen === "voice" ? "block" : "none"}>
               <VoiceNoteScreen
                 phoneNumber={phoneNumber}
@@ -505,41 +507,95 @@ const ConsultAIPage = () => {
                 wsStatus={wsStatus}
               />
             </Box>
+            <Box display={activeScreen === "chat" ? "block" : "none"}>
+              <ChatScreen
+                chatMessages={chatMessages}
+                setChatMessages={setChatMessages}
+                reviewId={reviewId}
+                phoneNumber={phoneNumber}
+                setReviewId={setReviewId}
+                ite={ite}
+              />
+            </Box>
 
-             {/* Transcription Section (Mobile - full width) */}
-            {isMobile && realtimeStarted && isTranscriptionPanelOpen && (
-              <Box mt={2} p={2} bg="white" boxShadow="md" borderRadius="md" width="100%">
-                <Text fontSize="sm" color="gray.600">Realtime Transcript:</Text>
-                <Text fontSize="md">{transcript}</Text>
+            {/* Transcription Overlay */}
+            {isTranscriptionPanelOpen && (
+              <Box
+                position="fixed" // Overlay position
+                top={boxPosition.top} // Use state for top position
+                left={boxPosition.left} // Use state for left position
+                right="auto" // Remove right to allow left to control horizontal position
+                bottom="auto" // Remove bottom to allow top to control vertical position
+                maxWidth="400px" // Use max-width for width control - adjust as needed
+                height="40vh" // Set a fixed height for the outer box to enable scrolling within it
+                bg="rgba(255, 255, 255, 0.95)" // Semi-transparent white background
+                zIndex="12" // Higher z-index to overlay everything
+                p={5}
+                overflowY="auto" // Enable vertical scrolling on the OUTER Box
+                borderRadius="md" // Added border radius for a softer look
+                boxShadow="lg" // Added box shadow for better visual separation
+                onMouseDown={handleMouseDown} // Add mouse down handler to start dragging
+                style={{ cursor: 'grab' }} // Change cursor to grab to indicate draggable
+              >
+                <Flex justify="space-between" align="center" mb={4}>
+                  <Text fontWeight="bold" fontSize="lg">Realtime Transcription</Text>
+                  <IconButton icon={<MdClose />} aria-label="Close transcription" onClick={toggleTranscriptionPanel} size="sm" />
+                </Flex>
+                <Box
+                  bg="gray.100"
+                  p={2}
+                  borderRadius="md"
+                  overflowY="auto" // Enable vertical scrolling on the INNER Box as well (redundant but good to have)
+                  maxHeight="calc(100% - 60px)" // Limit height of inner box to trigger scrolling in outer box - Adjust 60px based on padding/header
+                >
+                  <Text fontSize="md">{transcript}</Text>
+                </Box>
               </Box>
             )}
           </Box>
 
-
-          {/* Patient Profile Display (Document panel) - Right on Desktop */}
-          {(isMobile || isProfileOpen || (!isMobile && isBottomTabVisible)) && ( // Keep profile open on desktop if bottom tab is visible
+          {/* Right Side (Document Panel) - 30% on Desktop, Slide-in on Mobile */}
+          { (isBottomTabVisible) && (
             <Box
-              position={isMobile ? 'fixed' : (!isMobile && isBottomTabVisible ? 'relative' : 'relative')} // Keep relative on desktop when bottom tab visible
-              top="0"
-              right={isMobile ? (isProfileOpen ? '0' : '-100%') : (!isMobile && isBottomTabVisible ? '0' : isProfileOpen ? '0' : '-60%')} // Always show on desktop if bottom tab is visible
-              height={isMobile ? '100vh' : (!isMobile && isBottomTabVisible ? 'auto' : '100%')} // Auto height on desktop when bottom tab visible
-              width={isMobile ? '100%' : (!isMobile && isBottomTabVisible ? '44%' : '64%')} // Adjust width on desktop when bottom tab visible
+              width={!isMobile && isBottomTabVisible ? "70%" : "100%"}
               bg="white"
               boxShadow="md"
-              transition={isMobile ? 'right 0.3s' : 'right 0.3s, max-width 0.3s'}
               zIndex="2"
               overflowY="auto"
-              p={1}
-              display={(!isMobile && isBottomTabVisible) && 'block'} // Show as side panel on desktop when bottom tab is visible
-              order={4} // Position to the right on desktop
+              p={4}
+              display={!isMobile && isBottomTabVisible ? 'block' : 'none'} // Show on desktop when bottom tab is visible
             >
-              <Flex justify="space-between" align="center" mb={1}>
+              <Flex justify="space-between" align="center" mb={4} display={!isMobile ? 'none' : 'flex'}> {/* Hide title on desktop split view */}
                 <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
                 <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
               </Flex>
               <PatientProfileDisplay reviewid={reviewId} wsStatus={wsStatus} />
             </Box>
           )}
+
+            {/* Mobile Document Slide-in */}
+            {isMobile && isBottomTabVisible && isProfileOpen && (
+              <Box
+                position="fixed"
+                top="0"
+                left="0"
+                right="0"
+                bottom="0"
+                bg="white"
+                boxShadow="md"
+                zIndex="1100"
+                overflowY="auto"
+                p={4}
+                transition="transform 0.3s ease-in-out"
+                transform={isProfileOpen ? "translateX(0)" : "translateX(100%)"} // Slide in/out
+              >
+                <Flex justify="space-between" align="center" mb={4}>
+                  <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
+                  <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
+                </Flex>
+                <PatientProfileDisplay reviewid={reviewId} wsStatus={wsStatus} />
+              </Box>
+            )}
         </Flex>
 
         {/* Bottom Tabs */}
@@ -557,54 +613,45 @@ const ConsultAIPage = () => {
             pb={4}
             borderRadius="md"
           >
-
-              <Tabs
-                index={bottomTabIndex}
-                onChange={handleBottomTabChange}
-                isFitted
-                variant="enclosed-colored"
-                colorScheme="blue"
-                maxwidth="100%"
-                align="center"
-                style={{ display: 'flex' }}
-              >
-                <TabList bg="white" borderRadius="md" justifyContent="center">
-                  <>
-                    <Tab _selected={{ color: 'white', bg: 'blue.500' }} position="relative" width="14rem">
-                      Researcher
-                      {hasNewMessage && activeScreen === "chat" && (
-                        <Box
-                          position="absolute"
-                          top="-2px"
-                          right="-2px"
-                          width="8px"
-                          height="8px"
-                          borderRadius="50%"
-                          bg="red.500"
-                          border="1px solid white"
-                        />
-                      )}
-                    </Tab>
-                    <Tab _selected={{ color: 'white', bg: 'blue.500' }}>
-                      <Flex align="center">
-                        <MdNotes style={{ marginRight: '0.5rem' }} />
-                        Document
-                      </Flex>
-                    </Tab>
-                  </>
-                </TabList>
-              </Tabs>
-
+            <Tabs
+              index={bottomTabIndex}
+              onChange={handleBottomTabChange}
+              isFitted
+              variant="enclosed-colored"
+              colorScheme="blue"
+              maxwidth="100%"
+              align="center"
+              style={{ display: 'flex' }}
+            >
+              <TabList bg="white" borderRadius="md" justifyContent="center">
+                <>
+                  <Tab _selected={{ color: 'white', bg: 'blue.500' }} position="relative" width="14rem">
+                    Researcher
+                    {hasNewMessage && activeScreen === "chat" && (
+                      <Box
+                        position="absolute"
+                        top="-2px"
+                        right="-2px"
+                        width="8px"
+                        height="8px"
+                        borderRadius="50%"
+                        bg="red.500"
+                        border="1px solid white"
+                      />
+                    )}
+                  </Tab>
+                  <Tab _selected={{ color: 'white', bg: 'blue.500' }}>
+                    <Flex align="center">
+                      <MdNotes style={{ marginRight: '0.5rem' }} />
+                      Document
+                    </Flex>
+                  </Tab>
+                </>
+              </TabList>
+            </Tabs>
           </Center>
         )}
-         {/* Transcription Section Toggle for Mobile - Always Visible */}
-        
-           {realtimeStarted && isTranscriptionPanelOpen && isMobile && ( // Mobile Transcript Box
-          <Box mt={2} p={2} bg="white" boxShadow="md" borderRadius="md" width="100%" position="fixed" bottom="50px" zIndex="1100" maxHeight="30vh" overflowY="auto"> {/* Adjust maxHeight and bottom as needed */}
-            <Text fontSize="sm" color="gray.600">Realtime Transcript:</Text>
-            <Text fontSize="md">{transcript}</Text>
-          </Box>
-        )}
+
       </Flex>
     </ChakraProvider>
   );

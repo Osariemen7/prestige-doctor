@@ -40,7 +40,7 @@ const VoiceNoteScreen = ({
     <Box overflowY="auto" padding="2px" height="87vh" display="flex" flexDirection="column">
       <VStack spacing={4} align="stretch">
 
-        <Box padding="10px">
+        <Box padding="10px" w={{ base: '100%', md: '50%' }} boxShadow="md" rounded="md">
           {phoneNumberVisible && !removePhoneNumberInput && ( // <---- Conditionally render based on phoneNumberVisible prop
             <Input
               placeholder="Enter phone number of Patient"

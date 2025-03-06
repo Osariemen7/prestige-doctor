@@ -18,7 +18,12 @@ import {
   Paper,
   ToggleButton,
   ToggleButtonGroup,
-  useMediaQuery
+  useMediaQuery,
+  Button,
+  FormControl,
+  Select,
+  MenuItem,
+  Alert
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -97,116 +102,49 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
 };
 
 // ----------------------------------------------------
-// 3. ChatScreen: Now supports two message sources and lets the user choose which AI to chat with.
+// 3. ChatScreen: Chat interface that supports multiple AI modes and expert level selection.
 // ----------------------------------------------------
 const ChatScreen = ({
   phoneNumber,
   ws,          // WebSocket reference (passed in from parent)
   wsStatus,
-  reviewId,
-  sendOobRequest,
-  chatMessages,   // WebSocket messages state (prop)
-  setChatMessages // Setter for WebSocket messages (prop)
+  chatMessages,
+  setChatMessages
 }) => {
-  // Local state for researcher API messages
-  const [researcherMessages, setResearcherMessages] = useState([]); // Renamed to researcherMessages
+  // Local state
   const [message, setMessage] = useState('');
   const [threadId, setThreadId] = useState(null);
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [error, setError] = useState('');
-  // New state to track which AI to send messages to: 'researcher' or 'websocket'
+  // AI mode: 'researcher' or 'websocket' (only researcher enabled for now)
   const [activeAI, setActiveAI] = useState('researcher');
+  // Expert level for AI responses
+  const [expertLevel, setExpertLevel] = useState('low');
+  // Dummy selectedPatient state (if needed in your API payload)
+  const [selectedPatient, setSelectedPatient] = useState(null);
+
+  // Dummy showSnackbar implementation
+  const showSnackbar = (msg, severity) => {
+    setError(msg);
+  };
+
   const theme = createTheme();
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
-  const isMobile = useMediaQuery('(max-width: 768px)')
-
-  const handleSendMessage = useCallback(async () => {
-    if (!message.trim()) return;
-    const currentMessage = message;
-    setMessage('');
-    const timestamp = Date.now();
-
-    if (activeAI === 'researcher') {
-      // Researcher API flow:
-      setIsResponseLoading(true);
-      try {
-        const token = await getAccessToken();
-        const apiUrl = 'https://health.prestigedelta.com/research/';
-        const payload = { query: currentMessage, expertise_level: 'high' };
-        if (threadId) payload.thread_id = threadId;
-
-        // Add user's message to the researcher conversation - using setResearcherMessages
-        const userMessage = { role: 'user', content: currentMessage, timestamp, source: 'researcher' };
-        setResearcherMessages((prev) => [...prev, userMessage]); // Using setResearcherMessages
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
-        const data = await response.json();
-        console.log("Researcher API Response:", data); // Log the response for debugging
-        if (data.thread_id) setThreadId(data.thread_id);
-        setIsSourcesVisible(false);
-
-        if (data.assistant_response) {
-          const assistantMessage = {
-            role: 'assistant',
-            content: data.assistant_response,
-            citations: data.citations,
-            timestamp: Date.now(),
-            source: 'researcher'
-          };
-          setResearcherMessages((prev) => [...prev, assistantMessage]); // Using setResearcherMessages
-        }
-      } catch (error) {
-        console.error('Error sending message to Researcher API:', error);
-        setError('Sorry, I encountered an error with Researcher AI. Please try again later.');
-        const errorMessage = {
-          role: 'assistant',
-          content: 'Sorry, I encountered an error with Researcher AI. Please try again later.',
-          timestamp: Date.now(),
-          source: 'researcher'
-        };
-        setResearcherMessages((prev) => [...prev, errorMessage]); // Using setResearcherMessages
-      } finally {
-        setIsResponseLoading(false);
-      }
-    } else if (activeAI === 'websocket') {
-      // WebSocket flow:
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        const userMessage = { role: 'user', content: currentMessage, timestamp, source: 'websocket' };
-        setChatMessages((prev) => [...prev, userMessage]); // Using setChatMessages for websocket messages
-        ws.current.send(JSON.stringify({ type: 'chat_message', message: currentMessage })); // Changed type to 'chat_message'
-      } else {
-        setError('WebSocket is not connected.');
-      }
-    }
-  }, [message, activeAI, threadId, ws, setChatMessages, setResearcherMessages]); // Added setResearcherMessages to useCallback dependencies
-
-  const getDomainFromUrl = (url) => {
-    try {
-      const urlObj = new URL(url);
-      return urlObj.hostname;
-    } catch (e) {
-      return url;
-    }
+  // Minimal styling helper for messages based on role
+  const getMessageStyle = (chat) => {
+    return chat.role === 'user'
+      ? { backgroundColor: '#e0f7fa', alignSelf: 'flex-end' }
+      : { backgroundColor: '#f0f0f0', alignSelf: 'flex-start' };
   };
 
-  const handleSourcesToggle = () => {
-    setIsSourcesVisible((prev) => !prev);
+  // Handle input changes
+  const handleTyping = (e) => {
+    setMessage(e.target.value);
   };
 
-  const handleTyping = (event) => {
-    setMessage(event.target.value);
-    // Optionally, trigger an out-of-band request here
-    // if (event.target.value.trim() !== '') sendOobRequest();
-  };
-
+  // Extract <think> block from the assistant's response, if any
   const extractThinkContent = (text) => {
     const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
     const thinkContent = thinkMatch ? thinkMatch[1].trim() : null;
@@ -214,32 +152,106 @@ const ChatScreen = ({
     return { thinkContent, remainingContent };
   };
 
-  // Combine both message arrays and sort by timestamp so that conversation flows naturally
-  const combinedMessages = [...chatMessages, ...researcherMessages].sort((a, b) => a.timestamp - b.timestamp); // Using researcherMessages
-
-  // A simple function to determine the styling based on message source and role.
-  const getMessageStyle = (message) => {
-    if (message.role === 'user') {
-      return {
-        backgroundColor: '#d1e7dd', // Light green for user
-        textAlign: 'right',
-      };
-    } else if (message.role === 'assistant') {
-      // Use different colors for the two AIs:
-      if (message.source === 'researcher') {
-        return {
-          backgroundColor: '#f8d7da', // Light red for researcher AI
-          textAlign: 'left',
-        };
-      } else if (message.source === 'websocket') {
-        return {
-          backgroundColor: '#cff4fc', // Light blue for websocket AI
-          textAlign: 'left',
-        };
-      }
-    }
-    return {};
+  const handleSourcesToggle = () => {
+    setIsSourcesVisible((prev) => !prev);
   };
+
+  // Use chatMessages directly (or merge with any additional messages as needed)
+  const combinedMessages = chatMessages;
+
+  // Handle sending a message
+  const handleSendMessage = useCallback(async () => {
+    if (!message.trim()) return;
+
+    const currentMessage = message;
+    setMessage('');
+    setIsResponseLoading(true);
+
+    try {
+      const token = await getAccessToken();
+      const apiUrl = "https://health.prestigedelta.com/research/";
+      const payload = { query: currentMessage, expertise_level: expertLevel };
+      if (threadId) {
+        payload.thread_id = threadId;
+      }
+      payload.phone_number = phoneNumber;
+      if (selectedPatient) {
+        if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
+          payload.patient_phone = selectedPatient.phone_number;
+        } else {
+          payload.patient_id = selectedPatient.id;
+        }
+      }
+
+      // Append user's message
+      const userMessage = { role: "user", content: currentMessage };
+      setChatMessages((prev) => [...prev, userMessage]);
+
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.body) {
+        throw new Error("No response body");
+      }
+
+      // Append a placeholder for assistant response
+      let assistantMessage = { role: "assistant", content: "", citations: [] };
+      setChatMessages((prev) => [...prev, assistantMessage]);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let buffer = "";
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n");
+        buffer = parts.pop();
+
+        parts.forEach((part) => {
+          if (part.trim()) {
+            try {
+              const parsed = JSON.parse(part);
+              if (parsed.thread_id) {
+                setThreadId(parsed.thread_id);
+              }
+              if (parsed.assistant_response_chunk) {
+                assistantMessage.content = parsed.accumulated_response;
+                assistantMessage.citations = parsed.citations;
+                setChatMessages((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { ...assistantMessage };
+                  return updated;
+                });
+              }
+            } catch (error) {
+              console.error("Error parsing JSON chunk:", error);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      showSnackbar("Sorry, I encountered an error. Please try again later.", 'error');
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please try again later.",
+        },
+      ]);
+    } finally {
+      setIsResponseLoading(false);
+    }
+  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, setChatMessages]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -260,6 +272,7 @@ const ChatScreen = ({
             <ToggleButton value="researcher" sx={{ color: '#1976d2', borderColor: '#1976d2' }}>
               Researcher AI
             </ToggleButton>
+            {/* Uncomment the below ToggleButton if you implement Consult AI */}
             {/* <ToggleButton value="websocket" sx={{ color: '#1976d2', borderColor: '#1976d2' }}>
               Consult AI
             </ToggleButton> */}
@@ -267,7 +280,7 @@ const ChatScreen = ({
         </Box>
 
         {/* Chat messages */}
-        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2, }}>
+        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
           <List>
             {combinedMessages.map((chat, index) => (
               <ListItem
@@ -279,8 +292,8 @@ const ChatScreen = ({
                   primary={
                     chat.role === 'assistant' && isResponseLoading && index === combinedMessages.length - 1 ? (
                       <CircularProgress size={24} />
-                    ) :  chat.role !== 'assistant' ? (
-                      chat.content // Display user message here directly
+                    ) : chat.role !== 'assistant' ? (
+                      chat.content
                     ) : null
                   }
                   secondary={
@@ -346,7 +359,7 @@ const ChatScreen = ({
                                         textDecoration: 'underline',
                                       }}
                                     >
-                                      {getDomainFromUrl(citation)}
+                                      {new URL(citation).hostname}
                                     </Link>
                                   </Typography>
                                 ))}
@@ -390,20 +403,46 @@ const ChatScreen = ({
             value={message}
             onChange={handleTyping}
             onKeyPress={(e) => {
-              if (e.key === 'Enter') handleSendMessage();
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
             }}
           />
-          <IconButton
-            color="primary"
-            aria-label="send"
-            onClick={handleSendMessage}
-            disabled={!message.trim()}
-          >
+          <IconButton color="primary" aria-label="send" onClick={handleSendMessage} disabled={!message.trim()}>
             <SendIcon />
           </IconButton>
         </Paper>
+
+        {/* Expert Level Selection */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', p: 2 }}>
+          <FormControl variant="standard" sx={{ minWidth: 120 }}>
+            <Select
+              value={expertLevel}
+              onChange={(e) => setExpertLevel(e.target.value)}
+              displayEmpty
+            >
+              <MenuItem value="low">
+                <em>AI Level</em>
+              </MenuItem>
+              <MenuItem value="low">Basic ₦50</MenuItem>
+              <MenuItem value="medium">Intermediate ₦200</MenuItem>
+              <MenuItem value="high">Advanced ₦500</MenuItem>
+            </Select>
+          </FormControl>
+          {expertLevel === 'high' && (
+            <Typography variant="caption" color="textSecondary">
+              Advanced responses might take a few minutes.
+            </Typography>
+          )}
+        </Box>
       </Box>
-      <Snackbar open={Boolean(error)} autoHideDuration={6000} onClose={() => setError('')} message={error} />
+
+      <Snackbar open={Boolean(error)} autoHideDuration={6000} onClose={() => setError('')}>
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
     </ThemeProvider>
   );
 };
