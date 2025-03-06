@@ -204,14 +204,16 @@ const SearchBox = () => {
           }
         });
       }
-    } catch (error) {
+    }catch (error) {
       console.error("Error sending message:", error);
-      showSnackbar("Sorry, I encountered an error. Please try again later.", 'error');
+      // If error contains a specific message from the backend, use it:
+      const errorMessage = error?.message || "Sorry, I encountered an error. Please try again later.";
+      showSnackbar(errorMessage, 'error');
       setChatMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Sorry, I encountered an error. Please try again later.",
+          content: errorMessage,
         },
       ]);
     } finally {
