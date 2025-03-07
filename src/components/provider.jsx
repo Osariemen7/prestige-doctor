@@ -130,13 +130,14 @@ const ProviderPage = () => {
       <Paper
         elevation={3}
         sx={{
-          position: 'relative',
+        
           width: '100%',
           maxWidth: 500,
           p: 4,
           bgcolor: 'rgba(255, 255, 255, 0.8)',
           backdropFilter: 'blur(10px)',
           borderRadius: 2,
+          marginTop: '13%'
         }}
       >
         <IconButton
