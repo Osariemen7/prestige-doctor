@@ -25,7 +25,6 @@ const ProviderPage = () => {
   });
   const [bio, setBio] = useState('');
   const [message, setMessage] = useState('');
-  const [accessToken, setAccessToken] = useState('');
   const [amount, setAmount] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const navigate = useNavigate();
@@ -54,19 +53,48 @@ const ProviderPage = () => {
     {value:'nurse', label:'Nurse'},
 ]
 
-  const getAccessToken = async () => {
-    try {
-      const userInfo = localStorage.getItem('user-info');
-      const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
-      if (parsedUserInfo) {
-        setAccessToken(parsedUserInfo.access);
-        console.log('Access Token:', parsedUserInfo.access);
-      } else {
-        console.log('No user information found in storage.');
-      }
-    } catch (error) {
-      console.error('Error fetching token:', error);
+const getRefreshToken = async () => {
+  try {
+    const userInfo = localStorage.getItem('user-info'); // Use localStorage for web storage
+    const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
+    if (parsedUserInfo) {
+      console.log('Access Token:', parsedUserInfo.access);
+      return parsedUserInfo.refresh; // Return the access token
+      
+    } else {
+      console.log('No user information found in storage.');
+      return null;
     }
+  } catch (error) {
+    console.error('Error fetching token:', error);
+    return null;
+  }
+  
+};
+
+   const getAccessToken = async () => {
+    let refresh = await getRefreshToken()
+    let term = {refresh}
+    let rep = await fetch ('https://health.prestigedelta.com/tokenrefresh/',{
+        method: 'POST',
+        headers:{
+          'Content-Type': 'application/json',
+          'accept' : 'application/json'
+     },
+     body:JSON.stringify(term)
+    });
+    rep = await rep.json();
+    if (rep.status === 400) {
+      
+    }
+    if (rep) {
+      console.log('Access Token:', rep.access);
+      
+      return rep.access // Return the access token
+      
+      
+    } 
+  
   };
 
   useEffect(() => {
@@ -85,12 +113,12 @@ const ProviderPage = () => {
       specialty: specialty,
       qualifications: qualifications?.value,
       date_of_registration: dateOfRegistration,
-      provider_type: provider,
+      provider_type: provider?.value,
       bio: bio,
-      rate_per_minute: amount,
+      rate_per_hour: amount,
       rate_currency: 'NGN',
     };
-
+    const accessToken = await getAccessToken();
     try {
       const response = await fetch('https://health.prestigedelta.com/provider/', {
         method: 'POST',
@@ -228,7 +256,7 @@ const ProviderPage = () => {
           />
           <FormControl fullWidth>
             <TextField
-              label="Amount to be paid per minute"
+              label="Amount to be paid per hour"
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
