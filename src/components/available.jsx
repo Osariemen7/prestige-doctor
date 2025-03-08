@@ -141,6 +141,8 @@ const AvailabilitySelector = () => {
         alignItems: 'center',
         justifyContent: 'center',
         p: 2,
+        overflowY: 'auto',
+        
       }}
     >
       <Paper
@@ -151,6 +153,7 @@ const AvailabilitySelector = () => {
           p: 4,
           borderRadius: 2,
           bgcolor: 'rgba(255, 255, 255, 0.95)',
+          marginTop: '17%'
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
