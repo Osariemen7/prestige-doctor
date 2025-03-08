@@ -543,10 +543,11 @@ const ExpertLevelSelector = ({ expertLevel, setExpertLevel }) => {
 // ----------------------------------------------------
 const ChatScreen = ({
   phoneNumber,
-  ws,          // WebSocket reference (passed in from parent)
+  transcript,          // WebSocket reference (passed in from parent)
   wsStatus,
   chatMessages,
-  setChatMessages
+  setChatMessages,
+  thread
 }) => {
   // Local state
   const [message, setMessage] = useState('');
@@ -587,14 +588,19 @@ const ChatScreen = ({
       const payload = { query: currentMessage, expertise_level: expertLevel };
       if (threadId) {
         payload.thread_id = threadId;
+      } else {
+        payload.thread_id =thread      
       }
-      payload.phone_number = phoneNumber;
+      payload.patient_number = `+234${phoneNumber.slice(1)}`
       if (selectedPatient) {
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
           payload.patient_phone = selectedPatient.phone_number;
         } else {
           payload.patient_id = selectedPatient.id;
         }
+      }
+      if (transcript) {
+        payload.transcript = transcript;
       }
 
       // Append user's message
@@ -654,6 +660,7 @@ const ChatScreen = ({
       }
     } catch (error) {
       console.error("Error sending message:", error);
+      const errorMessage = error?.message || "Sorry, I encountered an error. Please try again later.";
       setChatMessages((prev) => [
         ...prev,
         {
@@ -678,84 +685,7 @@ const ChatScreen = ({
         }}
       >
         {/* Header with AI selection */}
-        <Paper
-          elevation={2}
-          sx={{
-            py: 2,
-            px: 3,
-            color: 'text.primary',
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-            borderRadius: 0,
-          }}
-        >
-          <Box sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 2,
-          }}>
-            <Typography
-              variant="h6"
-              component="h1"
-              sx={{
-                fontWeight: 600,
-                fontSize: { xs: '1.1rem', sm: '1.25rem' },
-              }}
-            >
-              Health Research Assistant
-            </Typography>
-
-            <ToggleButtonGroup
-              value={activeAI}
-              exclusive
-              onChange={(e, newAI) => {
-                if (newAI !== null) setActiveAI(newAI);
-              }}
-              size={isMobile ? "small" : "medium"}
-            >
-              <ToggleButton value="researcher">
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <MenuBookIcon fontSize="small" />
-                  <Typography
-                    sx={{
-                      display: { xs: 'none', sm: 'block' }
-                    }}
-                  >
-                    Researcher AI
-                  </Typography>
-                </Box>
-              </ToggleButton>
-              {/* Uncomment the below ToggleButton if you implement Consult AI */}
-              {/* <ToggleButton value="websocket">
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SmartToyIcon fontSize="small" />
-                  <Typography
-                    sx={{
-                      display: { xs: 'none', sm: 'block' }
-                    }}
-                  >
-                    Consult AI
-                  </Typography>
-                </Box>
-              </ToggleButton> */}
-            </ToggleButtonGroup>
-          </Box>
-
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{
-              mt: 1,
-              display: { xs: 'none', sm: 'block' },
-            }}
-          >
-            Ask any medical or health-related question for evidence-based answers
-          </Typography>
-        </Paper>
-
+      
         {/* Main content area with messages */}
         <Box
           sx={{

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Container,
@@ -61,7 +61,7 @@ const theme = createTheme({
   },
 });
 
-const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
+const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentationSaved, transcript }, ref) => {
   // "data" will hold the entire API response
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -73,6 +73,7 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [parentalSetIsDocumentationSaved, setParentalSetIsDocumentationSaved] = useState(() => setIsDocumentationSaved);
 
   // Destructure the API response.
   // If data is empty, default to empty objects.
@@ -149,6 +150,10 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
       let inputType = 'text';
       if (key === 'next_review' && editingSection === 'review') {
         inputType = 'datetime-local'; // Set input type to datetime-local for next_review
+      } else if ((key === 'target_date' || key === 'action_end_date') && editingSection === 'goals') {
+        inputType = 'date'; // Set input type to date for target_date and action_end_date in goals section
+      } else if (key === 'date_of_birth' && editingSection === 'profile') {
+        inputType = 'date'; // Set input type to date for date_of_birth in profile section
       }
 
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -323,17 +328,34 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
         setSnackbarSeverity('error');
         setSnackbarMessage('Patient name is required.');
         setSnackbarOpen(true);
-        return;
+        return false; // Indicate failure
       }
     }
     if (editingSection === 'goals') {
       const healthGoal =
         editableData?.goal_data?.goal_data?.goal_name || '';
+      if (transcript) {
+        editableData.transcript = transcript
+      }
+      if (thread) {
+        editableData.thread_id = thread
+      }
       if (!healthGoal || healthGoal.trim() === '') {
         setSnackbarSeverity('error');
         setSnackbarMessage('Health goal is required.');
         setSnackbarOpen(true);
-        return;
+        return false; // Indicate failure
+      }
+
+      if (editableData?.goal_data?.goal_data?.target_date) {
+        const targetDate = new Date(editableData.goal_data.goal_data.target_date);
+        const currentDate = new Date();
+        if (targetDate < currentDate) {
+          setSnackbarSeverity('error');
+          setSnackbarMessage('Target date must be in the future.');
+          setSnackbarOpen(true);
+          return false; // Indicate failure
+        }
       }
     }
 
@@ -341,9 +363,14 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
     try {
       // Send the entire editableData back to the API
       const payload = editableData;
+
+      // --- ADD THESE LOGS FOR DEBUGGING ---
+      console.log("Payload being sent to API:", JSON.stringify(payload, null, 2)); // Log the payload as formatted JSON
+      console.log("Current editableData state:", JSON.stringify(editableData, null, 2)); // Log the editableData state
+
       const accessToken = await getAccessToken();
-      await axios.put(
-        `https://health.prestigedelta.com/documentreview/${reviewid}/aggregate-data/`,
+      const response = await axios.post(
+        `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
         payload,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -356,11 +383,14 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
       setSnackbarSeverity('success');
       setSnackbarMessage('Data updated successfully!');
       setSnackbarOpen(true);
+      parentalSetIsDocumentationSaved(true)
+      return true; // Indicate success
     } catch (error) {
       console.error("Error submitting edits:", error);
       setSnackbarSeverity('error');
       setSnackbarMessage('Failed to update data.');
       setSnackbarOpen(true);
+      return false; // Indicate failure
     } finally {
       setIsSaving(false);
     }
@@ -370,6 +400,13 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
     if (reason === 'clickaway') return;
     setSnackbarOpen(false);
   };
+
+  useImperativeHandle(ref, () => ({
+    handleSubmitFromParent: async () => {
+      return await handleSubmit();
+    }
+  }));
+
 
   if (loading) {
     return (
@@ -747,6 +784,6 @@ const PatientProfileDisplay = ({ reviewid, wsStatus }) => {
       </Snackbar>
     </ThemeProvider>
   );
-};
+});
 
 export default PatientProfileDisplay;

@@ -17,17 +17,38 @@ import {
   Center,
   Tooltip,
   Badge,
+  Input,
+  keyframes,
+  VStack,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Heading,
+  Divider,
 } from '@chakra-ui/react';
-import { MdNotes, MdClose, MdMic, MdStop, MdTextFields } from 'react-icons/md';
-import VoiceNoteScreen from './voicenote';
+import { MdNotes, MdClose, MdMic, MdStop, MdTextFields, MdPause, MdPlayArrow, MdMessage } from 'react-icons/md';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
 import PatientProfileDisplay from './document';
 
+const pulseAnimation = keyframes`
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+`;
+
 const ConsultAIPage = () => {
-  // ... (rest of your state variables and refs - same as before)
   const [phoneNumber, setPhoneNumber] = useState('');
   const [reviewId, setReviewId] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
@@ -47,6 +68,14 @@ const ConsultAIPage = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [realtimeStarted, setRealtimeStarted] = useState(false);
   const [animationIndex, setAnimationIndex] = useState(0);
+  const [isConsultationStarted, setIsConsultationStarted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [thread, setThread] = useState('');
+  const [isDocumentationSaved, setIsDocumentationSaved] = useState(false); // Track if documentation is saved
+  const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
+  const patientProfileRef = useRef(null);
+
+
   const animationMessages = [
     "Warming up the microphone...",
     "Connecting to our server...",
@@ -57,9 +86,9 @@ const ConsultAIPage = () => {
   const timerIntervalRef = useRef(null);
   const navigate = useNavigate();
   const toast = useToast();
-  const [isMobileOriginal] = useMediaQuery('(max-width: 768px)'); // Renamed original isMobile
-  const [isDocumentTabMobileForced, setIsDocumentTabMobileForced] = useState(false); // New state for forced mobile doc tab
-  const isMobile = isMobileOriginal || isDocumentTabMobileForced; // Combined mobile check
+  const [isMobileOriginal] = useMediaQuery('(max-width: 768px)');
+  const [isDocumentTabMobileForced, setIsDocumentTabMobileForced] = useState(false);
+  const isMobile = isMobileOriginal || isDocumentTabMobileForced;
   const wsRef = useRef(null);
   const audioContextRef = useRef(null);
   const processorRef = useRef(null);
@@ -73,7 +102,7 @@ const ConsultAIPage = () => {
   // Drag state and handlers for transcription box
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartPosition, setDragStartPosition] = useState({ x: 0, y: 0 });
-  const [boxPosition, setBoxPosition] = useState({ top: 100, left: 20 }); // Initial position
+  const [boxPosition, setBoxPosition] = useState({ top: 100, left: 20 });
 
   const handleMouseDown = (e) => {
     setIsDragging(true);
@@ -161,7 +190,7 @@ const ConsultAIPage = () => {
     }
   }, [phoneNumber]);
 
-  // --- Realtime Transcription Functions --- (same as before - important: keep the FinalTranscript logic)
+  // --- Realtime Transcription Functions ---
   const startRealtimeTranscription = () => {
     const sampleRate = 16000;
     if (!toke) {
@@ -179,20 +208,22 @@ const ConsultAIPage = () => {
       setIsBottomTabVisible(true);
       setIsTranscriptionPanelOpen(false);
       setWsStatus('Connected');
-      setIsProfileOpen(true); // Auto-open Patient Profile on WebSocket connect - FIX for auto slide-in
+      setIsProfileOpen(true);
       setTimeLeft(900);
-      timerIntervalRef.current = setInterval(() => {
-        setTimeLeft((prevTime) => {
-          if (prevTime <= 1) {
-            clearInterval(timerIntervalRef.current);
-            stopRealtimeTranscription();
-            setIsBottomTabVisible(false);
-            return 0;
-          } else {
-            return prevTime - 1;
-          }
-        });
-      }, 1000);
+      if (!isPaused) { // Start timer only if not paused initially
+        timerIntervalRef.current = setInterval(() => {
+          setTimeLeft((prevTime) => {
+            if (prevTime <= 1) {
+              clearInterval(timerIntervalRef.current);
+              stopRealtimeTranscription();
+              setIsBottomTabVisible(false);
+              return 0;
+            } else {
+              return prevTime - 1;
+            }
+          });
+        }, 1000);
+      }
     };
 
     wsRef.current.onmessage = (event) => {
@@ -200,16 +231,9 @@ const ConsultAIPage = () => {
         const data = JSON.parse(event.data);
         console.log('Transcription data:', data);
 
-        if (data.message_type === 'FinalTranscript') { // Only process FinalTranscript
+        if (data.message_type === 'FinalTranscript') {
           if (data.text) {
-            let newText = data.text;
-            const lastTranscriptPart = transcript.slice(-newText.length);
-
-            if (lastTranscriptPart.trim() === newText.trim() && lastTranscriptPart.trim() !== "") {
-              console.log("Detected repetition (FinalTranscript), skipping:", newText);
-              return;
-            }
-            setTranscript(prev => prev + ' ' + newText);
+            setTranscript(prev => prev + (prev ? '\n\n' : '') + data.text); // Add newline for each final transcript and extra line for paragraph spacing
           }
         } else if (data.message_type === 'PartialTranscript') {
           console.log("Ignoring PartialTranscript message:", data);
@@ -223,6 +247,10 @@ const ConsultAIPage = () => {
       console.error('WebSocket error:', error);
       clearInterval(timerIntervalRef.current);
       setIsBottomTabVisible(false);
+      setWsStatus('Disconnected'); // Ensure status is updated on error
+      setIsTranscribing(false); // Ensure transcribing state is updated on error
+      setRealtimeStarted(false); // Ensure realtimeStarted state is updated on error
+      setIsPaused(false); // Reset pause state on websocket error
     };
 
     wsRef.current.onclose = () => {
@@ -232,6 +260,7 @@ const ConsultAIPage = () => {
       setRealtimeStarted(false);
       clearInterval(timerIntervalRef.current);
       setIsBottomTabVisible(false);
+      setIsPaused(false); // Reset pause state on websocket close
     };
   };
 
@@ -245,10 +274,12 @@ const ConsultAIPage = () => {
       processorRef.current.connect(audioContextRef.current.destination);
 
       processorRef.current.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        const pcmData = convertFloat32ToInt16(inputData);
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(pcmData);
+        if (!isPaused) { // Only send data if not paused
+          const inputData = e.inputBuffer.getChannelData(0);
+          const pcmData = convertFloat32ToInt16(inputData);
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(pcmData);
+          }
         }
       };
     } catch (err) {
@@ -284,19 +315,161 @@ const ConsultAIPage = () => {
     setRealtimeStarted(false);
     clearInterval(timerIntervalRef.current);
     setIsBottomTabVisible(false);
+    setIsPaused(false);
   };
 
   const toggleTranscription = () => {
     if (isTranscribing) {
-      stopRealtimeTranscription();
+      pauseTranscription(); // Changed to pause instead of stop for pause/play functionality
     } else {
-      startRealtimeTranscription();
+      if (isPaused) {
+        // Resume transcription logic - restart websocket and timer
+        startRealtimeTranscription();
+        setIsPaused(false);
+      } else {
+        startConsultationSessionFlow(); // Start new consultation flow
+      }
     }
   };
 
+
+  const pauseTranscription = () => {
+    if (!isPaused) {
+      setIsPaused(true);
+      clearInterval(timerIntervalRef.current);
+      stopAudioProcessing(); // Call new function to stop audio processing
+    } else {
+      setIsPaused(false);
+      startAudioProcessing(); // Call new function to start audio processing
+      if (wsStatus === 'Connected' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        // If websocket is still open and status is connected, resume timer
+        timerIntervalRef.current = setInterval(() => {
+          setTimeLeft((prevTime) => {
+            if (prevTime <= 1) {
+              clearInterval(timerIntervalRef.current);
+              stopRealtimeTranscription(); // Stop if time runs out even when paused and resumed
+              setIsBottomTabVisible(false);
+              return 0;
+            } else {
+              return prevTime - 1;
+            }
+          });
+        }, 1000);
+      } else {
+        // If websocket is closed (maybe due to inactivity or error during pause), try to reconnect
+        startRealtimeTranscription(); // Re-establish websocket and audio stream
+      }
+    }
+  };
+
+  const stopAudioProcessing = () => {
+    if (processorRef.current) {
+      processorRef.current.disconnect(); // Disconnect processor from destination
+      processorRef.current.onaudioprocess = null; // Clear audio process handler
+    }
+    if (audioContextRef.current && audioContextRef.current.state === 'running') {
+      audioContextRef.current.suspend(); // Suspend audio context, but keep it alive
+    }
+  };
+
+  const startAudioProcessing = async () => {
+    try {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume(); // Resume audio context if suspended
+      } else if (!audioContextRef.current) {
+        // If audio context is not initialized (maybe after a full stop and restart), re-initialize stream
+        startAudioStream(); // Re-initialize audio stream if context is lost.
+        return; // Early return to avoid setting onaudioprocess again immediately if stream restart needed.
+      }
+
+
+      if (processorRef.current) {
+        processorRef.current.connect(audioContextRef.current.destination); // Reconnect processor
+        processorRef.current.onaudioprocess = (e) => { // Re-set audio process handler
+          if (!isPaused) {
+            const inputData = e.inputBuffer.getChannelData(0);
+            const pcmData = convertFloat32ToInt16(inputData);
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(pcmData);
+            }
+          }
+        };
+      } else {
+        startAudioStream(); // If processor is lost, restart entire audio stream setup.
+      }
+    } catch (err) {
+      console.error('Error restarting audio processing:', err);
+    }
+  };
+
+  const stopAudioStream = () => {
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+  };
+
+
+  const endConsultation = async () => {
+    if (!isDocumentationSaved) {
+      // Automatically trigger save in PatientProfileDisplay if documentation is not saved
+      if (patientProfileRef.current && patientProfileRef.current.handleSubmitFromParent) {
+        const saveSuccessful = await patientProfileRef.current.handleSubmitFromParent();
+        if (saveSuccessful) {
+          setIsDocumentationSaved(true); // Only set to true if save was successful
+          performEndConsultation(); // Proceed to end consultation after successful save
+        } else {
+          // Handle save failure, maybe show a toast or message
+          toast({
+            title: 'Save Failed',
+            description: 'Failed to save documentation. Please try again.',
+            status: 'error',
+            duration: 3000,
+            isClosable: true,
+          });
+          return; // Stop end consultation if save failed
+        }
+      } else {
+        onSaveModalOpen(); // Fallback to modal if ref or handleSubmit function is not available (though it should be)
+      }
+    } else {
+      performEndConsultation(); // Proceed if documentation is already saved
+    }
+  };
+
+  const performEndConsultation = () => {
+    stopRealtimeTranscription();
+    setIsConsultationStarted(false);
+    setPhoneNumber('');
+    setReviewId('');
+    setTranscript('');
+    setIsBottomTabVisible(false);
+    setIsDocumentationSaved(false); // Reset documentation saved state for new consultation
+    toast({
+      title: 'Consultation Ended',
+      description: 'Consultation has been ended and ready for new session.',
+      status: 'success',
+      duration: 3000,
+      isClosable: true,
+    });
+  };
+
+
   // --- End Realtime Transcription Functions ---
 
-  // ... (rest of your functions - same as before)
+  const startConsultationSessionFlow = async () => {
+      if (!isConsultationStarted) { // Only execute if consultation hasn't started yet
+          await startConsultationSession(); // Book appointment first
+          setIsConsultationStarted(true); // Mark consultation as started
+      }
+      startRealtimeTranscription(); // Then, start transcription
+  };
+
+
   const startConsultationSession = async () => {
     if (phoneNumber.length !== 11) {
       setErrorMessage('Please enter a valid 11-digit phone number');
@@ -336,8 +509,10 @@ const ConsultAIPage = () => {
         const result = await response.json();
         setIte(result);
         setReviewId(result.appointment.review_id);
-        console.log('Appointment booked, starting realtime transcription');
-        startRealtimeTranscription();
+        setThread(result.appointment.thread_id);
+
+        console.log('Appointment booked');
+        // Transcription starts in startConsultationSessionFlow now
       } else {
         throw new Error('Failed to book the appointment.');
       }
@@ -365,7 +540,7 @@ const ConsultAIPage = () => {
 
   const closeProfile = () => {
     setIsProfileOpen(false);
-    setIsDocumentTabMobileForced(false); // Also reset forced mobile view when closing profile
+    setIsDocumentTabMobileForced(false);
   };
 
   const toggleActiveScreen = (screenName) => {
@@ -380,22 +555,22 @@ const ConsultAIPage = () => {
     if (wsStatus === 'Connected') {
       if (index === 0) {
         toggleActiveScreen('chat');
-        setIsProfileOpen(false); // Close profile when switching to Researcher tab
-        setIsDocumentTabMobileForced(false); // Reset forced mobile view
+        setIsProfileOpen(false);
+        setIsDocumentTabMobileForced(false);
       } else if (index === 1) {
-        toggleActiveScreen('document'); // Optionally set activeScreen to document if needed
+        toggleActiveScreen('document');
         setIsProfileOpen(true);
-        setIsDocumentTabMobileForced(true); // Force mobile style for Document tab on desktop
+        setIsDocumentTabMobileForced(true);
       }
     } else {
       if (index === 0) {
-        toggleActiveScreen('voice');
-        setIsProfileOpen(false); // Close profile when switching to Voice tab
-        setIsDocumentTabMobileForced(false); // Reset forced mobile view
+        toggleActiveScreen('chat');
+        setIsProfileOpen(false);
+        setIsDocumentTabMobileForced(false);
       } else if (index === 1) {
-        toggleActiveScreen('document'); // Optionally set activeScreen to document if needed
+        toggleActiveScreen('document');
         setIsProfileOpen(true);
-        setIsDocumentTabMobileForced(true); // Force mobile style for Document tab on desktop
+        setIsDocumentTabMobileForced(true);
       }
     }
   };
@@ -418,6 +593,15 @@ const ConsultAIPage = () => {
   }, [loading]);
 
   useEffect(() => {
+    if (wsStatus === 'Connected') {
+      setActiveScreen('chat'); // Automatically switch to chat screen on websocket connect
+    } else {
+      setActiveScreen('voice'); // Default to voice screen when disconnected or initially loading
+    }
+  }, [wsStatus]);
+
+
+  useEffect(() => {
     return () => {
       if (wsRef.current) wsRef.current.close();
       if (processorRef.current) processorRef.current.disconnect();
@@ -426,9 +610,34 @@ const ConsultAIPage = () => {
     };
   }, []);
 
+  const isRecordButtonVisible = !isConsultationStarted && wsStatus !== 'Connected'; // Show record only when not started and disconnected
+  const isStopButtonVisible = isConsultationStarted && isTranscribing && !isPaused;
+  const isPausePlayButtonVisible = isConsultationStarted && isTranscribing;
+  const animation = `${pulseAnimation} 2s linear infinite`;
+
+
   return (
     <ChakraProvider>
       <Flex direction="column" height="100vh" bg="gray.50">
+        {/* Save Documentation Modal */}
+        <Modal isOpen={isSaveModalOpen} onClose={onSaveModalClose} isCentered>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Save Documentation?</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              Please save the patient documentation before ending the consultation.
+            </ModalBody>
+            <ModalFooter>
+              <Button colorScheme='blue' mr={3} onClick={() => { setIsDocumentationSaved(true); onSaveModalClose(); performEndConsultation(); }}>
+                Okay, End Consultation
+              </Button>
+              <Button variant='ghost' onClick={onSaveModalClose}>Cancel</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+
         {/* Header */}
         <Flex align="center" justify="space-between" bg="white" p="4" boxShadow="md" position="sticky" top="0" zIndex="1">
           <Flex align="center" cursor="pointer" onClick={handleBackClick}>
@@ -450,9 +659,24 @@ const ConsultAIPage = () => {
           direction="row"
         >
           <Flex align="center">
-            <Button onClick={startConsultationSession} isDisabled={loading} colorScheme="blue" marginTop="10px" mr={2}>
-              {loading ? <Spinner size="sm" /> : 'Start Consultation'}
-            </Button>
+            {!isConsultationStarted && wsStatus !== 'Connected' && ( // Conditionally render phone input
+              <Input
+                placeholder="Enter patient's phone number"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                mr={2}
+                maxWidth="50%"
+              />
+            )}
+            {!isConsultationStarted ? (
+              <Button onClick={startConsultationSessionFlow} isDisabled={loading} colorScheme="blue" mr={1}>
+                {loading ? <Spinner size="sm" /> : 'Start Consultation'}
+              </Button>
+            ) : (
+              <Button colorScheme="red" mr={2} onClick={endConsultation} isDisabled={!isConsultationStarted}>
+                End Consultation
+              </Button>
+            )}
             <Tooltip label={isTranscriptionPanelOpen ? "Hide Transcription" : "Show Transcription"} placement="bottom">
               <IconButton
                 icon={<MdTextFields />}
@@ -464,17 +688,53 @@ const ConsultAIPage = () => {
             </Tooltip>
           </Flex>
           <HStack mt={2} justify="center">
-            <Button
-              onClick={toggleTranscription}
-              colorScheme={isTranscribing ? 'red' : 'blue'}
-              borderRadius="50%"
-              width="40px"
-              height="40px"
-              isDisabled={wsStatus !== 'Connected'}
-            >
-              <Icon as={isTranscribing ? MdStop : MdMic} boxSize={8} />
-            </Button>
-            <Text>{isTranscribing ? formatTime(timeLeft) : "Record"}</Text>
+            {isPausePlayButtonVisible && (
+              <>
+                {!isPaused ? ( // Show Pause button when not paused
+                  <Box
+                    width="40px"
+                    height="40px"
+                    borderRadius="50%"
+                    bg="blue.200"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    mr={2}
+                    animation={animation}
+                  >
+                    <IconButton
+                      onClick={pauseTranscription}
+                      aria-label="Pause Transcription"
+                      icon={<Icon as={MdPause} boxSize={6} color="blue.600" />}
+                      variant="ghost"
+                      isRound={true}
+                    />
+                  </Box>
+                ) : ( // Show Play button when paused
+                  <Box
+                    width="40px"
+                    height="40px"
+                    borderRadius="50%"
+                    bg="gray.200"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    mr={2}
+                  >
+                    <IconButton
+                      onClick={pauseTranscription} // Toggling pause state will handle play/resume
+                      aria-label="Resume Transcription"
+                      icon={<Icon as={MdPlayArrow} boxSize={6} color="gray.600" />}
+                      variant="ghost"
+                      isRound={true}
+                    />
+                  </Box>
+                )}
+
+            </>
+            )}
+
+            <Text>{isTranscribing && !isPaused ? formatTime(timeLeft) : ""}</Text>
           </HStack>
         </Flex>
 
@@ -484,12 +744,12 @@ const ConsultAIPage = () => {
           {/* Left Side (ChatScreen/VoiceNote) - 70% on Desktop */}
           <Box
             width={!isMobile && isBottomTabVisible ? "30%" : "100%"}
-            flex="1" // Take remaining space on mobile
+            flex="1"
             overflow="auto"
             p="2"
-            position="relative" // For transcription overlay positioning
+            position="relative"
           >
-            {patientInfo && !(!isMobile && isBottomTabVisible) && ( // Patient Info on top for mobile/default desktop
+            {patientInfo && !(!isMobile && isBottomTabVisible) && (
               <Box bg="white" p="4" mb="4" borderRadius="md" boxShadow="md">
                 <Text fontWeight="bold" mb="2">Patient Information</Text>
                 {Object.entries(patientInfo).map(([key, value]) => (
@@ -497,16 +757,24 @@ const ConsultAIPage = () => {
                 ))}
               </Box>
             )}
-            <Box display={activeScreen === "voice" ? "block" : "none"}>
-              <VoiceNoteScreen
-                phoneNumber={phoneNumber}
-                setPhoneNumber={setPhoneNumber}
-                errorMessage={errorMessage}
-                removePhoneNumberInput={false}
-                phoneNumberVisible={true}
-                wsStatus={wsStatus}
-              />
+            {/* Voice Only Chat Screen - Hidden when wsStatus is connected */}
+            <Box display={activeScreen === "voice" && wsStatus !== "Connected" ? "block" : "none"}>
+              <Text color="red.500">{errorMessage}</Text>
+              {wsStatus !== 'Disconnected' && (
+                <Text marginTop="5px" color="green.500">
+                  {`AI Status: ${wsStatus}`}
+                </Text>
+              )}
+              {loading && (
+                <Center>
+                  <VStack>
+                    <Spinner thickness='4px' speed='0.65s' emptyColor='gray.200' color='blue.500' size='xl' />
+                    <Text mt={4}>{animationMessages[animationIndex]}</Text>
+                  </VStack>
+                </Center>
+              )}
             </Box>
+            {/* Chat Screen - Displayed when wsStatus is connected and activeScreen is chat */}
             <Box display={activeScreen === "chat" ? "block" : "none"}>
               <ChatScreen
                 chatMessages={chatMessages}
@@ -515,27 +783,29 @@ const ConsultAIPage = () => {
                 phoneNumber={phoneNumber}
                 setReviewId={setReviewId}
                 ite={ite}
+                transcript={transcript}
+                thread = {thread}
               />
             </Box>
 
             {/* Transcription Overlay */}
             {isTranscriptionPanelOpen && (
               <Box
-                position="fixed" // Overlay position
-                top={boxPosition.top} // Use state for top position
-                left={boxPosition.left} // Use state for left position
-                right="auto" // Remove right to allow left to control horizontal position
-                bottom="auto" // Remove bottom to allow top to control vertical position
-                maxWidth="400px" // Use max-width for width control - adjust as needed
-                height="40vh" // Set a fixed height for the outer box to enable scrolling within it
-                bg="rgba(255, 255, 255, 0.95)" // Semi-transparent white background
-                zIndex="12" // Higher z-index to overlay everything
+                position="fixed"
+                top={boxPosition.top}
+                left={boxPosition.left}
+                right="auto"
+                bottom="auto"
+                maxWidth="400px"
+                height="40vh"
+                bg="rgba(255, 255, 255, 0.95)"
+                zIndex="12"
                 p={5}
-                overflowY="auto" // Enable vertical scrolling on the OUTER Box
-                borderRadius="md" // Added border radius for a softer look
-                boxShadow="lg" // Added box shadow for better visual separation
-                onMouseDown={handleMouseDown} // Add mouse down handler to start dragging
-                style={{ cursor: 'grab' }} // Change cursor to grab to indicate draggable
+                overflowY="auto"
+                borderRadius="md"
+                boxShadow="lg"
+                onMouseDown={handleMouseDown}
+                style={{ cursor: 'grab' }}
               >
                 <Flex justify="space-between" align="center" mb={4}>
                   <Text fontWeight="bold" fontSize="lg">Realtime Transcription</Text>
@@ -545,8 +815,8 @@ const ConsultAIPage = () => {
                   bg="gray.100"
                   p={2}
                   borderRadius="md"
-                  overflowY="auto" // Enable vertical scrolling on the INNER Box as well (redundant but good to have)
-                  maxHeight="calc(100% - 60px)" // Limit height of inner box to trigger scrolling in outer box - Adjust 60px based on padding/header
+                  overflowY="auto"
+                  maxHeight="calc(100% - 60px)"
                 >
                   <Text fontSize="md">{transcript}</Text>
                 </Box>
@@ -562,14 +832,14 @@ const ConsultAIPage = () => {
               boxShadow="md"
               zIndex="2"
               overflowY="auto"
-              p={4}
-              display={!isMobile && isBottomTabVisible ? 'block' : 'none'} // Show on desktop when bottom tab is visible
+              p={1}
+              display={!isMobile && isBottomTabVisible ? 'block' : 'none'}
             >
-              <Flex justify="space-between" align="center" mb={4} display={!isMobile ? 'none' : 'flex'}> {/* Hide title on desktop split view */}
+              <Flex justify="space-between" align="center" mb={2} display={!isMobile ? 'none' : 'flex'}>
                 <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
                 <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
               </Flex>
-              <PatientProfileDisplay reviewid={reviewId} wsStatus={wsStatus} />
+              <PatientProfileDisplay thread={thread} reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef} />
             </Box>
           )}
 
@@ -585,15 +855,15 @@ const ConsultAIPage = () => {
                 boxShadow="md"
                 zIndex="1100"
                 overflowY="auto"
-                p={4}
+                p={2}
                 transition="transform 0.3s ease-in-out"
-                transform={isProfileOpen ? "translateX(0)" : "translateX(100%)"} // Slide in/out
+                transform={isProfileOpen ? "translateX(0)" : "translateX(100%)"}
               >
-                <Flex justify="space-between" align="center" mb={4}>
+                <Flex justify="space-between" align="center" mb={2}>
                   <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
                   <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
                 </Flex>
-                <PatientProfileDisplay reviewid={reviewId} wsStatus={wsStatus} />
+                <PatientProfileDisplay reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef}/>
               </Box>
             )}
         </Flex>
