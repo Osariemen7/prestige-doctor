@@ -6,9 +6,6 @@ import {
   Typography,
   Grid,
   Divider,
-  List,
-  ListItem,
-  ListItemText,
   IconButton,
   TextField,
   Button,
@@ -16,18 +13,22 @@ import {
   Box,
   Snackbar,
   Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  Tabs,
+  Tab,
+  AppBar,
+  Chip,
+  InputAdornment,
   FormControlLabel,
   Switch,
-  InputAdornment,
-  Chip, // Import Chip
+  Card,
+  CardHeader,
+  CardContent,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import SaveIcon from '@mui/icons-material/Save';
+import EditIcon from '@mui/icons-material/Edit';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import axios from 'axios';
 import { getAccessToken } from './api';
 
@@ -37,8 +38,11 @@ const theme = createTheme({
     primary: {
       light: '#4f83cc',
       main: '#1976d2',
-      dark: '#115293',
+      dark: '#0d47a1',
       contrastText: '#fff',
+    },
+    secondary: {
+      main: '#f4f6f8',
     },
     background: {
       default: '#f8f9fa',
@@ -74,26 +78,75 @@ const theme = createTheme({
         },
       },
     },
-    MuiAccordion: {
+    MuiAppBar: {
       styleOverrides: {
         root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-          '&:before': {
-            display: 'none',
-          },
-          marginBottom: 16,
+          boxShadow: 'none',
+          borderBottom: '1px solid #e0e0e0',
         },
       },
     },
-    MuiAccordionSummary: {
+    MuiTabs: {
       styleOverrides: {
         root: {
-          borderBottom: '1px solid #eee',
+          minHeight: 48,
+        },
+        indicator: {
+          height: 3,
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          minHeight: 48,
+          fontWeight: 500,
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 500,
+        },
+        containedPrimary: {
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          borderRadius: 8,
         },
       },
     },
   },
 });
+
+// Tab panel component
+function TabPanel(props) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`patient-tabpanel-${index}`}
+      aria-labelledby={`patient-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: { xs: 1, sm: 2 } }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
 
 const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentationSaved, transcript }, ref) => {
   const [data, setData] = useState({});
@@ -109,6 +162,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
   const [isSuggestionMode, setIsSuggestionMode] = useState(false);
   const [suggestionData, setSuggestionData] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [tabValue, setTabValue] = useState(2); // Default to Health Goals tab
 
   // Destructure the API response with default empty objects
   const { profile_data = {}, goal_data = {}, review_data = {} } = isSuggestionMode && suggestionData.documentation ? suggestionData.documentation : data;
@@ -141,6 +195,11 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
       fetchSubscribers();
     }
   }, [wsStatus, reviewid]);
+
+  // Tab change handler
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
 
   // For updating individual fields in editableData
   const handleFieldChange = (sectionKeys, value) => {
@@ -179,6 +238,10 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
       (sectionKeys.slice(0, -1).reduce((acc, k) => acc?.[k], suggestionData.documentation) || {})[`${lastKey}_suggestion`] :
       null;
 
+    const applySuggestion = () => {
+      handleFieldChange(sectionKeys, suggestedValue);
+    };
+
     return (
       <TextField
         label={lastKey.replace(/_/g, ' ')}
@@ -200,9 +263,16 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
                 color="primary"
                 size="small"
                 variant="outlined"
-                onClick={() => handleFieldChange(sectionKeys, suggestedValue)}
-                style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                onClick={applySuggestion}
+                style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}
               />
+              <Button
+                onClick={applySuggestion}
+                size="small"
+                sx={{ ml: 1, minWidth: 'auto' }}
+              >
+                <CheckCircleIcon color="primary" />
+              </Button>
             </InputAdornment>
           ),
         } : undefined}
@@ -469,6 +539,162 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
     }
   }));
 
+  // Render Health Goals Tab Content
+  const renderHealthGoalsTab = () => {
+    const goalData = editableData?.goal_data?.goal_data || {};
+    const suggestedGoalData = isSuggestionMode && suggestionData.documentation?.goal_data?.goal_data || {};
+
+    const applySuggestedGoalName = () => {
+      handleFieldChange(['goal_data', 'goal_data', 'goal_name'], suggestedGoalData.goal_name_suggestion);
+    };
+
+    const applySuggestedTargetDate = () => {
+      handleFieldChange(['goal_data', 'goal_data', 'target_date'], suggestedGoalData.target_date_suggestion);
+    };
+
+    const applySuggestedComments = () => {
+      handleFieldChange(['goal_data', 'goal_data', 'comments'], suggestedGoalData.comments_suggestion);
+    };
+
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">Headache Symptom Reduction Plan</Typography>
+          <Box>
+            <Button
+              variant="outlined"
+              startIcon={<FileCopyIcon />}
+              size="small"
+              sx={{ mr: 1 }}
+              onClick={() => handleCopyToClipboard('goals')}
+            >
+              Copy Goals
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<EditIcon />}
+              size="small"
+            >
+              Edit Goals
+            </Button>
+          </Box>
+        </Box>
+
+        <Card sx={{ mb: 3, backgroundColor: '#fffdf5', border: '1px solid #f7e8c3' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" color="primary" fontWeight={500}>
+                Suggested Goal Name:
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<CheckCircleIcon />}
+                sx={{ borderRadius: 20 }}
+                onClick={applySuggestedGoalName}
+              >
+                Apply
+              </Button>
+            </Box>
+            <Typography variant="body1" sx={{ mt: 1 }}>
+              {suggestedGoalData.goal_name_suggestion || goalData.goal_name || "Headache Symptom Reduction Plan"}
+            </Typography>
+          </CardContent>
+        </Card>
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1" color="text.secondary">Target Date</Typography>
+              <TextField
+                fullWidth
+                type="date"
+                size="small"
+                value={goalData.target_date || "2024-08-10"}
+                onChange={(e) => handleFieldChange(['goal_data', 'goal_data', 'target_date'], e.target.value)}
+              />
+              {suggestedGoalData.target_date_suggestion && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                  <Typography variant="caption" color="primary">
+                    Suggestion: {suggestedGoalData.target_date_suggestion}
+                  </Typography>
+                  <Button
+                    variant="text"
+                    color="primary"
+                    size="small"
+                    onClick={applySuggestedTargetDate}
+                  >
+                    Apply
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1" color="text.secondary">Comments</Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                size="small"
+                value={goalData.comments || "Initial goal to reduce headache frequency and intensity."}
+                onChange={(e) => handleFieldChange(['goal_data', 'goal_data', 'comments'], e.target.value)}
+              />
+              {suggestedGoalData.comments_suggestion && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                  <Typography variant="caption" color="primary">
+                    Suggestion: {suggestedGoalData.comments_suggestion}
+                  </Typography>
+                  <Button
+                    variant="text"
+                    color="primary"
+                    size="small"
+                    onClick={applySuggestedComments}
+                  >
+                    Apply
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          </Grid>
+        </Grid>
+
+        <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>Metrics</Typography>
+
+        <Card sx={{ mb: 3, backgroundColor: '#fffdf5', border: '1px solid #f7e8c3' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" color="primary" fontWeight={500}>
+                Suggested Metrics:
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<CheckCircleIcon />}
+                sx={{ borderRadius: 20 }}
+                onClick={() => {
+                  if (suggestionData.documentation?.goal_data?.goal_data?.metrics_suggestion) {
+                    handleFieldChange(['goal_data', 'goal_data', 'metrics'], suggestionData.documentation.goal_data.goal_data.metrics_suggestion);
+                  }
+                }}
+              >
+                Apply All
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {renderEditableObject(
+          goalData.metrics,
+          ['goal_data', 'goal_data', 'metrics']
+        )}
+      </Box>
+    );
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -493,396 +719,303 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
 
   return (
     <ThemeProvider theme={theme}>
-      <Box bgcolor="background.default" minHeight="100vh" py={2}>
-        <Container maxWidth="lg">
-          {/* Header with action buttons */}
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography variant="h5" color="primary">
-              Patient Documentation
-            </Typography>
-            <Box display="flex" alignItems="center" gap={2}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={isSuggestionMode}
-                    onChange={handleSuggestionSwitchChange}
-                    name="aiSuggestionSwitch"
-                    color="primary"
-                  />
-                }
-                label="AI Suggestions"
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<SaveIcon />}
-                onClick={handleSubmit}
-                disabled={isSaving || !hasChanges} // Disable save button when no changes or saving
-              >
-                {isSaving ? 'Saving...' : 'Save All Changes'}
-              </Button>
-            </Box>
+      <Box bgcolor="background.default" minHeight="100vh">
+        {/* Top Save Button Bar */}
+        <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #e0e0e0', backgroundColor: 'white' }}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<SaveIcon />}
+            onClick={handleSubmit}
+            disabled={isSaving || !hasChanges}
+            size="medium"
+            sx={{ borderRadius: 2 }}
+          >
+            Save All Documentation
+          </Button>
+        </Box>
+
+        {/* Navigation Tabs */}
+        <AppBar position="static" color="default" sx={{ backgroundColor: '#f0f4f8' }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            variant="fullWidth"
+            aria-label="patient documentation tabs"
+            sx={{ minHeight: '48px' }}
+          >
+            <Tab label="Transcript" id="patient-tab-0" aria-controls="patient-tabpanel-0" />
+            <Tab label="Patient Profile" id="patient-tab-1" aria-controls="patient-tabpanel-1" />
+            <Tab label="Health Goals" id="patient-tab-2" aria-controls="patient-tabpanel-2" />
+            <Tab label="Medical Review" id="patient-tab-3" aria-controls="patient-tabpanel-3" />
+          </Tabs>
+        </AppBar>
+
+        {/* Tab Panels */}
+        <Container maxWidth="lg" sx={{ py: 2 }}>
+          {/* AI Suggestion Toggle */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isSuggestionMode}
+                  onChange={handleSuggestionSwitchChange}
+                  name="aiSuggestionSwitch"
+                  color="primary"
+                />
+              }
+              label="AI Suggestions"
+            />
           </Box>
 
-          {/* Main Content */}
-          <Grid container spacing={3}>
-            {/* Patient Profile Section */}
-            <Grid item xs={12}>
-              <Accordion defaultExpanded>
-                <AccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
-                  sx={{
-                    backgroundColor: 'white',
-                    borderBottom: '1px solid #eaeaea',
-                  }}
-                >
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    width="100%"
-                    justifyContent="space-between"
-                  >
-                    <Typography variant="h6" color="text.primary">
-                      Patient Profile
-                    </Typography>
-                    <IconButton
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyToClipboard('profile');
-                      }}
-                      size="small"
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      <FileCopyIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Box p={1}>
-                    <Grid container spacing={3}>
-                      {[
-                        { title: "Demographics", field: "demographics" },
-                        { title: "Genetic Proxies", field: "genetic_proxies" },
-                        { title: "Lifestyle & Biometrics", field: "lifestyle" },
-                        { title: "Environment", field: "environment" },
-                        { title: "Clinical Status", field: "clinical_status" },
-                      ].map((section) => (
-                        <Grid item xs={12} md={6} key={section.field}>
-                          <Paper
-                            variant="outlined"
-                            sx={{
-                              p: 2,
-                              borderRadius: 2,
-                              transition: 'all 0.3s ease',
-                              '&:hover': {
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                              }
-                            }}
-                          >
-                            <Typography
-                              variant="subtitle1"
-                              color="primary"
-                              gutterBottom
-                              sx={{ fontWeight: 500 }}
-                            >
-                              {section.title}
-                            </Typography>
-                            {renderEditableObject(
-                              editableData?.profile_data?.profile_data?.[section.field],
-                              ['profile_data', 'profile_data', section.field]
-                            )}
-                          </Paper>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
-            </Grid>
+          {/* Transcript Tab */}
+          <TabPanel value={tabValue} index={0}>
+            <Typography variant="h6" gutterBottom>Transcript Content</Typography>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="body1">{transcript || "No transcript available"}</Typography>
+            </Paper>
+          </TabPanel>
 
-            {/* Health Goals Section */}
-            <Grid item xs={12}>
-              <Accordion defaultExpanded>
-                <AccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
-                  sx={{
-                    backgroundColor: 'white',
-                    borderBottom: '1px solid #eaeaea',
-                  }}
-                >
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    width="100%"
-                    justifyContent="space-between"
-                  >
-                    <Typography variant="h6" color="text.primary">
-                      Health Goals
-                    </Typography>
-                    <IconButton
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyToClipboard('goals');
-                      }}
-                      size="small"
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      <FileCopyIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
+          {/* Patient Profile Tab */}
+          <TabPanel value={tabValue} index={1}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6">Patient Profile</Typography>
+              <IconButton
+                onClick={() => handleCopyToClipboard('profile')}
+                size="small"
+                sx={{ color: 'text.secondary' }}
+              >
+                <FileCopyIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Grid container spacing={3}>
+              {[
+                { title: "Demographics", field: "demographics" },
+                { title: "Genetic Proxies", field: "genetic_proxies" },
+                { title: "Lifestyle & Biometrics", field: "lifestyle" },
+                { title: "Environment", field: "environment" },
+                { title: "Clinical Status", field: "clinical_status" },
+              ].map((section) => (
+                <Grid item xs={12} md={6} key={section.field}>
                   <Paper
                     variant="outlined"
                     sx={{
                       p: 2,
-                      borderRadius: 2
+                      borderRadius: 2,
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                      }
                     }}
                   >
+                    <Typography
+                      variant="subtitle1"
+                      color="primary"
+                      gutterBottom
+                      sx={{ fontWeight: 500 }}
+                    >
+                      {section.title}
+                    </Typography>
                     {renderEditableObject(
-                      editableData?.goal_data?.goal_data,
-                      ['goal_data', 'goal_data']
+                      editableData?.profile_data?.profile_data?.[section.field],
+                      ['profile_data', 'profile_data', section.field]
                     )}
                   </Paper>
-                </AccordionDetails>
-              </Accordion>
+                </Grid>
+              ))}
             </Grid>
+          </TabPanel>
 
-            {/* Medical Review Section */}
-            <Grid item xs={12}>
-              <Accordion defaultExpanded>
-                <AccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
+          {/* Health Goals Tab */}
+          <TabPanel value={tabValue} index={2}>
+            {renderHealthGoalsTab()}
+          </TabPanel>
+
+          {/* Medical Review Tab */}
+          <TabPanel value={tabValue} index={3}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6">Medical Review</Typography>
+              <IconButton
+                onClick={() => handleCopyToClipboard('review')}
+                size="small"
+                sx={{ color: 'text.secondary' }}
+              >
+                <FileCopyIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Paper
+                  variant="outlined"
                   sx={{
-                    backgroundColor: 'white',
-                    borderBottom: '1px solid #eaeaea',
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 2,
+                    borderLeft: '3px solid #4caf50'
                   }}
                 >
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    width="100%"
-                    justifyContent="space-between"
+                  <Typography
+                    variant="subtitle1"
+                    color="primary"
+                    gutterBottom
+                    sx={{ fontWeight: 500 }}
                   >
-                    <Typography variant="h6" color="text.primary">
-                      Medical Review
-                    </Typography>
-                    <IconButton
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyToClipboard('review');
-                      }}
-                      size="small"
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      <FileCopyIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Box p={1}>
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} md={6}>
-                        <Paper
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            mb: 2,
-                            borderRadius: 2,
-                            borderLeft: '3px solid #4caf50'
-                          }}
-                        >
-                          <Typography
-                            variant="subtitle1"
-                            color="primary"
-                            gutterBottom
-                            sx={{ fontWeight: 500 }}
-                          >
-                            Subjective
-                          </Typography>
-                          {renderEditableObject(
-                            editableData?.review_data?.doctor_note_data?.subjective,
-                            ['review_data', 'doctor_note_data', 'subjective']
-                          )}
-                        </Paper>
-                        <Paper
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            borderLeft: '3px solid #ff9800'
-                          }}
-                        >
-                          <Typography
-                            variant="subtitle1"
-                            color="primary"
-                            gutterBottom
-                            sx={{ fontWeight: 500 }}
-                          >
-                            Objective
-                          </Typography>
-                          {renderEditableObject(
-                            editableData?.review_data?.doctor_note_data?.objective,
-                            ['review_data', 'doctor_note_data', 'objective']
-                          )}
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Paper
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            mb: 2,
-                            borderRadius: 2,
-                            borderLeft: '3px solid #2196f3'
-                          }}
-                        >
-                          <Typography
-                            variant="subtitle1"
-                            color="primary"
-                            gutterBottom
-                            sx={{ fontWeight: 500 }}
-                          >
-                            Assessment
-                          </Typography>
-                          {renderEditableObject(
-                            editableData?.review_data?.doctor_note_data?.assessment,
-                            ['review_data', 'doctor_note_data', 'assessment']
-                          )}
-                        </Paper>
-                        <Paper
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            borderLeft: '3px solid #9c27b0'
-                          }}
-                        >
-                          <Typography
-                            variant="subtitle1"
-                            color="primary"
-                            gutterBottom
-                            sx={{ fontWeight: 500 }}
-                          >
-                            Plan
-                          </Typography>
-                          {renderEditableObject(
-                            editableData?.review_data?.doctor_note_data?.plan,
-                            ['review_data', 'doctor_note_data', 'plan']
-                          )}
-                        </Paper>
-                      </Grid>
-                    </Grid>
-
-                    <Box mt={3} p={2} sx={{ backgroundColor: '#f5f9ff', borderRadius: 2 }}>
-                      <Box display="flex" alignItems="center" gap={1} mb={1}>
-                        <ScheduleIcon color="primary" />
-                        <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 500 }}>
-                          Next Review
-                        </Typography>
-                      </Box>
-                      {renderEditableField(
-                        editableData?.review_data?.doctor_note_data?.next_review || '',
-                        ['review_data', 'doctor_note_data', 'next_review']
-                      )}
-                    </Box>
-
-                    <Divider sx={{ my: 3 }} />
-
-                    <Typography
-                      variant="h6"
-                      color="primary"
-                      gutterBottom
-                      sx={{ fontWeight: 500 }}
-                    >
-                      Prescriptions & Investigations
-                    </Typography>
-
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} md={6}>
-                        <Paper
-                          variant="outlined"
-                          sx={{ p: 2, borderRadius: 2 }}
-                        >
-                          <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                            Prescriptions
-                          </Typography>
-                          {renderEditableObject(
-                            editableData?.review_data?.doctor_note_data?.prescription,
-                            ['review_data', 'doctor_note_data', 'prescription']
-                          )}
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Paper
-                          variant="outlined"
-                          sx={{ p: 2, borderRadius: 2 }}
-                        >
-                          <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                            Investigations
-                          </Typography>
-                          {renderEditableObject(
-                            editableData?.review_data?.doctor_note_data?.investigation,
-                            ['review_data', 'doctor_note_data', 'investigation']
-                          )}
-                        </Paper>
-                      </Grid>
-                    </Grid>
-
-                    <Divider sx={{ my: 3 }} />
-
-                    <Typography
-                      variant="h6"
-                      color="primary"
-                      gutterBottom
-                      sx={{ fontWeight: 500 }}
-                    >
-                      Summary
-                    </Typography>
-
-                    <Paper
-                      variant="outlined"
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        backgroundColor: '#f8f9fa'
-                      }}
-                    >
-                      {renderEditableObject(
-                        editableData?.review_data?.doctor_note_data?.summary,
-                        ['review_data', 'doctor_note_data', 'summary']
-                      )}
-                    </Paper>
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
+                    Subjective
+                  </Typography>
+                  {renderEditableObject(
+                    editableData?.review_data?.doctor_note_data?.subjective,
+                    ['review_data', 'doctor_note_data', 'subjective']
+                  )}
+                </Paper>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    borderLeft: '3px solid #ff9800'
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    color="primary"
+                    gutterBottom
+                    sx={{ fontWeight: 500 }}
+                  >
+                    Objective
+                  </Typography>
+                  {renderEditableObject(
+                    editableData?.review_data?.doctor_note_data?.objective,
+                    ['review_data', 'doctor_note_data', 'objective']
+                  )}
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 2,
+                    borderLeft: '3px solid #2196f3'
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    color="primary"
+                    gutterBottom
+                    sx={{ fontWeight: 500 }}
+                  >
+                    Assessment
+                  </Typography>
+                  {renderEditableObject(
+                    editableData?.review_data?.doctor_note_data?.assessment,
+                    ['review_data', 'doctor_note_data', 'assessment']
+                  )}
+                </Paper>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    borderLeft: '3px solid #9c27b0'
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    color="primary"
+                    gutterBottom
+                    sx={{ fontWeight: 500 }}
+                  >
+                    Plan
+                  </Typography>
+                  {renderEditableObject(
+                    editableData?.review_data?.doctor_note_data?.plan,
+                    ['review_data', 'doctor_note_data', 'plan']
+                  )}
+                </Paper>
+              </Grid>
             </Grid>
-          </Grid>
 
-          {/* Floating save button for mobile */}
-          <Box
-            sx={{
-              position: 'fixed',
-              bottom: 20,
-              right: 20,
-              display: { xs: 'block', sm: 'none' }
-            }}
-          >
-            <Button
-              variant="contained"
+            <Box mt={3} p={2} sx={{ backgroundColor: '#f5f9ff', borderRadius: 2 }}>
+              <Box display="flex" alignItems="center" gap={1} mb={1}>
+                <ScheduleIcon color="primary" />
+                <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 500 }}>
+                  Next Review
+                </Typography>
+              </Box>
+              {renderEditableField(
+                editableData?.review_data?.doctor_note_data?.next_review || '',
+                ['review_data', 'doctor_note_data', 'next_review']
+              )}
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Typography
+              variant="h6"
               color="primary"
-              onClick={handleSubmit}
-              disabled={isSaving || !hasChanges} // Disable save button when no changes or saving
-              sx={{
-                borderRadius: 28,
-                boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
-                px: 3
-              }}
-              startIcon={<SaveIcon />}
+              gutterBottom
+              sx={{ fontWeight: 500 }}
             >
-              {isSaving ? 'Saving...' : 'Save'}
-            </Button>
-          </Box>
+              Prescriptions & Investigations
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, borderRadius: 2 }}
+                >
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Prescriptions
+                  </Typography>
+                  {renderEditableObject(
+                    editableData?.review_data?.doctor_note_data?.prescription,
+                    ['review_data', 'doctor_note_data', 'prescription']
+                  )}
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, borderRadius: 2 }}
+                >
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Investigations
+                  </Typography>
+                  {renderEditableObject(
+                    editableData?.review_data?.doctor_note_data?.investigation,
+                    ['review_data', 'doctor_note_data', 'investigation']
+                  )}
+                </Paper>
+              </Grid>
+            </Grid>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Typography
+              variant="h6"
+              color="primary"
+              gutterBottom
+              sx={{ fontWeight: 500 }}
+            >
+              Summary
+            </Typography>
+
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: '#f8f9fa'
+              }}
+            >
+              {renderEditableObject(
+                editableData?.review_data?.doctor_note_data?.summary,
+                ['review_data', 'doctor_note_data', 'summary']
+              )}
+            </Paper>
+          </TabPanel>
         </Container>
 
         {/* Notification snackbar */}
