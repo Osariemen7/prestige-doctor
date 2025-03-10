@@ -9,26 +9,24 @@ import {
   Collapse,
   List,
   ListItem,
-  ListItemText,
   CircularProgress,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Snackbar,
   Paper,
-  ToggleButton,
-  ToggleButtonGroup,
   useMediaQuery,
   Button,
-  FormControl,
-  Select,
   MenuItem,
   Alert,
   Avatar,
   Chip,
   Tooltip,
   Divider,
-  Fade
+  Fade,
+  InputAdornment,
+  FormControl,
+  Select
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -39,7 +37,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import LocalAtmIcon from '@mui/icons-material/LocalAtm';
-import Skeleton from '@mui/material/Skeleton';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAccessToken } from './api';
@@ -85,7 +82,8 @@ const theme = createTheme({
     MuiPaper: {
       styleOverrides: {
         root: {
-          boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
+          boxShadow:
+            '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
         },
       },
     },
@@ -94,24 +92,6 @@ const theme = createTheme({
         root: {
           '& .MuiOutlinedInput-root': {
             borderRadius: 20,
-          },
-        },
-      },
-    },
-    MuiToggleButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 20,
-          textTransform: 'none',
-          fontWeight: 500,
-          padding: '6px 16px',
-          '&.Mui-selected': {
-            backgroundColor: '#2563eb',
-            color: 'white',
-            '&:hover': {
-              backgroundColor: '#1d4ed8',
-              color: 'white',
-            },
           },
         },
       },
@@ -268,23 +248,24 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
         {/* Message content */}
         <Box
           sx={{
-            maxWidth: '75%',
             display: 'flex',
             flexDirection: 'column',
+             width: '100%',
           }}
         >
           {/* Message bubble */}
           <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-              backgroundColor: isUser ? 'primary.light' : 'grey.100',
-              color: isUser ? 'white' : 'text.primary',
-              position: 'relative',
-              wordBreak: 'break-word',
-              maxWidth: '100%',
-            }}
+              elevation={0}
+    sx={{
+        p: 2,
+        borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+        backgroundColor: isUser ? 'primary.light' : 'grey.100',
+        color: isUser ? 'white' : 'text.primary',
+        position: 'relative',
+        wordBreak: 'break-word',
+        // Remove maxWidth: '75%',  <-- REMOVE THIS LINE
+        maxWidth: '100%', // Keep this to prevent extremely long text from breaking layout
+    }}
           >
             {isResponseLoading && isLatest ? (
               <CircularProgress size={24} thickness={4} sx={{ color: isUser ? 'white' : 'primary.main' }} />
@@ -437,117 +418,16 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
 };
 
 // ----------------------------------------------------
-// 4. ExpertLevelSelector: Improved pricing tier selection
-// ----------------------------------------------------
-const ExpertLevelSelector = ({ expertLevel, setExpertLevel }) => {
-  const levels = [
-    { value: 'low', label: 'Basic', price: '₦50', description: 'Quick general answers' },
-    { value: 'medium', label: 'Intermediate', price: '₦200', description: 'Detailed answers with citations' },
-    { value: 'high', label: 'Advanced', price: '₦500', description: 'Expert-level analysis with comprehensive research' },
-  ];
-
-  return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 2,
-        border: '1px solid',
-        borderColor: 'grey.200',
-        borderRadius: 2,
-      }}
-    >
-      <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 500 }}>
-        Expertise Level
-      </Typography>
-
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        {levels.map((level) => (
-          <Paper
-            key={level.value}
-            elevation={0}
-            onClick={() => setExpertLevel(level.value)}
-            sx={{
-              p: 1.5,
-              border: '1px solid',
-              borderColor: expertLevel === level.value ? 'primary.main' : 'grey.200',
-              borderRadius: 1.5,
-              flex: '1 1 0',
-              minWidth: '110px',
-              cursor: 'pointer',
-              backgroundColor: expertLevel === level.value ? 'rgba(37, 99, 235, 0.05)' : 'background.paper',
-              transition: 'all 0.2s ease',
-              position: 'relative',
-              overflow: 'hidden',
-              '&:hover': {
-                borderColor: 'primary.main',
-                backgroundColor: 'rgba(37, 99, 235, 0.03)',
-              },
-            }}
-          >
-            {expertLevel === level.value && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  color: 'primary.main',
-                }}
-              >
-                <VerifiedIcon fontSize="small" />
-              </Box>
-            )}
-
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontWeight: 600,
-                mb: 0.5,
-                color: expertLevel === level.value ? 'primary.main' : 'text.primary'
-              }}
-            >
-              {level.label}
-            </Typography>
-
-            <Typography
-              variant="body2"
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                color: 'text.secondary',
-                fontWeight: 500,
-                mb: 1
-              }}
-            >
-              <LocalAtmIcon sx={{ fontSize: '1rem' }} /> {level.price}
-            </Typography>
-
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {level.description}
-            </Typography>
-          </Paper>
-        ))}
-      </Box>
-
-      {expertLevel === 'high' && (
-        <Alert severity="info" sx={{ mt: 2, borderRadius: 1 }}>
-          Advanced responses may take a few minutes to compile comprehensive research.
-        </Alert>
-      )}
-    </Paper>
-  );
-};
-
-// ----------------------------------------------------
-// 5. Main ChatScreen Component
+// 4. Main ChatScreen Component
 // ----------------------------------------------------
 const ChatScreen = ({
   phoneNumber,
-  transcript,          // WebSocket reference (passed in from parent)
+  transcript, // WebSocket reference (passed in from parent)
   wsStatus,
   chatMessages,
   setChatMessages,
-  thread
+  thread,
+  patient
 }) => {
   // Local state
   const [message, setMessage] = useState('');
@@ -555,11 +435,10 @@ const ChatScreen = ({
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeAI, setActiveAI] = useState('researcher');
   const [expertLevel, setExpertLevel] = useState('low');
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [showExpertSelector, setShowExpertSelector] = useState(false);
-
+  const [suggestions, setSuggestion] = useState([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Handle input changes
@@ -577,11 +456,9 @@ const ChatScreen = ({
   // Handle sending a message
   const handleSendMessage = useCallback(async () => {
     if (!message.trim()) return;
-
     const currentMessage = message;
     setMessage('');
     setIsResponseLoading(true);
-
     try {
       const token = await getAccessToken();
       const apiUrl = "https://health.prestigedelta.com/research/";
@@ -589,9 +466,9 @@ const ChatScreen = ({
       if (threadId) {
         payload.thread_id = threadId;
       } else {
-        payload.thread_id =thread      
+        payload.thread_id = thread;
       }
-      payload.patient_number = `+234${phoneNumber.slice(1)}`
+      payload.patient_number = `+234${phoneNumber.slice(1)}`;
       if (selectedPatient) {
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
           payload.patient_phone = selectedPatient.phone_number;
@@ -600,13 +477,25 @@ const ChatScreen = ({
         }
       }
       if (transcript) {
-        payload.transcript = transcript;
-      }
+        const currentTime = new Date().toISOString();
+        payload.transcript = [
+          {
+            time: currentTime,
+            speaker: "patient",
+            content: ""
+          },
+          {
+            time: currentTime,
+            speaker: "doctor",
+            content: transcript
+          }
+        ];
+      
 
+      }
       // Append user's message
       const userMessage = { role: "user", content: currentMessage };
       setChatMessages((prev) => [...prev, userMessage]);
-
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
@@ -615,27 +504,22 @@ const ChatScreen = ({
         },
         body: JSON.stringify(payload),
       });
-
       if (!response.body) {
         throw new Error("No response body");
       }
-
       // Append a placeholder for assistant response
       let assistantMessage = { role: "assistant", content: "", citations: [] };
       setChatMessages((prev) => [...prev, assistantMessage]);
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
       let buffer = "";
-
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
         buffer += decoder.decode(value, { stream: true });
         const parts = buffer.split("\n");
         buffer = parts.pop();
-
         parts.forEach((part) => {
           if (part.trim()) {
             try {
@@ -660,7 +544,6 @@ const ChatScreen = ({
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      const errorMessage = error?.message || "Sorry, I encountered an error. Please try again later.";
       setChatMessages((prev) => [
         ...prev,
         {
@@ -672,32 +555,91 @@ const ChatScreen = ({
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber]);
+  }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript]);
+
+  const handleSuggestion = async () => {
+    setIsLoadingSuggestions(true);
+    const formData = {
+      user_type: 'doctor',
+      patient_id: patient,
+    };
+    const accessToken = await getAccessToken();
+    try {
+      const response = await fetch('https://health.prestigedelta.com/suggestions/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(formData),
+      });
+      const result = await response.json();
+      if (response.status !== 200) {
+        setError("Failed to load suggestions.");
+      } else {
+        setSuggestion(result);
+      }
+    } catch (error) {
+      console.error(error);
+      setError("Failed to load suggestions.");
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  useEffect(() => {
+    handleSuggestion();
+  }, [patient]);
+
+  if (isLoadingSuggestions) {
+    return (
+      <ThemeProvider theme={theme}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100vh',
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'background.default',
+            px: 2
+          }}
+        >
+          <CircularProgress />
+          <Typography sx={{ mt: 2 }} variant="body2" color="text.secondary">
+            Loading suggestions...
+          </Typography>
+        </Box>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
       <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100vh',
-          backgroundColor: 'background.default',
-        }}
-      >
-        {/* Header with AI selection */}
-      
+  sx={{
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    overflow: 'hidden', // Prevent outer scrolling
+  }}
+>
         {/* Main content area with messages */}
         <Box
-          sx={{
-            flexGrow: 1,
-            overflowY: 'auto',
-            px: { xs: 2, sm: 4 },
-            py: 2,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {/* Welcome message if no messages yet */}
+    sx={{
+      flexGrow: 1,
+      overflowY: 'auto',
+      px: { xs: 2, sm: 3 },
+      py: 2,
+      scrollbarWidth: 'thin', // Firefox
+      '&::-webkit-scrollbar': { width: '6px' }, // Webkit browsers
+      '&::-webkit-scrollbar-thumb': {
+        backgroundColor: theme.palette.primary.main,
+        borderRadius: '3px',
+      },
+    }}
+  >
           {combinedMessages.length === 0 && (
             <Box
               sx={{
@@ -706,8 +648,9 @@ const ChatScreen = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100%',
-                maxWidth: '600px',
+              
                 mx: 'auto',
+        width: '100%',
                 textAlign: 'center',
                 px: 2,
               }}
@@ -738,28 +681,19 @@ const ChatScreen = ({
                 >
                   <SmartToyIcon sx={{ fontSize: 32, color: 'white' }} />
                 </Box>
-
                 <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
                   How can I help you today?
                 </Typography>
-
                 <Typography color="text.secondary" sx={{ mb: 3 }}>
-                  Ask any health-related question. I can provide research-backed information on medical conditions, treatments, nutrition, and more.
+                  Ask any health-related question. I can provide research-backed
+                  information on medical conditions, treatments, nutrition, and more.
                 </Typography>
-
                 <Divider sx={{ mb: 3 }} />
-
                 <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 500 }}>
                   Try asking about:
                 </Typography>
-
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                  {[
-                    "Symptoms of diabetes",
-                    "Latest COVID treatments",
-                    "Benefits of intermittent fasting",
-                    "Managing hypertension",
-                  ].map((suggestion) => (
+                  {suggestions.map((suggestion) => (
                     <Chip
                       key={suggestion}
                       label={suggestion}
@@ -775,26 +709,9 @@ const ChatScreen = ({
                   ))}
                 </Box>
               </Paper>
-
-              <Button
-                variant="outlined"
-                color="primary"
-                sx={{ mt: 3 }}
-                onClick={() => setShowExpertSelector(!showExpertSelector)}
-              >
-                {showExpertSelector ? "Hide Expertise Options" : "Choose Expertise Level"}
-              </Button>
-
-              <Collapse in={showExpertSelector} sx={{ width: '100%', mt: 2 }}>
-                <ExpertLevelSelector
-                  expertLevel={expertLevel}
-                  setExpertLevel={setExpertLevel}
-                />
-              </Collapse>
             </Box>
           )}
 
-          {/* Chat messages */}
           {combinedMessages.length > 0 && (
             <Box sx={{ maxWidth: '900px', mx: 'auto', width: '100%' }}>
               <List>
@@ -813,85 +730,61 @@ const ChatScreen = ({
           )}
         </Box>
 
-        {/* Footer with input and settings */}
-        <Box
-          sx={{
-            borderTop: '1px solid',
-            borderColor: 'grey.200',
-            backgroundColor: 'background.paper',
+        {/* Footer: Input area styled as per provided snippet */}
+        <Box sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'grey.200', backgroundColor: 'background.paper' }}>
+    <Box sx={{ p: 2, width: '100%' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <TextField
+          fullWidth
+          placeholder="Ask anything..."
+          variant="standard"
+          multiline
+          minRows={1}
+          maxRows={4}
+          InputProps={{ disableUnderline: true, style: { fontSize: '16px' } }}
+          value={message}
+          onChange={handleTyping}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
           }}
-        >
-          {/* Expert level selection (collapsed by default on mobile) */}
-          {combinedMessages.length > 0 && (
-            <Collapse in={showExpertSelector}>
-              <Box sx={{ px: { xs: 2, sm: 4 }, py: 2, maxWidth: '900px', mx: 'auto' }}>
-                <ExpertLevelSelector
-                  expertLevel={expertLevel}
-                  setExpertLevel={setExpertLevel}
-                />
-              </Box>
-            </Collapse>
-          )}
-
-          {/* Message input */}
-          <Box
-            sx={{
-              p: 2,
-              maxWidth: '900px',
-              mx: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              width: '100%',
-            }}
-          >
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-            }}>
-              <TextField
-                fullWidth
-                placeholder={`Ask a health question...`}
-                variant="outlined"
-                value={message}
-                onChange={handleTyping}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-              />
-              <IconButton
-                color="primary"
-                aria-label="send"
-                onClick={handleSendMessage}
-                disabled={!message.trim()}
-                sx={{ ml: 1 }}
-              >
-                <SendIcon />
-              </IconButton>
+          sx={{ marginBottom: '8px' }}
+        />
+        <IconButton color="primary" onClick={handleSendMessage} disabled={!message.trim()}>
+          <SendIcon />
+        </IconButton>
+      </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: '10px' }}>
+              <FormControl variant="standard">
+                <Select
+                  value={expertLevel}
+                  onChange={(e) => setExpertLevel(e.target.value)}
+                  sx={{
+                    fontSize: '14px',
+                    backgroundColor: '#F0F8FF',
+                    color: '#1E90FF',
+                    borderRadius: '4px',
+                    padding: '4px 12px',
+                    '& .MuiSelect-icon': { color: '#187bcd' },
+                    '&:hover': { backgroundColor: 'white' },
+                  }}
+                >
+                  <MenuItem value="low">
+                    <em>AI Level</em>
+                  </MenuItem>
+                  <MenuItem value="low">Basic $0.05</MenuItem>
+                  <MenuItem value="medium">Intermediate $0.15</MenuItem>
+                  <MenuItem value="high">Advanced $0.5</MenuItem>
+                </Select>
+              </FormControl>
             </Box>
-
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setShowExpertSelector(!showExpertSelector)}
-              sx={{
-                mt: 1,
-                alignSelf: 'flex-start',
-                textTransform: 'none',
-                fontSize: '0.8rem',
-                borderColor: 'grey.300',
-                color: 'text.secondary',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  color: 'primary.main',
-                },
-              }}
-            >
-              {showExpertSelector ? "Hide Expertise Options" : "Choose Expertise Level"}
-            </Button>
+            {expertLevel === 'high' && (
+              <Typography variant="caption" color="textSecondary" sx={{ marginTop: '8px' }}>
+                Advanced responses might take a few minutes.
+              </Typography>
+            )}
           </Box>
         </Box>
 

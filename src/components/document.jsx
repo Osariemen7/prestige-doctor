@@ -6,7 +6,6 @@ import {
   Typography,
   Grid,
   Divider,
-  Chip,
   List,
   ListItem,
   ListItemText,
@@ -20,13 +19,19 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  FormControlLabel,
+  Switch,
+  InputAdornment,
+  Chip, // Import Chip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FileCopyIcon from '@mui/icons-material/FileCopy';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import SaveIcon from '@mui/icons-material/Save';
 import axios from 'axios';
 import { getAccessToken } from './api';
-import { Edit as EditIcon, Schedule as ScheduleIcon, FileCopy as FileCopyIcon } from '@mui/icons-material'; // Import FileCopy Icon
 
-// Custom theme with your settings
+// Updated theme with clean, modern aesthetics
 const theme = createTheme({
   palette: {
     primary: {
@@ -36,25 +41,54 @@ const theme = createTheme({
       contrastText: '#fff',
     },
     background: {
-      default: '#f5f8fa',
+      default: '#f8f9fa',
       paper: '#ffffff',
     },
+    text: {
+      primary: '#333333',
+      secondary: '#666666',
+    }
   },
   typography: {
-    fontSize: 12,
+    fontSize: 14,
+    h5: {
+      fontWeight: 600,
+    },
+    h6: {
+      fontWeight: 500,
+    },
   },
   components: {
     MuiPaper: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 8,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
         },
       },
     },
-    MuiChip: {
+    MuiTextField: {
       styleOverrides: {
         root: {
-          margin: 2,
+          marginBottom: 12,
+        },
+      },
+    },
+    MuiAccordion: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          '&:before': {
+            display: 'none',
+          },
+          marginBottom: 16,
+        },
+      },
+    },
+    MuiAccordionSummary: {
+      styleOverrides: {
+        root: {
+          borderBottom: '1px solid #eee',
         },
       },
     },
@@ -62,25 +96,24 @@ const theme = createTheme({
 });
 
 const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentationSaved, transcript }, ref) => {
-  // "data" will hold the entire API response
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingSection, setEditingSection] = useState(null); // Track which section is being edited
-  // We’ll store the editable copy of the entire data object here.
   const [editableData, setEditableData] = useState({});
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [parentalSetIsDocumentationSaved, setParentalSetIsDocumentationSaved] = useState(() => setIsDocumentationSaved);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [datas, setDatas] = useState({});
+  const [isSuggestionMode, setIsSuggestionMode] = useState(false);
+  const [suggestionData, setSuggestionData] = useState({});
+  const [hasChanges, setHasChanges] = useState(false);
 
-  // Destructure the API response.
-  // If data is empty, default to empty objects.
-  const { profile_data = {}, goal_data = {}, review_data = {} } = data;
-  console.log(data);
+  // Destructure the API response with default empty objects
+  const { profile_data = {}, goal_data = {}, review_data = {} } = isSuggestionMode && suggestionData.documentation ? suggestionData.documentation : data;
 
-  // Function to fetch the profile data from the API.
+  // Function to fetch the profile data from the API
   const fetchSubscribers = async () => {
     try {
       const accessToken = await getAccessToken();
@@ -90,10 +123,11 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      // Assuming response.data is an array and we want the first item.
       const fetchedData = response.data;
       setData(fetchedData);
-      console.log("Fetched Data:", fetchedData); // Debugging: Log fetched data
+      setEditableData(JSON.parse(JSON.stringify(fetchedData))); // Initialize editable data
+      setDataLoaded(true);
+      setDatas(fetchedData);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -101,163 +135,137 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
     }
   };
 
-  // Call fetchSubscribers when wsStatus is Connected and reviewid exists.
+  // Call fetchSubscribers when wsStatus is Connected and reviewid exists
   useEffect(() => {
     if (wsStatus === 'Connected' && reviewid) {
       fetchSubscribers();
     }
   }, [wsStatus, reviewid]);
 
-  // When entering edit mode, copy entire data object into editableData.
-  const handleEditClick = (section) => {
-    setEditableData(JSON.parse(JSON.stringify(data))); // Deep copy entire data
-    setIsEditing(true);
-    setEditingSection(section); // Set the editing section
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditingSection(null);
-    setEditableData({}); // Clear editable data on cancel
-  };
-
-  // For updating individual fields in editableData.
+  // For updating individual fields in editableData
   const handleFieldChange = (sectionKeys, value) => {
     setEditableData((prevData) => {
       let newData = { ...prevData };
       let currentLevel = newData;
       for (let i = 0; i < sectionKeys.length - 1; i++) {
+        if (!currentLevel[sectionKeys[i]]) {
+          currentLevel[sectionKeys[i]] = {};
+        }
         currentLevel = currentLevel[sectionKeys[i]];
       }
       currentLevel[sectionKeys[sectionKeys.length - 1]] = value;
       return newData;
     });
+    setHasChanges(true);
   };
 
-  // Modified renderEditableObject to add required validation for specific fields.
+  // Render editable field for any type of data
+  const renderEditableField = (value, sectionKeys, isRequired = false) => {
+    const currentValue = sectionKeys.reduce((acc, k) => acc?.[k], editableData) || value || '';
+    const showError = isRequired && (!currentValue || currentValue.toString().trim() === '');
+
+    // Determine input type
+    let inputType = 'text';
+    const lastKey = sectionKeys[sectionKeys.length - 1];
+
+    if (lastKey === 'next_review') {
+      inputType = 'datetime-local';
+    } else if (['target_date', 'action_end_date', 'date_of_birth'].includes(lastKey)) {
+      inputType = 'date';
+    }
+
+    // Handle suggestion data
+    const suggestedValue = isSuggestionMode ?
+      (sectionKeys.slice(0, -1).reduce((acc, k) => acc?.[k], suggestionData.documentation) || {})[`${lastKey}_suggestion`] :
+      null;
+
+    return (
+      <TextField
+        label={lastKey.replace(/_/g, ' ')}
+        value={currentValue}
+        onChange={(e) => handleFieldChange(sectionKeys, e.target.value)}
+        fullWidth
+        size="small"
+        required={isRequired}
+        error={showError}
+        helperText={showError ? 'This field is required' : ''}
+        type={inputType}
+        variant="outlined"
+        margin="dense"
+        InputProps={suggestedValue ? {
+          endAdornment: (
+            <InputAdornment position="end">
+              <Chip
+                label={`Suggestion: ${suggestedValue}`}
+                color="primary"
+                size="small"
+                variant="outlined"
+                onClick={() => handleFieldChange(sectionKeys, suggestedValue)}
+                style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }}
+              />
+            </InputAdornment>
+          ),
+        } : undefined}
+      />
+    );
+  };
+
+  // Render editable object with nested fields
   const renderEditableObject = (obj, sectionKeysPrefix) => {
     if (!obj) return null;
+
     return Object.entries(obj).map(([key, value]) => {
       const currentSectionKeys = [...sectionKeysPrefix, key];
-      // Compute the current value from editableData.
-      const currentValue =
-        editableData && currentSectionKeys.reduce((acc, k) => acc?.[k], editableData) || value || '';
-      // Determine if this field is required.
+
+      // Skip suggestion keys when rendering editable fields
+      if (key.endsWith('_suggestion')) return null;
+
+      // Determine if this field is required
       const isRequiredField =
-        (editingSection === 'goals' && key === 'goal_name') ||
-        (editingSection === 'profile' && key === 'name');
-      const showError = isRequiredField && (!currentValue || currentValue.toString().trim() === '');
-      let inputType = 'text';
-      if (key === 'next_review' && editingSection === 'review') {
-        inputType = 'datetime-local'; // Set input type to datetime-local for next_review
-      } else if ((key === 'target_date' || key === 'action_end_date') && editingSection === 'goals') {
-        inputType = 'date'; // Set input type to date for target_date and action_end_date in goals section
-      } else if (key === 'date_of_birth' && editingSection === 'profile') {
-        inputType = 'date'; // Set input type to date for date_of_birth in profile section
-      }
+        (sectionKeysPrefix.includes('goal_data') && key === 'goal_name') ||
+        (sectionKeysPrefix.includes('profile_data') && key === 'name');
 
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         return (
-          <div key={key} style={{ marginBottom: 16, paddingLeft: 16 }}>
-            <Typography variant="subtitle2" style={{ textTransform: 'capitalize' }}>
+          <Box key={key} sx={{ mb: 2, px: 1 }}>
+            <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', fontWeight: 500, mb: 1 }}>
               {key.replace(/_/g, ' ')}:
             </Typography>
-            {renderEditableObject(value, currentSectionKeys)}
-          </div>
+            <Paper variant="outlined" sx={{ p: 2, mb: 1 }}>
+              {renderEditableObject(value, currentSectionKeys)}
+            </Paper>
+          </Box>
         );
       } else if (Array.isArray(value)) {
         return (
-          <div key={key} style={{ marginBottom: 16, paddingLeft: 16 }}>
-            <Typography variant="subtitle2" style={{ textTransform: 'capitalize' }}>
-              {key.replace(/_/g, ' ')} (Array):
+          <Box key={key} sx={{ mb: 2, px: 1 }}>
+            <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', fontWeight: 500, mb: 1 }}>
+              {key.replace(/_/g, ' ')}:
             </Typography>
             {value.map((item, index) => (
-              <div
+              <Paper
+                variant="outlined"
                 key={index}
-                style={{
-                  marginBottom: 8,
-                  paddingLeft: 16,
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  padding: '8px',
-                }}
+                sx={{ p: 2, mb: 1, borderLeft: '3px solid #1976d2' }}
               >
-                <Typography variant="subtitle2" style={{ textTransform: 'capitalize' }}>
-                  Item {index + 1}:
+                <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
+                  Item {index + 1}
                 </Typography>
-                {typeof item === 'object'
+                {typeof item === 'object' && item !== null
                   ? renderEditableObject(item, [...currentSectionKeys, index.toString()])
-                  : (
-                    <TextField
-                      label={`${key}[${index}]`}
-                      value={currentValue}
-                      onChange={(e) => handleFieldChange([...currentSectionKeys, index.toString()], e.target.value)}
-                      fullWidth
-                      multiline
-                      required={isRequiredField}
-                      error={showError}
-                      helperText={showError ? 'This field is required' : ''}
-                    />
-                  )}
-              </div>
+                  : renderEditableField(item, [...currentSectionKeys, index.toString()], isRequiredField)
+                }
+              </Paper>
             ))}
-          </div>
+          </Box>
         );
       } else {
-        return (
-          <div key={key} style={{ marginBottom: 16 }}>
-            <TextField
-              label={key.replace(/_/g, ' ')}
-              value={currentValue}
-              onChange={(e) => handleFieldChange(currentSectionKeys, e.target.value)}
-              fullWidth
-              required={isRequiredField}
-              error={showError}
-              helperText={showError ? 'This field is required' : ''}
-              type={inputType} // Set input type here
-            />
-          </div>
-        );
+        return renderEditableField(value, currentSectionKeys, isRequiredField);
       }
     });
   };
 
-  // Helper to render a read-only object.
-  const renderObject = (obj) => {
-    if (!obj) return null;
-    return Object.entries(obj).map(([key, value]) => {
-      if (value === null || value === undefined) return null;
-      return (
-        <div key={key} style={{ marginBottom: 8 }}>
-          <Typography variant="subtitle2" style={{ textTransform: 'capitalize' }}>
-            {key.replace(/_/g, ' ')}:
-          </Typography>
-          {Array.isArray(value) ? (
-            value.length > 0 ? (
-              <List dense>
-                {value.map((item, i) => (
-                  <ListItem key={i}>
-                    <ListItemText
-                      primary={typeof item === 'object' ? JSON.stringify(item, null, 2) : item}
-                      secondary={typeof item === 'object' ? "(Object)" : null}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body2">None</Typography>
-            )
-          ) : typeof value === 'object' ? (
-            renderObject(value)
-          ) : (
-            <Typography variant="body2">{value.toString()}</Typography>
-          )}
-        </div>
-      );
-    });
-  };
-
-  // Function to extract text content from a section for copying
+  // Extract text content from a section for copying
   const extractTextContent = (sectionName) => {
     let textContent = '';
     if (sectionName === 'profile') {
@@ -270,21 +278,21 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
     return textContent;
   };
 
-  // Helper function to recursively get text from objects, handling arrays and nested objects
+  // Helper function to recursively get text from objects
   const getTextFromObject = (obj, indent = '') => {
     if (!obj) return '';
     let text = '';
     for (const [key, value] of Object.entries(obj)) {
-      if (value === null || value === undefined) continue;
+      if (value === null || value === undefined || key.endsWith('_suggestion')) continue;
       const label = key.replace(/_/g, ' ');
       if (Array.isArray(value)) {
         if (value.length > 0) {
           text += `${indent}${label}:\n`;
           value.forEach(item => {
             if (typeof item === 'object') {
-              text += getTextFromObject(item, indent + '  '); // Indent array of objects
+              text += getTextFromObject(item, indent + '  ');
             } else {
-              text += `${indent}  - ${item}\n`; // Indent array items
+              text += `${indent}  - ${item}\n`;
             }
           });
         } else {
@@ -292,7 +300,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
         }
       } else if (typeof value === 'object') {
         text += `${indent}${label}:\n`;
-        text += getTextFromObject(value, indent + '  '); // Indent nested objects
+        text += getTextFromObject(value, indent + '  ');
       } else {
         text += `${indent}${label}: ${value}\n`;
       }
@@ -300,7 +308,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
     return text;
   };
 
-
+  // Handle copying section to clipboard
   const handleCopyToClipboard = async (sectionName) => {
     const textToCopy = extractTextContent(sectionName);
     try {
@@ -316,98 +324,152 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
     }
   };
 
-
-  // On save, send all sections (even unchanged ones) in the payload.
+  // Validate and submit data
   const handleSubmit = async () => {
-    // Validate required fields based on the section being edited.
-    if (editingSection === 'profile') {
-      const patientName =
-        editableData?.profile_data?.profile_data?.demographics?.name ||
-        '';
-      if (!patientName || patientName.trim() === '') {
-        setSnackbarSeverity('error');
-        setSnackbarMessage('Patient name is required.');
-        setSnackbarOpen(true);
-        return false; // Indicate failure
-      }
+    // Validate required fields
+    const patientName = editableData?.profile_data?.profile_data?.demographics?.name || '';
+    if (!patientName || patientName.trim() === '') {
+      setSnackbarSeverity('error');
+      setSnackbarMessage('Patient name is required.');
+      setSnackbarOpen(true);
+      return false;
     }
-    if (editingSection === 'goals') {
-      const healthGoal =
-        editableData?.goal_data?.goal_data?.goal_name || '';
-      if (transcript) {
-        editableData.transcript = transcript
-      }
-      if (thread) {
-        editableData.thread_id = thread
-      }
-      if (!healthGoal || healthGoal.trim() === '') {
-        setSnackbarSeverity('error');
-        setSnackbarMessage('Health goal is required.');
-        setSnackbarOpen(true);
-        return false; // Indicate failure
-      }
 
-      if (editableData?.goal_data?.goal_data?.target_date) {
-        const targetDate = new Date(editableData.goal_data.goal_data.target_date);
-        const currentDate = new Date();
-        if (targetDate < currentDate) {
-          setSnackbarSeverity('error');
-          setSnackbarMessage('Target date must be in the future.');
-          setSnackbarOpen(true);
-          return false; // Indicate failure
-        }
+    const healthGoal = editableData?.goal_data?.goal_data?.goal_name || '';
+    if (!healthGoal || healthGoal.trim() === '') {
+      setSnackbarSeverity('error');
+      setSnackbarMessage('Health goal is required.');
+      setSnackbarOpen(true);
+      return false;
+    }
+
+    if (editableData?.goal_data?.goal_data?.target_date) {
+      const targetDate = new Date(editableData.goal_data.goal_data.target_date);
+      const currentDate = new Date();
+      if (targetDate < currentDate) {
+        setSnackbarSeverity('error');
+        setSnackbarMessage('Target date must be in the future.');
+        setSnackbarOpen(true);
+        return false;
       }
     }
 
     setIsSaving(true);
     try {
-      // Send the entire editableData back to the API
-      const payload = editableData;
-
-      // --- ADD THESE LOGS FOR DEBUGGING ---
-      console.log("Payload being sent to API:", JSON.stringify(payload, null, 2)); // Log the payload as formatted JSON
-      console.log("Current editableData state:", JSON.stringify(editableData, null, 2)); // Log the editableData state
+      // Add transcript and thread if available
+      if (transcript) {
+        editableData.transcript = transcript;
+      }
+      if (thread) {
+        editableData.thread_id = thread;
+      }
 
       const accessToken = await getAccessToken();
-      const response = await axios.post(
-        `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
-        payload,
+      await axios.post(
+        `https://health.prestigedelta.com/documentreview/${reviewid}/document-assessment/`,
+        editableData,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
+
       // Update the local data with the new data
       setData(editableData);
-      setIsEditing(false);
-      setEditingSection(null);
       setSnackbarSeverity('success');
       setSnackbarMessage('Data updated successfully!');
       setSnackbarOpen(true);
-      parentalSetIsDocumentationSaved(true)
-      return true; // Indicate success
+      parentalSetIsDocumentationSaved(true);
+      setHasChanges(false);
+      return true;
     } catch (error) {
       console.error("Error submitting edits:", error);
       setSnackbarSeverity('error');
       setSnackbarMessage('Failed to update data.');
       setSnackbarOpen(true);
-      return false; // Indicate failure
+      return false;
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Generate suggestions
+  const getSuggestion = async () => {
+    setIsSaving(true);
+    try {
+      // Prepare data payload
+      let suggestionPayload = JSON.parse(JSON.stringify(editableData));
+
+      if (transcript) {
+        const currentTime = new Date().toISOString();
+        suggestionPayload.transcript = [
+          {
+            time: currentTime,
+            speaker: "patient",
+            content: ""
+          },
+          {
+            time: currentTime,
+            speaker: "doctor",
+            content: transcript
+          }
+        ];
+      }
+
+      if (thread) {
+        suggestionPayload.thread_id = thread;
+      }
+
+      const accessToken = await getAccessToken();
+      const response = await axios.post(
+        `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
+        suggestionPayload,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      const result = response.data;
+      setSuggestionData(result);
+      setSnackbarSeverity('success');
+      setSnackbarMessage('Suggestion generated successfully!');
+      setSnackbarOpen(true);
+      return true;
+    } catch (error) {
+      console.error("Error getting suggestion:", error);
+      setSnackbarSeverity('error');
+      setSnackbarMessage('Failed to generate suggestion.');
+      setSnackbarOpen(true);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle closing snackbar
   const handleSnackbarClose = (event, reason) => {
     if (reason === 'clickaway') return;
     setSnackbarOpen(false);
   };
 
+  // Handle suggestion mode toggle
+  const handleSuggestionSwitchChange = (event) => {
+    setIsSuggestionMode(event.target.checked);
+    if (event.target.checked && !suggestionData.documentation) {
+      getSuggestion();
+    }
+  };
+
+  // Expose functions to parent component
   useImperativeHandle(ref, () => ({
     handleSubmitFromParent: async () => {
       return await handleSubmit();
+    },
+    getSuggestion: () => {
+      getSuggestion();
     }
   }));
 
-
+  // Loading state
   if (loading) {
     return (
       <ThemeProvider theme={theme}>
@@ -420,7 +482,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
         >
           <Box textAlign="center">
             <Typography variant="h6" color="primary" gutterBottom>
-              Loading...
+              Loading patient information...
             </Typography>
             <CircularProgress color="primary" />
           </Box>
@@ -431,84 +493,109 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
 
   return (
     <ThemeProvider theme={theme}>
-      <Box bgcolor="background.default" minHeight="100vh" py={1}>
-        <Container maxWidth="lg" >
-          <Grid container spacing={3} >
-            {/* Patient Profile Section (without Temporal Context) */}
-            <Grid item xs={12} >
-              <Accordion defaultExpanded >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} >
+      <Box bgcolor="background.default" minHeight="100vh" py={2}>
+        <Container maxWidth="lg">
+          {/* Header with action buttons */}
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Typography variant="h5" color="primary">
+              Patient Documentation
+            </Typography>
+            <Box display="flex" alignItems="center" gap={2}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isSuggestionMode}
+                    onChange={handleSuggestionSwitchChange}
+                    name="aiSuggestionSwitch"
+                    color="primary"
+                  />
+                }
+                label="AI Suggestions"
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                onClick={handleSubmit}
+                disabled={isSaving || !hasChanges} // Disable save button when no changes or saving
+              >
+                {isSaving ? 'Saving...' : 'Save All Changes'}
+              </Button>
+            </Box>
+          </Box>
+
+          {/* Main Content */}
+          <Grid container spacing={3}>
+            {/* Patient Profile Section */}
+            <Grid item xs={12}>
+              <Accordion defaultExpanded>
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{
+                    backgroundColor: 'white',
+                    borderBottom: '1px solid #eaeaea',
+                  }}
+                >
                   <Box
                     display="flex"
                     alignItems="center"
                     width="100%"
                     justifyContent="space-between"
-                    backgroundColor="#1976d2"
-
                   >
-                    <Typography variant="h5" color="white">
+                    <Typography variant="h6" color="text.primary">
                       Patient Profile
                     </Typography>
-                    <Box display="flex"> {/* Container for icons */}
-                      <IconButton
-                        onClick={() => handleEditClick('profile')}
-                        sx={{ color: 'white', marginRight: 1 }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleCopyToClipboard('profile')}
-                        sx={{ color: 'white' }}
-                      >
-                        <FileCopyIcon />
-                      </IconButton>
-                    </Box>
+                    <IconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyToClipboard('profile');
+                      }}
+                      size="small"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      <FileCopyIcon fontSize="small" />
+                    </IconButton>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Paper elevation={3} sx={{ overflow: 'hidden', width: '100%' }}>
-                    <Box p={1}>
-                      <Grid container spacing={3}>
-                        {[
-                          { title: "Demographics", field: "demographics" },
-                          { title: "Genetic Proxies", field: "genetic_proxies" },
-                          { title: "Lifestyle & Biometrics", field: "lifestyle" },
-                          { title: "Environment", field: "environment" },
-                          { title: "Clinical Status", field: "clinical_status" },
-                        ].map((section) => (
-                          <Grid item xs={12} md={6} key={section.field}>
-                            <Paper variant="outlined" sx={{ p: 2 }}>
-                              <Typography variant="h6" color="primary" gutterBottom>
-                                {section.title}
-                              </Typography>
-                              {isEditing && editingSection === 'profile'
-                                ? renderEditableObject(
-                                  editableData?.profile_data?.profile_data?.[section.field],
-                                  ['profile_data', 'profile_data', section.field]
-                                )
-                                : renderObject(profile_data?.profile_data?.[section.field])}
-                            </Paper>
-                          </Grid>
-                        ))}
-                      </Grid>
-                      {isEditing && editingSection === 'profile' && (
-                        <Box mt={3}>
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={handleSubmit}
-                            disabled={isSaving}
-                            sx={{ mr: 2 }}
+                  <Box p={1}>
+                    <Grid container spacing={3}>
+                      {[
+                        { title: "Demographics", field: "demographics" },
+                        { title: "Genetic Proxies", field: "genetic_proxies" },
+                        { title: "Lifestyle & Biometrics", field: "lifestyle" },
+                        { title: "Environment", field: "environment" },
+                        { title: "Clinical Status", field: "clinical_status" },
+                      ].map((section) => (
+                        <Grid item xs={12} md={6} key={section.field}>
+                          <Paper
+                            variant="outlined"
+                            sx={{
+                              p: 2,
+                              borderRadius: 2,
+                              transition: 'all 0.3s ease',
+                              '&:hover': {
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                              }
+                            }}
                           >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                          </Button>
-                          <Button variant="outlined" onClick={handleCancelEdit}>
-                            Cancel
-                          </Button>
-                        </Box>
-                      )}
-                    </Box>
-                  </Paper>
+                            <Typography
+                              variant="subtitle1"
+                              color="primary"
+                              gutterBottom
+                              sx={{ fontWeight: 500 }}
+                            >
+                              {section.title}
+                            </Typography>
+                            {renderEditableObject(
+                              editableData?.profile_data?.profile_data?.[section.field],
+                              ['profile_data', 'profile_data', section.field]
+                            )}
+                          </Paper>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </Box>
                 </AccordionDetails>
               </Accordion>
             </Grid>
@@ -516,62 +603,46 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
             {/* Health Goals Section */}
             <Grid item xs={12}>
               <Accordion defaultExpanded>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} m={0}>
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{
+                    backgroundColor: 'white',
+                    borderBottom: '1px solid #eaeaea',
+                  }}
+                >
                   <Box
                     display="flex"
                     alignItems="center"
                     width="100%"
                     justifyContent="space-between"
-                    backgroundColor="#1976d2"
                   >
-                    <Typography variant="h5" color="white">
+                    <Typography variant="h6" color="text.primary">
                       Health Goals
                     </Typography>
-                    <Box display="flex"> {/* Container for icons */}
-                      <IconButton
-                        onClick={() => handleEditClick('goals')}
-                        sx={{ color: 'white', marginRight: 1 }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleCopyToClipboard('goals')}
-                        sx={{ color: 'white' }}
-                      >
-                        <FileCopyIcon />
-                      </IconButton>
-                    </Box>
+                    <IconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyToClipboard('goals');
+                      }}
+                      size="small"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      <FileCopyIcon fontSize="small" />
+                    </IconButton>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Paper elevation={3} sx={{ overflow: 'hidden', width: '100%' }}>
-                    <Box p={1}>
-                      {isEditing && editingSection === 'goals'
-                        ? renderEditableObject(editableData?.goal_data?.goal_data, ['goal_data', 'goal_data'])
-                        : goal_data?.goal_data?.goal_name ? (
-                          renderObject(goal_data.goal_data)
-                        ) : (
-                          <Typography color="text.secondary" fontStyle="italic">
-                            No current health goals established
-                          </Typography>
-                        )}
-                      {isEditing && editingSection === 'goals' && (
-                        <Box mt={3}>
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={handleSubmit}
-                            disabled={isSaving}
-                            sx={{ mr: 2 }}
-                          >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                          </Button>
-                          <Button variant="outlined" onClick={handleCancelEdit}>
-                            Cancel
-                          </Button>
-                        </Box>
-                      )}
-                    </Box>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      borderRadius: 2
+                    }}
+                  >
+                    {renderEditableObject(
+                      editableData?.goal_data?.goal_data,
+                      ['goal_data', 'goal_data']
+                    )}
                   </Paper>
                 </AccordionDetails>
               </Accordion>
@@ -580,208 +651,256 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
             {/* Medical Review Section */}
             <Grid item xs={12}>
               <Accordion defaultExpanded>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{
+                    backgroundColor: 'white',
+                    borderBottom: '1px solid #eaeaea',
+                  }}
+                >
                   <Box
                     display="flex"
                     alignItems="center"
                     width="100%"
                     justifyContent="space-between"
-                    backgroundColor="#1976d2"
                   >
-                    <Typography variant="h5" color="white">
+                    <Typography variant="h6" color="text.primary">
                       Medical Review
                     </Typography>
-                    <Box display="flex"> {/* Container for icons */}
-                      <IconButton
-                        onClick={() => handleEditClick('review')}
-                        sx={{ color: 'white', marginRight: 1 }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleCopyToClipboard('review')}
-                        sx={{ color: 'white' }}
-                      >
-                        <FileCopyIcon />
-                      </IconButton>
-                    </Box>
+                    <IconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyToClipboard('review');
+                      }}
+                      size="small"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      <FileCopyIcon fontSize="small" />
+                    </IconButton>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Paper elevation={3} sx={{ overflow: 'hidden', width: '100%' }}>
-                    <Box p={1}>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
-                          <Paper variant="outlined" sx={{ p: 1, mb: 2 }}>
-                            <Typography variant="h6" color="primary" gutterBottom>
-                              Subjective
-                            </Typography>
-                            {isEditing && editingSection === 'review'
-                              ? renderEditableObject(
-                                editableData?.review_data?.doctor_note_data?.subjective,
-                                ['review_data', 'doctor_note_data', 'subjective']
-                              )
-                              : renderObject(review_data?.doctor_note_data?.subjective)}
-                          </Paper>
-                          <Paper variant="outlined" sx={{ p: 2 }}>
-                            <Typography variant="h6" color="primary" gutterBottom>
-                              Objective
-                            </Typography>
-                            {isEditing && editingSection === 'review'
-                              ? renderEditableObject(
-                                editableData?.review_data?.doctor_note_data?.objective,
-                                ['review_data', 'doctor_note_data', 'objective']
-                              )
-                              : renderObject(review_data?.doctor_note_data?.objective)}
-                          </Paper>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                            <Typography variant="h6" color="primary" gutterBottom>
-                              Assessment
-                            </Typography>
-                            {isEditing && editingSection === 'review'
-                              ? renderEditableObject(
-                                editableData?.review_data?.doctor_note_data?.assessment,
-                                ['review_data', 'doctor_note_data', 'assessment']
-                              )
-                              : renderObject(review_data?.doctor_note_data?.assessment)}
-                          </Paper>
-                          <Paper variant="outlined" sx={{ p: 2 }}>
-                            <Typography variant="h6" color="primary" gutterBottom>
-                              Plan
-                            </Typography>
-                            {isEditing && editingSection === 'review'
-                              ? renderEditableObject(
-                                editableData?.review_data?.doctor_note_data?.plan,
-                                ['review_data', 'doctor_note_data', 'plan']
-                              )
-                              : renderObject(review_data?.doctor_note_data?.plan)}
-                          </Paper>
-                        </Grid>
-                      </Grid>
-                      <Box mt={3}>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <ScheduleIcon color="primary" />
-                          <Typography variant="h6" color="primary">
-                            Next Review
+                  <Box p={1}>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            mb: 2,
+                            borderRadius: 2,
+                            borderLeft: '3px solid #4caf50'
+                          }}
+                        >
+                          <Typography
+                            variant="subtitle1"
+                            color="primary"
+                            gutterBottom
+                            sx={{ fontWeight: 500 }}
+                          >
+                            Subjective
                           </Typography>
-                        </Box>
-                        <Typography variant="body1" mt={1}>
-                          {isEditing && editingSection === 'review' ? (
-                            <TextField
-                              type="datetime-local" // set type to datetime-local
-                              value={editableData?.review_data?.doctor_note_data?.next_review || ''}
-                              onChange={(e) =>
-                                handleFieldChange(['review_data', 'doctor_note_data', 'next_review'], e.target.value)
-                              }
-                              fullWidth
-                            />
-                          ) : (
-                            review_data?.doctor_note_data?.next_review || 'Not Scheduled'
+                          {renderEditableObject(
+                            editableData?.review_data?.doctor_note_data?.subjective,
+                            ['review_data', 'doctor_note_data', 'subjective']
                           )}
+                        </Paper>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            borderRadius: 2,
+                            borderLeft: '3px solid #ff9800'
+                          }}
+                        >
+                          <Typography
+                            variant="subtitle1"
+                            color="primary"
+                            gutterBottom
+                            sx={{ fontWeight: 500 }}
+                          >
+                            Objective
+                          </Typography>
+                          {renderEditableObject(
+                            editableData?.review_data?.doctor_note_data?.objective,
+                            ['review_data', 'doctor_note_data', 'objective']
+                          )}
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            mb: 2,
+                            borderRadius: 2,
+                            borderLeft: '3px solid #2196f3'
+                          }}
+                        >
+                          <Typography
+                            variant="subtitle1"
+                            color="primary"
+                            gutterBottom
+                            sx={{ fontWeight: 500 }}
+                          >
+                            Assessment
+                          </Typography>
+                          {renderEditableObject(
+                            editableData?.review_data?.doctor_note_data?.assessment,
+                            ['review_data', 'doctor_note_data', 'assessment']
+                          )}
+                        </Paper>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            borderRadius: 2,
+                            borderLeft: '3px solid #9c27b0'
+                          }}
+                        >
+                          <Typography
+                            variant="subtitle1"
+                            color="primary"
+                            gutterBottom
+                            sx={{ fontWeight: 500 }}
+                          >
+                            Plan
+                          </Typography>
+                          {renderEditableObject(
+                            editableData?.review_data?.doctor_note_data?.plan,
+                            ['review_data', 'doctor_note_data', 'plan']
+                          )}
+                        </Paper>
+                      </Grid>
+                    </Grid>
+
+                    <Box mt={3} p={2} sx={{ backgroundColor: '#f5f9ff', borderRadius: 2 }}>
+                      <Box display="flex" alignItems="center" gap={1} mb={1}>
+                        <ScheduleIcon color="primary" />
+                        <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 500 }}>
+                          Next Review
                         </Typography>
                       </Box>
-                      <Divider sx={{ my: 3 }} />
-                      <Typography variant="h6" color="primary" gutterBottom>
-                        Prescriptions & Investigations
-                      </Typography>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
-                          <Typography variant="subtitle1" gutterBottom>
-                            Prescriptions
-                          </Typography>
-                          <Box>
-                            {isEditing && editingSection === 'review' ? (
-                              renderEditableObject(
-                                editableData?.review_data?.doctor_note_data?.prescription,
-                                ['review_data', 'doctor_note_data', 'prescription']
-                              )
-                            ) : review_data?.doctor_note_data?.prescription?.length > 0 ? (
-                              review_data.doctor_note_data.prescription.map((pres, i) => (
-                                <Chip
-                                  key={i}
-                                  label={`${pres.medication_name} - ${pres.dosage}`}
-                                  color="primary"
-                                  variant="outlined"
-                                />
-                              ))
-                            ) : (
-                              <Typography color="text.secondary">None</Typography>
-                            )}
-                          </Box>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <Typography variant="subtitle1" gutterBottom>
-                            Investigations
-                          </Typography>
-                          <Box>
-                            {isEditing && editingSection === 'review' ? (
-                              renderEditableObject(
-                                editableData?.review_data?.doctor_note_data?.investigation,
-                                ['review_data', 'doctor_note_data', 'investigation']
-                              )
-                            ) : review_data?.doctor_note_data?.investigation?.length > 0 ? (
-                              review_data.doctor_note_data.investigation.map((inv, i) => (
-                                <Chip
-                                  key={i}
-                                  label={`${inv.test_type}: ${inv.reason}`}
-                                  color="primary"
-                                  variant="outlined"
-                                />
-                              ))
-                            ) : (
-                              <Typography color="text.secondary">None</Typography>
-                            )}
-                          </Box>
-                        </Grid>
-                      </Grid>
-                      <Divider sx={{ my: 3 }} />
-                      <Typography variant="h6" color="primary" gutterBottom>
-                        Summary
-                      </Typography>
-                      <Paper variant="outlined" sx={{ p: 2 }}>
-                        {isEditing && editingSection === 'review'
-                          ? renderEditableObject(
-                            editableData?.review_data?.doctor_note_data?.summary,
-                            ['review_data', 'doctor_note_data', 'summary']
-                          )
-                          : renderObject(review_data?.doctor_note_data?.summary)}
-                      </Paper>
-                      {isEditing && editingSection === 'review' && (
-                        <Box mt={3}>
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={handleSubmit}
-                            disabled={isSaving}
-                            sx={{ mr: 2 }}
-                          >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                          </Button>
-                          <Button variant="outlined" onClick={handleCancelEdit}>
-                            Cancel
-                          </Button>
-                        </Box>
+                      {renderEditableField(
+                        editableData?.review_data?.doctor_note_data?.next_review || '',
+                        ['review_data', 'doctor_note_data', 'next_review']
                       )}
                     </Box>
-                  </Paper>
+
+                    <Divider sx={{ my: 3 }} />
+
+                    <Typography
+                      variant="h6"
+                      color="primary"
+                      gutterBottom
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Prescriptions & Investigations
+                    </Typography>
+
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                        <Paper
+                          variant="outlined"
+                          sx={{ p: 2, borderRadius: 2 }}
+                        >
+                          <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                            Prescriptions
+                          </Typography>
+                          {renderEditableObject(
+                            editableData?.review_data?.doctor_note_data?.prescription,
+                            ['review_data', 'doctor_note_data', 'prescription']
+                          )}
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Paper
+                          variant="outlined"
+                          sx={{ p: 2, borderRadius: 2 }}
+                        >
+                          <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                            Investigations
+                          </Typography>
+                          {renderEditableObject(
+                            editableData?.review_data?.doctor_note_data?.investigation,
+                            ['review_data', 'doctor_note_data', 'investigation']
+                          )}
+                        </Paper>
+                      </Grid>
+                    </Grid>
+
+                    <Divider sx={{ my: 3 }} />
+
+                    <Typography
+                      variant="h6"
+                      color="primary"
+                      gutterBottom
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Summary
+                    </Typography>
+
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        backgroundColor: '#f8f9fa'
+                      }}
+                    >
+                      {renderEditableObject(
+                        editableData?.review_data?.doctor_note_data?.summary,
+                        ['review_data', 'doctor_note_data', 'summary']
+                      )}
+                    </Paper>
+                  </Box>
                 </AccordionDetails>
               </Accordion>
             </Grid>
           </Grid>
+
+          {/* Floating save button for mobile */}
+          <Box
+            sx={{
+              position: 'fixed',
+              bottom: 20,
+              right: 20,
+              display: { xs: 'block', sm: 'none' }
+            }}
+          >
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleSubmit}
+              disabled={isSaving || !hasChanges} // Disable save button when no changes or saving
+              sx={{
+                borderRadius: 28,
+                boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+                px: 3
+              }}
+              startIcon={<SaveIcon />}
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </Button>
+          </Box>
         </Container>
+
+        {/* Notification snackbar */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={6000}
+          onClose={handleSnackbarClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={handleSnackbarClose}
+            severity={snackbarSeverity}
+            sx={{ width: '100%' }}
+          >
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
       </Box>
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
     </ThemeProvider>
   );
 });

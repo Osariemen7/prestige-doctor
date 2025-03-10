@@ -542,9 +542,9 @@ const SearchBox = () => {
                   <MenuItem value="low">
                       <em>AI Level</em>
                     </MenuItem>
-                    <MenuItem value="low">Basic ₦50</MenuItem>
-                    <MenuItem value="medium">Intermediate ₦200</MenuItem>
-                    <MenuItem value="high">Advanced ₦500</MenuItem>
+                    <MenuItem value="low">Basic $0.05</MenuItem>
+                    <MenuItem value="medium">Intermediate $0.15</MenuItem>
+                    <MenuItem value="high">Advanced $0.5</MenuItem>
                   </Select>
                 </FormControl>
               </Box>

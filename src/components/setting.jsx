@@ -46,7 +46,7 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
     qualifications: '',
     date_of_registration: '',
     bio: '',
-    rate_per_minute: '',
+    rate_per_hour: '',
   });
 
   // State for editing
@@ -98,7 +98,7 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
             qualifications: firstProvider.qualifications || '',
             date_of_registration: firstProvider.date_of_registration || '',
             bio: firstProvider.bio || '',
-            rate_per_minute: firstProvider.rate_per_minute || '',
+            rate_per_hour: firstProvider.rate_per_hour || '',
           };
           setProviderData(updatedProviderData);
           setTempProviderData(updatedProviderData);
