@@ -19,6 +19,7 @@ const ProviderPage = () => {
   const [specialty, setSpecialty] = useState('');
   const [qualifications, setQualifications] = useState(null);
   const [provider, setProvider] = useState('');
+  const [referral_code, setReferal] = useState('');
   const [dateOfRegistration, setDateOfRegistration] = useState(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -117,6 +118,7 @@ const getRefreshToken = async () => {
       bio: bio,
       rate_per_hour: amount,
       rate_currency: 'NGN',
+      referral_code: referral_code,
     };
     const accessToken = await getAccessToken();
     try {
@@ -263,6 +265,19 @@ const getRefreshToken = async () => {
               required
               InputProps={{
                 startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                sx: { backgroundColor: 'rgba(255,255,255,0.5)' },
+              }}
+              variant="outlined"
+            />
+          </FormControl>
+          <FormControl fullWidth>
+            <TextField
+              label="Input Referal Code"
+              type="number"
+              value={referral_code}
+              onChange={(e) =>setReferal(e.target.value)}
+              required
+              InputProps={{
                 sx: { backgroundColor: 'rgba(255,255,255,0.5)' },
               }}
               variant="outlined"
