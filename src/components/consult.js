@@ -46,6 +46,7 @@ import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
 import PatientProfileDisplay from './document';
+import PatientProfile from './write'
 import axios from 'axios';
 
 const pulseAnimation = keyframes`
@@ -421,6 +422,12 @@ const ConsultAIPage = () => {
       if (patientProfileRef.current && patientProfileRef.current.getSuggestion) { // Check if ref and function exist
         patientProfileRef.current.getSuggestion(); // Call getSuggestion on pause
       }
+      if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
+        patientProfileRef.current.getSuggestion('patientProfile'); // Pass 'patientProfile' tab name
+        patientProfileRef.current.getSuggestion('healthGoals');   // Pass 'healthGoals' tab name
+        patientProfileRef.current.getSuggestion('medicalReview');  // Pass 'medicalReview' tab name
+    }
+
     }
   };
 
@@ -644,6 +651,7 @@ const ConsultAIPage = () => {
       setThread(result.appointment.thread_id);
       setPatient(result.appointment.patient)
       console.log('Appointment booked successfully.');
+      console.log(result.appointment.review_id)
       return true; // Booking successful
 
     } catch (error) {
@@ -990,7 +998,7 @@ const ConsultAIPage = () => {
                 <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
                 <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
               </Flex>
-              <PatientProfileDisplay thread={thread} reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef} parentalSetIsDocumentationSaved={setIsDocumentationSaved} />
+              <PatientProfile thread={thread} reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef} parentalSetIsDocumentationSaved={setIsDocumentationSaved} />
             </Box>
           )}
 
@@ -1014,7 +1022,7 @@ const ConsultAIPage = () => {
                   <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
                   <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
                 </Flex>
-                <PatientProfileDisplay reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef} parentalSetIsDocumentationSaved={setIsDocumentationSaved}/>
+                <PatientProfile reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef} parentalSetIsDocumentationSaved={setIsDocumentationSaved}/>
               </Box>
             )}
         </Flex>
