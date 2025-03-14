@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Box,
   Typography,
   TextField,
+  Icon,
   IconButton,
   Link,
   Collapse,
@@ -24,9 +25,10 @@ import {
   Tooltip,
   Divider,
   Fade,
-  InputAdornment,
   FormControl,
-  Select
+  Select,
+  ImageList,
+  ImageListItem
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -35,8 +37,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import VerifiedIcon from '@mui/icons-material/Verified';
-import LocalAtmIcon from '@mui/icons-material/LocalAtm';
+import ImageIcon from '@mui/icons-material/Image'; // Import ImageIcon
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAccessToken } from './api';
@@ -263,14 +264,25 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
         color: isUser ? 'white' : 'text.primary',
         position: 'relative',
         wordBreak: 'break-word',
-        // Remove maxWidth: '75%',  <-- REMOVE THIS LINE
-        maxWidth: '100%', // Keep this to prevent extremely long text from breaking layout
+        maxWidth: '100%',
+        minWidth: '50px' // Added minWidth to prevent layout issues with images
     }}
           >
             {isResponseLoading && isLatest ? (
               <CircularProgress size={24} thickness={4} sx={{ color: isUser ? 'white' : 'primary.main' }} />
             ) : isUser ? (
-              <Typography>{chat.content}</Typography>
+              chat.isImage ? (
+                <Box sx={{ maxWidth: 300 }}> {/* Adjust maxWidth as needed */}
+                  <img
+                    src={chat.content} // Assuming chat.content is base64 or URL
+                    alt="Uploaded"
+                    style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8 }}
+                  />
+                  {chat.text && <Typography sx={{ mt: 1 }}>{chat.text}</Typography>}
+                </Box>
+              ) : (
+                <Typography>{chat.content}</Typography>
+              )
             ) : (() => {
               const { thinkContent, remainingContent } = extractThinkContent(chat.content);
               return (
@@ -439,7 +451,11 @@ const ChatScreen = ({
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [suggestions, setSuggestion] = useState([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(null); // State for selected image file
+  const [selectedImagePreview, setSelectedImagePreview] = useState(null); // State for image preview URL
+  const [isExpertLevelLocked, setIsExpertLevelLocked] = useState(false); // State to lock expert level
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const fileInputRef = useRef(null); // Ref for hidden file input
 
   // Handle input changes
   const handleTyping = (e) => {
@@ -453,32 +469,80 @@ const ChatScreen = ({
   // Use chatMessages directly (or merge with any additional messages as needed)
   const combinedMessages = chatMessages;
 
+  const handleImageUploadClick = () => {
+    fileInputRef.current.click(); // Programmatically click the hidden file input
+  };
+
+  const handleImageSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImagePreview(reader.result); // Set image preview URL
+      };
+      reader.readAsDataURL(file);
+
+      setExpertLevel('high'); // Automatically set to high on image upload
+      setIsExpertLevelLocked(true); // Lock the dropdown
+    } else {
+      setSelectedImage(null);
+      setSelectedImagePreview(null);
+      setIsExpertLevelLocked(false);
+      setExpertLevel('low'); // Reset to default if image selection is cancelled
+    }
+  };
+
+  const handleCancelImage = () => {
+    setSelectedImage(null);
+    setSelectedImagePreview(null);
+    setIsExpertLevelLocked(false);
+    setExpertLevel('low');
+  };
+
+
   // Handle sending a message
   const handleSendMessage = useCallback(async () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !selectedImage) return; // Don't send empty messages or without image
+
     const currentMessage = message;
     setMessage('');
     setIsResponseLoading(true);
+    setIsSourcesVisible(false); // Reset sources visibility on new message
+    setError(''); // Clear any previous errors
+    setSelectedImagePreview(null); // Clear image preview after sending
+
     try {
       const token = await getAccessToken();
       const apiUrl = "https://health.prestigedelta.com/research/";
-      const payload = { query: currentMessage, expertise_level: expertLevel };
+
+      const formData = new FormData();
+
       if (threadId) {
-        payload.thread_id = threadId;
+        formData.append('thread_id', threadId);
       } else {
-        payload.thread_id = thread;
+        formData.append('thread_id', thread);
       }
-      payload.patient_number = `+234${phoneNumber.slice(1)}`;
+      formData.append('patient_number', `+234${phoneNumber.slice(1)}`);
       if (selectedPatient) {
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
-          payload.patient_phone = selectedPatient.phone_number;
+          formData.append('patient_phone', selectedPatient.phone_number);
         } else {
-          payload.patient_id = selectedPatient.id;
+          formData.append('patient_id', selectedPatient.id);
         }
       }
+      formData.append('expertise_level', expertLevel); // Use current expertLevel, will be 'high' if image is uploaded
+      if (selectedImage) {
+        formData.append('image', selectedImage);
+        formData.append('caption', currentMessage.trim() ? currentMessage : "Analyze this image"); // Use caption if text is present
+      } else {
+        formData.append('query', currentMessage); // Send text query if no image
+      }
+
       if (transcript) {
         const currentTime = new Date().toISOString();
-        payload.transcript = [
+        formData.append('transcript', JSON.stringify([
           {
             time: currentTime,
             speaker: "patient",
@@ -489,24 +553,38 @@ const ChatScreen = ({
             speaker: "doctor",
             content: transcript
           }
-        ];
-      
-
+        ]));
       }
+
       // Append user's message
-      const userMessage = { role: "user", content: currentMessage };
+      const userMessageContent = selectedImagePreview ? selectedImagePreview : currentMessage;
+      const userTextMessage = selectedImage ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
+
+      const userMessage = {
+        role: "user",
+        content: userMessageContent,
+        isImage: !!selectedImagePreview, // Flag as image message
+        text: userTextMessage, // Store text content separately for image messages
+      };
       setChatMessages((prev) => [...prev, userMessage]);
+
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: formData,
       });
+
       if (!response.body) {
         throw new Error("No response body");
       }
+
+      // Reset selected image and preview after sending
+      setSelectedImage(null);
+      setSelectedImagePreview(null);
+      setIsExpertLevelLocked(false); // Unlock dropdown after image sent and response started
+
       // Append a placeholder for assistant response
       let assistantMessage = { role: "assistant", content: "", citations: [] };
       setChatMessages((prev) => [...prev, assistantMessage]);
@@ -514,34 +592,56 @@ const ChatScreen = ({
       const decoder = new TextDecoder();
       let done = false;
       let buffer = "";
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n");
-        buffer = parts.pop();
-        parts.forEach((part) => {
-          if (part.trim()) {
-            try {
-              const parsed = JSON.parse(part);
-              if (parsed.thread_id) {
-                setThreadId(parsed.thread_id);
-              }
-              if (parsed.assistant_response_chunk) {
-                assistantMessage.content = parsed.accumulated_response;
-                assistantMessage.citations = parsed.citations;
-                setChatMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { ...assistantMessage };
-                  return updated;
-                });
-              }
-            } catch (error) {
-              console.error("Error parsing JSON chunk:", error);
-            }
-          }
+
+      if (selectedImage) {
+        // Handle plain text response for image upload
+        let accumulatedResponse = '';
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          const chunkText = decoder.decode(value);
+          accumulatedResponse += chunkText;
+        }
+        assistantMessage.content = accumulatedResponse.trim();
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...assistantMessage };
+          return updated;
         });
+
+      } else {
+        // Handle JSON stream for text messages
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n");
+          buffer = parts.pop();
+          parts.forEach((part) => {
+            if (part.trim()) {
+              try {
+                const parsed = JSON.parse(part);
+                if (parsed.thread_id) {
+                  setThreadId(parsed.thread_id);
+                }
+                if (parsed.assistant_response_chunk) {
+                  assistantMessage.content = parsed.accumulated_response;
+                  assistantMessage.citations = parsed.citations;
+                  setChatMessages((prev) => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = { ...assistantMessage };
+                    return updated;
+                  });
+                }
+              } catch (error) {
+                console.error("Error parsing JSON chunk:", error);
+              }
+            }
+          });
+        }
       }
+
+
     } catch (error) {
       console.error("Error sending message:", error);
       setChatMessages((prev) => [
@@ -555,7 +655,7 @@ const ChatScreen = ({
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript]);
+  }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript, selectedImage, isExpertLevelLocked, selectedImagePreview]);
 
   const handleSuggestion = async () => {
     setIsLoadingSuggestions(true);
@@ -648,7 +748,7 @@ const ChatScreen = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100%',
-              
+
                 mx: 'auto',
         width: '100%',
                 textAlign: 'center',
@@ -686,7 +786,7 @@ const ChatScreen = ({
                 </Typography>
                 <Typography color="text.secondary" sx={{ mb: 3 }}>
                   Ask any health-related question. I can provide research-backed
-                  information on medical conditions, treatments, nutrition, and more.
+                  information on medical conditions, treatments, nutrition, and more. You can also upload medical images for analysis.
                 </Typography>
                 <Divider sx={{ mb: 3 }} />
                 <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 500 }}>
@@ -733,10 +833,42 @@ const ChatScreen = ({
         {/* Footer: Input area styled as per provided snippet */}
         <Box sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'grey.200', backgroundColor: 'background.paper' }}>
     <Box sx={{ p: 2, width: '100%' }}>
+      {selectedImagePreview && (
+        <Paper elevation={1} sx={{ p: 1, mb: 1, borderRadius: 2, display: 'inline-block', maxWidth: '100%' }}>
+          <Box sx={{ position: 'relative', maxWidth: 50, maxHeight: 50, overflow: 'hidden' }}> {/* Reduced maxWidth and maxHeight */}
+            <img
+              src={selectedImagePreview}
+              alt="Image Preview"
+              style={{
+                display: 'block',
+                width: '50px',     // Fixed width
+                height: '50px',    // Fixed height
+                objectFit: 'cover' // Maintain aspect ratio and cover the container
+              }}
+            />
+             <IconButton
+              aria-label="cancel"
+              onClick={handleCancelImage}
+              sx={{
+                position: 'absolute',
+                top: -10,
+                right: -10,
+                color: 'error.main',
+                backgroundColor: 'background.paper',
+                '&:hover': {
+                  backgroundColor: 'grey.100',
+                },
+              }}
+            >
+              <Icon>cancel</Icon>
+            </IconButton>
+          </Box>
+        </Paper>
+      )}
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
         <TextField
           fullWidth
-          placeholder="Ask anything..."
+          placeholder="Ask anything or upload image..."
           variant="standard"
           multiline
           minRows={1}
@@ -752,7 +884,18 @@ const ChatScreen = ({
           }}
           sx={{ marginBottom: '8px' }}
         />
-        <IconButton color="primary" onClick={handleSendMessage} disabled={!message.trim()}>
+         <IconButton color="secondary" onClick={handleImageUploadClick} aria-label="upload image" disabled={isResponseLoading}>
+            <ImageIcon />
+          </IconButton>
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+            disabled={isResponseLoading}
+          />
+        <IconButton color="primary" onClick={handleSendMessage} disabled={(!message.trim() && !selectedImage) || isResponseLoading}>
           <SendIcon />
         </IconButton>
       </Box>
@@ -761,6 +904,7 @@ const ChatScreen = ({
                 <Select
                   value={expertLevel}
                   onChange={(e) => setExpertLevel(e.target.value)}
+                  disabled={isExpertLevelLocked || isResponseLoading}
                   sx={{
                     fontSize: '14px',
                     backgroundColor: '#F0F8FF',
@@ -774,8 +918,8 @@ const ChatScreen = ({
                   <MenuItem value="low">
                     <em>AI Level</em>
                   </MenuItem>
-                  <MenuItem value="low">Basic $0.05</MenuItem>
-                  <MenuItem value="medium">Intermediate $0.15</MenuItem>
+                  <MenuItem value="low" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.05</MenuItem>
+                  <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.15</MenuItem>
                   <MenuItem value="high">Advanced $0.5</MenuItem>
                 </Select>
               </FormControl>
