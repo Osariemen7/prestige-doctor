@@ -39,6 +39,7 @@ import {
   FormHelperText,
   InputGroup,
   InputLeftAddon,
+  Select
 } from '@chakra-ui/react';
 import { MdNotes, MdClose, MdMic, MdStop, MdTextFields, MdPause, MdPlayArrow, MdMessage } from 'react-icons/md';
 import ChatScreen from './chatScreen';
@@ -66,6 +67,7 @@ const ConsultAIPage = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState("voice");
   const [bottomTabIndex, setBottomTabIndex] = useState(0);
+  const [countryCode, setCountryCode] = useState("+234");
   const [loading, setLoading] = useState(false);
   const [ite, setIte] = useState('');
   const [isBottomTabVisible, setIsBottomTabVisible] = useState(false);
@@ -583,7 +585,7 @@ const ConsultAIPage = () => {
     await handleBilling();
     toast({
       title: 'Consultation Ended',
-      description: 'Consultation ended and billing processed.',
+      description: 'Consultation ended.',
       status: 'success',
       duration: 3000,
       isClosable: true,
@@ -836,66 +838,75 @@ const ConsultAIPage = () => {
         <Flex flex="1" overflow="hidden" direction={!isMobile && isBottomTabVisible ? "row" : "column" }>
         { !isConsultationStarted && wsStatus !== 'Connected' && (
           <Flex
-            direction="column"
-            align="center"
-            justify="center"
-            flex="1"
-            p={8}
-            bg="gray.50"
-          >
-            <VStack
-              spacing={8}
-              maxWidth="md"
-              bg="white"
-              p={8}
-              borderRadius="lg"
-              boxShadow="md"
-            >
-              <Heading size="lg" textAlign="center" color="blue.600">
-                Start a New Consultation
-              </Heading>
+  direction="column"
+  align="center"
+  justify="center"
+  flex="1"
+  p={8}
+  bg="gray.50"
+>
+  <VStack
+    spacing={8}
+    maxWidth="md"
+    bg="white"
+    p={8}
+    borderRadius="lg"
+    boxShadow="md"
+  >
+    <Heading size="lg" textAlign="center" color="blue.600">
+      Start a New Consultation
+    </Heading>
 
-              <FormControl isRequired isInvalid={!!errorMessage}>
-                <FormLabel htmlFor="phoneNumber">Patient Phone Number</FormLabel>
-                <InputGroup>
-                  <InputLeftAddon children="+234" />
-                  <Input
-                    id="phoneNumber"
-                    placeholder="Patient's phone number"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    maxLength={11}
-                  />
-                </InputGroup>
-                <FormHelperText>
-                  Enter the patient's 11-digit phone number to start the consultation
-                </FormHelperText>
-                {errorMessage && (
-                  <Alert status="error" mt={2} borderRadius="md">
-                    <AlertIcon />
-                    {errorMessage}
-                  </Alert>
-                )}
-              </FormControl>
+    <FormControl isRequired isInvalid={!!errorMessage}>
+      <FormLabel htmlFor="phoneNumber">Patient Phone Number</FormLabel>
+      <HStack width="100%">
+        <Select 
+          value={countryCode} 
+          onChange={(e) => setCountryCode(e.target.value)}
+          maxWidth="120px"
+        >
+          <option value="+234">+234</option>
+          <option value="+1">+1</option>
+         
+        </Select>
+        <Input
+          id="phoneNumber"
+          placeholder="Patient's phone number"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          maxLength={11}
+          flex="1"
+        />
+      </HStack>
+      <FormHelperText>
+        Enter the patient's 11-digit phone number to start the consultation
+      </FormHelperText>
+      {errorMessage && (
+        <Alert status="error" mt={2} borderRadius="md">
+          <AlertIcon />
+          {errorMessage}
+        </Alert>
+      )}
+    </FormControl>
 
-              <Button
-                onClick={startConsultationSessionFlow}
-                colorScheme="blue"
-                size="lg"
-                width="full"
-                isLoading={loading}
-                loadingText="Starting..."
-              >
-                Start Consultation
-              </Button>
+    <Button
+      onClick={startConsultationSessionFlow}
+      colorScheme="blue"
+      size="lg"
+      width="full"
+      isLoading={loading}
+      loadingText="Starting..."
+    >
+      Start Consultation
+    </Button>
 
-              {loading && (
-                <Text textAlign="center" color="gray.600">
-                  {animationMessages[animationIndex]}
-                </Text>
-              )}
-            </VStack>
-          </Flex>
+    {loading && (
+      <Text textAlign="center" color="gray.600">
+        {animationMessages[animationIndex]}
+      </Text>
+    )}
+  </VStack>
+</Flex>
           )}
 
           {/* Left Side (ChatScreen/VoiceNote) - 70% on Desktop */}

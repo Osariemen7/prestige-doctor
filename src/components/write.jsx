@@ -5,7 +5,7 @@ import TranscriptTab from './transcript';
 import PatientProfileTab from './patent';
 import HealthGoalsTab from './healthgoal';
 import MedicalReviewTab from './medical';
-import { Container } from '@mui/material';
+import { Container, Box, Button, Typography } from '@mui/material';
 import SnackbarComponent from './snackbar';
 import axios from 'axios';
 import { getAccessToken } from './api';
@@ -164,7 +164,41 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
         setActiveTab(tabName);
     };
 
+    const savePatientProfile = async () => {
+        return handleSubmit('patientProfile');
+    };
+
+    const saveHealthGoals = async () => {
+        return handleSubmit('healthGoals');
+    };
+
+    const saveMedicalReview = async () => {
+        return handleSubmit('medicalReview');
+    };
+
+
     
+    const saveAllDocumentation = async () => {
+        setIsSaving(true); // Start saving indication for all saves
+        try {
+            await savePatientProfile();
+            await saveHealthGoals();
+            await saveMedicalReview();
+
+            setSnackbarSeverity('success');
+            setSnackbarMessage('All documentation saved successfully!');
+            setSnackbarOpen(true);
+            parentalSetIsDocumentationSaved(true);
+
+        } catch (error) {
+            console.error("Error saving all documentation:", error);
+            setSnackbarSeverity('error');
+            setSnackbarMessage('Failed to save all documentation. Please check each section.');
+            setSnackbarOpen(true);
+        } finally {
+            setIsSaving(false); // End saving indication after all saves or errors
+        }
+    };
     const handleDataChange = (tabName, newData) => {
         setEditableData(prevData => {
             let updatedData = { ...prevData };
@@ -246,7 +280,17 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
     return (
         <ThemeProvider theme={theme}> 
         <Container maxWidth="xl">
-            <h1>Medical Scribe System</h1>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}> {/* Header Box */}
+                            <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={saveAllDocumentation}
+                    disabled={isSaving}
+                >
+                    Save All Documentation
+                </Button>
+            </Box>
+
             <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
 
             {activeTab === 'transcript' && (

@@ -1,409 +1,722 @@
 import React, { useState, useEffect } from 'react';
-import { Paper, Typography, Grid, TextField, Button, Box, Chip, IconButton, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-
+import {
+  Paper,
+  Typography,
+  Grid,
+  TextField,
+  Button,
+  Box,
+  IconButton,
+  Divider
+} from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
-import format from 'date-fns/format';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
+import CancelIcon from '@mui/icons-material/Cancel';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'; // Import CheckCircleIcon
+import { format } from 'date-fns';
 
+const HealthGoalsTab = ({
+  data,
+  editableData,
+  schema,
+  onDataChange,
+  suggestion,
+  onApplySuggestion,
+  onSaveGoals,
+  isSaving
+}) => {
+  const [localData, setLocalData] = useState(editableData);
+  const [isEditing, setIsEditing] = useState(false);
 
-function HealthGoalsTab({ data, schema, onDataChange, suggestion, onApplySuggestion }) {
-    const [localData, setLocalData] = useState(data);
-    const [isEditing, setIsEditing] = useState(false);
+  useEffect(() => {
+    setLocalData(editableData);
+  }, [editableData]);
 
-    useEffect(() => {
-        setLocalData(data);
-    }, [data]);
+  // Basic change handlers
+  const handleInputChange = (field, value) => {
+    setLocalData(prevData => ({
+      ...prevData,
+      [field]: value
+    }));
+  };
 
-    const handleInputChange = (field, value) => {
-        setLocalData(prevData => ({
-            ...prevData,
-            [field]: value
-        }));
+  const handleMetricChange = (index, field, value) => {
+    const updatedMetrics = [...localData.metrics];
+    updatedMetrics[index] = {
+      ...updatedMetrics[index],
+      [field]:
+        field === 'target_value' || field === 'interval'
+          ? Number(value)
+          : value
     };
+    setLocalData(prevData => ({
+      ...prevData,
+      metrics: updatedMetrics
+    }));
+  };
 
-    const handleMetricChange = (index, field, value) => {
-        const updatedMetrics = [...localData.metrics];
-        updatedMetrics[index] = {
-            ...updatedMetrics[index],
-            [field]: field === 'target_value' || field === 'interval' ? Number(value) : value
-        };
-        setLocalData(prevData => ({
-            ...prevData,
-            metrics: updatedMetrics
-        }));
+  const handleActionChange = (index, field, value) => {
+    const updatedActions = [...localData.actions];
+    updatedActions[index] = {
+      ...updatedActions[index],
+      [field]: field === 'interval' ? Number(value) : value
     };
+    setLocalData(prevData => ({
+      ...prevData,
+      actions: updatedActions
+    }));
+  };
 
-    const handleActionChange = (index, field, value) => {
-        const updatedActions = [...localData.actions];
-        updatedActions[index] = {
-            ...updatedActions[index],
-            [field]: field === 'interval' ? Number(value) : value
-        };
-        setLocalData(prevData => ({
-            ...prevData,
-            actions: updatedActions
-        }));
+  // Add / remove for metrics and actions
+  const addMetric = () => {
+    const newMetric = {
+      metric_name: '',
+      unit: '',
+      interval: 0,
+      target_value: 0
     };
+    setLocalData(prevData => ({
+      ...prevData,
+      metrics: [...prevData.metrics, newMetric]
+    }));
+  };
 
-    const addMetric = () => {
-        const newMetric = {
-            metric_name: "",
-            unit: "",
-            interval: 0,
-            target_value: 0
-        };
-        setLocalData(prevData => ({
-            ...prevData,
-            metrics: [...prevData.metrics, newMetric]
-        }));
+  const removeMetric = index => {
+    const updatedMetrics = [...localData.metrics];
+    updatedMetrics.splice(index, 1);
+    setLocalData(prevData => ({
+      ...prevData,
+      metrics: updatedMetrics
+    }));
+  };
+
+  const addAction = () => {
+    const newAction = {
+      name: '',
+      description: '',
+      interval: 0,
+      action_end_date: localData.target_date // Using target_date as a default
     };
+    setLocalData(prevData => ({
+      ...prevData,
+      actions: [...prevData.actions, newAction]
+    }));
+  };
 
-    const removeMetric = (index) => {
-        const updatedMetrics = [...localData.metrics];
-        updatedMetrics.splice(index, 1);
-        setLocalData(prevData => ({
-            ...prevData,
-            metrics: updatedMetrics
-        }));
-    };
+  const removeAction = index => {
+    const updatedActions = [...localData.actions];
+    updatedActions.splice(index, 1);
+    setLocalData(prevData => ({
+      ...prevData,
+      actions: updatedActions
+    }));
+  };
 
-    const addAction = () => {
-        const newAction = {
-            name: "",
-            description: "",
-            interval: 0,
-            action_end_date: localData.target_date
-        };
-        setLocalData(prevData => ({
-            ...prevData,
-            actions: [...prevData.actions, newAction]
-        }));
-    };
+  // Editing controls
+  const startEditing = () => setIsEditing(true);
+  const saveChanges = () => {
+    onDataChange(localData);
+    onSaveGoals();
+    setIsEditing(false);
+  };
+  const cancelEditing = () => {
+    setLocalData(editableData);
+    setIsEditing(false);
+  };
 
-    const removeAction = (index) => {
-        const updatedActions = [...localData.actions];
-        updatedActions.splice(index, 1);
-        setLocalData(prevData => ({
-            ...prevData,
-            actions: updatedActions
-        }));
-    };
+  // Copy health goals text to clipboard
+  const handleCopyGoals = () => {
+    const goalsText = formatGoalsForEMR(localData);
+    navigator.clipboard
+      .writeText(goalsText)
+      .then(() => alert('Health Goals copied to clipboard!'))
+      .catch(err => console.error('Could not copy text: ', err));
+  };
 
-    const handleEditClick = () => {
-        setIsEditing(true);
-    };
+  const formatGoalsForEMR = goalsData => {
+    let emrText = 'HEALTH GOALS:\n';
+    emrText += `  Goal Name: ${goalsData.goal_name || ''}\n`;
+    emrText += `  Target Date: ${
+      goalsData.target_date ? format(new Date(goalsData.target_date), 'MM/dd/yyyy') : ''
+    }\n`;
+    emrText += `  Comments: ${goalsData.comments || ''}\n`;
 
-    const handleSaveClick = () => {
-        onDataChange(localData);
-        setIsEditing(false);
-    };
+    if (goalsData.metrics && goalsData.metrics.length > 0) {
+      emrText += '\nMETRICS:\n';
+      goalsData.metrics.forEach((metric, index) => {
+        emrText += `  ${index + 1}. ${metric.metric_name || ''}: Target ${
+          metric.target_value || ''
+        } ${metric.unit || ''}\n`;
+        emrText += `     Measurement Interval: Every ${metric.interval || ''} hours\n`;
+      });
+    }
 
-    const handleCancelClick = () => {
-        setLocalData(data); // Revert to original data
-        setIsEditing(false);
-    };
+    if (goalsData.actions && goalsData.actions.length > 0) {
+      emrText += '\nACTIONS:\n';
+      goalsData.actions.forEach((action, index) => {
+        emrText += `  ${index + 1}. ${action.name || ''}\n`;
+        emrText += `     Description: ${action.description || ''}\n`;
+        emrText += `     Frequency: Every ${action.interval || 0} hours\n`;
+        emrText += `     End Date: ${
+          action.action_end_date ? format(new Date(action.action_end_date), 'MM/dd/yyyy') : ''
+        }\n`;
+      });
+    }
+    return emrText;
+  };
 
-    const handleCopyGoals = () => {
-        // Format and copy goals data in EMR-friendly format
-        const goalsText = formatGoalsForEMR(localData);
-        navigator.clipboard.writeText(goalsText).then(() => {
-            alert('Health Goals copied to clipboard!');
-        });
-    };
+  // Render header buttons – copy and either edit or (when editing) view/save
+  const renderHeaderButtons = () => (
+    <Box>
+      <Button
+        variant="outlined"
+        startIcon={<ContentCopyIcon />}
+        onClick={handleCopyGoals}
+        sx={{ mr: 1, mb: 1 }}
+      >
+        Copy Goals
+      </Button>
+      {isEditing ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Button
+            variant="outlined"
+            startIcon={<VisibilityIcon />}
+            sx={{ mb: 1 }}
+            onClick={cancelEditing}
+          >
+            View Goals
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={saveChanges}
+            startIcon={<SaveIcon />}
+            disabled={isSaving}
+          >
+            Save Goals
+          </Button>
+        </Box>
+      ) : (
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={startEditing
+          }
+          startIcon={<EditIcon />}
+          sx={{ mb: 1 }}
+        >
+          Edit Goals
+        </Button>
+      )}
+    </Box>
+  );
 
-    const formatGoalsForEMR = (goalsData) => {
-        // Function to format goals data into EMR-friendly text format
-        let emrText = "HEALTH GOALS:\n";
-        emrText += `  Goal Name: ${goalsData.goal_name || ''}\n`;
-        emrText += `  Target Date: ${goalsData.target_date ? format(new Date(goalsData.target_date), 'MM/dd/yyyy') : ''}\n`;
-        emrText += `  Comments: ${goalsData.comments || ''}\n`;
-        
-        if (goalsData.metrics && goalsData.metrics.length > 0) {
-            emrText += "\nMETRICS:\n";
-            goalsData.metrics.forEach((metric, index) => {
-                emrText += `  ${index + 1}. ${metric.metric_name || ''}: Target ${metric.target_value || ''} ${metric.unit || ''}\n`;
-                emrText += `     Measurement Interval: Every ${metric.interval || ''} hours\n`;
-            });
-        }
-        
-        if (goalsData.actions && goalsData.actions.length > 0) {
-            emrText += "\nACTIONS:\n";
-            goalsData.actions.forEach((action, index) => {
-                emrText += `  ${index + 1}. ${action.name || ''}\n`;
-                emrText += `     Description: ${action.description || ''}\n`;
-                emrText += `     Frequency: Every ${action.interval || 'as needed'} hours\n`;
-                emrText += `     End Date: ${action.action_end_date ? format(new Date(action.action_end_date), 'MM/dd/yyyy') : ''}\n`;
-            });
-        }
-        
-        return emrText;
-    };
+  const renderSuggestionItem = (suggestionValue, currentValue, applySuggestionHandler) => {
+    if (suggestionValue && suggestionValue !== currentValue) {
+      return (
+        <Box sx={{
+            mt: 1, // Add margin top for spacing
+            bgcolor: '#f5f5dc', // Beige background color
+            p: 1, // Padding
+            borderRadius: 1, // Rounded corners
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between' // Space between text and button
+        }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mr: 1 }}>
+            Suggestion: {suggestionValue}
+          </Typography>
+          <Button
+              variant="outlined" // Example button style
+              color="primary"
+              size="small"
+              onClick={applySuggestionHandler}
+          >
+              Apply
+          </Button>
+        </Box>
+      );
+    }
+    return null;
+  };
 
+  // --- Non-Editing (View) Mode ---
+  if (!isEditing) {
     return (
-        <Paper elevation={2} sx={{ padding: 3, mt: 2 }}>
-            <Typography variant="h5" gutterBottom>Health Goals</Typography>
-
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                {isEditing ? (
-                    <>
-                        <Button variant="contained" color="primary" onClick={handleSaveClick} sx={{ mr: 1 }}>Save Goals</Button>
-                        <Button onClick={handleCancelClick}>Cancel</Button>
-                    </>
-                ) : (
-                    <>
-                        <Button variant="outlined" onClick={handleCopyGoals} sx={{ mr: 1 }}>Copy Goals</Button>
-                        <Button variant="contained" onClick={handleEditClick}>Edit Goals</Button>
-                    </>
-                )}
-            </Box>
-
+      <Paper elevation={2} sx={{ padding: 3, mt: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 3
+          }}
+        >
+          <Typography variant="h5">Health Goals</Typography>
+          {renderHeaderButtons()}
+        </Box>
+        <Grid container spacing={3}>
+          {/* Goal Information */}
+          <Grid item xs={12}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+              Goal Information
+            </Typography>
             <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                    <TextField
-                        label="Goal Name"
+              <Grid item xs={4}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Goal Name
+                </Typography>
+                <Typography variant="body1">
+                  {localData?.goal_name || '-'}
+                </Typography>
+                {renderSuggestionItem( // Suggestion placed below Typography
+                    suggestion?.goal_name_suggestion,
+                    localData?.goal_name,
+                    () => onApplySuggestion('goals', { goal_name: suggestion?.goal_name_suggestion })
+                )}
+              </Grid>
+              <Grid item xs={4}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Target Date
+                </Typography>
+                <Typography variant="body1">
+                  {localData?.target_date
+                    ? format(new Date(localData.target_date), 'MMMM d, yyyy')
+                    : '-'}
+                </Typography>
+                {renderSuggestionItem( // Suggestion placed below Typography
+                    suggestion?.target_date_suggestion ? format(new Date(suggestion.target_date_suggestion), 'yyyy-MM-dd') : null,
+                    localData?.target_date ? format(new Date(localData.target_date), 'yyyy-MM-dd') : null,
+                    () => onApplySuggestion('goals', { target_date: suggestion?.target_date_suggestion })
+                )}
+              </Grid>
+              <Grid item xs={4}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Comments
+                </Typography>
+                <Typography variant="body1">
+                  {localData?.comments || '-'}
+                </Typography>
+                 {renderSuggestionItem( // Suggestion placed below Typography
+                    suggestion?.comments_suggestion,
+                    localData?.comments,
+                    () => onApplySuggestion('goals', { comments: suggestion?.comments_suggestion })
+                )}
+              </Grid>
+            </Grid>
+          </Grid>
+
+          {/* Metrics */}
+          <Grid item xs={12}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+              Metrics
+            </Typography>
+            {localData?.metrics && localData.metrics.length > 0 ? (
+              localData.metrics.map((metric, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    border: '1px solid #eee',
+                    borderRadius: 1,
+                    p: 2,
+                    mb: 2
+                  }}
+                >
+                  <Typography variant="body1">
+                    <strong>Metric Name:</strong> {metric.metric_name || '-'}
+                  </Typography>
+                  {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.metric_name,
+                      metric.metric_name,
+                      () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                  )}
+                  <Typography variant="body1">
+                    <strong>Unit:</strong> {metric.unit || '-'}
+                  </Typography>
+                   {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.unit,
+                      metric.unit,
+                      () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                  )}
+                  <Typography variant="body1">
+                    <strong>Target Value:</strong> {metric.target_value || 0}
+                  </Typography>
+                   {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.target_value !== undefined ? String(suggestion.metrics_suggestion[index].target_value) : undefined,
+                      String(metric.target_value),
+                      () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                  )}
+                  <Typography variant="body1">
+                    <strong>Interval:</strong> {metric.interval || 0} hours
+                  </Typography>
+                   {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.interval !== undefined ? String(suggestion.metrics_suggestion[index].interval) : undefined,
+                      String(metric.interval),
+                      () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                  )}
+                </Box>
+              ))
+            ) : (
+              <Typography variant="body1">No metrics available.</Typography>
+            )}
+          </Grid>
+
+          {/* Actions */}
+          <Grid item xs={12}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+              Actions
+            </Typography>
+            {localData?.actions && localData.actions.length > 0 ? (
+              localData.actions.map((action, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    border: '1px solid #eee',
+                    borderRadius: 1,
+                    p: 2,
+                    mb: 2
+                  }}
+                >
+                  <Typography variant="body1">
+                    <strong>Action Name:</strong> {action.name || '-'}
+                  </Typography>
+                   {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.name,
+                      action.name,
+                      () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                  )}
+                  <Typography variant="body1">
+                    <strong>Description:</strong> {action.description || '-'}
+                  </Typography>
+                   {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.description,
+                      action.description,
+                      () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                  )}
+                  <Typography variant="body1">
+                    <strong>Interval:</strong> {action.interval || 0} hours
+                  </Typography>
+                   {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.interval !== undefined ? String(suggestion.actions_suggestion[index].interval) : undefined,
+                      String(action.interval),
+                      () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                  )}
+                  <Typography variant="body1">
+                    <strong>End Date:</strong>{' '}
+                    {action.action_end_date
+                      ? format(new Date(action.action_end_date), 'MMMM d, yyyy')
+                      : '-'}
+                  </Typography>
+                   {renderSuggestionItem( // Suggestion placed below Typography
+                      suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.action_end_date ? format(new Date(suggestion.actions_suggestion[index].action_end_date), 'yyyy-MM-dd') : null,
+                      action.action_end_date ? format(new Date(action.action_end_date), 'yyyy-MM-dd') : null,
+                      () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                  )}
+                </Box>
+              ))
+            ) : (
+              <Typography variant="body1">No actions available.</Typography>
+            )}
+          </Grid>
+        </Grid>
+      </Paper>
+    );
+  }
+
+  // --- Editing Mode ---
+  return (
+    <Paper elevation={2} sx={{ padding: 3, mt: 2 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3
+        }}
+      >
+        <Typography variant="h5">Health Goals</Typography>
+        {renderHeaderButtons()}
+      </Box>
+      <Grid container spacing={3}>
+        {/* Goal Information */}
+        <Grid item xs={12}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+            Goal Information
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={4}>
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <TextField
+                  label="Goal Name"
+                  fullWidth
+                  value={localData?.goal_name || ''}
+                  onChange={e => handleInputChange('goal_name', e.target.value)}
+                />
+                {renderSuggestionItem(
+                    suggestion?.goal_name_suggestion,
+                    localData?.goal_name,
+                    () => onApplySuggestion('goals', { goal_name: suggestion?.goal_name_suggestion })
+                )}
+              </Box>
+            </Grid>
+            <Grid item xs={4}>
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <TextField
+                  label="Target Date"
+                  type="date"
+                  fullWidth
+                  value={
+                    localData?.target_date
+                      ? format(new Date(localData.target_date), 'yyyy-MM-dd')
+                      : ''
+                  }
+                  onChange={e => handleInputChange('target_date', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+                 {renderSuggestionItem(
+                    suggestion?.target_date_suggestion ? format(new Date(suggestion.target_date_suggestion), 'yyyy-MM-dd') : null,
+                    localData?.target_date ? format(new Date(localData.target_date), 'yyyy-MM-dd') : null,
+                    () => onApplySuggestion('goals', { target_date: suggestion?.target_date_suggestion })
+                )}
+              </Box>
+            </Grid>
+            <Grid item xs={4}>
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <TextField
+                  label="Comments"
+                  fullWidth
+                  value={localData?.comments || ''}
+                  onChange={e => handleInputChange('comments', e.target.value)}
+                />
+                 {renderSuggestionItem(
+                    suggestion?.comments_suggestion,
+                    localData?.comments,
+                    () => onApplySuggestion('goals', { comments: suggestion?.comments_suggestion })
+                )}
+              </Box>
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Metrics Editing */}
+        <Grid item xs={12}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+            Metrics
+          </Typography>
+          {localData?.metrics && localData.metrics.length > 0 ? (
+            localData.metrics.map((metric, index) => (
+              <Box
+                key={index}
+                sx={{
+                  border: '1px solid #eee',
+                  borderRadius: 1,
+                  p: 2,
+                  mb: 2,
+                  position: 'relative'
+                }}
+              >
+                <IconButton
+                  aria-label="delete metric"
+                  size="small"
+                  onClick={() => removeMetric(index)}
+                  sx={{ position: 'absolute', top: 8, right: 8 }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={3}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="Metric Name"
                         fullWidth
-                        margin="normal"
-                        value={localData?.goal_name || ''}
-                        disabled={!isEditing}
-                        onChange={(e) => handleInputChange('goal_name', e.target.value)}
-                    />
+                        value={metric.metric_name || ''}
+                        onChange={e => handleMetricChange(index, 'metric_name', e.target.value)}
+                      />
+                      {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.metric_name && renderSuggestionItem(
+                          suggestion.metrics_suggestion[index].metric_name,
+                          metric.metric_name,
+                          () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                      )}
+                    </Box>
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="Unit"
+                        fullWidth
+                        value={metric.unit || ''}
+                        onChange={e => handleMetricChange(index, 'unit', e.target.value)}
+                      />
+                      {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.unit && renderSuggestionItem(
+                          suggestion.metrics_suggestion[index].unit,
+                          metric.unit,
+                          () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                      )}
+                    </Box>
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="Target Value"
+                        fullWidth
+                        type="number"
+                        value={metric.target_value || 0}
+                        onChange={e => handleMetricChange(index, 'target_value', e.target.value)}
+                      />
+                      {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.target_value !== undefined && renderSuggestionItem(
+                          String(suggestion.metrics_suggestion[index].target_value),
+                          String(metric.target_value),
+                          () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                      )}
+                    </Box>
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="Interval (hours)"
+                        fullWidth
+                        type="number"
+                        value={metric.interval || 0}
+                        onChange={e => handleMetricChange(index, 'interval', e.target.value)}
+                      />
+                      {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.interval !== undefined && renderSuggestionItem(
+                          String(suggestion.metrics_suggestion[index].interval),
+                          String(metric.interval),
+                          () => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })
+                      )}
+                    </Box>
+                  </Grid>
                 </Grid>
-                <Grid item xs={12} md={6}>
-                    <TextField
-                        label="Target Date"
+              </Box>
+            ))
+          ) : (
+            <Typography variant="body1">No metrics available.</Typography>
+          )}
+          <Button
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={addMetric}
+            variant="outlined"
+            sx={{ mb: 2 }}
+          >
+            Add Metric
+          </Button>
+        </Grid>
+
+        {/* Actions Editing */}
+        <Grid item xs={12}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+            Actions
+          </Typography>
+          {localData?.actions && localData.actions.length > 0 ? (
+            localData.actions.map((action, index) => (
+              <Box
+                key={index}
+                sx={{
+                  border: '1px solid #eee',
+                  borderRadius: 1,
+                  p: 2,
+                  mb: 2,
+                  position: 'relative'
+                }}
+              >
+                <IconButton
+                  aria-label="delete action"
+                  size="small"
+                  onClick={() => removeAction(index)}
+                  sx={{ position: 'absolute', top: 8, right: 8 }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="Action Name"
+                        fullWidth
+                        value={action.name || ''}
+                        onChange={e => handleActionChange(index, 'name', e.target.value)}
+                      />
+                      {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.name && renderSuggestionItem(
+                          suggestion.actions_suggestion[index].name,
+                          action.name,
+                          () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                      )}
+                    </Box>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="Description"
+                        fullWidth
+                        value={action.description || ''}
+                        onChange={e => handleActionChange(index, 'description', e.target.value)}
+                      />
+                      {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.description && renderSuggestionItem(
+                          suggestion.actions_suggestion[index].description,
+                          action.description,
+                          () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                      )}
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="Interval (hours)"
+                        fullWidth
+                        type="number"
+                        value={action.interval || 0}
+                        onChange={e => handleActionChange(index, 'interval', e.target.value)}
+                      />
+                      {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.interval !== undefined && renderSuggestionItem(
+                          String(suggestion.actions_suggestion[index].interval),
+                          String(action.interval),
+                          () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                      )}
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <TextField
+                        label="End Date"
                         type="date"
                         fullWidth
-                        margin="normal"
-                        value={localData?.target_date ? localData.target_date.split('T')[0] : ''}
-                        disabled={!isEditing}
-                        onChange={(e) => handleInputChange('target_date', e.target.value)}
+                        value={
+                          action.action_end_date
+                            ? format(new Date(action.action_end_date), 'yyyy-MM-dd')
+                            : ''
+                        }
+                        onChange={e => handleActionChange(index, 'action_end_date', e.target.value)}
                         InputLabelProps={{ shrink: true }}
-                    />
-                </Grid>
-                <Grid item xs={12}>
-                    <TextField
-                        label="Comments"
-                        fullWidth
-                        multiline
-                        rows={3}
-                        margin="normal"
-                        value={localData?.comments || ''}
-                        disabled={!isEditing}
-                        onChange={(e) => handleInputChange('comments', e.target.value)}
-                    />
-                </Grid>
-            </Grid>
-
-            <Box sx={{ mt: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6" gutterBottom>Metrics</Typography>
-                    {isEditing && (
-                        <Button variant="outlined" startIcon={<AddIcon />} onClick={addMetric}>
-                            Add Metric
-                        </Button>
-                    )}
-                </Box>
-                
-                {localData?.metrics?.map((metric, index) => (
-                    <Box key={index} sx={{ border: '1px solid #eee', p: 2, mb: 2, borderRadius: 1, position: 'relative' }}>
-                        {isEditing && (
-                            <IconButton 
-                                size="small" 
-                                sx={{ position: 'absolute', top: 5, right: 5 }} 
-                                onClick={() => removeMetric(index)}
-                            >
-                                <DeleteIcon />
-                            </IconButton>
-                        )}
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Metric Name"
-                                    fullWidth
-                                    margin="normal"
-                                    value={metric.metric_name || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleMetricChange(index, 'metric_name', e.target.value)}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Unit"
-                                    fullWidth
-                                    margin="normal"
-                                    value={metric.unit || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleMetricChange(index, 'unit', e.target.value)}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Target Value"
-                                    fullWidth
-                                    margin="normal"
-                                    type="number"
-                                    value={metric.target_value || 0}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleMetricChange(index, 'target_value', e.target.value)}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Measurement Interval (hours)"
-                                    fullWidth
-                                    margin="normal"
-                                    type="number"
-                                    value={metric.interval || 0}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleMetricChange(index, 'interval', e.target.value)}
-                                />
-                            </Grid>
-                        </Grid>
+                      />
+                      {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.action_end_date && renderSuggestionItem(
+                          suggestion.actions_suggestion[index].action_end_date ? format(new Date(suggestion.actions_suggestion[index].action_end_date), 'yyyy-MM-dd') : null,
+                          action.action_end_date ? format(new Date(action.action_end_date), 'yyyy-MM-dd') : null,
+                          () => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })
+                      )}
                     </Box>
-                ))}
-            </Box>
-
-            <Box sx={{ mt: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6" gutterBottom>Actions</Typography>
-                    {isEditing && (
-                        <Button variant="outlined" startIcon={<AddIcon />} onClick={addAction}>
-                            Add Action
-                        </Button>
-                    )}
-                </Box>
-                
-                {localData?.actions?.map((action, index) => (
-                    <Box key={index} sx={{ border: '1px solid #eee', p: 2, mb: 2, borderRadius: 1, position: 'relative' }}>
-                        {isEditing && (
-                            <IconButton 
-                                size="small" 
-                                sx={{ position: 'absolute', top: 5, right: 5 }} 
-                                onClick={() => removeAction(index)}
-                            >
-                                <DeleteIcon />
-                            </IconButton>
-                        )}
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Action Name"
-                                    fullWidth
-                                    margin="normal"
-                                    value={action.name || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleActionChange(index, 'name', e.target.value)}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Interval (hours, 0 for as needed)"
-                                    fullWidth
-                                    margin="normal"
-                                    type="number"
-                                    value={action.interval || 0}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleActionChange(index, 'interval', e.target.value)}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="End Date"
-                                    type="date"
-                                    fullWidth
-                                    margin="normal"
-                                    value={action.action_end_date ? action.action_end_date.split('T')[0] : ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleActionChange(index, 'action_end_date', e.target.value)}
-                                    InputLabelProps={{ shrink: true }}
-                                />
-                            </Grid>
-                            <Grid item xs={12}>
-                                <TextField
-                                    label="Description"
-                                    fullWidth
-                                    multiline
-                                    rows={2}
-                                    margin="normal"
-                                    value={action.description || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleActionChange(index, 'description', e.target.value)}
-                                />
-                            </Grid>
-                        </Grid>
-                    </Box>
-                ))}
-            </Box>
-
-            {suggestion && (
-                <Box sx={{ mt: 3, border: '1px solid #ccc', padding: 2, borderRadius: 1, bgcolor: '#f9f9f9' }}>
-                    <Typography variant="h6" gutterBottom>Suggestions</Typography>
-                    <Grid container spacing={2}>
-                        {suggestion.goal_name_suggestion && (
-                            <Grid item xs={12}>
-                                <Typography variant="subtitle2">Goal Name Suggestion:</Typography>
-                                <Typography variant="body2" sx={{ mb: 1 }}>{suggestion.goal_name_suggestion}</Typography>
-                            </Grid>
-                        )}
-                        
-                        {suggestion.target_date_suggestion && (
-                            <Grid item xs={12}>
-                                <Typography variant="subtitle2">Target Date Suggestion:</Typography>
-                                <Typography variant="body2" sx={{ mb: 1 }}>
-                                    {format(new Date(suggestion.target_date_suggestion), 'MM/dd/yyyy')}
-                                </Typography>
-                            </Grid>
-                        )}
-                        
-                        {suggestion.comments_suggestion && (
-                            <Grid item xs={12}>
-                                <Typography variant="subtitle2">Comments Suggestion:</Typography>
-                                <Typography variant="body2" sx={{ mb: 1 }}>{suggestion.comments_suggestion}</Typography>
-                            </Grid>
-                        )}
-                        
-                        {suggestion.metrics_suggestion && suggestion.metrics_suggestion.length > 0 && (
-                            <Grid item xs={12}>
-                                <Typography variant="subtitle2">Metrics Suggestions:</Typography>
-                                {suggestion.metrics_suggestion.map((metric, index) => (
-                                    <Box key={index} sx={{ pl: 2, mb: 1 }}>
-                                        <Typography variant="body2">
-                                            <strong>{metric.metric_name}</strong>: Target {metric.target_value} {metric.unit}, 
-                                            every {metric.interval} hours
-                                        </Typography>
-                                    </Box>
-                                ))}
-                            </Grid>
-                        )}
-                        
-                        {suggestion.actions_suggestion && suggestion.actions_suggestion.length > 0 && (
-                            <Grid item xs={12}>
-                                <Typography variant="subtitle2">Actions Suggestions:</Typography>
-                                {suggestion.actions_suggestion.map((action, index) => (
-                                    <Box key={index} sx={{ pl: 2, mb: 1 }}>
-                                        <Typography variant="body2">
-                                            <strong>{action.name}</strong>: {action.description}
-                                        </Typography>
-                                    </Box>
-                                ))}
-                            </Grid>
-                        )}
-                        
-                        {suggestion.suggestion_rational && (
-                            <Grid item xs={12}>
-                                <Typography variant="subtitle2">Rationale:</Typography>
-                                <Typography variant="body2">{suggestion.suggestion_rational}</Typography>
-                            </Grid>
-                        )}
-                    </Grid>
-                    
-                    <Button variant="contained" color="secondary" onClick={onApplySuggestion} sx={{ mt: 2 }}>
-                        Apply All Suggestions
-                    </Button>
-                </Box>
-            )}
-        </Paper>
-    );
-}
+                  </Grid>
+                </Grid>
+              </Box>
+            ))
+          ) : (
+            <Typography variant="body1">No actions available.</Typography>
+          )}
+          <Button
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={addAction}
+            variant="outlined"
+            sx={{ mb: 2 }}
+          >
+            Add Action
+          </Button>
+        </Grid>
+      </Grid>
+    </Paper>
+  );
+};
 
 export default HealthGoalsTab;
