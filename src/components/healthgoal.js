@@ -219,19 +219,19 @@ const HealthGoalsTab = ({
     if (suggestionValue && suggestionValue !== currentValue) {
       return (
         <Box sx={{
-            mt: 1, // Add margin top for spacing
-            bgcolor: '#f5f5dc', // Beige background color
-            p: 1, // Padding
-            borderRadius: 1, // Rounded corners
+            mt: 1,
+            bgcolor: '#f5f5dc',
+            p: 1,
+            borderRadius: 1,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between' // Space between text and button
+            justifyContent: 'space-between'
         }}>
           <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mr: 1 }}>
             Suggestion: {suggestionValue}
           </Typography>
           <Button
-              variant="outlined" // Example button style
+              variant="outlined"
               color="primary"
               size="small"
               onClick={applySuggestionHandler}
@@ -243,6 +243,135 @@ const HealthGoalsTab = ({
     }
     return null;
   };
+
+  const renderSuggestions = () => {
+    if (!suggestion || Object.keys(suggestion).length === 0) return null;
+
+    const hasSuggestions = Object.keys(suggestion).some(key => suggestion[key] != null);
+    if (!hasSuggestions) return null;
+
+
+    return (
+        <Box sx={{ mt: 3, border: '1px solid #ccc', padding: 2, borderRadius: 1, bgcolor: '#f9f9f9' }}>
+            <Typography variant="h6" gutterBottom>Suggestions</Typography>
+
+            {suggestion.goal_name_suggestion && suggestion.goal_name_suggestion !== editableData.goal_name && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1">Goal Name Suggestion:</Typography>
+                    <Typography variant="body2">Goal Name: {suggestion.goal_name_suggestion}</Typography>
+                     <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={() => onApplySuggestion('goals', { goal_name: suggestion?.goal_name_suggestion })}
+                    >
+                        Apply
+                    </Button>
+                </Box>
+            )}
+
+            {suggestion.target_date_suggestion && suggestion.target_date_suggestion !== editableData.target_date && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1">Target Date Suggestion:</Typography>
+                    <Typography variant="body2">Target Date: {suggestion.target_date_suggestion ? format(new Date(suggestion.target_date_suggestion), 'MMMM d, yyyy') : 'Invalid Date'}</Typography>
+                     <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={() => onApplySuggestion('goals', { target_date: suggestion?.target_date_suggestion })}
+                    >
+                        Apply
+                    </Button>
+                </Box>
+            )}
+
+            {suggestion.comments_suggestion && suggestion.comments_suggestion !== editableData.comments && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1">Comments Suggestion:</Typography>
+                    <Typography variant="body2">Comments: {suggestion.comments_suggestion}</Typography>
+                     <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={() => onApplySuggestion('goals', { comments: suggestion?.comments_suggestion })}
+                    >
+                        Apply
+                    </Button>
+                </Box>
+            )}
+             {suggestion.metrics_suggestion && suggestion.metrics_suggestion.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1">Metrics Suggestions:</Typography>
+                    {suggestion.metrics_suggestion.map((metricSuggestion, index) => {
+                        const currentMetric = editableData.metrics?.[index] || {};
+                        return (
+                            <Box key={index} sx={{ ml: 2, mb: 1, borderLeft: '2px solid primary.main', pl: 1 }}>
+                                {metricSuggestion.metric_name && metricSuggestion.metric_name !== currentMetric.metric_name && (
+                                    <Typography variant="body2">Metric Name: {metricSuggestion.metric_name}</Typography>
+                                )}
+                                {metricSuggestion.unit && metricSuggestion.unit !== currentMetric.unit && (
+                                    <Typography variant="body2">Unit: {metricSuggestion.unit}</Typography>
+                                )}
+                                {metricSuggestion.target_value !== undefined && metricSuggestion.target_value !== currentMetric.target_value && (
+                                    <Typography variant="body2">Target Value: {metricSuggestion.target_value}</Typography>
+                                )}
+                                {metricSuggestion.interval !== undefined && metricSuggestion.interval !== currentMetric.interval && (
+                                    <Typography variant="body2">Interval: {metricSuggestion.interval}</Typography>
+                                )}
+                                <Button
+                                    variant="outlined"
+                                    color="primary"
+                                    size="small"
+                                    onClick={() => onApplySuggestion('goals', { metrics: suggestion?.metrics_suggestion })}
+                                    sx={{mt:1}}
+                                >
+                                    Apply Metric Suggestions
+                                </Button>
+                            </Box>
+                        );
+                    })}
+                </Box>
+            )}
+
+            {suggestion.actions_suggestion && suggestion.actions_suggestion.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1">Actions Suggestions:</Typography>
+                    {suggestion.actions_suggestion.map((actionSuggestion, index) => {
+                        const currentAction = editableData.actions?.[index] || {};
+                        return (
+                            <Box key={index} sx={{ ml: 2, mb: 1, borderLeft: '2px solid primary.main', pl: 1 }}>
+                                {actionSuggestion.name && actionSuggestion.name !== currentAction.name && (
+                                    <Typography variant="body2">Action Name: {actionSuggestion.name}</Typography>
+                                )}
+                                {actionSuggestion.description && actionSuggestion.description !== currentAction.description && (
+                                    <Typography variant="body2">Description: {actionSuggestion.description}</Typography>
+                                )}
+                                {actionSuggestion.interval !== undefined && actionSuggestion.interval !== currentAction.interval && (
+                                    <Typography variant="body2">Interval: {actionSuggestion.interval}</Typography>
+                                )}
+                                {actionSuggestion.action_end_date && actionSuggestion.action_end_date !== currentAction.action_end_date && (
+                                    <Typography variant="body2">End Date: {actionSuggestion.action_end_date ? format(new Date(actionSuggestion.action_end_date), 'MMMM d, yyyy') : 'Invalid Date'}</Typography>
+                                )}
+                                 <Button
+                                    variant="outlined"
+                                    color="primary"
+                                    size="small"
+                                    onClick={() => onApplySuggestion('goals', { actions: suggestion?.actions_suggestion })}
+                                    sx={{mt:1}}
+                                >
+                                    Apply Action Suggestions
+                                </Button>
+                            </Box>
+                        );
+                    })}
+                </Box>
+            )}
+
+
+        </Box>
+    );
+};
+
 
   // --- Non-Editing (View) Mode ---
   if (!isEditing) {
@@ -715,6 +844,7 @@ const HealthGoalsTab = ({
           </Button>
         </Grid>
       </Grid>
+      {renderSuggestions()}
     </Paper>
   );
 };
