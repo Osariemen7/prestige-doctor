@@ -1,25 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  TextField, 
-  Button, 
-  Container, 
-  Grid, 
-  Paper, 
-  Select, 
-  MenuItem, 
-  FormControl, 
-  InputLabel, 
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Container,
+  Grid,
+  Paper,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
   InputAdornment,
   Tabs,
   Tab,
   IconButton,
   Snackbar,
 } from '@mui/material';
-import { 
-  Person as PersonIcon, 
-  AttachMoney as MoneyIcon, 
+import {
+  Person as PersonIcon,
+  AttachMoney as MoneyIcon,
   Schedule as ScheduleIcon,
   Edit as EditIcon,
   Save as SaveIcon,
@@ -28,6 +28,57 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
 import Sidebar from './sidebar';
+
+// Define fetchProviderData OUTSIDE the component
+const fetchProviderData = async (accessToken, setProviderData, setTempProviderData, setAvailabilities, setTempAvailabilities) => {
+  try {
+    const [providerResponse, availabilityResponse] = await Promise.all([
+      fetch('https://health.prestigedelta.com/provider', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }),
+      fetch('https://health.prestigedelta.com/availability/', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+    ]);
+
+    if (providerResponse.ok) {
+      const responseData = await providerResponse.json();
+      const providerList = Array.isArray(responseData) ? responseData : [responseData];
+      const firstProvider = providerList[0] || {};
+      const updatedProviderData = {
+        specialty: firstProvider.specialty || '',
+        qualifications: firstProvider.qualifications || '',
+        date_of_registration: firstProvider.date_of_registration || '',
+        bio: firstProvider.bio || '',
+        rate_per_hour: firstProvider.rate_per_hour || '',
+        rate_currency: firstProvider.rate_currency || 'NGN', // Get currency from API, default to NGN
+      };
+      setProviderData(updatedProviderData);
+      setTempProviderData(updatedProviderData);
+    } else {
+      console.error('Failed to fetch provider data:', providerResponse.statusText);
+    }
+
+    if (availabilityResponse.ok) {
+      const availabilityData = await availabilityResponse.json();
+      setAvailabilities(availabilityData || []);
+      setTempAvailabilities(availabilityData || []);
+    } else {
+      console.error('Failed to fetch availability data:', availabilityResponse.statusText);
+    }
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  }
+};
+
 
 const SettingPage = () => {
   const navigate = useNavigate();
@@ -38,7 +89,7 @@ const SettingPage = () => {
     { label: 'MD', value: 'MD' },
     { label: 'MBChB', value: 'MBChB' },
   ];
-const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
 
   // State for provider profile
   const [providerData, setProviderData] = useState({
@@ -47,6 +98,7 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
     date_of_registration: '',
     bio: '',
     rate_per_hour: '',
+    rate_currency: 'NGN', // Default currency
   });
 
   // State for editing
@@ -57,70 +109,35 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   });
 
   // Temporary state for editing
-  const [tempProviderData, setTempProviderData] = useState({...providerData});
+  const [tempProviderData, setTempProviderData] = useState({ ...providerData });
   const [tempAvailabilities, setTempAvailabilities] = useState([]);
 
   // State for availabilities
   const [availabilities, setAvailabilities] = useState([]);
 
-    // State for success snackbar
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [snackbarMessage, setSnackbarMessage] = useState('');
+  // State for success snackbar
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
 
   // Fetch provider data on component mount
   useEffect(() => {
-    const fetchProviderData = async () => {
+    const fetchData = async () => { // Keep fetchData to get accessToken
       try {
         const accessToken = await getAccessToken();
-        const [providerResponse, availabilityResponse] = await Promise.all([
-          fetch('https://health.prestigedelta.com/provider', {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          }),
-          fetch('https://health.prestigedelta.com/availability/', {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          })
-        ]);
-
-        if (providerResponse.ok) {
-          const providerData = await providerResponse.json();
-          const firstProvider = providerData[0] || {};
-          const updatedProviderData = {
-            specialty: firstProvider.specialty || '',
-            qualifications: firstProvider.qualifications || '',
-            date_of_registration: firstProvider.date_of_registration || '',
-            bio: firstProvider.bio || '',
-            rate_per_hour: firstProvider.rate_per_hour || '',
-          };
-          setProviderData(updatedProviderData);
-          setTempProviderData(updatedProviderData);
-        }
-
-        if (availabilityResponse.ok) {
-          const availabilityData = await availabilityResponse.json();
-          setAvailabilities(availabilityData || []);
-          setTempAvailabilities(availabilityData || []);
-        }
+        fetchProviderData(accessToken, setProviderData, setTempProviderData, setAvailabilities, setTempAvailabilities); // Call the moved function
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error getting access token:', error);
       }
     };
 
-    fetchProviderData();
-  }, []);
+    fetchData();
+  }, []); // Dependency array is now empty - no more warning
 
-    // Function to handle snackbar close
-    const handleSnackbarClose = () => {
-        setSnackbarOpen(false);
-      };
+  // Function to handle snackbar close
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+  };
 
   // Save provider data
   const handleSaveProviderData = async () => {
@@ -134,22 +151,26 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
         },
         body: JSON.stringify({
           ...tempProviderData,
-          rate_currency: 'NGN',
+          rate_currency: tempProviderData.rate_currency, // Use currency from state
         }),
       });
 
       if (response.ok) {
         setProviderData(tempProviderData);
-        setEditMode(prev => ({ ...prev, profile: false }));
-         // Show success Snackbar
-         setSnackbarMessage('Profile saved successfully!');
-         setSnackbarOpen(true);
+        setEditMode(prev => ({ ...prev, profile: false, rate: false })); // Close both profile and rate edit mode if saving from rate edit too
+        // Show success Snackbar
+        setSnackbarMessage('Profile saved successfully!');
+        setSnackbarOpen(true);
       } else {
         const errorData = await response.json();
         console.error('Save failed:', errorData);
+        setSnackbarMessage(`Failed to save profile: ${errorData?.message || 'Unknown error'}`);
+        setSnackbarOpen(true);
       }
     } catch (error) {
       console.error('Error saving provider data:', error);
+      setSnackbarMessage('Error saving profile.');
+      setSnackbarOpen(true);
     }
   };
 
@@ -157,7 +178,7 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const handleSaveAvailabilities = async () => {
     try {
       const accessToken = await getAccessToken();
-      
+
       // Transform availabilities to match expected format
       const formattedAvailabilities = tempAvailabilities.map(availability => ({
         day_of_week: availability.day_of_week,
@@ -181,7 +202,7 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
         },
         body: JSON.stringify(formData),
       });
-  
+
       if (response.ok) {
         setAvailabilities(tempAvailabilities);
         setEditMode(prev => ({ ...prev, availability: false }));
@@ -191,9 +212,13 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
       } else {
         const errorData = await response.json();
         console.error('Save failed:', errorData);
+        setSnackbarMessage(`Failed to save availabilities: ${errorData?.message || 'Unknown error'}`);
+        setSnackbarOpen(true);
       }
     } catch (error) {
       console.error('Error saving availabilities:', error);
+      setSnackbarMessage('Error saving availabilities.');
+      setSnackbarOpen(true);
     }
   };
 
@@ -249,17 +274,17 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
         />
       </Grid>
       <Grid item xs={12}>
-        <Button 
-          variant="contained" 
-          color="primary" 
+        <Button
+          variant="contained"
+          color="primary"
           onClick={handleSaveProviderData}
           startIcon={<SaveIcon />}
         >
           Save
         </Button>
-        <Button 
-          variant="outlined" 
-          color="secondary" 
+        <Button
+          variant="outlined"
+          color="secondary"
           onClick={() => {
             setTempProviderData(providerData);
             setEditMode(prev => ({ ...prev, profile: false }));
@@ -279,27 +304,27 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
       <Grid item xs={12}>
         <TextField
           fullWidth
-          label="Rate per Minute"
+          label="Rate per Hour"
           type="number"
-          value={tempProviderData.rate_per_minute}
-          onChange={(e) => setTempProviderData(prev => ({ ...prev, rate_per_minute: e.target.value }))}
+          value={tempProviderData.rate_per_hour}
+          onChange={(e) => setTempProviderData(prev => ({ ...prev, rate_per_hour: e.target.value }))}
           InputProps={{
-            startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+            startAdornment: <InputAdornment position="start">{tempProviderData.rate_currency}</InputAdornment>, // Use currency from state
           }}
         />
       </Grid>
       <Grid item xs={12}>
-        <Button 
-          variant="contained" 
-          color="primary" 
+        <Button
+          variant="contained"
+          color="primary"
           onClick={handleSaveProviderData}
           startIcon={<SaveIcon />}
         >
           Save
         </Button>
-        <Button 
-          variant="outlined" 
-          color="secondary" 
+        <Button
+          variant="outlined"
+          color="secondary"
           onClick={() => {
             setTempProviderData(providerData);
             setEditMode(prev => ({ ...prev, rate: false }));
@@ -367,9 +392,9 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
             />
           </Grid>
           <Grid item xs={2}>
-            <Button 
-              variant="outlined" 
-              color="error" 
+            <Button
+              variant="outlined"
+              color="error"
               onClick={() => {
                 const filteredAvailabilities = tempAvailabilities.filter((_, i) => i !== index);
                 setTempAvailabilities(filteredAvailabilities);
@@ -381,31 +406,31 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
         </Grid>
       ))}
       <Grid item xs={12}>
-        <Button 
+        <Button
           variant="outlined"
           onClick={() => setTempAvailabilities([
-            ...tempAvailabilities, 
-            { 
-              day_of_week: DAYS[0], 
+            ...tempAvailabilities,
+            {
+              day_of_week: DAYS[0],
               start_time: '09:00',
-              end_time: '17:00' 
+              end_time: '17:00'
             }
           ])}
         >
           Add Availability
         </Button>
-        <Button 
-          variant="contained" 
-          color="primary" 
+        <Button
+          variant="contained"
+          color="primary"
           onClick={handleSaveAvailabilities}
           startIcon={<SaveIcon />}
           sx={{ ml: 2 }}
         >
           Save
         </Button>
-        <Button 
-          variant="outlined" 
-          color="secondary" 
+        <Button
+          variant="outlined"
+          color="secondary"
           onClick={() => {
             setTempAvailabilities(availabilities);
             setEditMode(prev => ({ ...prev, availability: false }));
@@ -419,9 +444,17 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
     </Grid>
   );
 
+  // Function to format number with thousand separators
+  const formatNumberWithCommas = (number) => {
+    if (number === null || number === undefined) {
+      return 'Not set';
+    }
+    return Number(number).toLocaleString();
+  };
+
   // Render different sections based on active tab
   const renderActiveSection = () => {
-    switch(activeSection) {
+    switch (activeSection) {
       case 0:
         return (
           <Paper elevation={3} sx={{ p: 3, mb: 2 }}>
@@ -447,7 +480,7 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
         return (
           <Paper elevation={3} sx={{ p: 3, mb: 2 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Typography variant="h6">Consultation Rate</Typography>
+              <Typography variant="h6">Per hour compensation</Typography>
               {!editMode.rate && (
                 <IconButton onClick={() => setEditMode(prev => ({ ...prev, rate: true }))}>
                   <EditIcon />
@@ -455,7 +488,7 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
               )}
             </Box>
             {editMode.rate ? renderRateEdit() : (
-              <Typography>Rate per Minute: ₦{providerData.rate_per_minute || 'Not set'}</Typography>
+              <Typography>Per hour compensation: {providerData.rate_currency} {formatNumberWithCommas(providerData.rate_per_hour)}</Typography>
             )}
           </Paper>
         );
@@ -488,31 +521,31 @@ const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
 
   return (
     <div className='dashboard-container'>
-     <Sidebar 
-      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
-      onNavigate={(path) => navigate(path)} 
-      onLogout={handleLogout}
-    />
-    <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}> 
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-    <Typography variant='h6'>Settings</Typography>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={activeSection} onChange={(e, newValue) => setActiveSection(newValue)} centered>
-          <Tab icon={<PersonIcon />} label="Profile" />
-          <Tab icon={<MoneyIcon />} label="Rate" />
-          <Tab icon={<ScheduleIcon />} label="Availability" />
-        </Tabs>
-      </Box>
-      {renderActiveSection()}
-    </Container>
-    </div>
-        <Snackbar
-            open={snackbarOpen}
-            autoHideDuration={3000}
-            onClose={handleSnackbarClose}
-            message={snackbarMessage}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        />
+      <Sidebar
+        onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
+        onNavigate={(path) => navigate(path)}
+        onLogout={handleLogout}
+      />
+      <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
+        <Container maxWidth="md" sx={{ mt: 4 }}>
+          <Typography variant='h6'>Settings</Typography>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+            <Tabs value={activeSection} onChange={(e, newValue) => setActiveSection(newValue)} centered>
+              <Tab icon={<PersonIcon />} label="Profile" />
+              <Tab icon={<MoneyIcon />} label="Compensation" />
+              <Tab icon={<ScheduleIcon />} label="Availability" />
+            </Tabs>
+          </Box>
+          {renderActiveSection()}
+        </Container>
+      </div>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={handleSnackbarClose}
+        message={snackbarMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      />
     </div>
   );
 };
