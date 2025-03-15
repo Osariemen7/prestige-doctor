@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Box,
@@ -17,7 +17,10 @@ import {
   Select,
   MenuItem,
   Alert,
-  FormControl
+  FormControl,
+  CircularProgress,
+  Paper,
+  Icon // Import Icon
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -29,6 +32,7 @@ import Sidebar from './sidebar';
 import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
 import PatientProfileDisplay from './document';
+import ImageIcon from '@mui/icons-material/Image'; // Import ImageIcon
 
 // ----------------------------------------------------
 // 1. CustomText: converts citation markers like [1], [2], etc. into clickable links.
@@ -114,6 +118,10 @@ const SearchBox = () => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('error');
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null); // State for selected image file
+  const [selectedImagePreview, setSelectedImagePreview] = useState(null); // State for image preview URL
+  const [isExpertLevelLocked, setIsExpertLevelLocked] = useState(false); // State to lock expert level
+  const fileInputRef = useRef(null); // Ref for hidden file input
 
   const showSnackbar = useCallback((newMessage, newSeverity) => {
     setSnackbarMessage(newMessage);
@@ -128,44 +136,125 @@ const SearchBox = () => {
     setSnackbarOpen(false);
   }, []);
 
+  const handleImageUploadClick = () => {
+    fileInputRef.current.click(); // Programmatically click the hidden file input
+  };
+
+  const handleImageSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImagePreview(reader.result); // Set image preview URL
+      };
+      reader.readAsDataURL(file);
+
+      setExpertLevel('high'); // Automatically set to high on image upload
+      setIsExpertLevelLocked(true); // Lock the dropdown
+    } else {
+      setSelectedImage(null);
+      setSelectedImagePreview(null);
+      setIsExpertLevelLocked(false);
+      setExpertLevel('low'); // Reset to default if image selection is cancelled
+    }
+  };
+
+  const handleCancelImage = () => {
+    setSelectedImage(null);
+    setSelectedImagePreview(null);
+    setIsExpertLevelLocked(false);
+    setExpertLevel('low');
+  };
+
+
   const handleSendMessage = useCallback(async () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !selectedImage) return; // Don't send empty messages or without image
 
     const currentMessage = message;
     setMessage("");
     setIsResponseLoading(true);
+    setIsSourcesVisible(false); // Reset sources visibility on new message
 
     try {
       const token = await getAccessToken();
+      console.log("Access Token:", token); // Log the token
+
       const apiUrl = "https://health.prestigedelta.com/research/";
-      const payload = { query: currentMessage, expertise_level: expertLevel };
+
+      let payload = { expertise_level: expertLevel };
+      let requestBody;
+      let headers = {
+        "Authorization": `Bearer ${token}`,
+      };
+
       if (threadId) {
         payload.thread_id = threadId;
       }
 
       if (selectedPatient) {
-        if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
-          payload.patient_phone = selectedPatient.phone_number;
-        } else {
-          payload.patient_id = selectedPatient.id;
-        }
+        payload.patient_id = selectedPatient.id; // Ensure patient_id is always sent if selected
+        console.log("Selected Patient ID:", selectedPatient.id); // Log selected patient id
+      } else {
+        console.log("No Patient Selected"); // Log when no patient is selected
       }
 
-      const userMessage = { role: "user", content: currentMessage };
+
+      const userMessageContent = selectedImagePreview ? selectedImagePreview : currentMessage;
+      const userTextMessage = selectedImage ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
+
+      const userMessage = {
+        role: "user",
+        content: userMessageContent,
+        isImage: !!selectedImagePreview, // Flag as image message
+        text: userTextMessage, // Store text content separately for image messages
+      };
       setChatMessages((prev) => [...prev, userMessage]);
+
+
+      if (selectedImage) {
+        const formData = new FormData();
+        for (const key in payload) {
+          formData.append(key, payload[key]);
+        }
+        formData.append('image', selectedImage);
+        formData.append('caption', currentMessage.trim() ? currentMessage : "Analyze this image");
+        requestBody = formData;
+        headers = {
+          "Authorization": `Bearer ${token}`, // FormData handles content-type
+        };
+        console.log("Request Headers (FormData):", headers); // Log headers for FormData
+        console.log("Request Body (FormData):", formData); // Log FormData
+
+      } else {
+        payload.query = currentMessage;
+        requestBody = JSON.stringify(payload);
+        headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        };
+        console.log("Request Headers (JSON):", headers); // Log headers for JSON
+        console.log("Request Body (JSON):", requestBody); // Log JSON body
+      }
+
 
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+        headers: headers,
+        body: requestBody,
       });
+
 
       if (!response.body) {
         throw new Error("No response body");
       }
+
+      // Reset selected image and preview after sending
+      setSelectedImage(null);
+      setSelectedImagePreview(null);
+      setIsExpertLevelLocked(false); // Unlock dropdown after image sent and response started
+
 
       let assistantMessage = { role: "assistant", content: "", citations: [] };
       setChatMessages((prev) => [...prev, assistantMessage]);
@@ -175,36 +264,57 @@ const SearchBox = () => {
       let done = false;
       let buffer = "";
 
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n");
-        buffer = parts.pop();
-
-        parts.forEach((part) => {
-          if (part.trim()) {
-            try {
-              const parsed = JSON.parse(part);
-              if (parsed.thread_id) {
-                setThreadId(parsed.thread_id);
-              }
-              if (parsed.assistant_response_chunk) {
-                assistantMessage.content = parsed.accumulated_response;
-                assistantMessage.citations = parsed.citations;
-                setChatMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { ...assistantMessage };
-                  return updated;
-                });
-              }
-            } catch (error) {
-              console.error("Error parsing JSON chunk:", error);
-            }
-          }
+      if (selectedImage) {
+        // Handle plain text response for image upload (same as before)
+        let accumulatedResponse = '';
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          const chunkText = decoder.decode(value);
+          accumulatedResponse += chunkText;
+        }
+        assistantMessage.content = accumulatedResponse.trim();
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...assistantMessage };
+          return updated;
         });
+
+      } else {
+        // Handle JSON stream for text messages (same as before)
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n");
+          buffer = parts.pop();
+
+          parts.forEach((part) => {
+            if (part.trim()) {
+              try {
+                const parsed = JSON.parse(part);
+                if (parsed.thread_id) {
+                  setThreadId(parsed.thread_id);
+                }
+                if (parsed.assistant_response_chunk) {
+                  assistantMessage.content = parsed.accumulated_response;
+                  assistantMessage.citations = parsed.citations;
+                  setChatMessages((prev) => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = { ...assistantMessage };
+                    return updated;
+                  });
+                }
+              } catch (error) {
+                console.error("Error parsing JSON chunk:", error);
+              }
+            }
+          });
+        }
       }
-    }catch (error) {
+
+
+    } catch (error) {
       console.error("Error sending message:", error);
       // If error contains a specific message from the backend, use it:
       const errorMessage = error?.message || "Sorry, I encountered an error. Please try again later.";
@@ -219,7 +329,7 @@ const SearchBox = () => {
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, expertLevel, showSnackbar]);
+  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, selectedImage, selectedImagePreview, isExpertLevelLocked]);
 
   const getDomainFromUrl = (url) => {
     try {
@@ -428,7 +538,18 @@ const SearchBox = () => {
                             wordWrap: 'break-word',
                           }}
                         >
-                          <Typography variant="body1">{chat.content}</Typography>
+                          {chat.isImage ? (
+                            <Box sx={{ maxWidth: 300 }}> {/* Adjust maxWidth as needed */}
+                              <img
+                                src={chat.content} // Assuming chat.content is base64 or URL
+                                alt="Uploaded"
+                                style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8 }}
+                              />
+                              {chat.text && <Typography sx={{ mt: 1 }}>{chat.text}</Typography>}
+                            </Box>
+                          ) : (
+                            <Typography variant="body1">{chat.content}</Typography>
+                          )}
                         </Box>
                       </ListItem>
                     );
@@ -458,11 +579,43 @@ const SearchBox = () => {
                 flexDirection: 'column',
               }}
             >
+              {selectedImagePreview && (
+                <Paper elevation={1} sx={{ p: 1, mb: 1, borderRadius: 2, display: 'inline-block', maxWidth: '100%' }}>
+                  <Box sx={{ position: 'relative', maxWidth: 50, maxHeight: 50, overflow: 'hidden' }}> {/* Reduced maxWidth and maxHeight */}
+                    <img
+                      src={selectedImagePreview}
+                      alt="Image Preview"
+                      style={{
+                        display: 'block',
+                        width: '50px',     // Fixed width
+                        height: '50px',    // Fixed height
+                        objectFit: 'cover' // Maintain aspect ratio and cover the container
+                      }}
+                    />
+                     <IconButton
+                      aria-label="cancel"
+                      onClick={handleCancelImage}
+                      sx={{
+                        position: 'absolute',
+                        top: -10,
+                        right: -10,
+                        color: 'error.main',
+                        backgroundColor: 'background.paper',
+                        '&:hover': {
+                          backgroundColor: 'grey.100',
+                        },
+                      }}
+                    >
+                      <Icon>cancel</Icon>
+                    </IconButton>
+                  </Box>
+                </Paper>
+              )}
               {/* Top Row: Text input and Send Button */}
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <TextField
                   fullWidth
-                  placeholder="Ask anything..."
+                  placeholder="Ask anything or upload image..."
                   variant="standard"
                   multiline
                   minRows={1}
@@ -481,7 +634,18 @@ const SearchBox = () => {
                     }
                   }}
                 />
-                <IconButton color="primary" onClick={handleSendMessage} disabled={!message.trim()}>
+                 <IconButton color="secondary" onClick={handleImageUploadClick} aria-label="upload image" disabled={isResponseLoading}>
+                    <ImageIcon />
+                  </IconButton>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    ref={fileInputRef}
+                    onChange={handleImageSelect}
+                    disabled={isResponseLoading}
+                  />
+                <IconButton color="primary" onClick={handleSendMessage} disabled={(!message.trim() && !selectedImage) || isResponseLoading}>
                   <SendIcon />
                 </IconButton>
               </Box>
@@ -528,6 +692,7 @@ const SearchBox = () => {
                   <Select
                     value={expertLevel}
                     onChange={(e) => setExpertLevel(e.target.value)}
+                    disabled={isExpertLevelLocked || isResponseLoading}
                     sx={{
                       fontSize: '14px',
                       backgroundColor: '#F0F8FF',
@@ -538,21 +703,21 @@ const SearchBox = () => {
                       '&:hover': { backgroundColor: 'white' },
                     }}
                   >
-                  
+
                   <MenuItem value="low">
                       <em>AI Level</em>
                     </MenuItem>
-                    <MenuItem value="low">Basic $0.05</MenuItem>
-                    <MenuItem value="medium">Intermediate $0.15</MenuItem>
+                    <MenuItem value="low" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.05</MenuItem>
+                    <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.15</MenuItem>
                     <MenuItem value="high">Advanced $0.5</MenuItem>
                   </Select>
                 </FormControl>
               </Box>
               {expertLevel === 'high' && (
-  <Typography variant="caption" color="textSecondary" sx={{ marginTop: '8px' }}>
-    Advanced responses might take a few minutes.
-  </Typography>
-)}
+                <Typography variant="caption" color="textSecondary" sx={{ marginTop: '8px' }}>
+                  Advanced responses might take a few minutes.
+                </Typography>
+              )}
             </Box>
           </Box>
         </ThemeProvider>
