@@ -22,6 +22,7 @@ import './App.css'; // Import the global styles
 import AvailabilitySelector from './components/available';
 import SettingPage from './components/setting';
 import SearchBox from './components/ask';
+import PaymentForm from './components/payment';
 const App = () => {
   return (
     
@@ -46,6 +47,7 @@ const App = () => {
           <Route path='/available' element={<AvailabilitySelector />} />
           <Route path='/setting' element={<SettingPage />} />
           <Route path='/ask' element={<SearchBox />} />
+          <Route path='/payment' element={<PaymentForm />} />
         </Routes>
       </div>
     </ReviewProvider>
