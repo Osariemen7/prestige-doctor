@@ -29,6 +29,7 @@
     "html2pdf.js": "^0.10.2",
     "jspdf": "^2.5.2",
     "lucide-react": "^0.475.0",
+    "mdast-util-to-markdown": "^2.1.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-draggable": "^4.4.6",
