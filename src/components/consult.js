@@ -103,9 +103,8 @@ const ConsultAIPage = () => {
   const processorRef = useRef(null);
   const [assemblyAiToken, setAssemblyAiToken] = useState('');
 
-  const formatPhoneNumber = (phoneNumber) => {
-    if (phoneNumber.startsWith('+234')) return phoneNumber;
-    return `+234${phoneNumber.slice(1)}`;
+  const formatPhoneNumber = (phoneNumber, countryCode) => {
+    return `${countryCode}${phoneNumber}`;
   };
 
   const formatTime = (seconds) => {
@@ -127,7 +126,7 @@ const ConsultAIPage = () => {
       }
 
       const phone = ite.appointment.patient_phone_number;
-      const formattedPhoneNumber = formatPhoneNumber(phone);
+      const formattedPhoneNumber = formatPhoneNumber(phone, countryCode);
       const token = await getAccessToken();
       const item = {
         cost_bearer: 'doctor',
@@ -607,11 +606,11 @@ const ConsultAIPage = () => {
 
 
   const startConsultationSession = async () => {
-    if (!phoneNumber || phoneNumber.length !== 11) { // Check if phoneNumber is empty or invalid
-      setErrorMessage('Please enter a valid 11-digit phone number to start consultation');
+    if (!phoneNumber || phoneNumber.length < 10) { // Check if phoneNumber is empty or has less than 10 digits
+      setErrorMessage('Please enter a valid phone number with at least 10 digits to start consultation');
       toast({
         title: 'Invalid Phone Number',
-        description: 'Please enter a valid 11-digit phone number to start consultation',
+        description: 'Please enter a valid phone number with at least 10 digits to start consultation',
         status: 'warning',
         duration: 5000,
         isClosable: true,
@@ -621,7 +620,7 @@ const ConsultAIPage = () => {
     }
     setErrorMessage(''); // Clear error message if phone number is valid
 
-    const phone_number = formatPhoneNumber(phoneNumber);
+    const phone_number = formatPhoneNumber(phoneNumber, countryCode);
     const data = {
       start_time: new Date().toISOString(),
       reason: 'Instant Consultation',
@@ -860,26 +859,31 @@ const ConsultAIPage = () => {
     <FormControl isRequired isInvalid={!!errorMessage}>
       <FormLabel htmlFor="phoneNumber">Patient Phone Number</FormLabel>
       <HStack width="100%">
-        <Select 
-          value={countryCode} 
+        <Select
+          value={countryCode}
           onChange={(e) => setCountryCode(e.target.value)}
           maxWidth="120px"
         >
           <option value="+234">+234</option>
+          <option value="+44">+44</option>
           <option value="+1">+1</option>
-         
+
         </Select>
         <Input
           id="phoneNumber"
           placeholder="Patient's phone number"
           value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-          maxLength={11}
+          onChange={(e) => {
+            const rawValue = e.target.value.replace(/\D/g, ''); // Remove non-digits
+            const lastTenDigits = rawValue.slice(-10); // Get last 10 digits
+            setPhoneNumber(lastTenDigits); // Update state with last 10 digits
+          }}
+          maxLength={15} // Increased to accommodate longer input for digit extraction
           flex="1"
         />
       </HStack>
       <FormHelperText>
-        Enter the patient's 11-digit phone number to start the consultation
+        Enter the patient's phone number (last 10 digits will be used) to start the consultation
       </FormHelperText>
       {errorMessage && (
         <Alert status="error" mt={2} borderRadius="md">
