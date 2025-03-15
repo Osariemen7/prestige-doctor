@@ -30,6 +30,7 @@ import {
 import { FiCopy, FiShoppingCart, FiArrowUpRight, FiArrowDownLeft } from "react-icons/fi";
 import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
+import { getUser } from './api'
 import Sidebar from './sidebar';
 
 
@@ -50,6 +51,10 @@ const Account = () => {
     const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
     const bvnStatus = parsedUserInfo ? parsedUserInfo.user.bvn_verified : "NOT_VERIFIED" ;
 
+    const url = 'https://health.prestigedelta.com/paystack/';
+    const callback_url = 'https://prestige-health.vercel.app/components/callback';
+  
+     
 
     const handleBuyCreditsOpen = () => {
         setBuyCreditsAmountNgn(''); // Reset amount when modal opens
@@ -66,23 +71,45 @@ const Account = () => {
 
 
     const handleBuyCredits = async () => {
+      const users = await getUser()
+      const phone_number = users.phone_number
+      const email = users.email
       let amount = buyCreditsAmountNgn
-      navigate('/payment', { state: { amount } });
-        if (!isBuyCreditsAmountValid) return; // Prevent buy if not valid
-        setIsBuyingCredits(true);
-        // Simulate API call for buying credits
-        setTimeout(() => {
-            setIsBuyingCredits(false);
-            onClose();
-            toast({
-                title: 'Credits Purchased',
-                description: `Successfully purchased $${usdCredits.toFixed(2)} credits.`,
-                status: 'success',
-                duration: 5000,
-                isClosable: true,
-            });
-            fetchData(); // Refresh balance after purchase simulation
-        }, 2000);
+      const item = { email, phone_number, amount, callback_url };
+
+    let result = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify(item),
+    });
+
+    if (result.status !== 200) {
+      const errorResult = await result.json();
+      toast({
+        title: 'Credits Purchase Unsuccessful',
+        description: `${errorResult}`,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+    });;
+    } else {
+      const responseData = await result.json();
+      
+      if (responseData.data && responseData.data.authorization_url) {
+        window.location.href = responseData.data.authorization_url;
+      } else {
+        toast({
+          title: 'Credits Purchase Unsuccessful',
+          description: `Failed to retrieve Paystack authorization url`,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+      });
+      }
+    }       
     };
 
 

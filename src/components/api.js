@@ -1,4 +1,4 @@
-
+import { useNavigate } from "react-router-dom";
 
 
 // For token storage
@@ -7,8 +7,7 @@ export const getRefreshToken = async () => {
     const userInfo = localStorage.getItem('user-info'); // Use localStorage for web storage
     const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
     if (parsedUserInfo) {
-      console.log('Access Token:', parsedUserInfo.access);
-      return parsedUserInfo.refresh; // Return the access token
+           return parsedUserInfo.refresh; // Return the access token
       
     } else {
       console.log('No user information found in storage.');
@@ -32,8 +31,11 @@ export const getAccessToken = async () => {
    body:JSON.stringify(term)
   });
   rep = await rep.json();
+  if (rep.status === 400) {
+    
+  }
   if (rep) {
-    console.log('Access Token:', rep.access);
+    
     
     return rep.access // Return the access token
     
@@ -41,8 +43,29 @@ export const getAccessToken = async () => {
   } 
 
 }
+
+// get User
+export const getUser = async () => {
+  try {
+    const userInfo = localStorage.getItem('user-info'); // Use localStorage for web storage
+    const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
+    if (parsedUserInfo) {
+      
+      return parsedUserInfo.user; // Return the user detail
+      
+    } else {
+      console.log('No user information found in storage.');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching token:', error);
+    return null;
+  } 
+
+}
+
 // Function to send audio file
-export const sendAudioFile = async (blob, recipient, document = false) => {
+export const sendAudioFile = async (blob, recipient, documentation = false) => {
   try {
     const token = await getAccessToken();
     // Validate blob and recipient
@@ -60,7 +83,7 @@ export const sendAudioFile = async (blob, recipient, document = false) => {
     }
 
     // Append documentation flag if true
-    if (document) {
+    if (documentation) {
       formData.append('document', 'true');
     }
 
@@ -85,7 +108,6 @@ export const sendAudioFile = async (blob, recipient, document = false) => {
     throw error; // Rethrow error for upstream handling
   }
 };
-
 
 
 // Function to send a message
@@ -115,12 +137,7 @@ export const sendMessage = async (message, data) => {
 export const submitEdits = async (data, editableFields) => {
   if (!data || !data.review_id) return;
 
-  const updatedData = {
-    review_details: {
-      ...editableFields,
-    },
-  };
-
+  
   try {
     const token = await getAccessToken();
     if (token) {
@@ -131,7 +148,7 @@ export const submitEdits = async (data, editableFields) => {
           'accept': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(updatedData),
+        body: JSON.stringify(editableFields),
       });
       return response.json();
     } else {
