@@ -321,7 +321,7 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
           </Paper>
 
           {/* Citations section */}
-          {!isUser && chat.citations && chat.citations.length > 0 && !isResponseLoading && (
+          {!isUser && chat.citations && Array.isArray(chat.citations) && chat.citations.length > 0 && !isResponseLoading && (
             <Box sx={{ mt: 1.5, ml: isUser ? 'auto' : 0 }}>
               <Button
                 onClick={handleSourcesToggle}
@@ -364,7 +364,7 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
                     Sources:
                   </Typography>
 
-                  {chat.citations.map((citation, citationIndex) => {
+                  {Array.isArray(chat.citations) && chat.citations.map((citation, citationIndex) => {
                     const hostname = new URL(citation).hostname;
                     return (
                       <Box
@@ -449,7 +449,7 @@ const ChatScreen = ({
   const [error, setError] = useState('');
   const [expertLevel, setExpertLevel] = useState('low');
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [suggestions, setSuggestion] = useState([]);
+  const [suggestions, setSuggestion] = useState([]); // Step 4: Initial state is [] - empty array
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null); // State for selected image file
   const [selectedImagePreview, setSelectedImagePreview] = useState(null); // State for image preview URL
@@ -679,10 +679,13 @@ const ChatScreen = ({
         setError("Failed to load suggestions.");
       } else {
         setSuggestion(result);
+        console.log("Suggestions after fetch (Success):", result); // Debug log after successful fetch
       }
     } catch (error) {
       console.error(error);
       setError("Failed to load suggestions.");
+      setSuggestion(null); // Or set to an empty array [] if you prefer a default array in error case
+      console.log("Suggestions fetch failed, setting to null/[]"); // Debug log on failure
     } finally {
       setIsLoadingSuggestions(false);
     }
@@ -714,6 +717,8 @@ const ChatScreen = ({
       </ThemeProvider>
     );
   }
+
+  console.log("Suggestions before render:", suggestions); // Debug log before rendering suggestions
 
   return (
     <ThemeProvider theme={theme}>
@@ -793,7 +798,8 @@ const ChatScreen = ({
                   Try asking about:
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                  {suggestions.map((suggestion) => (
+                  {/* Step 3: Defensive check - only map if suggestions is an array */}
+                  {Array.isArray(suggestions) ? suggestions.map((suggestion) => (
                     <Chip
                       key={suggestion}
                       label={suggestion}
@@ -806,7 +812,11 @@ const ChatScreen = ({
                         },
                       }}
                     />
-                  ))}
+                  )) : (
+                    <Typography variant="body2" color="text.secondary">
+                      Failed to load suggestions.
+                    </Typography>
+                  )}
                 </Box>
               </Paper>
             </Box>
