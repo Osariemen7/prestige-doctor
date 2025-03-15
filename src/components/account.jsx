@@ -66,6 +66,8 @@ const Account = () => {
 
 
     const handleBuyCredits = async () => {
+      let amount = buyCreditsAmountNgn
+      navigate('/payment', { state: { amount } });
         if (!isBuyCreditsAmountValid) return; // Prevent buy if not valid
         setIsBuyingCredits(true);
         // Simulate API call for buying credits
@@ -207,6 +209,8 @@ const Account = () => {
 
   return (
     <ChakraProvider >
+    <Flex direction="column" minH="100vh">
+    <Box flex="1" overflowY="auto">
     <Sidebar
       onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
       onNavigate={(path) => navigate(path)}
@@ -345,6 +349,8 @@ const Account = () => {
 
     </Box>
     </div>
+    </Box>
+    </Flex>
     </ChakraProvider>
   );
 
