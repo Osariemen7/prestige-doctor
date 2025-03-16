@@ -579,7 +579,9 @@ const ConsultAIPage = () => {
     setPhoneNumber('');
     setReviewId('');
     setTranscript('');
-    setIsBottomTabVisible(false);
+    setIsBottomTabVisible(true); // Set bottom tab visible to display document
+    setBottomTabIndex(1); // Set active tab to document (index 1)
+    setActiveScreen("document"); // Set active screen to document
     setIsDocumentationSaved(false);
     await handleBilling();
     toast({
