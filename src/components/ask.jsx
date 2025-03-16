@@ -29,7 +29,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Skeleton from '@mui/material/Skeleton';
 import Sidebar from './sidebar';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // Add useLocation
 import { getAccessToken } from './api';
 import PatientProfileDisplay from './document';
 import ImageIcon from '@mui/icons-material/Image'; // Import ImageIcon
@@ -114,6 +114,7 @@ const SearchBox = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const theme = createTheme();
   const navigate = useNavigate();
+  const location = useLocation(); // Add this line
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('error');
@@ -374,6 +375,19 @@ const SearchBox = () => {
 
     fetchData();
   }, [navigate, showSnackbar]);
+
+  // Add useEffect to handle initial query and patient selection
+  useEffect(() => {
+    if (location.state?.initialQuery) {
+      setMessage(location.state.initialQuery);
+    }
+    if (location.state?.selectedPatientId) {
+      const patient = datalist.find(p => p.id === location.state.selectedPatientId);
+      if (patient) {
+        setSelectedPatient(patient);
+      }
+    }
+  }, [datalist, location.state]);
 
   // Extract the <think> block from the assistant response.
   const extractThinkContent = (text) => {

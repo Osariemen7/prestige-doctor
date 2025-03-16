@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from "react"; 
-import { ChakraProvider, Box, Button, Divider, Flex, Heading, Text, Spinner } from "@chakra-ui/react";
+import { ChakraProvider, Box, Button, Divider, Flex, Heading, Text, Spinner, SimpleGrid, Progress } from "@chakra-ui/react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import {
   Modal,
   ModalOverlay,
@@ -20,6 +31,18 @@ import {
 } from '@chakra-ui/react';
 import axios from "axios";
 import { Select } from "@chakra-ui/react";
+import Carousel from 'react-multi-carousel';
+import 'react-multi-carousel/lib/styles.css';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 const Details = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -32,6 +55,7 @@ const Details = () => {
   const [buttonVisible, setButtonVisible] = useState(false);
   const [message, setmessage] = useState('');
   const [isInstance, setInstance] = useState(false);
+  const [patientData, setPatientData] = useState(null);
   const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -127,6 +151,27 @@ const Details = () => {
     }
   }, [date]);
 
+  useEffect(() => {
+    const fetchPatientData = async () => {
+      try {
+        const token = await getAccessToken();
+        const response = await fetch(`https://health.prestigedelta.com/providerdashboard/${item.id}/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        setPatientData(data);
+      } catch (error) {
+        console.error('Error fetching patient data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPatientData();
+  }, [item.id]);
+
   const options = info.map((slot) => (
     <option key={slot.start_time} value={slot.start_time}>
       {slot.start_time}
@@ -180,244 +225,231 @@ const Details = () => {
     }
   };
 
+  const MetricChart = ({ metric, actions }) => {
+    const chartData = {
+      labels: metric.records ? metric.records.map(r => new Date(r.recorded_at).toLocaleDateString()) : [],
+      datasets: [
+        {
+          label: metric.details.metric_name,
+          data: metric.records ? metric.records.map(r => r.recorded_value) : [],
+          borderColor: 'rgb(75, 192, 192)',
+          tension: 0.1
+        },
+        {
+          label: 'Target Value',
+          data: metric.records ? metric.records.map(() => metric.details.target_value) : [],
+          borderColor: 'rgb(255, 205, 86)',
+          borderDash: [10, 5],
+          tension: 0.1
+        },
+        {
+          label: 'Actions',
+          data: actions && actions.records ? actions.records.map(a => a.value) : [],
+          borderColor: 'rgb(255, 99, 132)',
+          tension: 0.1
+        }
+      ]
+    };
+
+    return (
+      <Box p={4} bg="white" rounded="lg" shadow="sm">
+        <Heading size="sm" mb={4}>{metric.details.metric_name}</Heading>
+        <Line data={chartData} />
+      </Box>
+    );
+  };
+
+  const GoalProgress = ({ goal }) => (
+    <Box p={6} bg="white" rounded="lg" shadow="sm">
+      <Heading size="md" mb={4}>{goal.goal_name}</Heading>
+      <Text color="gray.600" mb={4}>Target Date: {new Date(goal.target_date).toLocaleDateString()}</Text>
+      <Text mb={4}>{goal.comments}</Text>
+      
+      {goal.metrics.map((metric, index) => (
+        <Box key={index} mb={4}>
+          <Flex justify="space-between" mb={2}>
+            <Text>{metric.metric_name}</Text>
+            <Text>{metric.target_value} {metric.unit}</Text>
+          </Flex>
+        </Box>
+      ))}
+
+      <Box mt={6}>
+        <Heading size="sm" mb={3}>Action Items</Heading>
+        {goal.actions.map((action, index) => (
+          <Box key={index} p={3} bg="gray.50" rounded="md" mb={2}>
+            <Text fontWeight="bold">{action.name}</Text>
+            <Text fontSize="sm">{action.description}</Text>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+
+  const handleGenerateReport = () => {
+    navigate('/ask', { 
+      state: { 
+        initialQuery: `Generate a comprehensive progress report for patient ${item.id}`,
+        selectedPatientId: item.id 
+      } 
+    });
+  };
+
+  if (loading) return <Spinner />;
+  if (!patientData) return <Text>No data available</Text>;
+
   return (
     <ChakraProvider>
-      <Box p={6} bg="blue.50" minH="100vh" overflowY="auto">
-        <div className="back-icon" onClick={() => navigate('/dashboard')}>
-          <AiOutlineArrowLeft size={24} />
-          <span className="back-text"></span>
-        </div>
-      
-        <Heading size="lg" mb={4} color="blue.700" justifySelf="center">
-          Patient Details
-        </Heading>
-      
-        {/* <Button colorScheme="red" onClick={deleteDet}>Delete</Button> */}
-      
-        <Button colorScheme="blue" onClick={onOpen} mb="10px">
-          Schedule Call Appointment
+      <Box p={6} bg="gray.50" minH="100vh" overflowY="auto" style={{ backgroundImage: "linear-gradient(to bottom, #f0f8ff, #e6f7ff)" }}>
+        <Button leftIcon={<AiOutlineArrowLeft />} onClick={() => navigate('/patientlist')} mb={6}>
+          Back to Patient List
         </Button>
-      
-        <div className="w-full max-w-4xl mx-auto p-6 space-y-4">
-          {/* Header Section */}
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-gray-600">Patient ID: {item.id}</p>
-              <h1 className="text-2xl font-bold text-blue-900">Patient Health Overview</h1>
-              <p className="text-sm text-gray-500">{formatDate(item.most_recent_review)}</p>
-            </div>
-            {/* Health Score Circle */}
-            <div className="relative w-24 h-24">
-              <svg className="w-24 h-24 transform -rotate-90">
-                <circle
-                  cx="48"
-                  cy="48"
-                  r="36"
-                  stroke="#E2E8F0"
-                  strokeWidth="8"
-                  fill="none"
-                />
-                <circle
-                  cx="48"
-                  cy="48"
-                  r="36"
-                  stroke="#10B981"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeDasharray={`${2 * Math.PI * 36}`}
-                  strokeDashoffset={`${2 * Math.PI * 36 * (1 - (item.health_score / 100))}`}
-                />
-              </svg>
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <span className="text-xl font-bold text-blue-900">{item.health_score}</span>
-              </div>
-            </div>
-          </div>
-      
-          {/* Status Badge */}
-          <div className="mt-4">
-            <span className="inline-block px-3 py-1 text-sm font-medium text-green-700 bg-green-100 rounded-full">
-              {item.status}
-            </span>
-          </div>
-      
-          {/* Current Condition Section */}
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-blue-900">Current Condition</h2>
-            <p className="text-gray-700">
-              {review ? (review.chief_complaint || 'None recorded') : 'No current review'}
-            </p>
-          </div>
-      
-          {/* History Section */}
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-blue-900">History of Present Illness</h2>
-            <p className="text-gray-700">
-              {review ? (review.history_of_present_illness || 'None recorded') : 'No current review'}
-            </p>
-          </div>
-      
-          {/* Key Information Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Past Medical History</h3>
-              <p className="text-gray-700">
-                {review ? (review.past_medical_history || 'None recorded') : 'No current review'}
-              </p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Medications</h3>
-              <p className="text-gray-700">
-                {review ? (review.medications || 'None recorded') : 'No current review'}
-              </p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Allergies</h3>
-              <p className="text-gray-700">
-                {review ? (review.allergies || 'None recorded') : 'No current review'}
-              </p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Social History</h3>
-              <p className="text-gray-700">
-                {review ? (review.social_history || 'None recorded') : 'No current review'}
-              </p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Physical Examination Findings</h3>
-              <p className="text-gray-700">
-                {review ? (review.physical_examination_findings || 'None recorded') : 'No current review'}
-              </p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Diagnosis Reason</h3>
-              <p className="text-gray-700">
-                {review ? (review.diagnosis_reason || 'None recorded') : 'No current review'}
-              </p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Assessment Diagnosis</h3>
-              <p className="text-gray-700">
-                {review ? (review.assessment_diagnosis || 'None recorded') : 'No current review'}
-              </p>
-            </div>
-          </div>
-      
-          {/* Management Plan Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-blue-900 mb-4">Treatment Plan</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-medium text-blue-800">Management Plan</h3>
-                <p className="text-gray-700 mt-1">
-                  {review ? (review.management_plan || 'None recorded') : 'No current review'}
-                </p>
-              </div>
-              <div>
-                <h3 className="font-medium text-blue-800">Lifestyle Advice</h3>
-                <p className="text-gray-700 mt-1">
-                  {review ? (review.lifestyle_advice || 'None recorded') : 'No current review'}
-                </p>
-              </div>
-            </div>
-          </div>
-      
-          {/* Prescriptions Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-blue-900 mb-4">Prescriptions</h2>
-            <div className="space-y-4">
-              {review && review.prescriptions && review.prescriptions.length > 0 ? (
-                review.prescriptions.map((prescription) => {
-                  const medications = parsePrescriptionItems(prescription.prescription_items);
-                  return (
-                    <div key={prescription.id} className="bg-blue-50 rounded-lg p-4">
-                      {medications.map((med, index) => (
-                        <div key={index} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-800">Medication</h4>
-                            <p className="text-gray-700">{med.medication_name}</p>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-800">Dosage</h4>
-                            <p className="text-gray-700">{med.dosage}</p>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-800">Frequency</h4>
-                            <p className="text-gray-700">{med.frequency}</p>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-800">Duration</h4>
-                            <p className="text-gray-700">{med.duration}</p>
-                          </div>
-                        </div>
+
+        {/* Patient Overview */}
+        <Box mb={8}>
+          <Heading size="lg" mb={4}>Patient Overview</Heading>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+            <Box p={5} bg="white" rounded="lg" shadow="md">
+              <Text fontWeight="bold" fontSize="xl">{patientData.profile_data.demographics.name}</Text>
+              <Text>Age: {patientData.profile_data.demographics.age}</Text>
+              <Text>Gender: {patientData.profile_data.demographics.gender}</Text>
+              <Text>Date of Birth: {new Date(patientData.profile_data.demographics.date_of_birth).toLocaleDateString()}</Text>
+              <Text>Location: {patientData.profile_data.demographics.location.country_code}</Text>
+            </Box>
+            <Box p={5} bg="white" rounded="lg" shadow="md">
+              <Text fontWeight="bold">Health Score</Text>
+              <Heading size="xl" color="teal.500">{patientData.profile_data.lifestyle.biometrics.health_score}</Heading>
+              <Text>Height: {patientData.profile_data.lifestyle.biometrics.height} cm</Text>
+              <Text>Weight: {patientData.profile_data.lifestyle.biometrics.weight} kg</Text>
+            </Box>
+          </SimpleGrid>
+        </Box>
+
+        {/* Health Goals Section */}
+        <Box mb={8}>
+          <Heading size="md" mb={4}>Health Goal</Heading>
+          <GoalProgress goal={patientData.health_goal} />
+        </Box>
+
+        {/* Metrics Charts with Carousel */}
+        <Box mb={8}>
+          <Heading size="md" mb={4}>Health Metrics</Heading>
+          <Carousel
+            additionalTransfrom={0}
+            arrows
+            autoPlaySpeed={3000}
+            centerMode={false}
+            containerClass="carousel-container"
+            dotListClass=""
+            draggable
+            focusOnSelect={false}
+            infinite
+            keyBoardControl
+            minimumTouchDrag={80}
+            responsive={{
+              desktop: {
+                breakpoint: { max: 3000, min: 1024 },
+                items: 2,
+                partialVisibilityGutter: 40
+              },
+              tablet: {
+                breakpoint: { max: 1024, min: 464 },
+                items: 1,
+                partialVisibilityGutter: 30
+              },
+              mobile: {
+                breakpoint: { max: 464, min: 0 },
+                items: 1,
+                partialVisibilityGutter: 0
+              }
+            }}
+            showDots={false}
+            slidesToSlide={1}
+            swipeable
+          >
+            {Object.entries(patientData.time_series.metrics).map(([key, metric]) => (
+              <MetricChart 
+                key={key} 
+                metric={metric} 
+                actions={patientData.time_series.actions[Object.keys(patientData.time_series.actions)[0]]} 
+              />
+            ))}
+          </Carousel>
+        </Box>
+
+        {/* Latest Medical Review Section */}
+        <Box mb={8}>
+          <Heading size="md" mb={4}>Latest Medical Review</Heading>
+          <Box p={5} bg="white" rounded="lg" shadow="md">
+            <Box mb={4} pb={2} borderBottom="1px" borderColor="gray.200">
+              <Text fontWeight="bold" color="gray.600">Last Review Date</Text>
+              <Text color="blue.600">
+                {new Date(patientData.medical_reviews[0]?.created_at || patientData.medical_reviews[0]?.updated_at).toLocaleString()}
+              </Text>
+            </Box>
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+              <Box>
+                <Text fontWeight="bold" color="blue.600">Chief Complaint</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.chief_complaint}</Text>
+                
+                <Text fontWeight="bold" color="blue.600">History of Present Illness</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.history_of_present_illness}</Text>
+                
+                <Text fontWeight="bold" color="blue.600">Assessment</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.assessment_diagnosis}</Text>
+                
+                <Text fontWeight="bold" color="blue.600">Treatment Plan</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.management_plan}</Text>
+              </Box>
+              
+              <Box>
+                <Text fontWeight="bold" color="blue.600">Physical Examination</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.physical_examination_findings}</Text>
+                
+                <Text fontWeight="bold" color="blue.600">Investigation Results</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.investigation_results}</Text>
+                
+                <Text fontWeight="bold" color="blue.600">Lifestyle Advice</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.lifestyle_advice}</Text>
+                
+                <Text fontWeight="bold" color="blue.600">Follow-up Plan</Text>
+                <Text mb={4}>{patientData.medical_reviews[0]?.follow_up_plan}</Text>
+
+                <Text fontWeight="bold" color="blue.600">Status</Text>
+                <Text mb={4} color={patientData.medical_reviews[0]?.status === 'stable' ? 'green.500' : 'yellow.500'}>
+                  {patientData.medical_reviews[0]?.status?.toUpperCase()}
+                </Text>
+              </Box>
+              
+              {patientData.medical_reviews[0]?.prescriptions?.length > 0 && (
+                <Box gridColumn={{ md: "span 2" }}>
+                  <Text fontWeight="bold" color="blue.600" mb={2}>Prescriptions</Text>
+                  {patientData.medical_reviews[0]?.prescriptions.map((prescription, idx) => (
+                    <Box key={idx} p={3} bg="gray.50" rounded="md" mb={2}>
+                      {prescription.medications.map((med, medIdx) => (
+                        <Box key={medIdx} mb={2}>
+                          <Text fontWeight="semibold">{med.name}</Text>
+                          <Text>Dosage: {med.dosage}</Text>
+                          <Text>Frequency: {med.frequency}</Text>
+                          <Text>Duration: {med.duration}</Text>
+                          <Text>Instructions: {med.instructions}</Text>
+                        </Box>
                       ))}
-                    </div>
-                  );
-                })
-              ) : (
-                <Text>No prescriptions recorded</Text>
+                    </Box>
+                  ))}
+                </Box>
               )}
-            </div>
-          </div>
-      
-          {/* Investigations Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-blue-900 mb-4">Investigations</h2>
-            <div className="space-y-4">
-              {review && review.investigations && review.investigations.length > 0 ? (
-                review.investigations.map((investigation) => (
-                  <div key={investigation.id} className="bg-blue-50 rounded-lg p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="text-sm font-medium text-blue-800">Test Type</h4>
-                        <p className="text-gray-700">{investigation.test_type}</p>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-blue-800">Reason</h4>
-                        <p className="text-gray-700">{investigation.reason}</p>
-                      </div>
-                      {investigation.additional_instructions && (
-                        <div className="md:col-span-2">
-                          <h4 className="text-sm font-medium text-blue-800">Additional Instructions</h4>
-                          <p className="text-gray-700">{investigation.additional_instructions}</p>
-                        </div>
-                      )}
-                      {investigation.scheduled_time && (
-                        <div>
-                          <h4 className="text-sm font-medium text-blue-800">Scheduled Time</h4>
-                          <p className="text-gray-700">
-                            {new Date(investigation.scheduled_time).toLocaleString()}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <Text>No investigations recorded</Text>
-              )}
-            </div>
-          </div>
-      
-          {/* Follow-up Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-blue-900 mb-4">Follow-up & Progress</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-medium text-blue-800">Follow-up Plan</h3>
-                <p className="text-gray-700 mt-1">
-                  {review ? (review.follow_up_plan || 'None recorded') : 'No current review'}
-                </p>
-              </div>
-              <div>
-                <h3 className="font-medium text-blue-800">Progress Notes</h3>
-                <p className="text-gray-700 mt-1">
-                  {review ? (review.daily_progress_notes || 'None recorded') : 'No current review'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+            </SimpleGrid>
+          </Box>
+        </Box>
+
+        {/* Progress Report Section */}
+        <Box mb={8}>
+          <Heading size="md" mb={4}>Progress Report</Heading>
+          <Button colorScheme="blue" onClick={handleGenerateReport} mb={4}>
+            Generate Progress Report
+          </Button>
+        </Box>
       </Box>
       
       <Modal isOpen={isOpen} onClose={onClose}>

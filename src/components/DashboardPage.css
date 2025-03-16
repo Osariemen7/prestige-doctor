@@ -27,6 +27,11 @@
   background-color:#f0f8ff;
   padding: 4%;
 }
+
+.carousel-container {
+  margin-bottom: 20px;
+}
+
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0; /* Adjust based on sidebar width */
