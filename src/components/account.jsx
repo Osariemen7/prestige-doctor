@@ -32,7 +32,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
 import { getUser } from './api'
 import Sidebar from './sidebar';
-
+import Confetti from 'react-confetti';
 
 const Account = () => {
     const [balance, setBal] = useState(null);
@@ -45,7 +45,7 @@ const Account = () => {
     const [usdCredits, setUsdCredits] = useState(0);
     const [isBuyingCredits, setIsBuyingCredits] = useState(false);
     const [isBuyCreditsAmountValid, setIsBuyCreditsAmountValid] = useState(false); // State for validation
-
+    const [showConfetti, setShowConfetti] = useState(false); // New state for confetti
 
     const userInfo = localStorage.getItem('user-info');
     const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
@@ -194,6 +194,19 @@ const Account = () => {
         };
 
 
+        const fetchConfetti = async () => {
+            try {
+                let response = await fetch("https://health.prestigedelta.com/confetti/");
+                const data = await response.json();
+                if (data.show_confetti) {
+                    setShowConfetti(true);
+                    setTimeout(() => setShowConfetti(false), 5000);
+                }
+            } catch (error) {
+                console.error("Failed to fetch confetti", error);
+            }
+        };
+
         const fetchData = async () => {
             const accessToken = await getAccessToken();
             if (!accessToken) return;
@@ -210,6 +223,7 @@ const Account = () => {
                 }
                 const responseData = await response.json();
                 setBal(responseData);
+                fetchConfetti();
             } catch (error) {
                 console.error("Fetching balance failed:", error);
                  toast({
@@ -236,6 +250,7 @@ const Account = () => {
 
   return (
     <ChakraProvider >
+    {showConfetti && <Confetti width={window.innerWidth} height={window.innerHeight} />}
     <Flex direction="column" minH="100vh">
     <Box flex="1" overflowY="auto">
     <Sidebar
@@ -295,24 +310,49 @@ const Account = () => {
           </Text>
           <VStack divider={<Divider />} spacing={4} align="stretch">
             {balance && balance.transactions && balance.transactions.length > 0 ? (
-              balance.transactions.map((transaction) => (
-                <Flex key={transaction.id} justify="space-between" align="center" p={3} borderRadius="md" _hover={{ bg: 'gray.50' }}>
-                  <Box>
-                    <Text fontWeight="medium">{transaction.description}</Text>
-                    <Text fontSize="sm" color="gray.500">
-                      {new Date(transaction.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(transaction.created_at).toLocaleDateString()}
-                    </Text>
-                  </Box>
-                  <Text
-                    fontWeight="bold"
-                    color={parseFloat(transaction.amount) >= 0 ? "green.500" : "red.500"}
-                    ml={4}
-                    textAlign="right"
-                  >
-                    {parseFloat(transaction.amount) >= 0 ? '+' : '-'} ${Math.abs(parseFloat(transaction.amount)).toFixed(2)}
-                  </Text>
-                </Flex>
-              ))
+              balance.transactions.map((transaction) => {
+                  let transactionIcon;
+                  if (transaction.type === 'CR') {
+                      transactionIcon = <Icon as={FiArrowDownLeft} color="green.500" />;
+                  } else if (transaction.type === 'DR') {
+                      transactionIcon = <Icon as={FiArrowUpRight} color="red.500" />;
+                  } else {
+                      transactionIcon = <Icon as={FiCopy} color="gray.500" />;
+                  }
+                  return (
+                      <Flex key={transaction.id} justify="space-between" align="center" p={3} borderRadius="md" _hover={{ bg: 'gray.50' }}>
+                          <HStack spacing={3}>
+                              <Box>
+                                  {transactionIcon}
+                              </Box>
+                              <Box>
+                                  <Text fontWeight="medium">{transaction.description}</Text>
+                                  <Text fontSize="sm" color="gray.500">
+                                      {new Date(transaction.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(transaction.created_at).toLocaleDateString()}
+                                  </Text>
+                              </Box>
+                          </HStack>
+                          <Text
+                              fontWeight="bold"
+                              color={
+                                  transaction.type === 'CR'
+                                      ? "green.500"
+                                      : transaction.type === 'DR'
+                                      ? "red.500"
+                                      : "gray.500"
+                              }
+                              ml={4}
+                              textAlign="right"
+                          >
+                              {transaction.type === 'CR'
+                                  ? '+'
+                                  : transaction.type === 'DR'
+                                  ? '-'
+                                  : ''} ${Math.abs(parseFloat(transaction.amount)).toFixed(2)}
+                          </Text>
+                      </Flex>
+                  );
+              })
             ) : (
               <Box textAlign="center" color="gray.500" py={4}>
                 No transactions available.
