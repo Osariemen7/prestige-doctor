@@ -18,8 +18,8 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
   const menuItems = [
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
     { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
-    { icon: <Activity size={20} />, text: 'Virtual Consultations', path: '/virtual' },
-    { icon: <Search size={20} />, text: 'Researcher', path: '/ask' },
+    { icon: <Activity size={20} />, text: 'Virtual Consultation', path: '/virtual' },
+    { icon: <Search size={20} />, text: 'Dr House AI', path: '/ask' },
     { icon: <DollarSign size={20} />, text: 'Earnings', path: '/account' },
     { icon: <FileText size={20} />, text: 'Dashboard', path: '/doctor' },
     { icon: <Settings size={20} />, text: 'Settings', path: '/setting' },
