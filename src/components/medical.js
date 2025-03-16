@@ -10,42 +10,54 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
-
-function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, onApplySuggestion, onGetSuggestion, onSaveReview, isGeneratingSuggestion, isSavingReview, hasChanges }) {
-    const [localData, setLocalData] = useState(editableData);
+function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges }) {
+    // Initialize with a deep copy of data.doctor_note_data (or empty object if not available)
+    const [localData, setLocalData] = useState(() => {
+        // Initialize with editableData if available, otherwise use data.doctor_note_data or empty default
+        return editableData || data?.doctor_note_data || {
+            subjective: { chief_complaint: '', history_of_present_illness: '' },
+            objective: { examination_findings: '', investigations: '' },
+            assessment: { primary_diagnosis: '', differential_diagnosis: '', diagnosis_reasoning: '', status: '' },
+            plan: { management: '', lifestyle_advice: '', follow_up: '', patient_education: '', treatment_goal: '', plan_reasoning: '' },
+            prescription: [],
+            investigation: [],
+            next_review: '',
+            summary: { health_score: 0, daily_progress_notes: '', discharge_instructions: '' }
+        };
+    });
     const [isEditing, setIsEditing] = useState(false);
 
-    useEffect(() => {
-        setLocalData(editableData);
-    }, [editableData]);
+   // In your useEffect hook, modify it to this:
+   useEffect(() => {
+    // Only update localData when NOT in edit mode OR when component first mounts
+    if (!isEditing) {
+        setLocalData(data?.doctor_note_data || editableData || localData);
+    }
+}, [data, isEditing])
 
-    const handleInputChange = (section, field, value) => {
+    // Fix: Handle input change for direct properties
+    const handleInputChange = (field, value) => {
+        setLocalData(prevData => ({
+            ...prevData,
+            [field]: value
+        }));
+    };
+
+    // Fix: Handle nested input change correctly
+    const handleNestedInputChange = (section, field, value) => {
         setLocalData(prevData => ({
             ...prevData,
             [section]: {
-                ...prevData[section],
+                ...(prevData[section] || {}),
                 [field]: value
             }
         }));
     };
 
-    const handleNestedInputChange = (section, subsection, field, value) => {
-        setLocalData(prevData => ({
-            ...prevData,
-            [section]: {
-                ...prevData[section],
-                [subsection]: {
-                    ...prevData[section][subsection],
-                    [field]: value
-                }
-            }
-        }));
-    };
-
     const handlePrescriptionChange = (index, field, value) => {
-        const updatedPrescriptions = [...localData.prescription];
+        const updatedPrescriptions = [...(localData.prescription || [])];
         updatedPrescriptions[index] = {
-            ...updatedPrescriptions[index],
+            ...(updatedPrescriptions[index] || {}),
             [field]: value
         };
 
@@ -56,9 +68,9 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
     };
 
     const handleInvestigationChange = (index, field, value) => {
-        const updatedInvestigations = [...localData.investigation];
+        const updatedInvestigations = [...(localData.investigation || [])];
         updatedInvestigations[index] = {
-            ...updatedInvestigations[index],
+            ...(updatedInvestigations[index] || {}),
             [field]: value
         };
 
@@ -80,7 +92,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
 
         setLocalData(prevData => ({
             ...prevData,
-            prescription: [...prevData.prescription, newPrescription]
+            prescription: [...(prevData.prescription || []), newPrescription]
         }));
     };
 
@@ -94,12 +106,12 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
 
         setLocalData(prevData => ({
             ...prevData,
-            investigation: [...prevData.investigation, newInvestigation]
+            investigation: [...(prevData.investigation || []), newInvestigation]
         }));
     };
 
     const handleRemovePrescription = (index) => {
-        const updatedPrescriptions = [...localData.prescription];
+        const updatedPrescriptions = [...(localData.prescription || [])];
         updatedPrescriptions.splice(index, 1);
 
         setLocalData(prevData => ({
@@ -109,7 +121,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
     };
 
     const handleRemoveInvestigation = (index) => {
-        const updatedInvestigations = [...localData.investigation];
+        const updatedInvestigations = [...(localData.investigation || [])];
         updatedInvestigations.splice(index, 1);
 
         setLocalData(prevData => ({
@@ -123,16 +135,16 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
     };
 
     const saveChanges = () => {
+        // Pass data changes to parent
         onDataChange(localData);
-        onSaveReview();
+        // No need to reset localData here - keep your edits
         setIsEditing(false);
     };
-
+    
     const cancelEditing = () => {
-        setLocalData(editableData);
+        // Only reset localData when canceling
+        setLocalData(data?.doctor_note_data || {});
         setIsEditing(false);
-        console.log("Cancelled Editing, reverting to:", editableData); // Debugging line
-        console.log("Local Data after cancel:", localData); // Debugging line
     };
 
     const handleCopyReview = () => {
@@ -216,7 +228,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
 
         if (!hasSuggestions) return null;
 
-
         return (
             <Box sx={{ mt: 3, border: '1px solid #ccc', padding: 2, borderRadius: 1, bgcolor: '#f9f9f9' }}>
                 <Typography variant="h6" gutterBottom>Suggestions</Typography>
@@ -225,10 +236,14 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     <Box sx={{ mb: 2 }}>
                         <Typography variant="subtitle1">Assessment Suggestions:</Typography>
                         {suggestion.assessment_suggestion.primary_diagnosis && suggestion.assessment_suggestion.primary_diagnosis !== editableData.assessment?.primary_diagnosis && (
-                            <Typography variant="body2">Primary Diagnosis: {suggestion.assessment_suggestion.primary_diagnosis}</Typography>
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="body2">Primary Diagnosis: {suggestion.assessment_suggestion.primary_diagnosis}</Typography>
+                            </Box>
                         )}
                         {suggestion.assessment_suggestion.differential_diagnosis && suggestion.assessment_suggestion.differential_diagnosis !== editableData.assessment?.differential_diagnosis && (
-                            <Typography variant="body2">Differential Diagnosis: {suggestion.assessment_suggestion.differential_diagnosis}</Typography>
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="body2">Differential Diagnosis: {suggestion.assessment_suggestion.differential_diagnosis}</Typography>
+                            </Box>
                         )}
                         {suggestion.assessment_suggestion.diagnosis_reasoning && suggestion.assessment_suggestion.diagnosis_reasoning !== editableData.assessment?.diagnosis_reasoning && (
                              <Typography variant="body2">Diagnosis Reasoning: {suggestion.assessment_suggestion.diagnosis_reasoning}</Typography>
@@ -236,6 +251,9 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         {suggestion.assessment_suggestion.status && suggestion.assessment_suggestion.status !== editableData.assessment?.status && (
                             <Typography variant="body2">Status: {suggestion.assessment_suggestion.status}</Typography>
                         )}
+                         <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: {assessment_suggestion: suggestion.assessment_suggestion} })} sx={{ mt: 1 }}>
+                            Apply All Assessment Suggestions
+                        </Button>
                     </Box>
                 )}
 
@@ -260,18 +278,23 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         {suggestion.plan_suggestion.plan_reasoning && suggestion.plan_suggestion.plan_reasoning !== editableData.plan?.plan_reasoning && (
                             <Typography variant="body2">Plan Reasoning: {suggestion.plan_suggestion.plan_reasoning}</Typography>
                         )}
+                         <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: {plan_suggestion: suggestion.plan_suggestion} })} sx={{ mt: 1 }}>
+                            Apply All Plan Suggestions
+                        </Button>
                     </Box>
                 )}
                  {suggestion.next_review_suggestion && suggestion.next_review_suggestion !== editableData.next_review && (
                     <Box sx={{ mb: 2 }}>
                         <Typography variant="subtitle1">Next Review Suggestion:</Typography>
                         <Typography variant="body2">Next Review: {suggestion.next_review_suggestion}</Typography>
+                         <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: {next_review_suggestion: suggestion.next_review_suggestion} })} sx={{ mt: 1 }}>
+                            Apply Next Review Suggestion
+                        </Button>
                     </Box>
                 )}
 
-
-                <Button variant="contained" color="secondary" onClick={onApplySuggestion} sx={{ mt: 1 }}>
-                    Apply Suggestions
+                <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: suggestion.review_suggestion })} sx={{ mt: 1 }}>
+                    Apply All Suggestions
                 </Button>
             </Box>
         );
@@ -288,7 +311,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         onClick={handleCopyReview}
                         sx={{ mr: 1 }}
                     >
-                        Copy Review
+                        Copy Note
                     </Button>
                     {!isEditing ? (
                         <Button
@@ -297,7 +320,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             onClick={startEditing}
                             startIcon={<EditIcon />}
                         >
-                            Edit Review
+                            Edit Note
                         </Button>
                     ) : (
                         <Box>
@@ -307,7 +330,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 onClick={cancelEditing}
                                 sx={{ mr: 1 }}
                             >
-                                View Review
+                                View Note
                             </Button>
                             <Button
                                 variant="contained"
@@ -316,13 +339,12 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 startIcon={<SaveIcon />}
                                 disabled={isSavingReview}
                             >
-                                Save Review
+                                Save Note
                             </Button>
                         </Box>
                     )}
                 </Box>
             </Box>
-
 
             {/* Subjective Section */}
             <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>Subjective</Typography>
@@ -339,7 +361,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             fullWidth
                             margin="normal"
                             value={localData?.subjective?.chief_complaint || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('subjective', 'chief_complaint', e.target.value)}
                             variant="outlined"
                         />
@@ -359,14 +380,13 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={3}
                             value={localData?.subjective?.history_of_present_illness || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('subjective', 'history_of_present_illness', e.target.value)}
                             variant="outlined"
                         />
                     )}
                 </Grid>
             </Grid>
-
+            
             {/* Objective Section */}
             <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>Objective</Typography>
             <Grid container spacing={2}>
@@ -384,7 +404,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={2}
                             value={localData?.objective?.examination_findings || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('objective', 'examination_findings', e.target.value)}
                             variant="outlined"
                         />
@@ -404,7 +423,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={2}
                             value={localData?.objective?.investigations || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('objective', 'investigations', e.target.value)}
                             variant="outlined"
                         />
@@ -427,7 +445,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             fullWidth
                             margin="normal"
                             value={localData?.assessment?.primary_diagnosis || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('assessment', 'primary_diagnosis', e.target.value)}
                             variant="outlined"
                         />
@@ -445,7 +462,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             fullWidth
                             margin="normal"
                             value={localData?.assessment?.differential_diagnosis || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('assessment', 'differential_diagnosis', e.target.value)}
                             variant="outlined"
                         />
@@ -465,7 +481,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={2}
                             value={localData?.assessment?.diagnosis_reasoning || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('assessment', 'diagnosis_reasoning', e.target.value)}
                             variant="outlined"
                         />
@@ -478,7 +493,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             <Typography variant="body1">{localData?.assessment?.status || ''}</Typography>
                         </>
                     ) : (
-                        <FormControl fullWidth margin="normal" variant="outlined" disabled={!isEditing}>
+                        <FormControl fullWidth margin="normal" variant="outlined">
                             <InputLabel id="status-label">Status</InputLabel>
                             <Select
                                 labelId="status-label"
@@ -514,7 +529,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={2}
                             value={localData?.plan?.management || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('plan', 'management', e.target.value)}
                             variant="outlined"
                         />
@@ -534,7 +548,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={2}
                             value={localData?.plan?.lifestyle_advice || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('plan', 'lifestyle_advice', e.target.value)}
                             variant="outlined"
                         />
@@ -552,7 +565,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             fullWidth
                             margin="normal"
                             value={localData?.plan?.follow_up || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('plan', 'follow_up', e.target.value)}
                             variant="outlined"
                         />
@@ -573,7 +585,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             margin="normal"
                             type="datetime-local"
                             value={localData?.next_review ? new Date(localData.next_review).toISOString().slice(0, 16) : ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleInputChange('next_review', e.target.value)}
                             InputLabelProps={{ shrink: true }}
                             variant="outlined"
@@ -594,7 +605,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={2}
                             value={localData?.plan?.patient_education || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('plan', 'patient_education', e.target.value)}
                             variant="outlined"
                         />
@@ -612,7 +622,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             fullWidth
                             margin="normal"
                             value={localData?.plan?.treatment_goal || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('plan', 'treatment_goal', e.target.value)}
                             variant="outlined"
                         />
@@ -632,7 +641,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             multiline
                             rows={2}
                             value={localData?.plan?.plan_reasoning || ''}
-                            disabled={!isEditing}
                             onChange={(e) => handleNestedInputChange('plan', 'plan_reasoning', e.target.value)}
                             variant="outlined"
                         />
@@ -655,138 +663,131 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                 )}
             </Box>
 
-            {localData?.prescription?.map((prescription, index) => (
-                <Box key={index} sx={{
-                    border: '1px solid #eee',
-                    borderRadius: 1,
-                    p: 2,
-                    mb: 2,
-                    position: 'relative'
-                }}>
-                    {isEditing && (
-                        <IconButton
-                            aria-label="delete prescription"
-                            size="small"
-                            onClick={() => handleRemovePrescription(index)}
-                            sx={{ position: 'absolute', top: 8, right: 8 }}
-                        >
-                            <DeleteIcon />
-                        </IconButton>
-                    )}
-                    <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Medication Name</Typography>
-                                    <Typography variant="body1">{prescription.medication_name || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Medication Name"
-                                    fullWidth
-                                    margin="normal"
-                                    value={prescription.medication_name || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handlePrescriptionChange(index, 'medication_name', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
+            {localData?.prescription && localData.prescription.length > 0 ? (
+                localData.prescription.map((prescription, index) => (
+                    <Box key={index} sx={{
+                        border: '1px solid #eee',
+                        borderRadius: 1,
+                        p: 2,
+                        mb: 2,
+                        position: 'relative'
+                    }}>
+                        {isEditing && (
+                            <IconButton
+                                aria-label="delete prescription"
+                                size="small"
+                                onClick={() => handleRemovePrescription(index)}
+                                sx={{ position: 'absolute', top: 8, right: 8 }}
+                            >
+                                <DeleteIcon />
+                            </IconButton>
+                        )}
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} md={6}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Medication Name</Typography>
+                                        <Typography variant="body1">{prescription?.medication_name || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Medication Name"
+                                        fullWidth
+                                        margin="normal"
+                                        value={prescription?.medication_name || ''}
+                                        onChange={(e) => handlePrescriptionChange(index, 'medication_name', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Dosage</Typography>
+                                        <Typography variant="body1">{prescription?.dosage || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Dosage"
+                                        fullWidth
+                                        margin="normal"
+                                        value={prescription?.dosage || ''}
+                                        onChange={(e) => handlePrescriptionChange(index, 'dosage', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Route</Typography>
+                                        <Typography variant="body1">{prescription?.route || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Route"
+                                        fullWidth
+                                        margin="normal"
+                                        value={prescription?.route || ''}
+                                        onChange={(e) => handlePrescriptionChange(index, 'route', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                {  !isEditing ? (                                  <>
+                                        <Typography variant="subtitle2" color="text.secondary">Frequency</Typography>
+                                        <Typography variant="body1">{prescription?.frequency || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Frequency"
+                                        fullWidth
+                                        margin="normal"
+                                        value={prescription?.frequency || ''}
+                                        onChange={(e) => handlePrescriptionChange(index, 'frequency', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Duration</Typography>
+                                        <Typography variant="body1">{prescription?.duration || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Duration"
+                                        fullWidth
+                                        margin="normal"
+                                        value={prescription?.duration || ''}
+                                        onChange={(e) => handlePrescriptionChange(index, 'duration', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
+                                        <Typography variant="body1">{prescription?.instructions || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Instructions"
+                                        fullWidth
+                                        margin="normal"
+                                        value={prescription?.instructions || ''}
+                                        onChange={(e) => handlePrescriptionChange(index, 'instructions', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
                         </Grid>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Dosage</Typography>
-                                    <Typography variant="body1">{prescription.dosage || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Dosage"
-                                    fullWidth
-                                    margin="normal"
-                                    value={prescription.dosage || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handlePrescriptionChange(index, 'dosage', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Route</Typography>
-                                    <Typography variant="body1">{prescription.route || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Route"
-                                    fullWidth
-                                    margin="normal"
-                                    value={prescription.route || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handlePrescriptionChange(index, 'route', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Frequency</Typography>
-                                    <Typography variant="body1">{prescription.frequency || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Frequency"
-                                    fullWidth
-                                    margin="normal"
-                                    value={prescription.frequency || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handlePrescriptionChange(index, 'frequency', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Duration</Typography>
-                                    <Typography variant="body1">{prescription.duration || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Duration"
-                                    fullWidth
-                                    margin="normal"
-                                    value={prescription.duration || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handlePrescriptionChange(index, 'duration', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
-                                    <Typography variant="body1">{prescription.instructions || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Instructions"
-                                    fullWidth
-                                    margin="normal"
-                                    value={prescription.instructions || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handlePrescriptionChange(index, 'instructions', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                    </Grid>
-                </Box>
-            ))}
-
-            {(!localData?.prescription || localData.prescription.length === 0) && (
+                    </Box>
+                ))
+            ) : (
                 <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
                     No prescriptions added.
                 </Typography>
@@ -807,108 +808,104 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                 )}
             </Box>
 
-            {localData?.investigation?.map((investigation, index) => (
-                <Box key={index} sx={{
-                    border: '1px solid #eee',
-                    borderRadius: 1,
-                    p: 2,
-                    mb: 2,
-                    position: 'relative'
-                }}>
-                    {isEditing && (
-                        <IconButton
-                            aria-label="delete investigation"
-                            size="small"
-                            onClick={() => handleRemoveInvestigation(index)}
-                            sx={{ position: 'absolute', top: 8, right: 8 }}
-                        >
-                            <DeleteIcon />
-                        </IconButton>
-                    )}
-                    <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Test Type</Typography>
-                                    <Typography variant="body1">{investigation.test_type || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Test Type"
-                                    fullWidth
-                                    margin="normal"
-                                    value={investigation.test_type || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleInvestigationChange(index, 'test_type', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
+            {localData?.investigation && localData.investigation.length > 0 ? (
+                localData.investigation.map((investigation, index) => (
+                    <Box key={index} sx={{
+                        border: '1px solid #eee',
+                        borderRadius: 1,
+                        p: 2,
+                        mb: 2,
+                        position: 'relative'
+                    }}>
+                        {isEditing && (
+                            <IconButton
+                                aria-label="delete investigation"
+                                size="small"
+                                onClick={() => handleRemoveInvestigation(index)}
+                                sx={{ position: 'absolute', top: 8, right: 8 }}
+                            >
+                                <DeleteIcon />
+                            </IconButton>
+                        )}
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} md={6}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Test Type</Typography>
+                                        <Typography variant="body1">{investigation.test_type || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Test Type"
+                                        fullWidth
+                                        margin="normal"
+                                        value={investigation.test_type || ''}
+                                        onChange={(e) => handleInvestigationChange(index, 'test_type', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Schedule Time</Typography>
+                                        <Typography variant="body1">
+                                            {investigation.schedule_time ? format(new Date(investigation.schedule_time), 'MMMM d, yyyy HH:mm') : ''}
+                                        </Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Schedule Time"
+                                        type="datetime-local"
+                                        fullWidth
+                                        margin="normal"
+                                        value={investigation.schedule_time ? new Date(investigation.schedule_time).toISOString().slice(0, 16) : ''}
+                                        onChange={(e) => handleInvestigationChange(index, 'schedule_time', e.target.value)}
+                                        InputLabelProps={{ shrink: true }}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Reason</Typography>
+                                        <Typography variant="body1">{investigation.reason || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Reason"
+                                        fullWidth
+                                        margin="normal"
+                                        multiline
+                                        rows={2}
+                                        value={investigation.reason || ''}
+                                        onChange={(e) => handleInvestigationChange(index, 'reason', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
+                            <Grid item xs={12}>
+                                {!isEditing ? (
+                                    <>
+                                        <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
+                                        <Typography variant="body1">{investigation.instructions || ''}</Typography>
+                                    </>
+                                ) : (
+                                    <TextField
+                                        label="Instructions"
+                                        fullWidth
+                                        margin="normal"
+                                        value={investigation.instructions || ''}
+                                        onChange={(e) => handleInvestigationChange(index, 'instructions', e.target.value)}
+                                        variant="outlined"
+                                    />
+                                )}
+                            </Grid>
                         </Grid>
-                        <Grid item xs={12} md={6}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Schedule Time</Typography>
-                                    <Typography variant="body1">
-                                        {investigation.schedule_time ? format(new Date(investigation.schedule_time), 'MMMM d, yyyy HH:mm') : ''}
-                                    </Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Schedule Time"
-                                    type="datetime-local"
-                                    fullWidth
-                                    margin="normal"
-                                    value={investigation.schedule_time ? new Date(investigation.schedule_time).toISOString().slice(0, 16) : ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleInvestigationChange(index, 'schedule_time', e.target.value)}
-                                    InputLabelProps={{ shrink: true }}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                        <Grid item xs={12}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Reason</Typography>
-                                    <Typography variant="body1">{investigation.reason || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Reason"
-                                    fullWidth
-                                    margin="normal"
-                                    multiline
-                                    rows={2}
-                                    value={investigation.reason || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleInvestigationChange(index, 'reason', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                        <Grid item xs={12}>
-                            {!isEditing ? (
-                                <>
-                                    <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
-                                    <Typography variant="body1">{investigation.instructions || ''}</Typography>
-                                </>
-                            ) : (
-                                <TextField
-                                    label="Instructions"
-                                    fullWidth
-                                    margin="normal"
-                                    value={investigation.instructions || ''}
-                                    disabled={!isEditing}
-                                    onChange={(e) => handleInvestigationChange(index, 'instructions', e.target.value)}
-                                    variant="outlined"
-                                />
-                            )}
-                        </Grid>
-                    </Grid>
-                </Box>
-            ))}
-
-            {(!localData?.investigation || localData.investigation.length === 0) && (
+                    </Box>
+                ))
+            ) : (
                 <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
                     No investigations added.
                 </Typography>

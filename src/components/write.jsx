@@ -17,17 +17,20 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
     const [data, setData] = useState(null);
     const [editableData, setEditableData] = useState(null);
     const [suggestionData, setSuggestionData] = useState(null);
+    // Track which sections have had their suggestions applied
+    const [appliedSuggestions, setAppliedSuggestions] = useState({
+        profile: false,
+        goals: false,
+        review: false
+    });
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarSeverity, setSnackbarSeverity] = useState('success'); // or 'error'
-    const parentalSetIsDocumentationSaved = () => { }; // Placeholder, adjust if needed
+    const parentalSetIsDocumentationSaved = setIsDocumentationSaved || (() => {}); // Use provided setter or empty function
     const [hasChanges, setHasChanges] = useState(false);
     
-    // Placeholder for getAccessToken - Implement your actual token retrieval logic
-   
-
     const fetchSubscribers = async () => {
         setLoading(true);
         try {
@@ -89,6 +92,14 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
 
             const result = response.data;
             setSuggestionData(result.documentation); // Assuming suggestion is under 'documentation'
+            
+            // Reset applied suggestions state when new suggestions are generated
+            setAppliedSuggestions({
+                profile: false,
+                goals: false,
+                review: false
+            });
+            
             setSnackbarSeverity('success');
             setSnackbarMessage('Suggestion generated successfully!');
             setSnackbarOpen(true);
@@ -104,62 +115,66 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
         }
     };
 
-
     const handleSubmit = async (tabName) => {
-        let sectionDataToSave;
+        let sectionDataToSave = {};
         if (tabName === 'patientProfile') {
-            sectionDataToSave = { profile_data: { profile_data: editableData.profile_data.profile_data } };
+          // Use the inner patient profile data to match the sample payload
+          sectionDataToSave = { profile_data: editableData.profile_data.profile_data };
         } else if (tabName === 'healthGoals') {
-            sectionDataToSave = { goal_data: { goal_data: editableData.goal_data.goal_data } };
+          // Use the inner goal data
+          sectionDataToSave = { goal_data: editableData.goal_data.goal_data };
+          console.log("Data being sent for healthGoals:", sectionDataToSave);
         } else if (tabName === 'medicalReview') {
-            sectionDataToSave = { review_data: { doctor_note_data: editableData.review_data.doctor_note_data } };
+          // Send the full review_data as-is
+          sectionDataToSave = { review_data: editableData.review_data };
+        } else if (tabName === 'all') {
+          sectionDataToSave = {
+            profile_data: editableData.profile_data.profile_data,
+            goal_data: editableData.goal_data.goal_data,
+            review_data: editableData.review_data,
+          };
+          console.log("Data being sent for ALL:", sectionDataToSave);
         } else {
-            console.error("Invalid tab name for saving:", tabName);
-            return false;
+          console.error("Invalid tab name for saving:", tabName);
+          return false;
         }
-
-
-        setIsSaving(true);
+    
+        if (!isSaving) setIsSaving(true);
         try {
-
-
-            const accessToken = await getAccessToken();
-            await axios.post(
-                `https://health.prestigedelta.com/documentreview/${reviewid}/document-assessment/`,
-                editableData, // Send only the relevant section data
-                {
-                    headers: { Authorization: `Bearer ${accessToken}` },
-                }
-            );
-
-            // Update the local data with the new data - for specific section only
-            if (tabName === 'patientProfile') {
-                setData(prevData => ({ ...prevData, profile_data: { ...prevData.profile_data, profile_data: editableData.profile_data.profile_data } }));
-            } else if (tabName === 'healthGoals') {
-                setData(prevData => ({ ...prevData, goal_data: { ...prevData.goal_data, goal_data: editableData.goal_data.goal_data } }));
-            } else if (tabName === 'medicalReview') {
-                setData(prevData => ({ ...prevData, review_data: { ...prevData.review_data, doctor_note_data: editableData.review_data.doctor_note_data } }));
-            }
-
-
-            setSuggestionData(null); // Clear suggestions after save
-            setSnackbarSeverity('success');
-            setSnackbarMessage(`${tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} updated successfully!`); // Nicer message
-            setSnackbarOpen(true);
-            parentalSetIsDocumentationSaved(true);
-            setHasChanges(false);
-            return true;
+          const accessToken = await getAccessToken();
+          await axios.post(
+            `https://health.prestigedelta.com/documentreview/${reviewid}/document-assessment/`,
+            sectionDataToSave,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+    
+          if (tabName === 'all') {
+            setData(prevData => ({ ...prevData, ...editableData }));
+          } else if (tabName === 'patientProfile') {
+            setData(prevData => ({ ...prevData, profile_data: editableData.profile_data }));
+          } else if (tabName === 'healthGoals') {
+            setData(prevData => ({ ...prevData, goal_data: editableData.goal_data }));
+          } else if (tabName === 'medicalReview') {
+            setData(prevData => ({ ...prevData, review_data: editableData.review_data }));
+          }
+    
+          setSnackbarSeverity('success');
+          setSnackbarMessage(`${tabName === 'all' ? 'All' : tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} documentation updated successfully!`);
+          setSnackbarOpen(true);
+          parentalSetIsDocumentationSaved(true);
+          setHasChanges(false);
+          return true;
         } catch (error) {
-            console.error(`Error submitting edits for ${tabName}:`, error);
-            setSnackbarSeverity('error');
-            setSnackbarMessage(`Failed to update ${tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}.`);
-            setSnackbarOpen(true);
-            return false;
+          console.error(`Error submitting edits for ${tabName}:`, error);
+          setSnackbarSeverity('error');
+          setSnackbarMessage(`Failed to update ${tabName === 'all' ? 'all' : tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} documentation.`);
+          setSnackbarOpen(true);
+          return false;
         } finally {
-            setIsSaving(false);
+          setIsSaving(false);
         }
-    };
-
+      };
+    
     const handleTabChange = (tabName) => {
         setActiveTab(tabName);
     };
@@ -175,30 +190,30 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
     const saveMedicalReview = async () => {
         return handleSubmit('medicalReview');
     };
-
-
     
     const saveAllDocumentation = async () => {
         setIsSaving(true); // Start saving indication for all saves
         try {
-            await savePatientProfile();
-            await saveHealthGoals();
-            await saveMedicalReview();
-
-            setSnackbarSeverity('success');
-            setSnackbarMessage('All documentation saved successfully!');
-            setSnackbarOpen(true);
-            parentalSetIsDocumentationSaved(true);
-
+            // Use the 'all' option to save all data in one request
+            const success = await handleSubmit('all');
+            
+            if (success) {
+                setSnackbarSeverity('success');
+                setSnackbarMessage('All documentation saved successfully!');
+                setSnackbarOpen(true);
+                parentalSetIsDocumentationSaved(true);
+                setHasChanges(false);
+            }
         } catch (error) {
             console.error("Error saving all documentation:", error);
             setSnackbarSeverity('error');
-            setSnackbarMessage('Failed to save all documentation. Please check each section.');
+            setSnackbarMessage('Failed to save all documentation.');
             setSnackbarOpen(true);
         } finally {
             setIsSaving(false); // End saving indication after all saves or errors
         }
     };
+    
     const handleDataChange = (tabName, newData) => {
         setEditableData(prevData => {
             let updatedData = { ...prevData };
@@ -215,6 +230,7 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
     };
 
     const handleApplySuggestion = (suggestionSection) => {
+        // Only update the specified section's data
         setEditableData(prevData => {
             let updatedData = JSON.parse(JSON.stringify(prevData)); // Deep copy
             if (suggestionData) {
@@ -229,7 +245,9 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
             }
             return updatedData;
         });
-        setData(prevData => { // Update main data to reflect applied suggestion for view mode
+        
+        // Update main data to reflect applied suggestion for view mode
+        setData(prevData => {
             let updatedData = JSON.parse(JSON.stringify(prevData));
             if (suggestionData) {
                 if (suggestionSection === 'profile') {
@@ -242,11 +260,16 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
             }
             return updatedData;
         });
-        setSuggestionData(null); // Clear suggestions after apply
+        
+        // Mark this section's suggestion as applied
+        setAppliedSuggestions(prev => ({
+            ...prev,
+            [suggestionSection]: true
+        }));
+        
         setSnackbarSeverity('success');
         setSnackbarMessage(`Suggestion applied to ${suggestionSection} successfully!`);
         setSnackbarOpen(true);
-
     };
 
     const handleSnackbarClose = (event, reason) => {
@@ -255,7 +278,6 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
         }
         setSnackbarOpen(false);
     };
-
 
     useEffect(() => {
         fetchSubscribers();
@@ -267,7 +289,6 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
         dataLoaded: !loading // Example of exposing dataLoaded status (adjust logic if needed)
     }));
 
-
     if (loading) {
         return <div>Loading...</div>; // Replace with a better loading indicator
     }
@@ -276,12 +297,11 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
         return <div>Error loading data.</div>; // Handle error case
     }
 
-
     return (
         <ThemeProvider theme={theme}> 
         <Container maxWidth="xl">
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}> {/* Header Box */}
-                            <Button
+                <Button
                     variant="contained"
                     color="primary"
                     onClick={saveAllDocumentation}
@@ -302,7 +322,8 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
                     editableData={editableData.profile_data.profile_data} // Pass editable data
                     schema={data.profile_data.schema}
                     onDataChange={(newData) => handleDataChange('patientProfile', newData)}
-                    suggestion={suggestionData?.profile_data}
+                    // Only pass suggestion if it exists and hasn't been applied yet
+                    suggestion={suggestionData?.profile_data && !appliedSuggestions.profile ? suggestionData.profile_data : null}
                     onApplySuggestion={() => handleApplySuggestion('profile')}
                     onSaveProfile={() => handleSubmit('patientProfile')} // Pass save handler
                     isSaving={isSaving}
@@ -314,7 +335,8 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
                     editableData={editableData.goal_data.goal_data} // Pass editable data
                     schema={data.goal_data.schema}
                     onDataChange={(newData) => handleDataChange('healthGoals', newData)}
-                    suggestion={suggestionData?.goal_data}
+                    // Only pass suggestion if it exists and hasn't been applied yet
+                    suggestion={suggestionData?.goal_data && !appliedSuggestions.goals ? suggestionData.goal_data : null}
                     onApplySuggestion={() => handleApplySuggestion('goals')}
                     onSaveGoals={() => handleSubmit('healthGoals')} // Pass save handler
                     isSaving={isSaving}
@@ -326,7 +348,8 @@ const PatientProfile = forwardRef(({reviewid, thread, wsStatus, setIsDocumentati
                     editableData={editableData.review_data.doctor_note_data} // Pass editable data
                     schema={data.review_data.schema}
                     onDataChange={(newData) => handleDataChange('medicalReview', newData)}
-                    suggestion={suggestionData?.review_data}
+                    // Only pass suggestion if it exists and hasn't been applied yet
+                    suggestion={suggestionData?.review_data && !appliedSuggestions.review ? suggestionData.review_data : null}
                     onApplySuggestion={() => handleApplySuggestion('review')}
                     onGetSuggestion={getSuggestion}
                     onSaveReview={() => handleSubmit('medicalReview')} // Pass save handler
