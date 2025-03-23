@@ -23,6 +23,8 @@ import AvailabilitySelector from './components/available';
 import SettingPage from './components/setting';
 import SearchBox from './components/ask';
 import PaymentForm from './components/payment';
+import PatientMessages from './components/PatientMessages';
+
 const App = () => {
   return (
     
@@ -48,6 +50,7 @@ const App = () => {
           <Route path='/setting' element={<SettingPage />} />
           <Route path='/ask' element={<SearchBox />} />
           <Route path='/payment' element={<PaymentForm />} />
+          <Route path="/patient-messages" element={<PatientMessages />} />
         </Routes>
       </div>
     </ReviewProvider>
