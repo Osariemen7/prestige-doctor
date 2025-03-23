@@ -8,8 +8,10 @@ import {
   Settings,
   Search,
   LogOut,
-  Menu
+  Menu,
+  MessageSquare // added for patient messages
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
   const [isMinimized, setIsMinimized] = useState(false);
@@ -17,6 +19,7 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
   
   const menuItems = [
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
+    { icon: <MessageSquare size={20} />, text: 'Patient Messages', path: '/patient-messages' }, // moved and icon updated
     { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
     { icon: <Activity size={20} />, text: 'Virtual Consultation', path: '/virtual' },
     { icon: <Search size={20} />, text: 'Dr House AI', path: '/ask' },
