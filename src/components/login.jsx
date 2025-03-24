@@ -3,20 +3,20 @@ import { useNavigate } from 'react-router-dom'; // Navigation for web
 import './LoginPage.css'; // CSS for styling
 import { Eye, EyeOff } from 'lucide-react';
 
-
 const LoginPage = () => {
   const [phone, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false); // Loading state
   const [showPassword, setShowPassword] = useState(false);
+  const [countryCode, setCountryCode] = useState('+234');
   const navigate = useNavigate(); // For navigation
 
   const handleLogin = async () => {
     setLoading(true);
     setMessage('');
     try {
-      const phone_number = phone.replace('0', '+234');
+      const phone_number = countryCode + phone;
       const item = { phone_number, password };
 
       const response = await fetch('https://health.prestigedelta.com/login/', {
@@ -82,13 +82,28 @@ const LoginPage = () => {
         {/* Form */}
         <div className="space-y-4">
           {/* Phone Input */}
-          <div>
+          <div className="relative">
+            <select
+              value={countryCode}
+              onChange={(e) => setCountryCode(e.target.value)}
+              className="absolute left-0 top-0 h-12 pl-2 pr-2 rounded-l-lg border 
+                         border-blue-200 bg-blue-50 focus:outline-none focus:ring-2 
+                         focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="+234">+234</option>
+              <option value="+44">+44</option>
+              <option value="+1">+1</option>
+            </select>
             <input
               type="tel"
               placeholder="Phone Number"
               value={phone}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              className="w-full h-12 px-4 rounded-lg border border-blue-200 
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/[\D\s]/g, ''); // Remove spaces and non-digits
+                const lastTenDigits = rawValue.slice(-10);
+                setPhoneNumber(lastTenDigits);
+              }}
+              className="w-full h-12 pl-20 pr-4 rounded-lg border border-blue-200 
                        focus:outline-none focus:ring-2 focus:ring-blue-500 
                        focus:border-transparent bg-blue-50"
             />

@@ -12,6 +12,7 @@ const RegistrationPage = () => {
     first_name: '',
     middle_name: '',
   });
+  const [countryCode, setCountryCode] = useState('+234');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -24,10 +25,9 @@ const RegistrationPage = () => {
   const handleRegister = async () => {
     setLoading(true);
     try {
-      const formattedPhoneNumber = form.phone_number.replace(/^0/, '+234');
       const item = {
         ...form,
-        phone_number: formattedPhoneNumber,
+        phone_number: countryCode + form.phone_number,
       };
       const response = await fetch('https://health.prestigedelta.com/register/', {
         method: 'POST',
@@ -95,13 +95,40 @@ const RegistrationPage = () => {
         value={form.email}
       />
 
-      <input
-        className="input"
-        type="tel"
-        placeholder="Phone Number"
-        onChange={(e) => handleChange('phone_number', e.target.value)}
-        value={form.phone_number}
-      />
+      <div className="phone-input-container" style={{ display: 'flex', gap: '8px' }}>
+        <select
+          className="country-code-select input"
+          value={countryCode}
+          onChange={(e) => setCountryCode(e.target.value)}
+          style={{
+            width: '100px',
+            padding: '8px',
+            borderRadius: '4px',
+            border: '1px solid #ccc',
+            backgroundColor: '#fff',
+            height: '40px', // Match input height
+            fontSize: '16px', // Match input font size
+            outline: 'none', // Remove default focus outline
+            cursor: 'pointer'
+          }}
+        >
+          <option value="+234">+234</option>
+          <option value="+44">+44</option>
+          <option value="+1">+1</option>
+        </select>
+        <input
+          className="input"
+          type="tel"
+          placeholder="Phone Number"
+          style={{ flex: 1 }}
+          onChange={(e) => {
+            const rawValue = e.target.value.replace(/[\D\s]/g, '');
+            const lastTenDigits = rawValue.slice(-10);
+            handleChange('phone_number', lastTenDigits);
+          }}
+          value={form.phone_number}
+        />
+      </div>
 
       <div className="password-container">
         <input
