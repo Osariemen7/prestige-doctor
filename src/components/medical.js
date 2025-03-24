@@ -10,11 +10,10 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
-function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges }) {
-    // Initialize with a deep copy of data.doctor_note_data (or empty object if not available)
+function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, appliedSuggestions, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges }) {
+    // Initialize localData state - similar to HealthGoalsTab, initialize with editableData or data
     const [localData, setLocalData] = useState(() => {
-        // Initialize with editableData if available, otherwise use data.doctor_note_data or empty default
-        return editableData || data?.doctor_note_data || {
+        return editableData || data || {
             subjective: { chief_complaint: '', history_of_present_illness: '' },
             objective: { examination_findings: '', investigations: '' },
             assessment: { primary_diagnosis: '', differential_diagnosis: '', diagnosis_reasoning: '', status: '' },
@@ -27,23 +26,22 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
     });
     const [isEditing, setIsEditing] = useState(false);
 
-   // In your useEffect hook, modify it to this:
-   useEffect(() => {
-    // Only update localData when NOT in edit mode OR when component first mounts
-    if (!isEditing) {
-        setLocalData(data?.doctor_note_data || editableData || localData);
-    }
-}, [data, isEditing])
+    // useEffect to synchronize localData with editableData and data based on isEditing state
+    useEffect(() => {
+        if (!isEditing) {
+            setLocalData(data || localData); // When not editing, show 'data'
+        } else {
+            setLocalData(editableData ? JSON.parse(JSON.stringify(editableData)) : localData); // When editing, start from 'editableData'
+        }
+    }, [data, editableData, isEditing]); // React to changes in data, editableData, and isEditing
 
-    // Fix: Handle input change for direct properties
     const handleInputChange = (field, value) => {
         setLocalData(prevData => ({
             ...prevData,
-            [field]: value
+            [field]: value // Directly update top-level fields if any (though most are nested)
         }));
     };
 
-    // Fix: Handle nested input change correctly
     const handleNestedInputChange = (section, field, value) => {
         setLocalData(prevData => ({
             ...prevData,
@@ -135,43 +133,55 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
     };
 
     const saveChanges = () => {
-        // Pass data changes to parent
-        onDataChange(localData);
-        // No need to reset localData here - keep your edits
-        setIsEditing(false);
-    };
-    
-    const cancelEditing = () => {
-        // Only reset localData when canceling
-        setLocalData(data?.doctor_note_data || {});
+        onDataChange(localData); // Send localData back to parent (which should be review_data structure)
         setIsEditing(false);
     };
 
+    const cancelEditing = () => {
+        setIsEditing(false); // isEditing state change will trigger useEffect to reset localData
+    };
+
+    // Modified handleLocalApplySuggestion - Directly update localData and then call onApplySuggestion
+    const handleLocalApplySuggestion = (field, value) => {
+        setLocalData(prevData => {
+            const updatedData = {...prevData};
+            if (field.startsWith('assessment.')) {
+                const subField = field.split('.')[1];
+                updatedData.assessment = {...updatedData.assessment, [subField]: value};
+            } else if (field.startsWith('plan.')) {
+                const subField = field.split('.')[1];
+                updatedData.plan = {...updatedData.plan, [subField]: value};
+            } else if (field === 'next_review') {
+                updatedData.next_review = value;
+            }
+            return updatedData;
+        });
+        onApplySuggestion(field, value); // Still call parent's onApplySuggestion
+    };
+
+
     const handleCopyReview = () => {
-        const reviewText = formatReviewForEMR(localData);
+        const reviewText = formatReviewForEMR(localData); // Use localData directly for formatting
         navigator.clipboard.writeText(reviewText).then(() => {
             alert('Medical Review copied to clipboard!');
         });
     };
 
-    const formatReviewForEMR = (reviewData) => {
+    const formatReviewForEMR = (reviewData) => { // Now directly accepts reviewData which is localData
         let emrText = "MEDICAL REVIEW:\n";
 
-        // Subjective section
         if (reviewData.subjective) {
             emrText += "\nSUBJECTIVE:\n";
             emrText += `  Chief Complaint: ${reviewData.subjective.chief_complaint || ''}\n`;
             emrText += `  History of Present Illness: ${reviewData.subjective.history_of_present_illness || ''}\n`;
         }
 
-        // Objective section
         if (reviewData.objective) {
             emrText += "\nOBJECTIVE:\n";
             emrText += `  Examination Findings: ${reviewData.objective.examination_findings || ''}\n`;
             emrText += `  Investigations: ${reviewData.objective.investigations || ''}\n`;
         }
 
-        // Assessment section
         if (reviewData.assessment) {
             emrText += "\nASSESSMENT:\n";
             emrText += `  Primary Diagnosis: ${reviewData.assessment.primary_diagnosis || ''}\n`;
@@ -180,7 +190,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             emrText += `  Status: ${reviewData.assessment.status || ''}\n`;
         }
 
-        // Plan section
         if (reviewData.plan) {
             emrText += "\nPLAN:\n";
             emrText += `  Management: ${reviewData.plan.management || ''}\n`;
@@ -191,7 +200,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             emrText += `  Plan Reasoning: ${reviewData.plan.plan_reasoning || ''}\n`;
         }
 
-        // Prescriptions
         if (reviewData.prescription && reviewData.prescription.length > 0) {
             emrText += "\nPRESCRIPTIONS:\n";
             reviewData.prescription.forEach((prescription, index) => {
@@ -202,7 +210,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             });
         }
 
-        // Investigations
         if (reviewData.investigation && reviewData.investigation.length > 0) {
             emrText += "\nINVESTIGATIONS:\n";
             reviewData.investigation.forEach((investigation, index) => {
@@ -213,7 +220,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             });
         }
 
-        // Next Review
         if (reviewData.next_review) {
             emrText += `\nNEXT REVIEW: ${reviewData.next_review ? format(new Date(reviewData.next_review), 'MM/dd/yyyy HH:mm') : ''}\n`;
         }
@@ -221,84 +227,126 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
         return emrText;
     };
 
-    const renderSuggestions = () => {
-        if (!suggestion) return null;
-
-        const hasSuggestions = Object.keys(suggestion).some(key => suggestion[key] != null && typeof suggestion[key] === 'object' && Object.keys(suggestion[key]).length > 0);
-
-        if (!hasSuggestions) return null;
-
-        return (
-            <Box sx={{ mt: 3, border: '1px solid #ccc', padding: 2, borderRadius: 1, bgcolor: '#f9f9f9' }}>
-                <Typography variant="h6" gutterBottom>Suggestions</Typography>
-
-                {suggestion.assessment_suggestion && Object.keys(suggestion.assessment_suggestion).length > 0 && (
-                    <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle1">Assessment Suggestions:</Typography>
-                        {suggestion.assessment_suggestion.primary_diagnosis && suggestion.assessment_suggestion.primary_diagnosis !== editableData.assessment?.primary_diagnosis && (
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="body2">Primary Diagnosis: {suggestion.assessment_suggestion.primary_diagnosis}</Typography>
-                            </Box>
-                        )}
-                        {suggestion.assessment_suggestion.differential_diagnosis && suggestion.assessment_suggestion.differential_diagnosis !== editableData.assessment?.differential_diagnosis && (
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="body2">Differential Diagnosis: {suggestion.assessment_suggestion.differential_diagnosis}</Typography>
-                            </Box>
-                        )}
-                        {suggestion.assessment_suggestion.diagnosis_reasoning && suggestion.assessment_suggestion.diagnosis_reasoning !== editableData.assessment?.diagnosis_reasoning && (
-                             <Typography variant="body2">Diagnosis Reasoning: {suggestion.assessment_suggestion.diagnosis_reasoning}</Typography>
-                        )}
-                        {suggestion.assessment_suggestion.status && suggestion.assessment_suggestion.status !== editableData.assessment?.status && (
-                            <Typography variant="body2">Status: {suggestion.assessment_suggestion.status}</Typography>
-                        )}
-                         <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: {assessment_suggestion: suggestion.assessment_suggestion} })} sx={{ mt: 1 }}>
-                            Apply All Assessment Suggestions
-                        </Button>
-                    </Box>
-                )}
-
-                {suggestion.plan_suggestion && Object.keys(suggestion.plan_suggestion).length > 0 && (
-                    <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle1">Plan Suggestions:</Typography>
-                        {suggestion.plan_suggestion.management && suggestion.plan_suggestion.management !== editableData.plan?.management && (
-                            <Typography variant="body2">Management: {suggestion.plan_suggestion.management}</Typography>
-                        )}
-                        {suggestion.plan_suggestion.lifestyle_advice && suggestion.plan_suggestion.lifestyle_advice !== editableData.plan?.lifestyle_advice && (
-                            <Typography variant="body2">Lifestyle Advice: {suggestion.plan_suggestion.lifestyle_advice}</Typography>
-                        )}
-                        {suggestion.plan_suggestion.follow_up && suggestion.plan_suggestion.follow_up !== editableData.plan?.follow_up && (
-                            <Typography variant="body2">Follow Up: {suggestion.plan_suggestion.follow_up}</Typography>
-                        )}
-                        {suggestion.plan_suggestion.patient_education && suggestion.plan_suggestion.patient_education !== editableData.plan?.patient_education && (
-                            <Typography variant="body2">Patient Education: {suggestion.plan_suggestion.patient_education}</Typography>
-                        )}
-                        {suggestion.plan_suggestion.treatment_goal && suggestion.plan_suggestion.treatment_goal !== editableData.plan?.treatment_goal && (
-                            <Typography variant="body2">Treatment Goal: {suggestion.plan_suggestion.treatment_goal}</Typography>
-                        )}
-                        {suggestion.plan_suggestion.plan_reasoning && suggestion.plan_suggestion.plan_reasoning !== editableData.plan?.plan_reasoning && (
-                            <Typography variant="body2">Plan Reasoning: {suggestion.plan_suggestion.plan_reasoning}</Typography>
-                        )}
-                         <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: {plan_suggestion: suggestion.plan_suggestion} })} sx={{ mt: 1 }}>
-                            Apply All Plan Suggestions
-                        </Button>
-                    </Box>
-                )}
-                 {suggestion.next_review_suggestion && suggestion.next_review_suggestion !== editableData.next_review && (
-                    <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle1">Next Review Suggestion:</Typography>
-                        <Typography variant="body2">Next Review: {suggestion.next_review_suggestion}</Typography>
-                         <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: {next_review_suggestion: suggestion.next_review_suggestion} })} sx={{ mt: 1 }}>
-                            Apply Next Review Suggestion
-                        </Button>
-                    </Box>
-                )}
-
-                <Button variant="contained" color="secondary" onClick={() => onApplySuggestion({ review: suggestion.review_suggestion })} sx={{ mt: 1 }}>
-                    Apply All Suggestions
-                </Button>
-            </Box>
-        );
+    const renderSuggestionItem = (suggestionValue, currentValue, applySuggestionHandler, fieldName) => {
+        if (suggestionValue && suggestionValue !== currentValue && !appliedSuggestions[fieldName]) {
+            return (
+                <Box sx={{
+                    mt: 1,
+                    bgcolor: '#f5f5dc',
+                    p: 1,
+                    borderRadius: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mr: 1 }}>
+                        Suggestion: {suggestionValue}
+                    </Typography>
+                    <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={() => applySuggestionHandler(fieldName, suggestionValue)}
+                    >
+                        Apply
+                    </Button>
+                </Box>
+            );
+        }
+        return null;
     };
+
+const renderSuggestions = () => {
+    if (!suggestion || Object.keys(suggestion).length === 0) return null;
+
+    const reviewSuggestion = suggestion;
+
+    return (
+        <Box sx={{ mt: 3, border: '1px solid #ccc', padding: 2, borderRadius: 1, bgcolor: '#f9f9f9' }}>
+            <Typography variant="h6" gutterBottom>Suggestions</Typography>
+
+            {reviewSuggestion.assessment_suggestion && Object.keys(reviewSuggestion.assessment_suggestion).length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1">Assessment Suggestions:</Typography>
+                    {renderSuggestionItem(
+                        reviewSuggestion.assessment_suggestion.primary_diagnosis,
+                        localData.assessment?.primary_diagnosis, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'assessment.primary_diagnosis'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.assessment_suggestion.differential_diagnosis,
+                        localData.assessment?.differential_diagnosis, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'assessment.differential_diagnosis'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.assessment_suggestion.diagnosis_reasoning,
+                        localData.assessment?.diagnosis_reasoning, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'assessment.diagnosis_reasoning'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.assessment_suggestion.status,
+                        localData.assessment?.status, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'assessment.status'
+                    )}
+                </Box>
+            )}
+
+            {reviewSuggestion.plan_suggestion && Object.keys(reviewSuggestion.plan_suggestion).length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1">Plan Suggestions:</Typography>
+                    {renderSuggestionItem(
+                        reviewSuggestion.plan_suggestion.management,
+                        localData.plan?.management, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'plan.management'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.plan_suggestion.lifestyle_advice,
+                        localData.plan?.lifestyle_advice, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'plan.lifestyle_advice'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.plan_suggestion.follow_up,
+                        localData.plan?.follow_up, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'plan.follow_up'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.plan_suggestion.patient_education,
+                        localData.plan?.patient_education, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'plan.patient_education'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.plan_suggestion.treatment_goal,
+                        localData.plan?.treatment_goal, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'plan.treatment_goal'
+                    )}
+                    {renderSuggestionItem(
+                        reviewSuggestion.plan_suggestion.plan_reasoning,
+                        localData.plan?.plan_reasoning, // Access via localData
+                        handleLocalApplySuggestion, // Use local handler
+                        'plan.plan_reasoning'
+                    )}
+                </Box>
+            )}
+            {reviewSuggestion.next_review_suggestion && renderSuggestionItem(
+                reviewSuggestion.next_review_suggestion,
+                localData.next_review, // Access via localData
+                handleLocalApplySuggestion, // Use local handler
+                'next_review'
+            )}
+        </Box>
+    );
+};
+
+
 
     return (
         <Paper elevation={2} sx={{ padding: 3, mt: 2 }}>
@@ -319,6 +367,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             color="primary"
                             onClick={startEditing}
                             startIcon={<EditIcon />}
+                            disabled={isGeneratingSuggestion}
                         >
                             Edit Note
                         </Button>
@@ -343,6 +392,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             </Button>
                         </Box>
                     )}
+
                 </Box>
             </Box>
 
@@ -353,14 +403,14 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Chief Complaint</Typography>
-                            <Typography variant="body1">{localData?.subjective?.chief_complaint || ''}</Typography>
+                            <Typography variant="body1">{localData.subjective?.chief_complaint || ''}</Typography>
                         </>
                     ) : (
                         <TextField
                             label="Chief Complaint"
                             fullWidth
                             margin="normal"
-                            value={localData?.subjective?.chief_complaint || ''}
+                            value={localData.subjective?.chief_complaint || ''}
                             onChange={(e) => handleNestedInputChange('subjective', 'chief_complaint', e.target.value)}
                             variant="outlined"
                         />
@@ -370,7 +420,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">History of Present Illness</Typography>
-                            <Typography variant="body1">{localData?.subjective?.history_of_present_illness || ''}</Typography>
+                            <Typography variant="body1">{localData.subjective?.history_of_present_illness || ''}</Typography>
                         </>
                     ) : (
                         <TextField
@@ -379,14 +429,14 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             margin="normal"
                             multiline
                             rows={3}
-                            value={localData?.subjective?.history_of_present_illness || ''}
+                            value={localData.subjective?.history_of_present_illness || ''}
                             onChange={(e) => handleNestedInputChange('subjective', 'history_of_present_illness', e.target.value)}
                             variant="outlined"
                         />
                     )}
                 </Grid>
             </Grid>
-            
+
             {/* Objective Section */}
             <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>Objective</Typography>
             <Grid container spacing={2}>
@@ -394,7 +444,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Examination Findings</Typography>
-                            <Typography variant="body1">{localData?.objective?.examination_findings || ''}</Typography>
+                            <Typography variant="body1">{localData.objective?.examination_findings || ''}</Typography>
                         </>
                     ) : (
                         <TextField
@@ -403,7 +453,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             margin="normal"
                             multiline
                             rows={2}
-                            value={localData?.objective?.examination_findings || ''}
+                            value={localData.objective?.examination_findings || ''}
                             onChange={(e) => handleNestedInputChange('objective', 'examination_findings', e.target.value)}
                             variant="outlined"
                         />
@@ -413,7 +463,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Investigations</Typography>
-                            <Typography variant="body1">{localData?.objective?.investigations || ''}</Typography>
+                            <Typography variant="body1">{localData.objective?.investigations || ''}</Typography>
                         </>
                     ) : (
                         <TextField
@@ -422,7 +472,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             margin="normal"
                             multiline
                             rows={2}
-                            value={localData?.objective?.investigations || ''}
+                            value={localData.objective?.investigations || ''}
                             onChange={(e) => handleNestedInputChange('objective', 'investigations', e.target.value)}
                             variant="outlined"
                         />
@@ -437,77 +487,133 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Primary Diagnosis</Typography>
-                            <Typography variant="body1">{localData?.assessment?.primary_diagnosis || ''}</Typography>
+                            <Typography variant="body1">{localData.assessment?.primary_diagnosis || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.primary_diagnosis,
+                                localData.assessment?.primary_diagnosis,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.primary_diagnosis'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Primary Diagnosis"
-                            fullWidth
-                            margin="normal"
-                            value={localData?.assessment?.primary_diagnosis || ''}
-                            onChange={(e) => handleNestedInputChange('assessment', 'primary_diagnosis', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Primary Diagnosis"
+                                fullWidth
+                                margin="normal"
+                                value={localData.assessment?.primary_diagnosis || ''}
+                                onChange={(e) => handleNestedInputChange('assessment', 'primary_diagnosis', e.target.value)}
+                                variant="outlined"
+                            />
+                            {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.primary_diagnosis,
+                                localData.assessment?.primary_diagnosis,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.primary_diagnosis'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12} md={6}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Differential Diagnosis</Typography>
-                            <Typography variant="body1">{localData?.assessment?.differential_diagnosis || ''}</Typography>
+                            <Typography variant="body1">{localData.assessment?.differential_diagnosis || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.differential_diagnosis,
+                                localData.assessment?.differential_diagnosis,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.differential_diagnosis'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Differential Diagnosis"
-                            fullWidth
-                            margin="normal"
-                            value={localData?.assessment?.differential_diagnosis || ''}
-                            onChange={(e) => handleNestedInputChange('assessment', 'differential_diagnosis', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Differential Diagnosis"
+                                fullWidth
+                                margin="normal"
+                                value={localData.assessment?.differential_diagnosis || ''}
+                                onChange={(e) => handleNestedInputChange('assessment', 'differential_diagnosis', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.differential_diagnosis,
+                                localData.assessment?.differential_diagnosis,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.differential_diagnosis'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Diagnosis Reasoning</Typography>
-                            <Typography variant="body1">{localData?.assessment?.diagnosis_reasoning || ''}</Typography>
+                            <Typography variant="body1">{localData.assessment?.diagnosis_reasoning || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.diagnosis_reasoning,
+                                localData.assessment?.diagnosis_reasoning,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.diagnosis_reasoning'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Diagnosis Reasoning"
-                            fullWidth
-                            margin="normal"
-                            multiline
-                            rows={2}
-                            value={localData?.assessment?.diagnosis_reasoning || ''}
-                            onChange={(e) => handleNestedInputChange('assessment', 'diagnosis_reasoning', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Diagnosis Reasoning"
+                                fullWidth
+                                margin="normal"
+                                multiline
+                                rows={2}
+                                value={localData.assessment?.diagnosis_reasoning || ''}
+                                onChange={(e) => handleNestedInputChange('assessment', 'diagnosis_reasoning', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.diagnosis_reasoning,
+                                localData.assessment?.diagnosis_reasoning,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.diagnosis_reasoning'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12} md={6}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Status</Typography>
-                            <Typography variant="body1">{localData?.assessment?.status || ''}</Typography>
+                            <Typography variant="body1">{localData.assessment?.status || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.status,
+                                localData.assessment?.status,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.status'
+                            )}
                         </>
                     ) : (
-                        <FormControl fullWidth margin="normal" variant="outlined">
-                            <InputLabel id="status-label">Status</InputLabel>
-                            <Select
-                                labelId="status-label"
-                                value={localData?.assessment?.status || ''}
-                                label="Status"
-                                onChange={(e) => handleNestedInputChange('assessment', 'status', e.target.value)}
-                            >
-                                <MenuItem value="stable">Stable</MenuItem>
-                                <MenuItem value="improving">Improving</MenuItem>
-                                <MenuItem value="worsening">Worsening</MenuItem>
-                                <MenuItem value="resolved">Resolved</MenuItem>
-                                <MenuItem value="unknown">Unknown</MenuItem>
-                            </Select>
-                        </FormControl>
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <FormControl fullWidth margin="normal" variant="outlined">
+                                <InputLabel id="status-label">Status</InputLabel>
+                                <Select
+                                    labelId="status-label"
+                                    value={localData.assessment?.status || ''}
+                                    label="Status"
+                                    onChange={(e) => handleNestedInputChange('assessment', 'status', e.target.value)}
+                                >
+                                    <MenuItem value="stable">Stable</MenuItem>
+                                    <MenuItem value="improving">Improving</MenuItem>
+                                    <MenuItem value="worsening">Worsening</MenuItem>
+                                    <MenuItem value="resolved">Resolved</MenuItem>
+                                    <MenuItem value="unknown">Unknown</MenuItem>
+                                </Select>
+                            </FormControl>
+                             {renderSuggestionItem(
+                                suggestion?.assessment_suggestion?.status,
+                                localData.assessment?.status,
+                                handleLocalApplySuggestion, // Use local handler
+                                'assessment.status'
+                            )}
+                        </Box>
                     )}
                 </Grid>
             </Grid>
@@ -519,55 +625,97 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Management</Typography>
-                            <Typography variant="body1">{localData?.plan?.management || ''}</Typography>
+                            <Typography variant="body1">{localData.plan?.management || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.management,
+                                localData.plan?.management,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.management'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Management"
-                            fullWidth
-                            margin="normal"
-                            multiline
-                            rows={2}
-                            value={localData?.plan?.management || ''}
-                            onChange={(e) => handleNestedInputChange('plan', 'management', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Management"
+                                fullWidth
+                                margin="normal"
+                                multiline
+                                rows={2}
+                                value={localData.plan?.management || ''}
+                                onChange={(e) => handleNestedInputChange('plan', 'management', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.management,
+                                localData.plan?.management,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.management'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Lifestyle Advice</Typography>
-                            <Typography variant="body1">{localData?.plan?.lifestyle_advice || ''}</Typography>
+                            <Typography variant="body1">{localData.plan?.lifestyle_advice || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.lifestyle_advice,
+                                localData.plan?.lifestyle_advice,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.lifestyle_advice'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Lifestyle Advice"
-                            fullWidth
-                            margin="normal"
-                            multiline
-                            rows={2}
-                            value={localData?.plan?.lifestyle_advice || ''}
-                            onChange={(e) => handleNestedInputChange('plan', 'lifestyle_advice', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Lifestyle Advice"
+                                fullWidth
+                                margin="normal"
+                                multiline
+                                rows={2}
+                                value={localData.plan?.lifestyle_advice || ''}
+                                onChange={(e) => handleNestedInputChange('plan', 'lifestyle_advice', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.lifestyle_advice,
+                                localData.plan?.lifestyle_advice,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.lifestyle_advice'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12} md={6}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Follow Up</Typography>
-                            <Typography variant="body1">{localData?.plan?.follow_up || ''}</Typography>
+                            <Typography variant="body1">{localData.plan?.follow_up || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.follow_up,
+                                localData.plan?.follow_up,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.follow_up'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Follow Up"
-                            fullWidth
-                            margin="normal"
-                            value={localData?.plan?.follow_up || ''}
-                            onChange={(e) => handleNestedInputChange('plan', 'follow_up', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Follow Up"
+                                fullWidth
+                                margin="normal"
+                                value={localData.plan?.follow_up || ''}
+                                onChange={(e) => handleNestedInputChange('plan', 'follow_up', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.follow_up,
+                                localData.plan?.follow_up,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.follow_up'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12} md={6}>
@@ -575,75 +723,131 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Next Review</Typography>
                             <Typography variant="body1">
-                                {localData?.next_review ? format(new Date(localData.next_review), 'MMMM d, yyyy HH:mm') : ''}
+                                {localData.next_review ? format(new Date(localData.next_review), 'MMMM d, yyyy HH:mm') : ''}
                             </Typography>
+                             {renderSuggestionItem(
+                                suggestion?.next_review_suggestion,
+                                localData.next_review,
+                                handleLocalApplySuggestion, // Use local handler
+                                'next_review'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Next Review"
-                            fullWidth
-                            margin="normal"
-                            type="datetime-local"
-                            value={localData?.next_review ? new Date(localData.next_review).toISOString().slice(0, 16) : ''}
-                            onChange={(e) => handleInputChange('next_review', e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Next Review"
+                                fullWidth
+                                margin="normal"
+                                type="datetime-local"
+                                value={localData.next_review ? new Date(localData.next_review).toISOString().slice(0, 16) : ''}
+                                onChange={(e) => handleInputChange('next_review', e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.next_review_suggestion,
+                                localData.next_review,
+                                handleLocalApplySuggestion, // Use local handler
+                                'next_review'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Patient Education</Typography>
-                            <Typography variant="body1">{localData?.plan?.patient_education || ''}</Typography>
+                            <Typography variant="body1">{localData.plan?.patient_education || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.patient_education,
+                                localData.plan?.patient_education,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.patient_education'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Patient Education"
-                            fullWidth
-                            margin="normal"
-                            multiline
-                            rows={2}
-                            value={localData?.plan?.patient_education || ''}
-                            onChange={(e) => handleNestedInputChange('plan', 'patient_education', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Patient Education"
+                                fullWidth
+                                margin="normal"
+                                multiline
+                                rows={2}
+                                value={localData.plan?.patient_education || ''}
+                                onChange={(e) => handleNestedInputChange('plan', 'patient_education', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.patient_education,
+                                localData.plan?.patient_education,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.patient_education'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Treatment Goal</Typography>
-                            <Typography variant="body1">{localData?.plan?.treatment_goal || ''}</Typography>
+                            <Typography variant="body1">{localData.plan?.treatment_goal || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.treatment_goal,
+                                localData.plan?.treatment_goal,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.treatment_goal'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Treatment Goal"
-                            fullWidth
-                            margin="normal"
-                            value={localData?.plan?.treatment_goal || ''}
-                            onChange={(e) => handleNestedInputChange('plan', 'treatment_goal', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Treatment Goal"
+                                fullWidth
+                                margin="normal"
+                                value={localData.plan?.treatment_goal || ''}
+                                onChange={(e) => handleNestedInputChange('plan', 'treatment_goal', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.treatment_goal,
+                                localData.plan?.treatment_goal,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.treatment_goal'
+                            )}
+                        </Box>
                     )}
                 </Grid>
                 <Grid item xs={12}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Plan Reasoning</Typography>
-                            <Typography variant="body1">{localData?.plan?.plan_reasoning || ''}</Typography>
+                            <Typography variant="body1">{localData.plan?.plan_reasoning || ''}</Typography>
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.plan_reasoning,
+                                localData.plan?.plan_reasoning,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.plan_reasoning'
+                            )}
                         </>
                     ) : (
-                        <TextField
-                            label="Plan Reasoning"
-                            fullWidth
-                            margin="normal"
-                            multiline
-                            rows={2}
-                            value={localData?.plan?.plan_reasoning || ''}
-                            onChange={(e) => handleNestedInputChange('plan', 'plan_reasoning', e.target.value)}
-                            variant="outlined"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                            <TextField
+                                label="Plan Reasoning"
+                                fullWidth
+                                margin="normal"
+                                multiline
+                                rows={2}
+                                value={localData.plan?.plan_reasoning || ''}
+                                onChange={(e) => handleNestedInputChange('plan', 'plan_reasoning', e.target.value)}
+                                variant="outlined"
+                            />
+                             {renderSuggestionItem(
+                                suggestion?.plan_suggestion?.plan_reasoning,
+                                localData.plan?.plan_reasoning,
+                                handleLocalApplySuggestion, // Use local handler
+                                'plan.plan_reasoning'
+                            )}
+                        </Box>
                     )}
                 </Grid>
             </Grid>
