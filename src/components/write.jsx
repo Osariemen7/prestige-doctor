@@ -98,23 +98,8 @@ const getSuggestion = async () => {
         );
 
         const result = response.data;
-        setData(result);
-        setEditableData(prevData => {
-            let updatedData = JSON.parse(JSON.stringify(prevData));
-
-            // Merge suggestion data into editableData
-            if (result.profile_data) {
-                updatedData.profile_data = { ...updatedData.profile_data, ...result.profile_data };
-            }
-            if (result.goal_data) {
-                updatedData.goal_data = { ...updatedData.goal_data, ...result.goal_data };
-            }
-            if (result.review_data) {
-                updatedData.review_data = { ...updatedData.review_data, ...result.review_data };
-            }
-
-            return updatedData;
-        });
+        setData(result)
+        setEditableData(JSON.parse(JSON.stringify(result)));
         setSuggestionData(result);
         console.log(result);
 
@@ -139,7 +124,6 @@ const getSuggestion = async () => {
         isGettingSuggestion.current = false;
     }
 };
-
 console.log(suggestionData)
     const handleSubmit = async (tabName) => {
         let sectionDataToSave = {};
@@ -165,7 +149,7 @@ console.log(suggestionData)
         if (!isSaving) setIsSaving(true);
         try {
             const accessToken = await getAccessToken();
-            await axios.post(
+           const result = await axios.post(
                 `https://health.prestigedelta.com/documentreview/${reviewid}/document-assessment/`,
                 sectionDataToSave,
                 { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -180,7 +164,9 @@ console.log(suggestionData)
             } else if (tabName === 'medicalReview') {
                 setData(prevData => ({ ...prevData, review_data: editableData.review_data }));
             }
-
+            const response = result.data;
+            console.log("Response from submit:", response);
+            
             setSnackbarSeverity('success');
             setSnackbarMessage(`${tabName === 'all' ? 'All' : tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} documentation updated successfully!`);
             setSnackbarOpen(true);
@@ -215,14 +201,7 @@ console.log(suggestionData)
         setActiveTab(tabName);
     };
 
-    const savePatientProfile = async () => {
-        return handleSubmit('patientProfile');
-    };
-
-    const saveMedicalReview = async () => {
-        return handleSubmit('medicalReview');
-    };
-
+    
     const saveAllDocumentation = async () => {
         setIsSaving(true);
         try {
@@ -246,6 +225,7 @@ console.log(suggestionData)
     };
 
     const handleDataChange = (tabName, newData) => {
+        console.log("handleDataChange called for tab:", tabName, "newData:", newData); // ADD THIS LINE
         setEditableData(prevData => {
             let updatedData = { ...prevData };
             if (tabName === 'patientProfile') {
@@ -256,106 +236,109 @@ console.log(suggestionData)
                 updatedData.review_data = newData;
             }
             setHasChanges(true);
+            console.log("Updated editableData in handleDataChange:", updatedData); // ADD THIS LINE
             return updatedData;
         });
     };
 
     const handleApplySuggestion = (suggestionSection, fieldsToApply) => {
-        console.log("handleApplySuggestion called for section:", suggestionSection, "fields:", fieldsToApply); // ADD THIS LINE
-    
-        setEditableData(prevData => {
-            let updatedData = JSON.parse(JSON.stringify(prevData));
-            if (suggestionData) {
-                let sectionSuggestionData;
-                let sectionEditableData;
-    
-                if (suggestionSection === 'profile') {
-                    sectionSuggestionData = suggestionData.profile_data;
-                    sectionEditableData = updatedData.profile_data;
-                } else if (suggestionSection === 'goals') {
-                    sectionSuggestionData = suggestionData.goal_data;
-                    sectionEditableData = updatedData.goal_data;
-                } else if (suggestionSection === 'review') {
-                    sectionSuggestionData = suggestionData.review_data;
-                    sectionEditableData = updatedData.review_data;
-                }
-    
-                if (sectionSuggestionData && fieldsToApply) {
-                    Object.keys(fieldsToApply).forEach(fieldKey => {
-                        if (sectionSuggestionData.hasOwnProperty(fieldKey)) {
-                            if (suggestionSection === 'profile') {
-                                updatedData.profile_data[fieldKey] = sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'goals') {
-                                updatedData.goal_data[fieldKey] = sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'review') {
-                                if (fieldKey.includes('.')) {
-                                    const parts = fieldKey.split('.');
-                                    if (parts.length === 2) {
-                                        updatedData.review_data[parts[0]][parts[1]] = sectionSuggestionData[parts[0] + '_suggestion'][parts[1]];
-                                    }
-                                } else {
-                                    updatedData.review_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'];
+    console.log("handleApplySuggestion called for section:", suggestionSection, "fields:", fieldsToApply);
+
+    setEditableData(prevData => {
+        let updatedData = JSON.parse(JSON.stringify(prevData));
+        if (suggestionData) {
+            let sectionSuggestionData;
+            let sectionEditableData;
+
+            if (suggestionSection === 'profile') {
+                sectionSuggestionData = suggestionData.profile_data;
+                sectionEditableData = updatedData.profile_data;
+            } else if (suggestionSection === 'goals') {
+                sectionSuggestionData = suggestionData.goal_data;
+                sectionEditableData = updatedData.goal_data;
+            } else if (suggestionSection === 'review') {
+                sectionSuggestionData = suggestionData.review_data;
+                sectionEditableData = updatedData.review_data;
+            }
+
+            if (sectionSuggestionData && fieldsToApply) {
+                Object.keys(fieldsToApply).forEach(fieldKey => {
+                    if (sectionSuggestionData.hasOwnProperty(fieldKey)) {
+                        if (suggestionSection === 'profile') {
+                            updatedData.profile_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
+                        } else if (suggestionSection === 'goals') {
+                            updatedData.goal_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
+                        } else if (suggestionSection === 'review') {
+                            if (fieldKey.includes('.')) {
+                                const parts = fieldKey.split('.');
+                                if (parts.length === 2) {
+                                    updatedData.review_data[parts[0]][parts[1]] = sectionSuggestionData[parts[0] + '_suggestion'][parts[1]] || sectionSuggestionData[parts[0]][parts[1]];
                                 }
+                            } else {
+                                updatedData.review_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
                             }
                         }
-                    });
-                }
-                setAppliedSuggestions(prev => ({
-                    ...prev,
-                    [suggestionSection]: { ...prev[suggestionSection], ...fieldsToApply }
-                }));
-                setHasChanges(true);
+                    }
+                });
             }
-            console.log("Updated editableData:", updatedData); // ADD THIS LINE
-            return updatedData;
-        });
-    
-        setData(prevData => {
-            let updatedData = JSON.parse(JSON.stringify(prevData));
-            if (suggestionData) {
-                let sectionSuggestionData;
-                let sectionData;
-    
-                if (suggestionSection === 'profile') {
-                    sectionSuggestionData = suggestionData.profile_data;
-                    sectionData = updatedData.profile_data;
-                } else if (suggestionSection === 'goals') {
-                    sectionSuggestionData = suggestionData.goal_data;
-                    sectionData = updatedData.goal_data;
-                } else if (suggestionSection === 'review') {
-                    sectionSuggestionData = suggestionData.review_data;
-                    sectionData = updatedData.review_data;
-                }
-    
-                if (sectionSuggestionData && fieldsToApply) {
-                    Object.keys(fieldsToApply).forEach(fieldKey => {
-                        if (sectionSuggestionData.hasOwnProperty(fieldKey)) {
-                            if (suggestionSection === 'profile') {
-                                updatedData.profile_data[fieldKey] = sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'goals') {
-                                updatedData.goal_data[fieldKey] = sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'review') {
-                                if (fieldKey.includes('.')) { //nested fields like assessment.primary_diagnosis
-                                    const parts = fieldKey.split('.');
-                                    if (parts.length === 2) {
-                                        updatedData.review_data[parts[0]][parts[1]] = sectionSuggestionData[parts[0] + '_suggestion'][parts[1]];
-                                    }
-                                } else {
-                                    updatedData.review_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'];
+            setAppliedSuggestions(prev => ({
+                ...prev,
+                [suggestionSection]: { ...prev[suggestionSection], ...fieldsToApply }
+            }));
+            setHasChanges(true);
+        }
+        console.log("Updated editableData:", updatedData);
+        return updatedData;
+    });
+
+    setData(prevData => {
+        console.log("Current editableData before apply:", editableData);
+        console.log("Current data before apply:", data);
+        let updatedData = JSON.parse(JSON.stringify(prevData));
+        if (suggestionData) {
+            let sectionSuggestionData;
+            let sectionData;
+
+            if (suggestionSection === 'profile') {
+                sectionSuggestionData = suggestionData.profile_data;
+                sectionData = updatedData.profile_data;
+            } else if (suggestionSection === 'goals') {
+                sectionSuggestionData = suggestionData.goal_data;
+                sectionData = updatedData.goal_data;
+            } else if (suggestionSection === 'review') {
+                sectionSuggestionData = suggestionData.review_data;
+                sectionData = updatedData.review_data;
+            }
+
+            if (sectionSuggestionData && fieldsToApply) {
+                Object.keys(fieldsToApply).forEach(fieldKey => {
+                    if (sectionSuggestionData.hasOwnProperty(fieldKey)) {
+                        if (suggestionSection === 'profile') {
+                            updatedData.profile_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
+                        } else if (suggestionSection === 'goals') {
+                            updatedData.goal_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
+                        } else if (suggestionSection === 'review') {
+                            if (fieldKey.includes('.')) {
+                                const parts = fieldKey.split('.');
+                                if (parts.length === 2) {
+                                    updatedData.review_data[parts[0]][parts[1]] = sectionSuggestionData[parts[0] + '_suggestion'][parts[1]] || sectionSuggestionData[parts[0]][parts[1]];
                                 }
+                            } else {
+                                updatedData.review_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
                             }
                         }
-                    });
-                }
+                    }
+                });
             }
-            console.log("Updated data:", updatedData); // ADD THIS LINE
-            return updatedData;
-        });
-    
-        setSnackbarSeverity('success');
-        setSnackbarMessage(`Suggestion applied to ${suggestionSection} successfully!`);
-        setSnackbarOpen(true);
-    };
+        }
+        console.log("Updated data:", updatedData);
+        return updatedData;
+    });
+
+    setSnackbarSeverity('success');
+    setSnackbarMessage(`Suggestion applied to ${suggestionSection} successfully!`);
+    setSnackbarOpen(true);
+};
 
     const handleSnackbarClose = (event, reason) => {
         if (reason === 'clickaway') {
@@ -376,6 +359,8 @@ console.log(suggestionData)
         handleSubmitFromParent: handleSubmit,
         dataLoaded: !loading
     }));
+
+    
 
     if (loading) {
         return <div>Loading...</div>;
