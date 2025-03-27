@@ -575,18 +575,45 @@ const ConsultAIPage = () => {
   };
 
   const performEndConsultation = async () => {
+    // Save all documentation via the /document-assessment/ endpoint using the patientProfileRef
+    if (patientProfileRef.current && patientProfileRef.current.handleSubmitFromParent) {
+      try {
+        const saveSuccessful = await patientProfileRef.current.handleSubmitFromParent();
+        if (!saveSuccessful) {
+          toast({
+            title: 'Save Error',
+            description: 'Failed to save documentation before ending consultation.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+          return;
+        }
+      } catch(error) {
+        console.error("Error saving documentation:", error);
+        toast({
+          title: 'Save Error',
+          description: 'An error occurred during document save.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+    }
     setIsConsultationStarted(false);
-    setPhoneNumber('');
-    setReviewId('');
+    // Do not clear reviewId and chat so that they persist
+    // setPhoneNumber(''); <- Optionally you can clear phone number if desired 
+    // setReviewId(''); 
     setTranscript('');
-    setIsBottomTabVisible(true); // Set bottom tab visible to display document
-    setBottomTabIndex(1); // Set active tab to document (index 1)
-    setActiveScreen("document"); // Set active screen to document
-    setIsDocumentationSaved(false);
+    setIsBottomTabVisible(true); // Show documentation tabs
+    setBottomTabIndex(1);        // Set active tab to document
+    setActiveScreen("document"); // Switch to document view
+    setIsDocumentationSaved(true); // Mark as saved
     await handleBilling();
     toast({
       title: 'Consultation Ended',
-      description: 'Consultation ended.',
+      description: 'Consultation ended and documentation saved.',
       status: 'success',
       duration: 3000,
       isClosable: true,
@@ -791,35 +818,6 @@ const ConsultAIPage = () => {
             >
               {loading ? <Spinner size="sm" /> : isConsultationStarted ? 'End Consultation' : 'Start Consultation'}
             </Button>
-            {isPausePlayButtonVisible && (
-              <>
-                {!isPaused ? (
-                  <Tooltip label="Pause Audio" placement="bottom">
-                    <IconButton
-                      onClick={pauseTranscription}
-                      aria-label="Pause Transcription"
-                      icon={<Icon as={MdPause} boxSize={6} color="gray.600" />}
-                      variant="ghost"
-                      isRound={true}
-                      mr={2}
-                    />
-                  </Tooltip>
-                ) : (
-                  <Tooltip label="Resume Transcription" placement="bottom">
-                    <IconButton
-                      onClick={resumeTranscription}
-                      aria-label="Resume Transcription"
-                      icon={<Icon as={MdPlayArrow} boxSize={6} color="gray.600" />}
-                      variant="ghost"
-                      isRound={true}
-                      mr={2}
-                    />
-                  </Tooltip>
-                )}
-
-            </>
-            )}
-            <Text mr={2}>{isTranscribing && !isPaused ? formatTime(timeLeft) : ""}</Text>
             <Tooltip label={isTranscriptionPanelOpen ? "Hide Transcription" : "Show Transcription"} placement="bottom">
               <IconButton
                 icon={<MdTextFields />}

@@ -7,13 +7,16 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
-function PatientProfileTab({ data, editableData, schema, onDataChange, suggestion, onApplySuggestion, appliedSuggestions, isSaving }) {
+function PatientProfileTab({ data, editableData, schema, onDataChange, suggestion, onApplySuggestion, appliedSuggestions, isSaving, onSaveProfile }) {
     const [localData, setLocalData] = useState(() => editableData || data || {}); // Initialize with editableData or data
     const [isEditing, setIsEditing] = useState(false);
 
     useEffect(() => {
-        setLocalData(isEditing ? editableData : data); // Update localData based on editing mode
-    }, [editableData, data, isEditing]);
+        if (isEditing) {
+            setLocalData(editableData);
+        }
+        // Do not override localData in view mode 
+    }, [editableData, isEditing]);
 
 
     const handleInputChange = (section, field, value) => {
@@ -61,7 +64,7 @@ function PatientProfileTab({ data, editableData, schema, onDataChange, suggestio
 
     const saveChanges = () => {
         onDataChange(localData);
-        setLocalData(localData);
+        // Removed API call for saving; only update state and switch mode
         setIsEditing(false);
     };
 
@@ -836,8 +839,6 @@ function PatientProfileTab({ data, editableData, schema, onDataChange, suggestio
                     </Grid>
                 </Grid>
             </Grid>
-
-            {renderSuggestions()}
         </Paper>
     );
 }

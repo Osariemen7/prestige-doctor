@@ -42,12 +42,11 @@ const HealthGoalsTab = ({
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    if (!isEditing) {
-        setLocalData(data || localData); // When not editing, show 'data'
-    } else {
-        setLocalData(editableData ? JSON.parse(JSON.stringify(editableData)) : localData); // When editing, start from 'editableData'
+    if (isEditing) {
+        setLocalData(editableData ? JSON.parse(JSON.stringify(editableData)) : localData);
     }
-  }, [data, editableData, isEditing]);
+    // Do not update localData when not editing so that saved edits remain visible
+}, [editableData, isEditing]);
 
   // Basic change handlers
   const handleInputChange = (field, value) => {
@@ -132,8 +131,8 @@ const HealthGoalsTab = ({
   // Editing controls
   const startEditing = () => setIsEditing(true);
   const saveChanges = () => {
-    onDataChange(localData); // Send localData (goal_data) back to parent
-    onSaveGoals();
+    onDataChange(localData); // update parent state
+    // Removed API call for saving; only update state and switch mode
     setIsEditing(false);
   };
   const cancelEditing = () => {

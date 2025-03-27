@@ -366,8 +366,8 @@ console.log(suggestionData)
         return <div>Loading...</div>;
     }
 
-    if (!data) {
-        return <div>Error loading data.</div>;
+    if (data === null) {
+        return <div>Loading...</div>;
     }
 
     return (

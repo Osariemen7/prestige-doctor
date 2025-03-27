@@ -10,7 +10,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
-function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, appliedSuggestions, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges }) {
+function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, appliedSuggestions, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges, onSaveReview /* new prop */ }) {
     // Initialize localData state - similar to HealthGoalsTab, initialize with editableData or data
     const [localData, setLocalData] = useState(() => {
         return editableData || data || {
@@ -28,12 +28,11 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
 
     // useEffect to synchronize localData with editableData and data based on isEditing state
     useEffect(() => {
-        if (!isEditing) {
-            setLocalData(data || localData); // When not editing, show 'data'
-        } else {
-            setLocalData(editableData ? JSON.parse(JSON.stringify(editableData)) : localData); // When editing, start from 'editableData'
+        if (isEditing) {
+            setLocalData(editableData ? JSON.parse(JSON.stringify(editableData)) : localData);
         }
-    }, [data, editableData, isEditing]); // React to changes in data, editableData, and isEditing
+        // When not editing, do not overwrite localData
+    }, [editableData, isEditing]);
 
     const handleInputChange = (field, value) => {
         setLocalData(prevData => ({
@@ -133,7 +132,8 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
     };
 
     const saveChanges = () => {
-        onDataChange(localData); // Send localData back to parent (which should be review_data structure)
+        onDataChange(localData); // update parent state
+        // Removed API call for saving; only update state and switch mode
         setIsEditing(false);
     };
 
@@ -255,98 +255,6 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
         }
         return null;
     };
-
-const renderSuggestions = () => {
-    if (!suggestion || Object.keys(suggestion).length === 0) return null;
-
-    const reviewSuggestion = suggestion;
-
-    return (
-        <Box sx={{ mt: 3, border: '1px solid #ccc', padding: 2, borderRadius: 1, bgcolor: '#f9f9f9' }}>
-            <Typography variant="h6" gutterBottom>Suggestions</Typography>
-
-            {reviewSuggestion.assessment_suggestion && Object.keys(reviewSuggestion.assessment_suggestion).length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1">Assessment Suggestions:</Typography>
-                    {renderSuggestionItem(
-                        reviewSuggestion.assessment_suggestion.primary_diagnosis,
-                        localData.assessment?.primary_diagnosis, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'assessment.primary_diagnosis'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.assessment_suggestion.differential_diagnosis,
-                        localData.assessment?.differential_diagnosis, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'assessment.differential_diagnosis'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.assessment_suggestion.diagnosis_reasoning,
-                        localData.assessment?.diagnosis_reasoning, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'assessment.diagnosis_reasoning'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.assessment_suggestion.status,
-                        localData.assessment?.status, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'assessment.status'
-                    )}
-                </Box>
-            )}
-
-            {reviewSuggestion.plan_suggestion && Object.keys(reviewSuggestion.plan_suggestion).length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1">Plan Suggestions:</Typography>
-                    {renderSuggestionItem(
-                        reviewSuggestion.plan_suggestion.management,
-                        localData.plan?.management, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'plan.management'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.plan_suggestion.lifestyle_advice,
-                        localData.plan?.lifestyle_advice, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'plan.lifestyle_advice'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.plan_suggestion.follow_up,
-                        localData.plan?.follow_up, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'plan.follow_up'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.plan_suggestion.patient_education,
-                        localData.plan?.patient_education, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'plan.patient_education'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.plan_suggestion.treatment_goal,
-                        localData.plan?.treatment_goal, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'plan.treatment_goal'
-                    )}
-                    {renderSuggestionItem(
-                        reviewSuggestion.plan_suggestion.plan_reasoning,
-                        localData.plan?.plan_reasoning, // Access via localData
-                        handleLocalApplySuggestion, // Use local handler
-                        'plan.plan_reasoning'
-                    )}
-                </Box>
-            )}
-            {reviewSuggestion.next_review_suggestion && renderSuggestionItem(
-                reviewSuggestion.next_review_suggestion,
-                localData.next_review, // Access via localData
-                handleLocalApplySuggestion, // Use local handler
-                'next_review'
-            )}
-        </Box>
-    );
-};
-
-
 
     return (
         <Paper elevation={2} sx={{ padding: 3, mt: 2 }}>
@@ -568,7 +476,7 @@ const renderSuggestions = () => {
                                 value={localData.assessment?.diagnosis_reasoning || ''}
                                 onChange={(e) => handleNestedInputChange('assessment', 'diagnosis_reasoning', e.target.value)}
                                 variant="outlined"
-                            />
+                             />
                              {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.diagnosis_reasoning,
                                 localData.assessment?.diagnosis_reasoning,
@@ -677,7 +585,7 @@ const renderSuggestions = () => {
                                 value={localData.plan?.lifestyle_advice || ''}
                                 onChange={(e) => handleNestedInputChange('plan', 'lifestyle_advice', e.target.value)}
                                 variant="outlined"
-                            />
+                             />
                              {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.lifestyle_advice,
                                 localData.plan?.lifestyle_advice,
@@ -1114,9 +1022,6 @@ const renderSuggestions = () => {
                     No investigations added.
                 </Typography>
             )}
-
-            {/* Render suggestions if available */}
-            {renderSuggestions()}
         </Paper>
     );
 }
