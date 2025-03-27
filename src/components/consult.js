@@ -58,6 +58,7 @@ const pulseAnimation = keyframes`
 
 const ConsultAIPage = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [lastPhoneNumber, setLastPhoneNumber] = useState(''); // <<=== New state
   const [reviewId, setReviewId] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [wsStatus, setWsStatus] = useState('Disconnected');
@@ -84,6 +85,7 @@ const ConsultAIPage = () => {
   const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
   const patientProfileRef = useRef(null);
   const [patient, setPatient] = useState('')
+  const [pageResetKey, setPageResetKey] = useState('initial'); // <<=== New state for forcing remount
 
 
   const animationMessages = [
@@ -657,6 +659,19 @@ const ConsultAIPage = () => {
 
 
   const startConsultationSessionFlow = async () => {
+    // Reset documentation state if a new phone number is used
+    if (phoneNumber !== lastPhoneNumber) {
+      setPatientInfo(null);
+      setTranscript('');
+      setBottomTabIndex(0);
+      setActiveScreen("voice");
+      setLastPhoneNumber(phoneNumber);
+      setReviewId('');    // <<=== Clear old reviewId
+      setThread('');      // <<=== Clear old thread
+      setPageResetKey(Date.now()); // force remount
+      console.log("Full page reset triggered due to phone number change.");
+    }
+    
     if (!isConsultationStarted) {
       setLoading(true);
       const appointmentBooked = await startConsultationSession();
@@ -802,7 +817,7 @@ const ConsultAIPage = () => {
 
   return (
     <ChakraProvider>
-      <Flex direction="column" height="100vh" bg="gray.50">
+      <Flex key={pageResetKey} direction="column" height="100vh" bg="gray.50">
         {/* Save Documentation Modal */}
         <Modal isOpen={isSaveModalOpen} onClose={onSaveModalClose} isCentered>
           <ModalOverlay />
@@ -1054,7 +1069,7 @@ const ConsultAIPage = () => {
           {/* Right Side (Document Panel) - 30% on Desktop, Slide-in on Mobile */}
           { (isBottomTabVisible) && (
             <Box
-              width={!isMobile && isBottomTabVisible ? "70%" : "100%"}
+              width={!isMobile && isBottomTabVisible ? "70%" : "100%"} // Fixed closing brace
               bg="white"
               boxShadow="md"
               zIndex="2"
@@ -1066,7 +1081,17 @@ const ConsultAIPage = () => {
                 <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
                 <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
               </Flex>
-              <PatientProfile thread={thread} reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef} parentalSetIsDocumentationSaved={setIsDocumentationSaved} />
+              <PatientProfile 
+                key={pageResetKey}         // <<=== Passing key to force remount
+                resetKey={pageResetKey}      // <<=== New prop for resetting child state
+                thread={thread} 
+                reviewid={reviewId} 
+                wsStatus={wsStatus} 
+                setIsDocumentationSaved={setIsDocumentationSaved} 
+                transcript={transcript} 
+                ref={patientProfileRef} 
+                parentalSetIsDocumentationSaved={setIsDocumentationSaved} 
+              />
             </Box>
           )}
 

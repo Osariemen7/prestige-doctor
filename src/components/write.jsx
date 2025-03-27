@@ -12,7 +12,7 @@ import { getAccessToken } from './api';
 
 const theme = createTheme();
 
-const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentationSaved, transcript }, ref) => {
+const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentationSaved, transcript, resetKey }, ref) => {
     const [activeTab, setActiveTab] = useState('medicalReview');
     const [data, setData] = useState(null);
     const [editableData, setEditableData] = useState(null);
@@ -347,6 +347,35 @@ console.log(suggestionData)
             didFetch.current = true;
         }
     }, [suggestionData]);
+    
+    useEffect(() => {
+        setData(null);
+        setEditableData(null);
+        setSuggestionData(null);
+        didFetch.current = false; // ensure refetch on reset
+    }, [resetKey]);
+    
+    useEffect(() => {
+        // Clear data and force re-fetch when resetKey changes
+        setData(null);
+        setEditableData(null);
+        setSuggestionData(null);
+        didFetch.current = false;
+        fetchSubscribers();
+        didFetch.current = true;
+    }, [resetKey]);
+
+    useEffect(() => {
+        if (reviewid) {
+            // Clear old data when a new appointment (reviewid) is provided or resetKey changes
+            setData(null);
+            setEditableData(null);
+            setSuggestionData(null);
+            didFetch.current = false;
+            fetchSubscribers();
+            didFetch.current = true;
+        }
+    }, [reviewid, resetKey]);
     
     useImperativeHandle(ref, () => ({
         getSuggestion: getSuggestion,
