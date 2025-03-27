@@ -274,6 +274,7 @@ const ConsultAIPage = () => {
               clearInterval(timerIntervalRef.current);
               stopRealtimeTranscription();
               setIsBottomTabVisible(false);
+              endConsultation(); // Call endConsultation when timer runs out
               return 0;
             }
             return prevTime - 1;
@@ -427,7 +428,7 @@ const ConsultAIPage = () => {
         patientProfileRef.current.getSuggestion('patientProfile'); // Pass 'patientProfile' tab name
         patientProfileRef.current.getSuggestion('healthGoals');   // Pass 'healthGoals' tab name
         patientProfileRef.current.getSuggestion('medicalReview');  // Pass 'medicalReview' tab name
-    }
+      }
 
     }
   };
@@ -793,9 +794,16 @@ const ConsultAIPage = () => {
             <IconButton icon={<AiOutlineArrowLeft />} aria-label="Back" mr="2" variant="ghost" />
             <Text fontSize="lg" fontWeight="medium">Back</Text>
           </Flex>
-          <Badge colorScheme={wsStatus === 'Connected' ? 'green' : wsStatus === 'Error' ? 'red' : 'gray'}>
-            {wsStatus}
-          </Badge>
+          <Box display="flex" alignItems="center">
+            <Badge colorScheme={wsStatus === 'Connected' ? 'green' : wsStatus === 'Error' ? 'red' : 'gray'}>
+              {wsStatus}
+            </Badge>
+            {wsStatus === 'Connected' && (
+              <Text ml="4" fontWeight="bold" color="blue.600">
+                {formatTime(timeLeft)}
+              </Text>
+            )}
+          </Box>
         </Flex>
 
         {/* Persistent Controls */}
