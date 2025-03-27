@@ -22,31 +22,19 @@ import { format } from 'date-fns';
 const HealthGoalsTab = ({
   data,
   editableData,
-  schema,
+  appliedSuggestions,
   onDataChange,
   suggestion,
-  appliedSuggestions,
   onApplySuggestion,
   onSaveGoals,
   isSaving
 }) => {
-  const [localData, setLocalData] = useState(() => {
-    return editableData || data || { // Initialize with editableData if available, else data, else default
-        goal_name: '',
-        target_date: null,
-        comments: '',
-        metrics: [],
-        actions: []
-    };
-  });
+  const [localData, setLocalData] = useState(editableData);
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    if (isEditing) {
-        setLocalData(editableData ? JSON.parse(JSON.stringify(editableData)) : localData);
-    }
-    // Do not update localData when not editing so that saved edits remain visible
-}, [editableData, isEditing]);
+    setLocalData(editableData);
+  }, [editableData]);
 
   // Basic change handlers
   const handleInputChange = (field, value) => {
@@ -57,7 +45,7 @@ const HealthGoalsTab = ({
   };
 
   const handleMetricChange = (index, field, value) => {
-    const updatedMetrics = [...(localData.metrics || [])];
+    const updatedMetrics = [...localData.metrics];
     updatedMetrics[index] = {
       ...updatedMetrics[index],
       [field]:
@@ -72,7 +60,7 @@ const HealthGoalsTab = ({
   };
 
   const handleActionChange = (index, field, value) => {
-    const updatedActions = [...(localData.actions || [])];
+    const updatedActions = [...localData.actions];
     updatedActions[index] = {
       ...updatedActions[index],
       [field]: field === 'interval' ? Number(value) : value
@@ -93,12 +81,12 @@ const HealthGoalsTab = ({
     };
     setLocalData(prevData => ({
       ...prevData,
-      metrics: [...(prevData.metrics || []), newMetric]
+      metrics: [...prevData.metrics, newMetric]
     }));
   };
 
   const removeMetric = index => {
-    const updatedMetrics = [...(localData.metrics || [])];
+    const updatedMetrics = [...localData.metrics];
     updatedMetrics.splice(index, 1);
     setLocalData(prevData => ({
       ...prevData,
@@ -115,12 +103,12 @@ const HealthGoalsTab = ({
     };
     setLocalData(prevData => ({
       ...prevData,
-      actions: [...(prevData.actions || []), newAction]
+      actions: [...prevData.actions, newAction]
     }));
   };
 
   const removeAction = index => {
-    const updatedActions = [...(localData.actions || [])];
+    const updatedActions = [...localData.actions];
     updatedActions.splice(index, 1);
     setLocalData(prevData => ({
       ...prevData,
@@ -131,12 +119,12 @@ const HealthGoalsTab = ({
   // Editing controls
   const startEditing = () => setIsEditing(true);
   const saveChanges = () => {
-    onDataChange(localData); // update parent state
-    // Removed API call for saving; only update state and switch mode
+    onDataChange(localData);
     setIsEditing(false);
   };
   const cancelEditing = () => {
-    setIsEditing(false); // isEditing state change will trigger useEffect to reset localData
+    setLocalData(editableData);
+    setIsEditing(false);
   };
 
   // Copy health goals text to clipboard
@@ -179,6 +167,7 @@ const HealthGoalsTab = ({
     }
     return emrText;
   };
+
 
   // Render header buttons – copy and either edit or (when editing) view/save
   const renderHeaderButtons = () => (
@@ -227,7 +216,8 @@ const HealthGoalsTab = ({
   );
 
   const renderSuggestionItem = (suggestionValue, currentValue, applySuggestionHandler, fieldName) => {
-    if (suggestionValue && suggestionValue !== currentValue && !appliedSuggestions[fieldName]) {
+    console.log("renderSuggestionItem called for fieldName:", fieldName, "suggestionValue:", suggestionValue, "currentValue:", currentValue, "appliedSuggestions[fieldName]:", appliedSuggestions?.[fieldName]);
+    if (suggestionValue && suggestionValue !== currentValue && !appliedSuggestions?.[fieldName]) {
       return (
         <Box sx={{
             mt: 1,
@@ -245,7 +235,7 @@ const HealthGoalsTab = ({
               variant="outlined"
               color="primary"
               size="small"
-              onClick={() => applySuggestionHandler(fieldName, suggestionValue)}
+              onClick={() => applySuggestionHandler(suggestionValue)}
           >
               Apply
           </Button>
@@ -254,8 +244,10 @@ const HealthGoalsTab = ({
     }
     return null;
   };
+console.log("suggestion prop:", suggestion)
 
   const handleLocalApplySuggestion = (field, value) => {
+    console.log("handleLocalApplySuggestion called with field:", field, "value:", value);
     setLocalData(prevData => {
       const updatedData = {...prevData};
       if (field.startsWith('metrics[')) {
@@ -276,121 +268,13 @@ const HealthGoalsTab = ({
                   updatedData.actions[index] = {...updatedData.actions[index], [actionField]: value};
               }
           }
-      }
-      else {
+      } else { // Handle top-level fields: goal_name, target_date, comments
           updatedData[field] = value;
       }
       return updatedData;
     });
     onApplySuggestion(field, value);
   };
-
-
-  const renderSuggestions = () => {
-    if (!suggestion || Object.keys(suggestion).length === 0) return null;
-
-    return (
-        <Box sx={{ mt: 3, border: '1px solid #ccc', padding: 2, borderRadius: 1, bgcolor: '#f9f9f9' }}>
-            <Typography variant="h6" gutterBottom>Suggestions</Typography>
-
-            {suggestion.goal_name_suggestion && renderSuggestionItem(
-                suggestion.goal_name_suggestion,
-                localData.goal_name,
-                handleLocalApplySuggestion, // Use local handler
-                'goal_name'
-            )}
-
-            {suggestion.target_date_suggestion && renderSuggestionItem(
-                suggestion.target_date_suggestion ? format(new Date(suggestion.target_date_suggestion), 'MMMM d, yyyy') : null,
-                localData.target_date ? format(new Date(localData.target_date), 'MMMM d, yyyy') : null,
-                handleLocalApplySuggestion, // Use local handler
-                'target_date'
-            )}
-
-            {suggestion.comments_suggestion && renderSuggestionItem(
-                suggestion.comments_suggestion,
-                localData.comments,
-                handleLocalApplySuggestion, // Use local handler
-                'comments'
-            )}
-             {suggestion.metrics_suggestion && suggestion.metrics_suggestion.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1">Metrics Suggestions:</Typography>
-                    {suggestion.metrics_suggestion.map((metricSuggestion, index) => {
-                        const currentMetric = editableData.metrics?.[index] || {};
-                        return (
-                            <Box key={index} sx={{ ml: 2, mb: 1, borderLeft: '2px solid primary.main', pl: 1 }}>
-                                {metricSuggestion.metric_name && renderSuggestionItem(
-                                    metricSuggestion.metric_name,
-                                    currentMetric.metric_name,
-                                    (value) => handleLocalApplySuggestion(`metrics[${index}].metric_name`, value), // Use local handler
-                                    `metrics[${index}].metric_name`
-                                )}
-                                {metricSuggestion.unit && renderSuggestionItem(
-                                    metricSuggestion.unit,
-                                    currentMetric.unit,
-                                    (value) => handleLocalApplySuggestion(`metrics[${index}].unit`, value), // Use local handler
-                                    `metrics[${index}].unit`
-                                )}
-                                {metricSuggestion.target_value !== undefined && renderSuggestionItem(
-                                    String(metricSuggestion.target_value),
-                                    String(currentMetric.target_value),
-                                    (value) => handleLocalApplySuggestion(`metrics[${index}].target_value`, value), // Use local handler
-                                    `metrics[${index}].target_value`
-                                )}
-                                {metricSuggestion.interval !== undefined && renderSuggestionItem(
-                                    String(metricSuggestion.interval),
-                                    String(currentMetric.interval),
-                                    (value) => handleLocalApplySuggestion(`metrics[${index}].interval`, value), // Use local handler
-                                    `metrics[${index}].interval`
-                                )}
-                            </Box>
-                        );
-                    })}
-                </Box>
-            )}
-
-            {suggestion.actions_suggestion && suggestion.actions_suggestion.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1">Actions Suggestions:</Typography>
-                    {suggestion.actions_suggestion.map((actionSuggestion, index) => {
-                        const currentAction = editableData.actions?.[index] || {};
-                        return (
-                            <Box key={index} sx={{ ml: 2, mb: 1, borderLeft: '2px solid primary.main', pl: 1 }}>
-                                {actionSuggestion.name && renderSuggestionItem(
-                                    actionSuggestion.name,
-                                    currentAction.name,
-                                    (value) => handleLocalApplySuggestion(`actions[${index}].name`, value), // Use local handler
-                                    `actions[${index}].name`
-                                )}
-                                {actionSuggestion.description && renderSuggestionItem(
-                                    actionSuggestion.description,
-                                    currentAction.description,
-                                    (value) => handleLocalApplySuggestion(`actions[${index}].description`, value), // Use local handler
-                                    `actions[${index}].description`
-                                )}
-                                {actionSuggestion.interval !== undefined && renderSuggestionItem(
-                                    String(actionSuggestion.interval),
-                                    String(currentAction.interval),
-                                    (value) => handleLocalApplySuggestion(`actions[${index}].interval`, value), // Use local handler
-                                    `actions[${index}].interval`
-                                )}
-                                {actionSuggestion.action_end_date && renderSuggestionItem(
-                                    actionSuggestion.action_end_date ? format(new Date(actionSuggestion.action_end_date), 'MMMM d, yyyy') : null,
-                                    actionSuggestion.action_end_date ? format(new Date(actionSuggestion.action_end_date), 'MMMM d, yyyy') : null, // Corrected here as well
-                                    (value) => handleLocalApplySuggestion(`actions[${index}].action_end_date`, value), // Use local handler
-                                    `actions[${index}].action_end_date`
-                                )}
-                            </Box>
-                        );
-                    })}
-                </Box>
-            )}
-
-
-        </Box>
-    );
-};
 
 
   // --- Non-Editing (View) Mode ---
@@ -425,7 +309,7 @@ const HealthGoalsTab = ({
                 {renderSuggestionItem( // Suggestion placed below Typography
                     suggestion?.goal_name_suggestion,
                     localData?.goal_name,
-                    handleLocalApplySuggestion, // Use local handler
+                    (value) => handleLocalApplySuggestion('goal_name', value),
                     'goal_name'
                 )}
               </Grid>
@@ -441,7 +325,7 @@ const HealthGoalsTab = ({
                 {renderSuggestionItem( // Suggestion placed below Typography
                     suggestion?.target_date_suggestion ? format(new Date(suggestion.target_date_suggestion), 'yyyy-MM-dd') : null,
                     localData?.target_date ? format(new Date(localData.target_date), 'yyyy-MM-dd') : null,
-                    handleLocalApplySuggestion, // Use local handler
+                    (value) => handleLocalApplySuggestion('target_date', value),
                     'target_date'
                 )}
               </Grid>
@@ -455,7 +339,7 @@ const HealthGoalsTab = ({
                  {renderSuggestionItem( // Suggestion placed below Typography
                     suggestion?.comments_suggestion,
                     localData?.comments,
-                    handleLocalApplySuggestion, // Use local handler
+                    (value) => handleLocalApplySuggestion('comments', value),
                     'comments'
                 )}
               </Grid>
@@ -484,7 +368,7 @@ const HealthGoalsTab = ({
                   {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.metric_name,
                       metric.metric_name,
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`metrics[${index}].metric_name`, value),
                       `metrics[${index}].metric_name`
                   )}
                   <Typography variant="body1">
@@ -493,7 +377,7 @@ const HealthGoalsTab = ({
                    {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.unit,
                       metric.unit,
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`metrics[${index}].unit`, value),
                       `metrics[${index}].unit`
                   )}
                   <Typography variant="body1">
@@ -502,7 +386,7 @@ const HealthGoalsTab = ({
                    {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.target_value !== undefined ? String(suggestion.metrics_suggestion[index].target_value) : undefined,
                       String(metric.target_value),
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`metrics[${index}].target_value`, value),
                       `metrics[${index}].target_value`
                   )}
                   <Typography variant="body1">
@@ -511,7 +395,7 @@ const HealthGoalsTab = ({
                    {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.interval !== undefined ? String(suggestion.metrics_suggestion[index].interval) : undefined,
                       String(metric.interval),
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`metrics[${index}].interval`, value),
                       `metrics[${index}].interval`
                   )}
                 </Box>
@@ -543,7 +427,7 @@ const HealthGoalsTab = ({
                    {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.name,
                       action.name,
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`actions[${index}].name`, value),
                       `actions[${index}].name`
                   )}
                   <Typography variant="body1">
@@ -552,7 +436,7 @@ const HealthGoalsTab = ({
                    {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.description,
                       action.description,
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`actions[${index}].description`, value),
                       `actions[${index}].description`
                   )}
                   <Typography variant="body1">
@@ -561,7 +445,7 @@ const HealthGoalsTab = ({
                    {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.interval !== undefined ? String(suggestion.actions_suggestion[index].interval) : undefined,
                       String(action.interval),
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`actions[${index}].interval`, value),
                       `actions[${index}].interval`
                   )}
                   <Typography variant="body1">
@@ -573,7 +457,7 @@ const HealthGoalsTab = ({
                    {renderSuggestionItem( // Suggestion placed below Typography
                       suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.action_end_date ? format(new Date(suggestion.actions_suggestion[index].action_end_date), 'yyyy-MM-dd') : null,
                       action.action_end_date ? format(new Date(action.action_end_date), 'yyyy-MM-dd') : null,
-                      handleLocalApplySuggestion, // Use local handler
+                      (value) => handleLocalApplySuggestion(`actions[${index}].action_end_date`, value),
                       `actions[${index}].action_end_date`
                   )}
                 </Box>
@@ -619,7 +503,7 @@ const HealthGoalsTab = ({
                 {renderSuggestionItem(
                     suggestion?.goal_name_suggestion,
                     localData?.goal_name,
-                    handleLocalApplySuggestion, // Use local handler
+                    (value) => handleLocalApplySuggestion('goal_name', value),
                     'goal_name'
                 )}
               </Box>
@@ -641,7 +525,7 @@ const HealthGoalsTab = ({
                  {renderSuggestionItem(
                     suggestion?.target_date_suggestion ? format(new Date(suggestion.target_date_suggestion), 'yyyy-MM-dd') : null,
                     localData?.target_date ? format(new Date(localData.target_date), 'yyyy-MM-dd') : null,
-                    handleLocalApplySuggestion, // Use local handler
+                    (value) => handleLocalApplySuggestion('target_date', value),
                     'target_date'
                 )}
               </Box>
@@ -657,7 +541,7 @@ const HealthGoalsTab = ({
                  {renderSuggestionItem(
                     suggestion?.comments_suggestion,
                     localData?.comments,
-                    handleLocalApplySuggestion, // Use local handler
+                    (value) => handleLocalApplySuggestion('comments', value),
                     'comments'
                 )}
               </Box>
@@ -702,7 +586,7 @@ const HealthGoalsTab = ({
                       {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.metric_name && renderSuggestionItem(
                           suggestion.metrics_suggestion[index].metric_name,
                           metric.metric_name,
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`metrics[${index}].metric_name`, value),
                           `metrics[${index}].metric_name`
                       )}
                     </Box>
@@ -718,7 +602,7 @@ const HealthGoalsTab = ({
                       {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.unit && renderSuggestionItem(
                           suggestion.metrics_suggestion[index].unit,
                           metric.unit,
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`metrics[${index}].unit`, value),
                           `metrics[${index}].unit`
                       )}
                     </Box>
@@ -735,7 +619,7 @@ const HealthGoalsTab = ({
                       {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.target_value !== undefined && renderSuggestionItem(
                           String(suggestion.metrics_suggestion[index].target_value),
                           String(metric.target_value),
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`metrics[${index}].target_value`, value),
                           `metrics[${index}].target_value`
                       )}
                     </Box>
@@ -752,7 +636,7 @@ const HealthGoalsTab = ({
                       {suggestion?.metrics_suggestion && suggestion.metrics_suggestion[index]?.interval !== undefined && renderSuggestionItem(
                           String(suggestion.metrics_suggestion[index].interval),
                           String(metric.interval),
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`metrics[${index}].interval`, value),
                           `metrics[${index}].interval`
                       )}
                     </Box>
@@ -810,7 +694,7 @@ const HealthGoalsTab = ({
                       {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.name && renderSuggestionItem(
                           suggestion.actions_suggestion[index].name,
                           action.name,
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`actions[${index}].name`, value),
                           `actions[${index}].name`
                       )}
                     </Box>
@@ -826,7 +710,7 @@ const HealthGoalsTab = ({
                       {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.description && renderSuggestionItem(
                           suggestion.actions_suggestion[index].description,
                           action.description,
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`actions[${index}].description`, value),
                           `actions[${index}].description`
                       )}
                     </Box>
@@ -843,7 +727,7 @@ const HealthGoalsTab = ({
                       {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.interval !== undefined && renderSuggestionItem(
                           String(suggestion.actions_suggestion[index].interval),
                           String(action.interval),
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`actions[${index}].interval`, value),
                           `actions[${index}].interval`
                       )}
                     </Box>
@@ -865,7 +749,7 @@ const HealthGoalsTab = ({
                       {suggestion?.actions_suggestion && suggestion.actions_suggestion[index]?.action_end_date && renderSuggestionItem(
                           suggestion.actions_suggestion[index].action_end_date ? format(new Date(suggestion.actions_suggestion[index].action_end_date), 'yyyy-MM-dd') : null,
                           action.action_end_date ? format(new Date(action.action_end_date), 'yyyy-MM-dd') : null,
-                          handleLocalApplySuggestion, // Use local handler
+                          (value) => handleLocalApplySuggestion(`actions[${index}].action_end_date`, value),
                           `actions[${index}].action_end_date`
                       )}
                     </Box>
@@ -886,9 +770,9 @@ const HealthGoalsTab = ({
           </Button>
         </Grid>
       </Grid>
-      {renderSuggestions()}
+
     </Paper>
   );
 };
 
-export default HealthGoalsTab
+export default HealthGoalsTab;
