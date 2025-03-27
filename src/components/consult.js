@@ -285,12 +285,21 @@ const ConsultAIPage = () => {
     };
 
     wsRef.current.onmessage = (event) => {
+      console.log("Raw WS message:", event.data); // <<=== New log to see raw message
       try {
         const data = JSON.parse(event.data);
         if (data.message_type === 'FinalTranscript') {
           if (data.text) {
-            setTranscript(prev => prev + (prev ? '\n\n' : '') + data.text);
+            setTranscript(prev => {
+              const updatedTranscript = prev + (prev ? '\n\n' : '') + data.text;
+              console.log("Transcript received after resume:", updatedTranscript);
+              return updatedTranscript;
+            });
+          } else {
+            console.log("FinalTranscript message received with empty text.");
           }
+        } else {
+          console.log("Non-transcript message received:", data);
         }
       } catch (err) {
         console.error('Error parsing transcription message:', err);
@@ -404,13 +413,13 @@ const ConsultAIPage = () => {
 
   const toggleTranscription = () => {
     if (isTranscribing) {
-      pauseTranscription();
-    } else {
       if (isPaused) {
         resumeTranscription();
       } else {
-        startConsultationSessionFlow();
+        pauseTranscription();
       }
+    } else {
+      startConsultationSessionFlow();
     }
   };
 
@@ -433,26 +442,49 @@ const ConsultAIPage = () => {
     }
   };
 
-  const resumeTranscription = () => {
+  const resumeTranscription = async () => {
     if (isTranscribing && isPaused) {
       setIsPaused(false);
-      startAudioProcessing();
-      if (wsStatus === 'Connected' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        timerIntervalRef.current = setInterval(() => {
-          setTimeLeft((prevTime) => {
-            if (prevTime <= 1) {
-              clearInterval(timerIntervalRef.current);
-              stopRealtimeTranscription();
-              setIsBottomTabVisible(false);
-              return 0;
-            }
-            return prevTime - 1;
-          });
-        }, 1000);
-      } else {
-        startRealtimeTranscription();
+      
+      try {
+        // First resume audio context if it exists
+        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume();
+        }
+
+        // Start or restart audio processing
+        await startAudioProcessing();
+
+        // Log the current WS readyState to see if the connection is still open
+        console.log("WS readyState after resuming:", wsRef.current ? wsRef.current.readyState : "no WS connection");
+
+        // Restart timer
+        if (wsStatus === 'Connected' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          timerIntervalRef.current = setInterval(() => {
+            setTimeLeft((prevTime) => {
+              if (prevTime <= 1) {
+                clearInterval(timerIntervalRef.current);
+                stopRealtimeTranscription();
+                setIsBottomTabVisible(false);
+                return 0;
+              }
+              return prevTime - 1;
+            });
+          }, 1000);
+        }
+
+        console.log("Transcription resumed successfully.");
+      } catch (error) {
+        console.error('Error resuming transcription:', error);
+        toast({
+          title: 'Resume Error',
+          description: 'Failed to resume transcription. Please try again.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        stopRealtimeTranscription();
       }
-      console.log("Transcription resumed.");
     }
   };
 
@@ -475,7 +507,7 @@ const ConsultAIPage = () => {
     try {
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
-        console.log("Audio context resumed.");
+        console.log("Audio context resumed in startAudioProcessing.");
       } else if (!audioContextRef.current) {
         await startAudioStream();
         return;
@@ -487,6 +519,7 @@ const ConsultAIPage = () => {
         source.connect(processorRef.current);
         processorRef.current.connect(audioContextRef.current.destination);
         processorRef.current.onaudioprocess = (e) => {
+          console.log("Audio data processed after resume."); // <<=== New log
           if (!isPaused && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const inputData = e.inputBuffer.getChannelData(0);
             const pcmData = convertFloat32ToInt16(inputData);
@@ -496,6 +529,7 @@ const ConsultAIPage = () => {
         console.log("Audio processor re-initialized.");
       } else if (processorRef.current.onaudioprocess == null) {
         processorRef.current.onaudioprocess = (e) => {
+          console.log("Audio data processed after resume."); // <<=== New log
           if (!isPaused && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const inputData = e.inputBuffer.getChannelData(0);
             const pcmData = convertFloat32ToInt16(inputData);
@@ -816,8 +850,6 @@ const ConsultAIPage = () => {
           direction="row"
         >
           <Flex align="center">
-
-
             <Button
               onClick={isConsultationStarted ? endConsultation : startConsultationSessionFlow}
               isDisabled={loading}
@@ -836,9 +868,22 @@ const ConsultAIPage = () => {
                 isDisabled={!isTranscribing && wsStatus !== 'Connected'}
               />
             </Tooltip>
+            {isConsultationStarted && (
+              <Tooltip label={isPaused ? "Resume Recording" : "Pause Recording"} placement="bottom">
+                <IconButton
+                  icon={isPaused ? <MdPlayArrow /> : <MdPause />}
+                  aria-label={isPaused ? "Resume Recording" : "Pause Recording"}
+                  variant="solid" // Changed from ghost to solid
+                  colorScheme={isPaused ? "green" : "red"} // Green for resume, red for pause
+                  size="lg" // Increased size
+                  onClick={toggleTranscription}
+                  isRound={true}
+                  mx={1}
+                  boxShadow="xl" // Added shadow for emphasis
+                />
+              </Tooltip>
+            )}
           </Flex>
-
-
         </Flex>
 
         {/* Content Area */}
