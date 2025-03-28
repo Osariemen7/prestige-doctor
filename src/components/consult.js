@@ -79,7 +79,6 @@ const ConsultAIPage = () => {
   const [realtimeStarted, setRealtimeStarted] = useState(false);
   const [animationIndex, setAnimationIndex] = useState(0);
   const [isConsultationStarted, setIsConsultationStarted] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [thread, setThread] = useState('');
   const [isDocumentationSaved, setIsDocumentationSaved] = useState(false);
   const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
@@ -104,10 +103,17 @@ const ConsultAIPage = () => {
   const audioContextRef = useRef(null);
   const processorRef = useRef(null);
   const [assemblyAiToken, setAssemblyAiToken] = useState('');
-
+  const [isAudioProcessingActive, setIsAudioProcessingActive] = useState(false);
   const formatPhoneNumber = (phoneNumber, countryCode) => {
     return `${countryCode}${phoneNumber}`;
   };
+
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(isPaused); // <== Create a ref for isPaused
+
+  useEffect(() => {
+    isPausedRef.current = isPaused; // <== Keep the ref updated with the isPaused state
+  }, [isPaused]);
 
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
@@ -296,6 +302,7 @@ const ConsultAIPage = () => {
               const updatedTranscript = prev + (prev ? '\n\n' : '') + data.text;
               console.log("Transcript received after resume:", updatedTranscript);
               return updatedTranscript;
+
             });
           } else {
             console.log("FinalTranscript message received with empty text.");
@@ -424,14 +431,15 @@ const ConsultAIPage = () => {
       startConsultationSessionFlow();
     }
   };
+  console.log(transcript)
 
 
   const pauseTranscription = () => {
     if (isTranscribing && !isPaused) {
-      setIsPaused(true);
-      clearInterval(timerIntervalRef.current);
-      stopAudioProcessing();
-      console.log("Transcription paused.");
+        setIsPaused(true);
+        clearInterval(timerIntervalRef.current);
+        stopAudioProcessing();
+        console.log("Transcription paused.");
       if (patientProfileRef.current && patientProfileRef.current.getSuggestion) { // Check if ref and function exist
         patientProfileRef.current.getSuggestion(); // Call getSuggestion on pause
       }
@@ -446,34 +454,73 @@ const ConsultAIPage = () => {
 
   const resumeTranscription = async () => {
     if (isTranscribing && isPaused) {
-      setIsPaused(false);
-      
+      setIsPaused(false); // <== This will update the isPaused state and trigger useEffect to update isPausedRef.current
+      console.log("Resuming transcription...");
+
       try {
-        // First resume audio context if it exists
-        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-          await audioContextRef.current.resume();
+        if (audioContextRef.current) {
+          console.log(`Audio context state before resume: ${audioContextRef.current.state}`);
+          if (audioContextRef.current.state === 'suspended') {
+            await audioContextRef.current.resume();
+            console.log(`Audio context resumed in resumeTranscription. State: ${audioContextRef.current.state}`);
+          } else {
+            console.log(`Audio context was not suspended, current state: ${audioContextRef.current.state}. No resume needed.`);
+          }
+        } else {
+          console.log("Audio context was null in resumeTranscription, this should not happen if starting from pause. Check logic.");
         }
 
-        // Start or restart audio processing
+
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          console.log(`WebSocket state before reconnection check: ${wsRef.current?.readyState}`);
+          console.log("Reinitializing WebSocket connection in resumeTranscription...");
+          const sampleRate = 16000;
+          const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=${sampleRate}&token=${assemblyAiToken}`;
+          wsRef.current = new WebSocket(socketUrl);
+
+          wsRef.current.onopen = () => {
+            console.log('WebSocket reconnected for transcription in resumeTranscription.');
+            setWsStatus('Connected');
+          };
+
+          wsRef.current.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.message_type === 'FinalTranscript' && data.text) {
+                setTranscript((prev) => `${prev}\n\n${data.text}`);
+                console.log("Transcript received after resume:", data.text);
+              }
+            } catch (err) {
+              console.error('Error parsing transcription message:', err);
+            }
+          };
+
+          wsRef.current.onerror = (error) => {
+            console.error('WebSocket error during transcription in resumeTranscription:', error);
+            setWsStatus('Error');
+          };
+
+          wsRef.current.onclose = () => {
+            console.log('WebSocket connection closed for transcription in resumeTranscription.');
+            setWsStatus('Disconnected');
+          };
+        } else {
+          console.log(`WebSocket already open in resumeTranscription, state: ${wsRef.current.readyState}. Reusing connection.`);
+        }
+
         await startAudioProcessing();
 
-        // Log the current WS readyState to see if the connection is still open
-        console.log("WS readyState after resuming:", wsRef.current ? wsRef.current.readyState : "no WS connection");
-
-        // Restart timer
-        if (wsStatus === 'Connected' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          timerIntervalRef.current = setInterval(() => {
-            setTimeLeft((prevTime) => {
-              if (prevTime <= 1) {
-                clearInterval(timerIntervalRef.current);
-                stopRealtimeTranscription();
-                setIsBottomTabVisible(false);
-                return 0;
-              }
-              return prevTime - 1;
-            });
-          }, 1000);
-        }
+        timerIntervalRef.current = setInterval(() => {
+          setTimeLeft((prevTime) => {
+            if (prevTime <= 1) {
+              clearInterval(timerIntervalRef.current);
+              stopRealtimeTranscription();
+              setIsBottomTabVisible(false);
+              return 0;
+            }
+            return prevTime - 1;
+          });
+        }, 1000);
 
         console.log("Transcription resumed successfully.");
       } catch (error) {
@@ -507,41 +554,58 @@ const ConsultAIPage = () => {
 
   const startAudioProcessing = async () => {
     try {
+      console.log("Starting audio processing...");
+
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
-        console.log("Audio context resumed in startAudioProcessing.");
+        console.log(`Audio context resumed in startAudioProcessing. State: ${audioContextRef.current.state}`);
       } else if (!audioContextRef.current) {
+        console.log("Audio context was null, starting audio stream to initialize it.");
         await startAudioStream();
         return;
+      } else {
+        console.log(`Audio context state before processor setup: ${audioContextRef.current.state}`);
       }
 
-      if (!processorRef.current) {
-        processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
-        const source = audioContextRef.current.createMediaStreamSource(await navigator.mediaDevices.getUserMedia({ audio: true, sampleRate: 16000 }));
-        source.connect(processorRef.current);
-        processorRef.current.connect(audioContextRef.current.destination);
-        processorRef.current.onaudioprocess = (e) => {
-          console.log("Audio data processed after resume."); // <<=== New log
-          if (!isPaused && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            const inputData = e.inputBuffer.getChannelData(0);
-            const pcmData = convertFloat32ToInt16(inputData);
-            wsRef.current.send(pcmData);
-          }
-        };
-        console.log("Audio processor re-initialized.");
-      } else if (processorRef.current.onaudioprocess == null) {
-        processorRef.current.onaudioprocess = (e) => {
-          console.log("Audio data processed after resume."); // <<=== New log
-          if (!isPaused && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            const inputData = e.inputBuffer.getChannelData(0);
-            const pcmData = convertFloat32ToInt16(inputData);
-            wsRef.current.send(pcmData);
-          }
-        };
-        processorRef.current.connect(audioContextRef.current.destination);
-        console.log("Audio processor handler re-attached.");
+      console.log(`processorRef.current before setup: ${processorRef.current}`);
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current.onaudioprocess = null;
+        processorRef.current = null;
+        console.log("Existing processor disconnected and set to null.");
       }
 
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, sampleRate: 16000 });
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+
+      processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+      source.connect(processorRef.current);
+      processorRef.current.connect(audioContextRef.current.destination);
+      console.log(`processorRef.current after setup: ${processorRef.current}`);
+
+
+      processorRef.current.onaudioprocess = (e) => {
+        setIsAudioProcessingActive(true);
+        console.log("Audio data is being processed by onaudioprocess (in startAudioProcessing).");
+
+        if (audioContextRef.current.state !== 'running') {
+          console.log(`Audio context not running in onaudioprocess, state: ${audioContextRef.current.state}. Aborting send.`);
+          setIsAudioProcessingActive(false);
+          return;
+        }
+
+        if (!isPausedRef.current && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) { // <==== Use isPausedRef.current here
+          const inputData = e.inputBuffer.getChannelData(0);
+          const pcmData = convertFloat32ToInt16(inputData);
+          wsRef.current.send(pcmData);
+          console.log("Audio data sent to WebSocket from onaudioprocess (startAudioProcessing).");
+        } else {
+          console.log(`Conditions not met to send audio data from onaudioprocess (startAudioProcessing). Paused: ${isPausedRef.current.current}, WS Open: ${wsRef.current?.readyState === WebSocket.OPEN}`); // <==== Use isPausedRef.current here in log
+          setIsAudioProcessingActive(false);
+        }
+      };
+
+      console.log("Audio processor initialized and onaudioprocess set in startAudioProcessing.");
 
     } catch (err) {
       console.error('Error restarting audio processing:', err);
@@ -640,8 +704,8 @@ const ConsultAIPage = () => {
     }
     setIsConsultationStarted(false);
     // Do not clear reviewId and chat so that they persist
-    // setPhoneNumber(''); <- Optionally you can clear phone number if desired 
-    // setReviewId(''); 
+    // setPhoneNumber(''); <- Optionally you can clear phone number if desired
+    // setReviewId('');
     setTranscript('');
     setIsBottomTabVisible(true); // Show documentation tabs
     setBottomTabIndex(1);        // Set active tab to document
@@ -671,7 +735,7 @@ const ConsultAIPage = () => {
       setPageResetKey(Date.now()); // force remount
       console.log("Full page reset triggered due to phone number change.");
     }
-    
+
     if (!isConsultationStarted) {
       setLoading(true);
       const appointmentBooked = await startConsultationSession();
@@ -1081,16 +1145,16 @@ const ConsultAIPage = () => {
                 <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
                 <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
               </Flex>
-              <PatientProfile 
+              <PatientProfile
                 key={pageResetKey}         // <<=== Passing key to force remount
                 resetKey={pageResetKey}      // <<=== New prop for resetting child state
-                thread={thread} 
-                reviewid={reviewId} 
-                wsStatus={wsStatus} 
-                setIsDocumentationSaved={setIsDocumentationSaved} 
-                transcript={transcript} 
-                ref={patientProfileRef} 
-                parentalSetIsDocumentationSaved={setIsDocumentationSaved} 
+                thread={thread}
+                reviewid={reviewId}
+                wsStatus={wsStatus}
+                setIsDocumentationSaved={setIsDocumentationSaved}
+                transcript={transcript}
+                ref={patientProfileRef}
+                parentalSetIsDocumentationSaved={setIsDocumentationSaved}
               />
             </Box>
           )}
