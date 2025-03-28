@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom'; // Navigation for web
 import './LoginPage.css'; // CSS for styling
 import { Eye, EyeOff } from 'lucide-react';
+import { Button } from '@chakra-ui/react';
 
 const LoginPage = () => {
+  // Main login state
   const [phone, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false); // Loading state
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [countryCode, setCountryCode] = useState('+234');
-  const navigate = useNavigate(); // For navigation
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
     setLoading(true);
@@ -34,24 +36,21 @@ const LoginPage = () => {
         const result = await response.json();
         localStorage.setItem('user-info', JSON.stringify(result)); // Use localStorage for web
         if (result.user.profile_set !== true) {
-          localStorage.setItem('user-info', JSON.stringify(result))
-          navigate('/provider')
-        }  else if(result.user.organization_set !== true){
           localStorage.setItem('user-info', JSON.stringify(result));
-          navigate('/organization')
-        } else if(result.user.provider_rate_set !== true){
+          navigate('/provider');
+        } else if (result.user.organization_set !== true) {
           localStorage.setItem('user-info', JSON.stringify(result));
-          navigate('/provider')
-        }
-        else if(result.user.availability_set !== true){
+          navigate('/organization');
+        } else if (result.user.provider_rate_set !== true) {
           localStorage.setItem('user-info', JSON.stringify(result));
-          navigate('/available')
-        }
-        else {
+          navigate('/provider');
+        } else if (result.user.availability_set !== true) {
+          localStorage.setItem('user-info', JSON.stringify(result));
+          navigate('/available');
+        } else {
           localStorage.setItem('user-info', JSON.stringify(result));
           navigate('/dashboard');
         }
-         // Redirect to DashboardPage
       }
     } catch (error) {
       console.error(error);
@@ -67,109 +66,119 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4">
-    <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h2 className="text-blue-600 text-lg font-medium">
-            WELCOME TO PRESTIGE HEALTH
-          </h2>
-          <h1 className="text-2l font-bold text-blue-700">
-            Sign in to your account
-          </h1>
-        </div>
-
-        {/* Form */}
-        <div className="space-y-4">
-          {/* Phone Input */}
-          <div className="relative">
-            <select
-              value={countryCode}
-              onChange={(e) => setCountryCode(e.target.value)}
-              className="absolute left-0 top-0 h-12 pl-2 pr-2 rounded-l-lg border 
-                         border-blue-200 bg-blue-50 focus:outline-none focus:ring-2 
-                         focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="+234">+234</option>
-              <option value="+44">+44</option>
-              <option value="+1">+1</option>
-            </select>
-            <input
-              type="tel"
-              placeholder="Phone Number"
-              value={phone}
-              onChange={(e) => {
-                const rawValue = e.target.value.replace(/[\D\s]/g, ''); // Remove spaces and non-digits
-                const lastTenDigits = rawValue.slice(-10);
-                setPhoneNumber(lastTenDigits);
-              }}
-              className="w-full h-12 pl-20 pr-4 rounded-lg border border-blue-200 
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 
-                       focus:border-transparent bg-blue-50"
-            />
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h2 className="text-blue-600 text-lg font-medium">
+              WELCOME TO PRESTIGE HEALTH
+            </h2>
+            <h1 className="text-2l font-bold text-blue-700">
+              Sign in to your account
+            </h1>
           </div>
 
-          {/* Password Input */}
-          <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-12 px-4 rounded-lg border border-blue-200 
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 
-                       focus:border-transparent bg-blue-50"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-400"
-            >
-              {showPassword ? 
-                <EyeOff className="w-5 h-5" /> : 
-                <Eye className="w-5 h-5" />
-              }
-            </button>
-          </div>
+          {/* Form */}
+          <div className="space-y-4">
+            {/* Phone Input */}
+            <div className="relative">
+              <select
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                className="absolute left-0 top-0 h-12 pl-2 pr-2 rounded-l-lg border 
+                          border-blue-200 bg-blue-50 focus:outline-none focus:ring-2 
+                          focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="+234">+234</option>
+                <option value="+44">+44</option>
+                <option value="+1">+1</option>
+              </select>
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                value={phone}
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/[\D\s]/g, ''); // Remove spaces and non-digits
+                  const lastTenDigits = rawValue.slice(-10);
+                  setPhoneNumber(lastTenDigits);
+                }}
+                className="w-full h-12 pl-20 pr-4 rounded-lg border border-blue-200 
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 
+                        focus:border-transparent bg-blue-50"
+              />
+            </div>
 
-          {/* Error Message */}
-          {message && (
-            <p className="text-red-500 text-sm text-center">{message}</p>
-          )}
+            {/* Password Input */}
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-12 px-4 rounded-lg border border-blue-200 
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 
+                        focus:border-transparent bg-blue-50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-400"
+              >
+                {showPassword ? 
+                  <EyeOff className="w-5 h-5" /> : 
+                  <Eye className="w-5 h-5" />
+                }
+              </button>
+            </div>
 
-          {/* Login Button */}
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full h-12 bg-blue-600 hover:bg-blue-700 
-                     text-white font-medium rounded-lg
-                     disabled:bg-blue-300 disabled:cursor-not-allowed
-                     transition-colors duration-200"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                Signing in...
-              </span>
-            ) : (
-              'Sign in'
+            {/* Error Message */}
+            {message && (
+              <p className="text-red-500 text-sm text-center">{message}</p>
             )}
-          </button>
 
-          {/* Sign Up Link */}
-          <p className="text-center text-gray-600">
-            Don't have an account?{' '}
+            {/* Login Button */}
             <button
-              onClick={handleSignup}
-              className="text-blue-600 font-medium hover:text-blue-700"
+              onClick={handleLogin}
+              disabled={loading}
+              className="w-full h-12 bg-blue-600 hover:bg-blue-700 
+                      text-white font-medium rounded-lg
+                      disabled:bg-blue-300 disabled:cursor-not-allowed
+                      transition-colors duration-200"
             >
-              Sign up
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign in'
+              )}
             </button>
-          </p>
+
+            {/* Forgot Password Link */}
+            <div className="text-center mt-4">
+              <button
+                onClick={() => navigate('/forgot-password')}
+                className="text-blue-600 hover:text-blue-800 text-sm"
+              >
+                Forgot Password?
+              </button>
+            </div>
+
+            {/* Sign Up Link */}
+            <p className="text-center text-gray-600">
+              Don't have an account?{' '}
+              <button
+                onClick={handleSignup}
+                className="text-blue-600 font-medium hover:text-blue-700"
+              >
+                Sign up
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     </div>
-  </div>
   );
 };
 

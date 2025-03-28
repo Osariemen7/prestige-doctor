@@ -24,6 +24,7 @@ import SettingPage from './components/setting';
 import SearchBox from './components/ask';
 import PaymentForm from './components/payment';
 import PatientMessages from './components/PatientMessages';
+import ForgotPassword from './components/ForgotPassword'; // New import
 
 const App = () => {
   return (
@@ -51,6 +52,7 @@ const App = () => {
           <Route path='/ask' element={<SearchBox />} />
           <Route path='/payment' element={<PaymentForm />} />
           <Route path="/patient-messages" element={<PatientMessages />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
         </Routes>
       </div>
     </ReviewProvider>

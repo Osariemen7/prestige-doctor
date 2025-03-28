@@ -88,6 +88,21 @@
   cursor: pointer;
 }
 
+.forgot-password {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.forgot-password-link {
+  color: #1e90ff;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.forgot-password-link:hover {
+  text-decoration: underline;
+}
+
 /* Media query for phone screens (small screens, less than 600px) */
 @media (max-width: 600px) {
   .login-container {
