@@ -9,6 +9,7 @@ import { Container, Box, Button, Typography } from '@mui/material';
 import SnackbarComponent from './snackbar';
 import axios from 'axios';
 import { getAccessToken } from './api';
+import './write.css';
 
 const theme = createTheme();
 
@@ -57,74 +58,73 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
 
     const isGettingSuggestion = useRef(false);
 
-const getSuggestion = async () => {
-    if (isGettingSuggestion.current) return;
-    isGettingSuggestion.current = true;
-
-    setIsSaving(true);
-    try {
-        // Prepare data payload with "note" wrapper
-        let suggestionPayload = {
-            note: JSON.parse(JSON.stringify(editableData))
-        };
-
-        if (transcript) {
-            const currentTime = new Date().toISOString();
-            suggestionPayload.transcript = [
-                {
-                    time: currentTime,
-                    speaker: "patient",
-                    content: ""
-                },
-                {
-                    time: currentTime,
-                    speaker: "doctor",
-                    content: transcript
-                }
-            ];
-        }
-
-        if (thread) {
-            suggestionPayload.note.thread_id = thread;
-        }
-        console.log("Suggestion payload:", suggestionPayload);
-        const accessToken = await getAccessToken();
-        const response = await axios.post(
-            `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
-            suggestionPayload,
-            {
-                headers: { Authorization: `Bearer ${accessToken}` },
+    const getSuggestion = async () => {
+        if (isGettingSuggestion.current) return;
+        isGettingSuggestion.current = true;
+    
+        setIsSaving(true);
+        try {
+            let suggestionPayload = {
+                note: JSON.parse(JSON.stringify(editableData))
+            };
+    
+            if (transcript) {
+                const currentTime = new Date().toISOString();
+                suggestionPayload.transcript = [
+                    {
+                        time: currentTime,
+                        speaker: "patient",
+                        content: ""
+                    },
+                    {
+                        time: currentTime,
+                        speaker: "doctor",
+                        content: transcript
+                    }
+                ];
             }
-        );
+    
+            if (thread) {
+                suggestionPayload.note.thread_id = thread;
+            }
+    
+            const accessToken = await getAccessToken();
+            const response = await axios.post(
+                `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
+                suggestionPayload,
+                {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                }
+            );
+    
+            const result = response.data;
+            setData(result); // Update the main data
+            setEditableData(JSON.parse(JSON.stringify(result))); // Update editable data
+            setSuggestionData(result); // Update suggestion data
+    
+            setAppliedSuggestions({
+                profile: {},
+                goals: {},
+                review: {}
+            });
+    
+            setSnackbarSeverity('success');
+            setSnackbarMessage('Suggestion generated successfully!');
+            setSnackbarOpen(true);
+            return true;
+        } catch (error) {
+            console.error("Error getting suggestion:", error);
+            setSnackbarSeverity('error');
+            setSnackbarMessage('Failed to generate suggestion.');
+            setSnackbarOpen(true);
+            return false;
+        } finally {
+            setIsSaving(false);
+            isGettingSuggestion.current = false;
+        }
+    };
 
-        const result = response.data;
-        setData(result)
-        setEditableData(JSON.parse(JSON.stringify(result)));
-        setSuggestionData(result);
-        console.log(result);
 
-        setAppliedSuggestions({
-            profile: {},
-            goals: {},
-            review: {}
-        });
-
-        setSnackbarSeverity('success');
-        setSnackbarMessage('Suggestion generated successfully!');
-        setSnackbarOpen(true);
-        return true;
-    } catch (error) {
-        console.error("Error getting suggestion:", error);
-        setSnackbarSeverity('error');
-        setSnackbarMessage('Failed to generate suggestion.');
-        setSnackbarOpen(true);
-        return false;
-    } finally {
-        setIsSaving(false);
-        isGettingSuggestion.current = false;
-    }
-};
-console.log(suggestionData)
     const handleSubmit = async (tabName) => {
         let sectionDataToSave = {};
         if (tabName === 'patientProfile') {
@@ -396,16 +396,24 @@ console.log(suggestionData)
     return (
         <ThemeProvider theme={theme}>
             <Container maxWidth="xl">
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={saveAllDocumentation}
-                        disabled={isSaving}
-                    >
-                        Save All Documentation
-                    </Button>
-                </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+    <Button
+        variant="contained"
+        color="primary"
+        onClick={saveAllDocumentation}
+        disabled={isSaving}
+    >
+        Save All Documentation
+    </Button>
+    {isSaving && (
+        <Typography
+            variant="body1"
+            sx={{ ml: 2, display: 'flex', alignItems: 'center', color: 'primary.main' }}
+        >
+            <span className="loading-dots">Generating doctor's note</span>
+        </Typography>
+    )}
+</Box>
 
                 <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
 
@@ -440,6 +448,7 @@ console.log(suggestionData)
 )}
 {activeTab === 'medicalReview' && (
     <MedicalReviewTab
+        key={JSON.stringify(editableData.review_data)} // Use a unique key to force re-render
         data={data.review_data}
         editableData={editableData.review_data}
         schema={data.review_data_schema}
