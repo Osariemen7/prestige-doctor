@@ -427,7 +427,6 @@ const ConsultAIPage = () => {
       startConsultationSessionFlow();
     }
   };
-  console.log(transcript)
 
 
   const pauseTranscription = () => {
