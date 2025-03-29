@@ -58,14 +58,13 @@ const pulseAnimation = keyframes`
 
 const ConsultAIPage = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [lastPhoneNumber, setLastPhoneNumber] = useState(''); // <<=== New state
+  const [lastPhoneNumber, setLastPhoneNumber] = useState('');
   const [reviewId, setReviewId] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [wsStatus, setWsStatus] = useState('Disconnected');
   const [errorMessage, setErrorMessage] = useState('');
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [patientInfo, setPatientInfo] = useState(null);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState("voice");
   const [bottomTabIndex, setBottomTabIndex] = useState(0);
   const [countryCode, setCountryCode] = useState("+234");
@@ -84,8 +83,7 @@ const ConsultAIPage = () => {
   const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
   const patientProfileRef = useRef(null);
   const [patient, setPatient] = useState('')
-  const [pageResetKey, setPageResetKey] = useState('initial'); // <<=== New state for forcing remount
-
+  const [pageResetKey, setPageResetKey] = useState('initial');
 
   const animationMessages = [
     "Warming up the microphone...",
@@ -97,8 +95,7 @@ const ConsultAIPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [isMobileOriginal] = useMediaQuery('(max-width: 768px)');
-  const [isDocumentTabMobileForced, setIsDocumentTabMobileForced] = useState(false);
-  const isMobile = isMobileOriginal || isDocumentTabMobileForced;
+  const isMobile = isMobileOriginal;
   const wsRef = useRef(null);
   const audioContextRef = useRef(null);
   const processorRef = useRef(null);
@@ -109,10 +106,10 @@ const ConsultAIPage = () => {
   };
 
   const [isPaused, setIsPaused] = useState(false);
-  const isPausedRef = useRef(isPaused); // <== Create a ref for isPaused
+  const isPausedRef = useRef(isPaused);
 
   useEffect(() => {
-    isPausedRef.current = isPaused; // <== Keep the ref updated with the isPaused state
+    isPausedRef.current = isPaused;
   }, [isPaused]);
 
   const formatTime = (seconds) => {
@@ -271,7 +268,6 @@ const ConsultAIPage = () => {
       setRealtimeStarted(true);
       setIsBottomTabVisible(true);
       setIsTranscriptionPanelOpen(false);
-      setIsProfileOpen(true);
       setTimeLeft(900);
       setErrorMessage('');
 
@@ -818,14 +814,6 @@ const ConsultAIPage = () => {
     navigate('/dashboard');
   };
 
-  const toggleProfile = () => {
-    setIsProfileOpen(prev => !prev);
-  };
-
-  const closeProfile = () => {
-    setIsProfileOpen(false);
-    setIsDocumentTabMobileForced(false);
-  };
 
   const toggleActiveScreen = (screenName) => {
     setActiveScreen(screenName);
@@ -838,12 +826,8 @@ const ConsultAIPage = () => {
     setBottomTabIndex(index);
     if (index === 0) {
       toggleActiveScreen('chat');
-      setIsProfileOpen(false);
-      setIsDocumentTabMobileForced(false);
     } else if (index === 1) {
       toggleActiveScreen('document');
-      setIsProfileOpen(true);
-      setIsDocumentTabMobileForced(true);
     }
   };
 
@@ -864,7 +848,15 @@ const ConsultAIPage = () => {
 
   useEffect(() => {
     setActiveScreen(wsStatus === 'Connected' ? 'chat' : 'voice');
-  }, [wsStatus]);
+    if (wsStatus === 'Connected') {
+      setIsBottomTabVisible(true); // Make bottom tabs visible on connection
+      if (isMobile) {
+        setBottomTabIndex(0); // Default to chat tab on mobile after connection
+      }
+    } else {
+      setIsBottomTabVisible(false); // Hide bottom tabs when disconnected
+    }
+  }, [wsStatus, isMobile]);
 
 
   useEffect(() => {
@@ -1045,7 +1037,7 @@ const ConsultAIPage = () => {
 </Flex>
           )}
 
-          {/* Left Side (ChatScreen/VoiceNote) - 70% on Desktop */}
+          {/* Left Side (ChatScreen/VoiceNote) */}
           <Box
             width={!isMobile && isBottomTabVisible ? "30%" : "100%"}
             flex="1"
@@ -1079,8 +1071,8 @@ const ConsultAIPage = () => {
                 </Center>
               )}
             </Box>
-            {/* Chat Screen - Displayed when wsStatus is connected and activeScreen is chat */}
-            <Box display={activeScreen === "chat" ? "block" : "none"}>
+            {/* Chat Screen - Displayed when activeScreen is chat or on mobile tab 0 */}
+            <Box display={(activeScreen === "chat" || (isMobile && isBottomTabVisible && bottomTabIndex === 0)) ? "block" : "none"}>
               <ChatScreen
                 chatMessages={chatMessages}
                 setChatMessages={setChatMessages}
@@ -1130,24 +1122,20 @@ const ConsultAIPage = () => {
             )}
           </Box>
 
-          {/* Right Side (Document Panel) - 30% on Desktop, Slide-in on Mobile */}
+          {/* Right Side (Document Panel) */}
           { (isBottomTabVisible) && (
             <Box
-              width={!isMobile && isBottomTabVisible ? "70%" : "100%"} // Fixed closing brace
+              width={!isMobile && isBottomTabVisible ? "70%" : "100%"}
               bg="white"
               boxShadow="md"
               zIndex="2"
               overflowY="auto"
               p={1}
-              display={!isMobile && isBottomTabVisible ? 'block' : 'none'}
+              display={(!isMobile && isBottomTabVisible) || (isMobile && isBottomTabVisible && bottomTabIndex === 1) ? 'block' : 'none'}
             >
-              <Flex justify="space-between" align="center" mb={2} display={!isMobile ? 'none' : 'flex'}>
-                <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
-                <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
-              </Flex>
               <PatientProfile
-                key={pageResetKey}         // <<=== Passing key to force remount
-                resetKey={pageResetKey}      // <<=== New prop for resetting child state
+                key={pageResetKey}
+                resetKey={pageResetKey}
                 thread={thread}
                 reviewid={reviewId}
                 wsStatus={wsStatus}
@@ -1158,30 +1146,6 @@ const ConsultAIPage = () => {
               />
             </Box>
           )}
-
-            {/* Mobile Document Slide-in */}
-            {isMobile && isBottomTabVisible && isProfileOpen && (
-              <Box
-                position="fixed"
-                top="0"
-                left="0"
-                right="0"
-                bottom="0"
-                bg="white"
-                boxShadow="md"
-                zIndex="1100"
-                overflowY="auto"
-                p={2}
-                transition="transform 0.3s ease-in-out"
-                transform={isProfileOpen ? "translateX(0)" : "translateX(100%)"}
-              >
-                <Flex justify="space-between" align="center" mb={2}>
-                  <Text fontWeight="bold" fontSize="lg">Patient Profile</Text>
-                  <IconButton icon={<MdClose />} aria-label="Close profile" onClick={closeProfile} size="sm" />
-                </Flex>
-                <PatientProfile reviewid={reviewId} wsStatus={wsStatus} setIsDocumentationSaved={setIsDocumentationSaved} transcript={transcript} ref={patientProfileRef} parentalSetIsDocumentationSaved={setIsDocumentationSaved}/>
-              </Box>
-            )}
         </Flex>
 
         {/* Bottom Tabs - Mobile Only */}
