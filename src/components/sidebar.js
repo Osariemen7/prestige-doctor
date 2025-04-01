@@ -21,7 +21,7 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
     { icon: <MessageSquare size={20} />, text: 'Patient Messages', path: '/patient-messages' }, // moved and icon updated
     { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
-    { icon: <Activity size={20} />, text: 'Virtual Consultation', path: '/virtual' },
+    //{ icon: <Activity size={20} />, text: 'Virtual Consultation', path: '/virtual' },
     { icon: <Search size={20} />, text: 'Dr House AI', path: '/ask' },
     { icon: <DollarSign size={20} />, text: 'Earnings', path: '/account' },
     { icon: <FileText size={20} />, text: 'Dashboard', path: '/doctor' },

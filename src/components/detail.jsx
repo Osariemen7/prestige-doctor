@@ -22,9 +22,12 @@ import {
   ModalBody,
   ModalCloseButton,
   Select,
+  Badge,
 } from "@chakra-ui/react";
+import { ChatIcon } from "@chakra-ui/icons";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { AiOutlineArrowLeft } from "react-icons/ai";
+import { AiOutlineArrowLeft, AiOutlineArrowRight } from "react-icons/ai";
+import { CheckIcon } from "@chakra-ui/icons";
 import { getAccessToken } from "./api";
 import { Line } from "react-chartjs-2";
 import {
@@ -71,11 +74,27 @@ const Details = () => {
     metrics: [],
     actions: [],
   });
+  const [actionModalOpen, setActionModalOpen] = useState(false);
+  const [selectedRecommendation, setSelectedRecommendation] = useState(null);
+  const [doctorNotes, setDoctorNotes] = useState("");
+  const [isActioning, setIsActioning] = useState(false);
+
   const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const { state } = useLocation();
   const item = state?.item || {};
+
+  // Function to start a conversation with the patient
+  const handleStartConversation = () => {
+    navigate('/patient-messages', {
+      state: {
+        newConversation: true,
+        selectedPatientId: item.id,
+        patientName: `${patientData.profile_data.demographics.first_name} ${patientData.profile_data.demographics.last_name}`
+      }
+    });
+  };
 
   // Helper to format ISO datetime string to "YYYY-MM-DD HH:MM"
   const formatDateTime = (isoString) => {
@@ -183,6 +202,7 @@ const Details = () => {
       );
       const data = await response.json();
       setPatientData(data);
+      console.log("Patient data:", data); // Add logging to see the data structure
     } catch (error) {
       console.error("Error fetching patient data:", error);
       toast({
@@ -215,40 +235,259 @@ const Details = () => {
 
   const opt = ["Yes", "No"];
 
+  // Organize recommendations by priority
+  const recommendations = patientData?.recommendations?.recommendations || [];
+  const urgentRecs = recommendations.filter((rec) => rec.priority === "high");
+  const highRecs = recommendations.filter((rec) => rec.priority === "medium");
+  const lowRecs = recommendations.filter((rec) => rec.priority === "low");
+  const infoRecs = recommendations.filter((rec) => rec.priority === "info");
+
+  // Function to handle opening the action modal
+  const handleActionRecommendation = (recommendation) => {
+    setSelectedRecommendation(recommendation);
+    setDoctorNotes("");
+    setActionModalOpen(true);
+  };
+
+  // Function to mark a recommendation as actioned
+  const markAsActioned = async () => {
+    if (!selectedRecommendation) return;
+
+    setIsActioning(true);
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `https://health.prestigedelta.com/recommendations/${selectedRecommendation.id}/mark-actioned/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            doctor_notes: doctorNotes.trim() || null,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const updatedRecommendation = await response.json();
+
+        // Update the recommendation in the state
+        const updatedRecommendations = recommendations.map((rec) =>
+          rec.id === updatedRecommendation.id ? updatedRecommendation : rec
+        );
+
+        // Update the sorted recommendations lists
+        setPatientData({
+          ...patientData,
+          recommendations: {
+            ...patientData.recommendations,
+            recommendations: updatedRecommendations,
+          },
+        });
+
+        toast({
+          title: "Recommendation actioned",
+          description: "The recommendation has been marked as actioned.",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+
+        setActionModalOpen(false);
+      } else {
+        throw new Error("Failed to mark recommendation as actioned");
+      }
+    } catch (error) {
+      console.error("Error marking recommendation as actioned:", error);
+      toast({
+        title: "Error",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  // Render a recommendation card with action button
+  const renderRecommendationCard = (rec, colorScheme, borderColor) => {
+    const isActioned = rec.actioned_at !== undefined;
+
+    return (
+      <Box
+        key={rec.id}
+        p={3}
+        bg={isActioned ? "gray.50" : `${colorScheme}.50`}
+        rounded="md"
+        mb={2}
+        borderLeft="4px"
+        borderColor={isActioned ? "gray.300" : borderColor}
+        position="relative"
+        opacity={isActioned ? 0.7 : 1}
+      >
+        <Flex justify="space-between" align="center" mb={1}>
+          <Text fontWeight="bold">{rec.title}</Text>
+          {isActioned ? (
+            <Badge colorScheme="green">Actioned</Badge>
+          ) : (
+            <Button
+              size="xs"
+              colorScheme="green"
+              leftIcon={<CheckIcon />}
+              onClick={() => handleActionRecommendation(rec)}
+            >
+              Mark Actioned
+            </Button>
+          )}
+        </Flex>
+        <Text fontSize="sm">{rec.recommendation}</Text>
+        <Text fontSize="xs" fontStyle="italic" mt={1} color="gray.600">
+          Rationale: {rec.rationale}
+        </Text>
+        {isActioned && (
+          <Box mt={2} p={2} bg="white" rounded="md" fontSize="sm">
+            <Text fontWeight="semibold">
+              Actioned on: {new Date(rec.actioned_at).toLocaleDateString()}
+            </Text>
+            {rec.doctor_notes && (
+              <>
+                <Text fontWeight="semibold" mt={1}>
+                  Notes:
+                </Text>
+                <Text>{rec.doctor_notes}</Text>
+              </>
+            )}
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
+  const handleGenerateReport = () => {
+    navigate("/ask", {
+      state: {
+        initialQuery: `Generate a comprehensive progress report for patient ${item.id}`,
+        selectedPatientId: item.id,
+      },
+    });
+  };
+
   // Chart component for displaying health metrics
   const MetricChart = ({ metric, actions }) => {
+    const [selectedAction, setSelectedAction] = useState(null);
+    const [showActionDetails, setShowActionDetails] = useState(false);
+
+    // Calculate min and max values for proper Y axis scaling
+    const recordedValues = metric.records ? metric.records.map(r => r.recorded_value) : [];
+    const targetValue = metric.details.target_value;
+    const allValues = [...recordedValues, targetValue];
+    const minValue = Math.min(...allValues) * 0.9; // Add 10% padding below
+    const maxValue = Math.max(...allValues) * 1.1; // Add 10% padding above
+
+    // Process action data for relative display
+    const actionRecords = actions && actions.records ? actions.records : [];
+    // Normalize action values for relative display (if there are any)
+    const normalizedActions = actionRecords.length ? 
+      actionRecords.map(a => ({
+        x: new Date(a.performed_at).toLocaleDateString(),
+        y: a.value || 1, // Default to 1 if no value
+        details: a
+      })) : [];
+
+    // Find corresponding dates between metrics and actions
+    const dates = metric.records ? metric.records.map(r => new Date(r.recorded_at).toLocaleDateString()) : [];
+    // Filter actions to only include those on dates when metrics were recorded
+    const filteredActions = normalizedActions.filter(a => dates.includes(a.x));
+
     const chartData = {
       labels: metric.records
-        ? metric.records.map((r) =>
-            new Date(r.recorded_at).toLocaleDateString()
-          )
+        ? metric.records.map(r => new Date(r.recorded_at).toLocaleDateString())
         : [],
       datasets: [
         {
           label: metric.details.metric_name,
-          data: metric.records ? metric.records.map((r) => r.recorded_value) : [],
+          data: recordedValues,
           borderColor: "rgb(75, 192, 192)",
+          backgroundColor: "rgba(75, 192, 192, 0.2)",
           tension: 0.1,
+          yAxisID: 'y',
         },
         {
           label: "Target Value",
           data: metric.records
-            ? metric.records.map(() => metric.details.target_value)
+            ? metric.records.map(() => targetValue)
             : [],
           borderColor: "rgb(255, 205, 86)",
+          backgroundColor: "rgba(255, 205, 86, 0.2)",
           borderDash: [10, 5],
           tension: 0.1,
+          yAxisID: 'y'
         },
         {
           label: "Actions",
-          data:
-            actions && actions.records
-              ? actions.records.map((a) => a.value)
-              : [],
+          data: filteredActions.map(a => a.y),
           borderColor: "rgb(255, 99, 132)",
+          backgroundColor: "rgba(255, 99, 132, 0.5)",
           tension: 0.1,
+          yAxisID: 'y1',
+          pointStyle: 'rectRot',
+          pointRadius: 8,
+          pointHoverRadius: 12,
+          pointBackgroundColor: "rgba(255, 99, 132, 0.8)"
         },
       ],
+    };
+
+    const options = {
+      responsive: true,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      scales: {
+        y: {
+          type: 'linear',
+          display: true,
+          position: 'left',
+          min: minValue,
+          max: maxValue,
+          title: {
+            display: true,
+            text: metric.details.unit
+          }
+        },
+        y1: {
+          type: 'linear',
+          display: false, // Hide this axis as requested
+          position: 'right',
+          grid: {
+            drawOnChartArea: false,
+          }
+        }
+      },
+      onClick: (event, elements) => {
+        if (elements.length > 0) {
+          const clickedElement = elements[0];
+          const datasetIndex = clickedElement.datasetIndex;
+          
+          // Check if clicked on action point (dataset index 2)
+          if (datasetIndex === 2) {
+            const index = clickedElement.index;
+            setSelectedAction(filteredActions[index]);
+            setShowActionDetails(true);
+          }
+        }
+      }
+    };
+
+    const handleCloseDetails = () => {
+      setShowActionDetails(false);
+      setSelectedAction(null);
     };
 
     return (
@@ -256,7 +495,35 @@ const Details = () => {
         <Heading size="sm" mb={4}>
           {metric.details.metric_name}
         </Heading>
-        <Line data={chartData} />
+        <Text fontSize="xs" color="gray.500" mb={2}>
+          Click on action points to see details
+        </Text>
+        <Line data={chartData} options={options} />
+        {/* Action Details Modal */}
+        <Modal isOpen={showActionDetails} onClose={handleCloseDetails} size="md">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Action Details</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              {selectedAction && (
+                <Box>
+                  <Text fontWeight="bold">Date: {selectedAction.x}</Text>
+                  <Text>Result: {selectedAction.details.result}</Text>
+                  <Text>Compliance Rate: {selectedAction.details.compliance_rate}%</Text>
+                  <Text mt={2} fontStyle="italic">
+                    This action was taken as part of your health plan. Click on other action points to compare.
+                  </Text>
+                </Box>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button colorScheme="blue" onClick={handleCloseDetails}>
+                Close
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </Box>
     );
   };
@@ -356,8 +623,7 @@ const Details = () => {
       } else {
         toast({
           title: "Error updating health goal",
-          description:
-            result.message.message || "Failed to update health goal",
+          description: result.message.message || "Failed to update health goal",
           status: "error",
           duration: 5000,
           isClosable: true,
@@ -374,18 +640,8 @@ const Details = () => {
     }
   };
 
-  const handleGenerateReport = () => {
-    navigate("/ask", {
-      state: {
-        initialQuery: `Generate a comprehensive progress report for patient ${item.id}`,
-        selectedPatientId: item.id,
-      },
-    });
-  };
-
   if (loading) return <Spinner />;
   if (!patientData) return <Text>No data available</Text>;
-
   return (
     <ChakraProvider>
       <Box
@@ -406,10 +662,21 @@ const Details = () => {
           </Heading>
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
             <Box p={5} bg="white" rounded="lg" shadow="md">
-              <Text fontWeight="bold" fontSize="xl">
-                {patientData.profile_data.demographics.name}
-              </Text>
-              <Text>Age: {patientData.profile_data.demographics.age}</Text>
+              <Flex justify="space-between" align="center" mb={3}>
+                <Text fontWeight="bold" fontSize="xl">
+                  {patientData.profile_data.demographics.first_name} {patientData.profile_data.demographics.last_name}
+                </Text>
+                <Button 
+                  leftIcon={<ChatIcon />}
+                  colorScheme="blue" 
+                  size="sm"
+                  onClick={handleStartConversation}
+                >
+                  Start Conversation
+                </Button>
+              </Flex>
+              <Text>Age: {patientData.profile_data.demographics.age || 
+                           new Date().getFullYear() - new Date(patientData.profile_data.demographics.date_of_birth).getFullYear()}</Text>
               <Text>Gender: {patientData.profile_data.demographics.gender}</Text>
               <Text>
                 Date of Birth:{" "}
@@ -418,16 +685,69 @@ const Details = () => {
               <Text>
                 Location: {patientData.profile_data.demographics.location.country_code}
               </Text>
+              <Text mt={2}>Phone: {patientData.profile_data.demographics.phone_number}</Text>
             </Box>
             <Box p={5} bg="white" rounded="lg" shadow="md">
-              <Text fontWeight="bold">Health Score</Text>
-              <Heading size="xl" color="teal.500">
-                {patientData.profile_data.lifestyle.biometrics.health_score}
-              </Heading>
-              <Text>Height: {patientData.profile_data.lifestyle.biometrics.height} cm</Text>
-              <Text>Weight: {patientData.profile_data.lifestyle.biometrics.weight} kg</Text>
+              <Flex justify="space-between" align="center">
+                <Text fontWeight="bold">Overall Probability</Text>
+                <Heading size="xl" color={
+                  patientData.health_goal.overall_probability > 70 ? "green.500" : 
+                  patientData.health_goal.overall_probability > 40 ? "yellow.500" : "red.500"
+                }>
+                  {patientData.health_goal.overall_probability}%
+                </Heading>
+              </Flex>
+              <Text mt={2} fontSize="sm" color="gray.600">Expected Progress: {patientData.health_goal.expected_progress}%</Text>
+              <Text fontSize="sm" color="gray.600">Current Progress: {patientData.health_goal.progress}%</Text>
+              <Text mt={3} fontSize="sm">Height: {patientData.profile_data.lifestyle.biometrics.height} cm</Text>
+              <Text fontSize="sm">Weight: {patientData.profile_data.lifestyle.biometrics.weight} kg</Text>
+              <Text fontSize="sm">BMI: {patientData.profile_data.lifestyle.biometrics.bmi}</Text>
             </Box>
           </SimpleGrid>
+        </Box>
+
+        {/* Alerts & Recommendations */}
+        <Box mb={8}>
+          <Heading size="md" mb={4}>
+            Alerts & Recommendations
+          </Heading>
+          <Box p={5} bg="white" rounded="lg" shadow="md">
+            <Flex justify="space-between" align="center" mb={4}>
+              <Text fontWeight="bold">Priority Alerts</Text>
+              <Box>
+                <Badge colorScheme="red" mr={2}>Urgent: {patientData.recommendations.urgent_count}</Badge>
+                <Badge colorScheme="orange">High: {patientData.recommendations.high_count}</Badge>
+              </Box>
+            </Flex>
+            {urgentRecs.length > 0 && (
+              <Box mb={4}>
+                <Text fontWeight="semibold" color="red.500" mb={2}>Urgent - Immediate Action Required</Text>
+                {urgentRecs.map(rec => renderRecommendationCard(rec, "red", "red.500"))}
+              </Box>
+            )}
+            {urgentRecs.length === 0 && highRecs.length === 0 ? (
+              <Text color="green.500" fontWeight="medium">No urgent actions required at this time.</Text>
+            ) : (
+              <>
+                {highRecs.length > 0 && (
+                  <Box mb={4}>
+                    <Text fontWeight="semibold" color="orange.500" mb={2}>High Priority - Action Within 24 Hours</Text>
+                    {highRecs.slice(0, 3).map(rec => renderRecommendationCard(rec, "orange", "orange.500"))}
+                    {highRecs.length > 3 && (
+                      <Button size="sm" colorScheme="orange" variant="outline" mt={2}>
+                        View {highRecs.length - 3} more high priority alerts
+                      </Button>
+                    )}
+                  </Box>
+                )}
+              </>
+            )}
+            <Flex justify="flex-end">
+              <Button size="sm" colorScheme="blue" rightIcon={<AiOutlineArrowRight />}>
+                View All Recommendations ({patientData.recommendations.total_count})
+              </Button>
+            </Flex>
+          </Box>
         </Box>
 
         {/* Health Goal Section */}
@@ -468,7 +788,6 @@ const Details = () => {
                   }
                 />
               </FormControl>
-
               {/* Metrics Editing */}
               <Box mb={4}>
                 <Heading size="sm" mb={2}>
@@ -535,7 +854,6 @@ const Details = () => {
                   Add Metric
                 </Button>
               </Box>
-
               {/* Actions Editing */}
               <Box mb={4}>
                 <Heading size="sm" mb={2}>
@@ -626,30 +944,59 @@ const Details = () => {
                 Target Date:{" "}
                 {new Date(patientData.health_goal.target_date).toLocaleDateString()}
               </Text>
-              <Text mb={4}>{patientData.health_goal.comments}</Text>
-              {patientData.health_goal.metrics &&
-                patientData.health_goal.metrics.map((metric, index) => (
-                  <Box key={index} mb={2}>
-                    <Flex justify="space-between">
-                      <Text>{metric.metric_name}</Text>
-                      <Text>
-                        {metric.target_value} {metric.unit}
-                      </Text>
-                    </Flex>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mt={4}>
+                <Box>
+                  <Text mb={4}>{patientData.health_goal.comments}</Text>
+                  {patientData.health_goal.metrics &&
+                    patientData.health_goal.metrics.map((metric, index) => (
+                      <Box key={index} mb={2}>
+                        <Flex justify="space-between">
+                          <Text>{metric.metric_name}</Text>
+                          <Text>
+                            Target: {metric.target_value} {metric.unit}
+                          </Text>
+                        </Flex>
+                        <Flex justify="space-between">
+                          <Text fontSize="sm" color="gray.500">Current: {metric.current_value} {metric.unit}</Text>
+                          <Badge colorScheme={metric.status === "on_track" ? "green" : "yellow"}>
+                            {metric.status === "on_track" ? "On Track" : "Needs Attention"}
+                          </Badge>
+                        </Flex>
+                      </Box>
+                    ))}
+                </Box>
+                <Box>
+                  <Box mb={4} p={3} bg="gray.50" rounded="md">
+                    <Text fontWeight="semibold">Overall Assessment</Text>
+                    <Text fontSize="sm" mt={2}>{patientData.health_goal.overall_rationale}</Text>
                   </Box>
-                ))}
-              <Box mt={4}>
-                <Heading size="sm" mb={2}>
-                  Action Items
-                </Heading>
-                {patientData.health_goal.actions &&
-                  patientData.health_goal.actions.map((action, index) => (
-                    <Box key={index} p={3} bg="gray.50" rounded="md" mb={2}>
-                      <Text fontWeight="bold">{action.name}</Text>
-                      <Text fontSize="sm">{action.description}</Text>
+                  <SimpleGrid columns={2} spacing={4} mb={4}>
+                    <Box p={3} bg="blue.50" rounded="md" textAlign="center">
+                      <Text fontWeight="bold" fontSize="lg">{patientData.health_goal.overall_compliance_rate}%</Text>
+                      <Text fontSize="sm">Compliance Rate</Text>
                     </Box>
-                  ))}
-              </Box>
+                    <Box p={3} bg="green.50" rounded="md" textAlign="center">
+                      <Text fontWeight="bold" fontSize="lg">{patientData.health_goal.streak_count}</Text>
+                      <Text fontSize="sm">Day Streak</Text>
+                    </Box>
+                  </SimpleGrid>
+                  <Box>
+                    <Heading size="sm" mb={2}>
+                      Action Items
+                    </Heading>
+                    {patientData.health_goal.actions &&
+                      patientData.health_goal.actions.map((action, index) => (
+                        <Box key={index} p={3} bg="gray.50" rounded="md" mb={2}>
+                          <Text fontWeight="bold">{action.name}</Text>
+                          <Text fontSize="sm">{action.description}</Text>
+                          {action.interval > 0 && (
+                            <Text fontSize="xs" color="gray.500">Every {action.interval} hours</Text>
+                          )}
+                        </Box>
+                      ))}
+                  </Box>
+                </Box>
+              </SimpleGrid>
             </Box>
           )}
         </Box>
@@ -877,6 +1224,45 @@ const Details = () => {
               {buttonVisible ? <Spinner size="sm" /> : "Submit"}
             </Button>
             <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Action Recommendation Modal */}
+      <Modal isOpen={actionModalOpen} onClose={() => setActionModalOpen(false)}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Mark Recommendation as Actioned</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {selectedRecommendation && (
+              <>
+                <Text fontWeight="bold" mb={2}>{selectedRecommendation.title}</Text>
+                <Text fontSize="sm" mb={4}>{selectedRecommendation.recommendation}</Text>
+                <FormControl>
+                  <FormLabel>Doctor Notes (Optional)</FormLabel>
+                  <Textarea
+                    value={doctorNotes}
+                    onChange={(e) => setDoctorNotes(e.target.value)}
+                    placeholder="Add any notes about how this recommendation was handled..."
+                    rows={4}
+                  />
+                </FormControl>
+              </>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button 
+              colorScheme="green" 
+              mr={3} 
+              onClick={markAsActioned}
+              isLoading={isActioning}
+            >
+              Confirm
+            </Button>
+            <Button variant="ghost" onClick={() => setActionModalOpen(false)}>
               Cancel
             </Button>
           </ModalFooter>

@@ -4,12 +4,16 @@ import SendIcon from '@mui/icons-material/Send';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import RefreshIcon from '@mui/icons-material/Refresh'; // Add RefreshIcon import
 import Sidebar from '../components/sidebar';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // Add useLocation
 import { getAccessToken } from './api'; // Add this import
 import AskQuestionIcon from '@mui/icons-material/Psychology'; // Add this import
 
 const PatientMessages = () => {
   const navigate = useNavigate();
+  const { state } = useLocation(); // Get navigation state params
+  const initialPatientId = state?.selectedPatientId;
+  const initialPatientName = state?.patientName;
+
   const [sidebarMinimized, setSidebarMinimized] = useState(false);
   const handleNavigate = (path) => navigate(path);
   const handleToggleSidebar = (newState) => setSidebarMinimized(newState);
@@ -134,6 +138,17 @@ const PatientMessages = () => {
 
     fetchData();
   }, [navigate]);
+
+  // Handle initial state if coming from patient details page
+  useEffect(() => {
+    if (state?.newConversation && initialPatientId) {
+      setIsNewConversation(true);
+      setSelectedPatient(initialPatientId);
+      setSelectedThread(null);
+      setMessages([]);
+      setAiAutoResponse(true); // Default to AI for new conversations
+    }
+  }, [state]);
 
   const generateTemplatePreview = () => {
     // Get doctor name from stored user info

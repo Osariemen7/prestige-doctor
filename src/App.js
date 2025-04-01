@@ -7,6 +7,7 @@ import RegisterPage from './components/register';
 import LoginPage from './components/login';
 import ProviderPage from './components/provider';
 import DashboardPage from './components/dash';
+import Dashboard from './components/dashboard'; // Assuming you want to use the Dashboard component here
 import DetailPage from './components/detail';
 import ConsultAIPage from './components/consult';
 import Organization from './components/organization';
@@ -35,7 +36,7 @@ const App = () => {
           <Route path="/" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/provider" element={<ProviderPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/detail" element={<DetailPage />} />
           <Route path="/consult-ai" element={<ConsultAIPage />} />
           <Route path="/organization" element={<Organization />} />
