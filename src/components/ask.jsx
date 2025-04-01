@@ -288,16 +288,38 @@ const SearchBox = () => {
       });
       if (!response.ok) throw new Error('Failed to fetch threads');
       const data = await response.json();
+      
+      // Log the current thread ID before updates
+      console.log("Current threadId before refresh:", threadId);
+      
+      // Update threads with fresh data
       setThreads(data);
-      // Find the most recent thread (which should be the new one)
-      if (data.length > 0) {
-        const newestThread = data[0]; // Assuming threads are sorted by creation date
-        setSelectedThread(newestThread);
+      
+      // If we have a current thread ID, find and update it
+      if (threadId) {
+        // First try to find exact match
+        const currentThreadFromServer = data.find(t => String(t.id) === String(threadId));
+        
+        if (currentThreadFromServer) {
+          console.log("Found matching thread in refresh:", currentThreadFromServer.id);
+          setSelectedThread(currentThreadFromServer);
+        }
+        // If current thread is temporary or not found, check for newest thread
+        else if (String(threadId).startsWith('temp-') || !currentThreadFromServer) {
+          if (data.length > 0) {
+            console.log("Using newest thread instead:", data[0].id);
+            const newestThread = data[0];
+            setThreadId(newestThread.id); 
+            setSelectedThread(newestThread);
+          }
+        }
       }
+      
+      console.log("Threads refreshed, current threadId:", threadId);
     } catch (error) {
       console.error('Error refreshing threads:', error);
     }
-  }, []);
+  }, [threadId]);
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim() && !selectedImage) return;
@@ -307,37 +329,47 @@ const SearchBox = () => {
     setIsResponseLoading(true);
     setIsSourcesVisible(false);
 
-    // Only create temporary thread if this is a new conversation
-    if (!threadId) {
+    // Get the current thread ID (real or temporary)
+    const currentThreadId = threadId;
+    
+    // Track if this is a new conversation with a temporary ID
+    const isTemporaryThread = currentThreadId && String(currentThreadId).startsWith('temp-');
+
+    // Modified: Always assign a temporary thread id if none exists
+    if (!currentThreadId) {
+      const tempId = `temp-${Date.now()}`; // new temporary id
       const tempThread = {
-        id: `temp-${Date.now()}`, // This is a string
+        id: tempId,
         created_at: new Date().toISOString(),
         messages: [{
           role: 'user',
           content: selectedImagePreview || currentMessage
         }]
       };
+      setThreadId(tempId); // <-- new: update threadId state
       setThreads(prev => [tempThread, ...prev]);
       setSelectedThread(tempThread);
     }
 
     try {
       const token = await getAccessToken();
-      console.log("Access Token:", token); // Log the token
+      console.log("Access Token:", token);
 
       const apiUrl = "https://health.prestigedelta.com/research/";
 
       let payload = { expertise_level: expertLevel };
-      let requestBody; // Declare requestBody
-      let headers;    // Declare headers
+      let requestBody;
+      let headers;
 
       // Use perplexityThread if available from navigation state
       if (location.state?.perplexityThread) {
         payload.thread_id = location.state.perplexityThread;
-      } else if (threadId) {
-        payload.thread_id = threadId;
+      } else if (currentThreadId && !isTemporaryThread) {
+        // Only send thread_id if it's a real ID (not temporary)
+        payload.thread_id = currentThreadId;
+        console.log("Using thread_id in request:", currentThreadId);
       } else if (selectedPatient) {
-        // Only include patient_id if there's no thread_id
+        // Only include patient_id if there's no real thread_id
         payload.patient_id = selectedPatient.id;
       }
 
@@ -352,7 +384,6 @@ const SearchBox = () => {
       };
       setChatMessages((prev) => [...prev, userMessage]);
 
-
       if (selectedImage) {
         const formData = new FormData();
         for (const key in payload) {
@@ -364,9 +395,7 @@ const SearchBox = () => {
         headers = {
           "Authorization": `Bearer ${token}`, // FormData handles content-type
         };
-        console.log("Request Headers (FormData):", headers); // Log headers for FormData
-        console.log("Request Body (FormData):", formData); // Log FormData
-
+        console.log("Image request with payload:", Object.fromEntries(formData.entries()));
       } else {
         payload.query = currentMessage;
         requestBody = JSON.stringify(payload);
@@ -374,17 +403,14 @@ const SearchBox = () => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         };
-        console.log("Request Headers (JSON):", headers); // Log headers for JSON
-        console.log("Request Body (JSON):", requestBody); // Log JSON body
+        console.log("Text request with payload:", payload);
       }
-
 
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: headers,
         body: requestBody,
       });
-
 
       if (!response.body) {
         throw new Error("No response body");
@@ -393,8 +419,7 @@ const SearchBox = () => {
       // Reset selected image and preview after sending
       setSelectedImage(null);
       setSelectedImagePreview(null);
-      setIsExpertLevelLocked(false); // Unlock dropdown after image sent and response started
-
+      setIsExpertLevelLocked(false);
 
       let assistantMessage = { role: "assistant", content: "", citations: [] };
       setChatMessages((prev) => [...prev, assistantMessage]);
@@ -402,10 +427,9 @@ const SearchBox = () => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
-      let buffer = "";
 
       if (selectedImage) {
-        // Handle plain text response for image upload (same as before)
+        // Handle image response - we need to parse the complete response
         let accumulatedResponse = '';
         while (!done) {
           const { value, done: doneReading } = await reader.read();
@@ -413,43 +437,132 @@ const SearchBox = () => {
           const chunkText = decoder.decode(value);
           accumulatedResponse += chunkText;
         }
-        assistantMessage.content = accumulatedResponse.trim();
-        setChatMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { ...assistantMessage };
-          return updated;
-        });
-
+        
+        try {
+          // Check if the response starts with a JSON object containing thread_id
+          let jsonHeader = null;
+          let cleanedResponse = accumulatedResponse;
+          
+          // Look for JSON at the beginning of the response
+          const jsonMatch = accumulatedResponse.match(/^\s*(\{.*?\})/);
+          if (jsonMatch) {
+            try {
+              jsonHeader = JSON.parse(jsonMatch[1]);
+              // Remove the JSON from the displayed response
+              cleanedResponse = accumulatedResponse.substring(jsonMatch[0].length).trim();
+              console.log("Extracted JSON header:", jsonHeader);
+            } catch (jsonError) {
+              console.warn("Found potential JSON header but couldn't parse it:", jsonMatch[1]);
+            }
+          }
+          
+          // First try to get thread_id from JSON header if found
+          let newThreadId = jsonHeader?.thread_id;
+          
+          // If not found in header, try parsing the entire response as JSON as fallback
+          if (!newThreadId) {
+            try {
+              const parsed = JSON.parse(accumulatedResponse);
+              if (parsed.thread_id) {
+                newThreadId = parsed.thread_id;
+                // If the entire response was JSON, we don't want to display it
+                cleanedResponse = parsed.accumulated_response || '';
+              }
+            } catch (e) {
+              // Not valid JSON, continue with the original response
+            }
+          }
+          
+          if (newThreadId) {
+            console.log("Received new thread_id from image response:", newThreadId);
+            
+            // Critical update: Immediately update thread ID state with the real ID
+            setThreadId(newThreadId);
+            
+            // Update threads list - replace temp thread with real one
+            setThreads(prev => prev.map(t => 
+              (t.id === currentThreadId) 
+                ? { ...t, id: newThreadId } 
+                : t
+            ));
+            
+            // Update selected thread
+            if (selectedThread?.id === currentThreadId) {
+              setSelectedThread(prev => ({ ...prev, id: newThreadId }));
+            }
+          } else {
+            console.warn("No thread_id received in image response");
+          }
+          
+          // Use the cleaned response for display
+          assistantMessage.content = cleanedResponse.trim();
+          
+          // Force an update of chat messages with the latest content
+          setChatMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...assistantMessage };
+            return updated;
+          });
+          
+          // If we received a new thread ID, ensure it's properly saved
+          if (newThreadId) {
+            console.log("Thread ID after image processing:", newThreadId);
+            // Explicitly trigger a refresh to ensure state consistency
+            setTimeout(() => refreshThreads(), 500);
+          }
+        } catch(e) {
+          console.error("Error processing image response:", e);
+          assistantMessage.content = accumulatedResponse.trim();
+          setChatMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...assistantMessage };
+            return updated;
+          });
+        }
       } else {
-        // Handle JSON stream for text messages (same as before)
+        // Handle text responses with streaming
+        let buffer = "";
+        let newThreadId = null;
+        
         while (!done) {
           const { value, done: doneReading } = await reader.read();
           done = doneReading;
           buffer += decoder.decode(value, { stream: true });
           const parts = buffer.split("\n");
           buffer = parts.pop();
-
-          parts.forEach((part) => {
+          
+          for (const part of parts) {
             if (part.trim()) {
               try {
                 const parsed = JSON.parse(part);
+                
                 if (parsed.thread_id) {
-                  if (!threadId) {
-                    // Only update thread ID if this was a new conversation
+                  newThreadId = parsed.thread_id;
+                  console.log("Received thread_id from text response:", newThreadId);
+                  
+                  // Only update thread references if this was a new conversation or had a temporary ID
+                  if (!currentThreadId || isTemporaryThread) {
+                    // Critical: Update thread ID state immediately
+                    setThreadId(newThreadId);
+                    
+                    // Update threads list
                     setThreads(prev => prev.map(t => 
-                      // Safely check if thread ID is temporary
-                      (String(t.id).startsWith('temp-'))
-                        ? { ...t, id: parsed.thread_id }
+                      (t.id === currentThreadId) 
+                        ? { ...t, id: newThreadId } 
                         : t
                     ));
+                    
+                    // Update selected thread
+                    if (selectedThread?.id === currentThreadId) {
+                      setSelectedThread(prev => ({ ...prev, id: newThreadId }));
+                    }
                   }
-                  setThreadId(parsed.thread_id);
-                  setSelectedThread(prev => ({ ...prev, id: parsed.thread_id }));
                 }
+                
                 if (parsed.assistant_response_chunk) {
                   assistantMessage.content = parsed.accumulated_response;
                   assistantMessage.citations = parsed.citations;
-                  setChatMessages((prev) => {
+                  setChatMessages(prev => {
                     const updated = [...prev];
                     updated[updated.length - 1] = { ...assistantMessage };
                     return updated;
@@ -459,18 +572,23 @@ const SearchBox = () => {
                 console.error("Error parsing JSON chunk:", error);
               }
             }
-          });
+          }
+        }
+        
+        // After processing all chunks, log the final thread ID and refresh
+        if (newThreadId) {
+          console.log("Final thread ID after text response:", newThreadId);
+          // Explicitly trigger a refresh after small delay to ensure state consistency
+          setTimeout(() => refreshThreads(), 500);
         }
       }
 
-
     } catch (error) {
       console.error("Error sending message:", error);
-      if (!threadId) {
+      if (!currentThreadId || isTemporaryThread) {
         // Only remove temporary thread on error if this was a new conversation
-        setThreads(prev => prev.filter(t => !String(t.id).startsWith('temp-')));
+        setThreads(prev => prev.filter(t => t.id !== currentThreadId));
       }
-      // If error contains a specific message from the backend, use it:
       const errorMessage = error?.message || "Sorry, I encountered an error. Please try again later.";
       showSnackbar(errorMessage, 'error');
       setChatMessages((prev) => [
@@ -483,7 +601,7 @@ const SearchBox = () => {
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, selectedImage, selectedImagePreview, isExpertLevelLocked, location.state, refreshThreads]);
+  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, selectedImage, selectedImagePreview, isExpertLevelLocked, location.state, refreshThreads, selectedThread]);
 
   const getDomainFromUrl = (url) => {
     try {
@@ -1039,10 +1157,10 @@ const SearchBox = () => {
                       >
 
                       <MenuItem value="low">
-                          <em>AI Level</em>
+                          <em>Expertise Level</em>
                         </MenuItem>
                         <MenuItem value="low" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.05</MenuItem>
-                        <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.15</MenuItem>
+                        <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.2</MenuItem>
                         <MenuItem value="high">Advanced $0.5</MenuItem>
                       </Select>
                     </FormControl>
