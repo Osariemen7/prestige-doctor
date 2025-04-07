@@ -5,9 +5,47 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  padding: 0;
+  min-height: 100vh;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+html, body {
+  height: 100%;
+  overflow-y: auto !important; /* Force scrolling to be enabled */
+}
+
+.detail-page-container {
+  min-height: 100vh;
+  position: relative;
+  overflow-y: visible !important; /* Ensure content can expand */
+}
+
+[data-overlay] {
+  overflow: auto !important;
+}
+
+/* Fix for modal scrolling issues */
+.chakra-modal__content-container {
+  overflow-y: auto !important;
+}
+
+body.chakra-ui-light[style*="overflow: hidden"] {
+  padding-right: 0 !important; /* Prevent layout shift when modal opens */
+}
+
+/* Ensure the app stays scrollable even when modals are open/closed */
+#root {
+  position: relative;
+  min-height: 100vh;
+  overflow-y: visible !important;
+}
+
+/* For when modal closes */
+.force-scroll {
+  overflow: auto !important;
 }
