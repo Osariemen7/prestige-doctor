@@ -152,92 +152,109 @@ const getRefreshToken = async () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(45deg, rgb(152, 202, 243) 30%, #BBDEFB 90%)',
-        p: 2,
+        background: 'linear-gradient(135deg, #E3F2FD 0%, #90CAF9 100%)',
+        p: 4,
         overflowY: 'auto',
       }}
     >
       <Paper
-        elevation={3}
+        elevation={6}
         sx={{
-        
           width: '100%',
           maxWidth: 500,
-          p: 4,
-          bgcolor: 'rgba(255, 255, 255, 0.8)',
+          p: 2,
+          bgcolor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(10px)',
-          borderRadius: 2,
-          marginTop: '13%'
+          borderRadius: 3,
+          boxShadow: '0 8px 32px rgba(33, 150, 243, 0.1)',
+          position: 'relative',
+          marginTop: '29%',
+          marginBottom: '5%'
         }}
       >
         <IconButton
           onClick={() => navigate('/register')}
           sx={{
             position: 'absolute',
-            top: 26,
-            left: 16,
-            color: '#2196F3',
+            top: 20,
+            left: 20,
+            color: '#1976D2',
+            bgcolor: 'rgba(33, 150, 243, 0.1)',
+            '&:hover': {
+              bgcolor: 'rgba(33, 150, 243, 0.2)',
+            },
           }}
         >
           <ArrowLeft size={20} />
         </IconButton>
 
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h5" component="h1" sx={{ color: '#2196F3', fontWeight: 'bold' }}>
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography variant="h4" component="h1" 
+            sx={{ 
+              color: '#1976D2', 
+              fontWeight: 700,
+              textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              mb: 1
+            }}>
             Create Profile
+          </Typography>
+          <Typography variant="body1" sx={{ color: '#607D8B' }}>
+            Set up your professional healthcare profile
           </Typography>
         </Box>
 
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField
-            name="clinicName"
-            label="Clinic Name"
-            variant="outlined"
-            value={clinicName}
-            onChange={(e) => setClinicName(e.target.value)}
-            InputProps={{ sx: { backgroundColor: 'rgba(255,255,255,0.5)' } }}
-          />
-          <Autocomplete
-            options={providerType}
-            value={provider}
-            onChange={(event, newValue) => setProvider(newValue)}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Select Profession"
-                variant="outlined"
-                InputProps={{
-                  ...params.InputProps,
-                  sx: { backgroundColor: 'rgba(255,255,255,0.5)' },
-                }}
-              />
-            )}
-          />
-          <TextField
-            name="specialty"
-            label="Specialty (e.g. Cardiologist)"
-            variant="outlined"
-            value={specialty}
-            onChange={(e) => setSpecialty(e.target.value)}
-            required
-            InputProps={{ sx: { backgroundColor: 'rgba(255,255,255,0.5)' } }}
-          />
-          <Autocomplete
-            options={qualificationOptions}
-            value={qualifications}
-            onChange={(event, newValue) => setQualifications(newValue)}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Select Qualification"
-                variant="outlined"
-                InputProps={{
-                  ...params.InputProps,
-                  sx: { backgroundColor: 'rgba(255,255,255,0.5)' },
-                }}
-              />
-            )}
-          />
+        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          {[
+            { name: 'clinicName', label: 'Clinic Name', value: clinicName, onChange: (e) => setClinicName(e.target.value) },
+            { name: 'specialty', label: 'Specialty (e.g. Cardiologist)', value: specialty, onChange: (e) => setSpecialty(e.target.value), required: true },
+            { name: 'bio', label: 'Bio', value: bio, onChange: (e) => setBio(e.target.value), multiline: true, rows: 4 },
+          ].map((field) => (
+            <TextField
+              key={field.name}
+              {...field}
+              variant="outlined"
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: 'rgba(255,255,255,0.8)',
+                  '&:hover': {
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#2196F3',
+                    }
+                  },
+                  '&.Mui-focused': {
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1976D2',
+                      borderWidth: 2
+                    }
+                  }
+                }
+              }}
+            />
+          ))}
+
+          {[
+            { options: providerType, value: provider, onChange: (_, newValue) => setProvider(newValue), label: 'Select Profession' },
+            { options: qualificationOptions, value: qualifications, onChange: (_, newValue) => setQualifications(newValue), label: 'Select Qualification' }
+          ].map((field, index) => (
+            <Autocomplete
+              key={index}
+              {...field}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label={field.label}
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'rgba(255,255,255,0.8)',
+                    }
+                  }}
+                />
+              )}
+            />
+          ))}
+
           <TextField
             label="Date of Registration"
             type="date"
@@ -245,17 +262,13 @@ const getRefreshToken = async () => {
             onChange={handleDateChange}
             InputLabelProps={{ shrink: true }}
             variant="outlined"
-            InputProps={{ sx: { backgroundColor: 'rgba(255,255,255,0.5)' } }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: 'rgba(255,255,255,0.8)',
+              }
+            }}
           />
-          <TextField
-            label="Bio"
-            multiline
-            rows={4}
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            variant="outlined"
-            InputProps={{ sx: { backgroundColor: 'rgba(255,255,255,0.5)' } }}
-          />
+
           <FormControl fullWidth>
             <TextField
               label="Amount to be paid per hour"
@@ -265,39 +278,67 @@ const getRefreshToken = async () => {
               required
               InputProps={{
                 startAdornment: <InputAdornment position="start">₦</InputAdornment>,
-                sx: { backgroundColor: 'rgba(255,255,255,0.5)' },
+                sx: { backgroundColor: 'rgba(255,255,255,0.8)' },
               }}
               variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '&:hover': {
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#2196F3',
+                    }
+                  }
+                }
+              }}
             />
           </FormControl>
+
           <FormControl fullWidth>
             <TextField
-              label="Input Referal Code"
+              label="Referral Code"
               type="number"
               value={referral_code}
-              onChange={(e) =>setReferal(e.target.value)}
+              onChange={(e) => setReferal(e.target.value)}
               required
-              InputProps={{
-                sx: { backgroundColor: 'rgba(255,255,255,0.5)' },
-              }}
               variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: 'rgba(255,255,255,0.8)',
+                  '&:hover': {
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#2196F3',
+                    }
+                  }
+                }
+              }}
             />
           </FormControl>
+
           {message && (
-            <Typography variant="body2" sx={{ color: 'red', textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: '#f44336', textAlign: 'center', mt: 1 }}>
               {message}
             </Typography>
           )}
+
           <Button
             type="submit"
             variant="contained"
             sx={{
-              bgcolor: '#2196F3',
-              '&:hover': { bgcolor: '#1976D2' },
+              bgcolor: '#1976D2',
+              color: 'white',
+              py: 1.5,
               mt: 2,
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              textTransform: 'none',
+              boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+              '&:hover': {
+                bgcolor: '#1565C0',
+                boxShadow: '0 6px 16px rgba(25, 118, 210, 0.4)',
+              },
             }}
           >
-            Submit
+            Create Profile
           </Button>
         </Box>
       </Paper>
@@ -307,6 +348,11 @@ const getRefreshToken = async () => {
         autoHideDuration={3000}
         onClose={() => setSnackbarOpen(false)}
         message={message || 'Profile updated successfully'}
+        sx={{
+          '& .MuiSnackbarContent-root': {
+            bgcolor: message?.includes('error') ? '#f44336' : '#43a047',
+          }
+        }}
       />
     </Box>
   );

@@ -136,52 +136,71 @@ const AvailabilitySelector = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: 'linear-gradient(45deg, rgb(152, 202, 243) 30%, #BBDEFB 90%)',
+        background: 'linear-gradient(135deg, #E3F2FD 0%, #90CAF9 100%)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
         p: 2,
         overflowY: 'auto',
-        
       }}
     >
       <Paper
-        elevation={3}
+        elevation={6}
         sx={{
           width: '100%',
           maxWidth: 600,
           p: 4,
-          borderRadius: 2,
           bgcolor: 'rgba(255, 255, 255, 0.95)',
-          marginTop: '17%'
+          backdropFilter: 'blur(10px)',
+          borderRadius: 3,
+          boxShadow: '0 8px 32px rgba(33, 150, 243, 0.1)',
+          my: 4,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <IconButton onClick={() => navigate(-1)} sx={{ color: '#2196F3' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+          <IconButton 
+            onClick={() => navigate(-1)} 
+            sx={{ 
+              color: '#1976D2',
+              bgcolor: 'rgba(33, 150, 243, 0.1)',
+              mr: 2,
+              '&:hover': {
+                bgcolor: 'rgba(33, 150, 243, 0.2)',
+              },
+            }}
+          >
             <ArrowBackIcon />
           </IconButton>
-          <Typography variant="h5" sx={{ ml: 1, color: '#2196F3' }}>
-            Set Your Available Days
-          </Typography>
+          <Box>
+            <Typography variant="h5" sx={{ color: '#1976D2', fontWeight: 700 }}>
+              Set Your Availability
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#607D8B', mt: 0.5 }}>
+              Choose the days and times you're available for consultations
+            </Typography>
+          </Box>
         </Box>
 
-        <Box
-          component="form"
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            justifyContent: 'center',
-          }}
-        >
-          <FormControl fullWidth>
+        <Box sx={{ mb: 4 }}>
+          <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel id="day-select-label">Day of Week</InputLabel>
             <Select
               labelId="day-select-label"
               value={selectedDay}
               label="Day of Week"
               onChange={(e) => setSelectedDay(e.target.value)}
-              sx={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
+              sx={{
+                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(25, 118, 210, 0.2)',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#2196F3',
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#1976D2',
+                }
+              }}
             >
               <MenuItem value="">
                 <em>Select a day</em>
@@ -194,55 +213,95 @@ const AvailabilitySelector = () => {
             </Select>
           </FormControl>
 
-          <TextField
-            label="Start Time"
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ step: 300 }}
-            sx={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
-          />
-
-          <TextField
-            label="End Time"
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ step: 300 }}
-            sx={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
-          />
+          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <TextField
+              label="Start Time"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{
+                flex: 1,
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'rgba(255, 255, 255, 0.8)',
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#2196F3',
+                  },
+                }
+              }}
+            />
+            <TextField
+              label="End Time"
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{
+                flex: 1,
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'rgba(255, 255, 255, 0.8)',
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#2196F3',
+                  },
+                }
+              }}
+            />
+          </Box>
 
           <Button
-            variant="contained"
+            variant="outlined"
             onClick={handleAddAvailability}
             disabled={!selectedDay || !startTime || !endTime}
+            fullWidth
             sx={{
-              bgcolor: '#2196F3',
-              '&:hover': { bgcolor: '#1976D2' },
-              py: 1.5,
+              color: '#1976D2',
+              borderColor: '#1976D2',
+              py: 1.2,
+              '&:hover': {
+                borderColor: '#1565C0',
+                bgcolor: 'rgba(25, 118, 210, 0.04)',
+              },
+              '&.Mui-disabled': {
+                borderColor: '#90CAF9',
+                color: '#90CAF9',
+              }
             }}
           >
-            Add Available Day
+            Add Available Time Slot
           </Button>
         </Box>
 
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" sx={{ mb: 2, color: '#2196F3' }}>
-            Selected Available Days
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h6" sx={{ color: '#1976D2', mb: 2, fontWeight: 600 }}>
+            Selected Time Slots
           </Typography>
           {availabilities.length === 0 ? (
-            <Typography variant="body2">No days added yet.</Typography>
+            <Paper 
+              variant="outlined" 
+              sx={{ 
+                p: 3, 
+                textAlign: 'center',
+                borderColor: 'rgba(25, 118, 210, 0.2)',
+                bgcolor: 'rgba(25, 118, 210, 0.02)'
+              }}
+            >
+              <Typography variant="body2" sx={{ color: '#607D8B' }}>
+                No time slots added yet.
+              </Typography>
+            </Paper>
           ) : (
-            <List>
+            <List sx={{ bgcolor: 'rgba(255, 255, 255, 0.5)' }}>
               {availabilities.map((availability, index) => (
                 <ListItem
                   key={index}
                   sx={{
-                    border: '1px solid #ccc',
-                    borderRadius: 1,
                     mb: 1,
+                    borderRadius: 1,
+                    border: '1px solid rgba(25, 118, 210, 0.2)',
+                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                    '&:hover': {
+                      bgcolor: 'rgba(25, 118, 210, 0.02)',
+                    }
                   }}
                 >
                   <ListItemText
@@ -250,12 +309,19 @@ const AvailabilitySelector = () => {
                     secondary={`${formatTime(availability.start_time)} - ${formatTime(
                       availability.end_time
                     )}`}
+                    primaryTypographyProps={{ fontWeight: 600, color: '#1976D2' }}
+                    secondaryTypographyProps={{ color: '#607D8B' }}
                   />
                   <ListItemSecondaryAction>
                     <IconButton
                       edge="end"
                       onClick={() => handleRemoveAvailability(index)}
-                      sx={{ color: 'red' }}
+                      sx={{ 
+                        color: '#f44336',
+                        '&:hover': {
+                          bgcolor: 'rgba(244, 67, 54, 0.04)',
+                        }
+                      }}
                     >
                       <DeleteIcon />
                     </IconButton>
@@ -265,32 +331,41 @@ const AvailabilitySelector = () => {
             </List>
           )}
         </Box>
-        {message && (
-          <Typography variant="body2" sx={{ mt: 2, color: 'red', textAlign: 'center' }}>
-            {message}
-          </Typography>
-        )}
+
         <Button
           variant="contained"
           onClick={handleSubmit}
           fullWidth
           sx={{
-            bgcolor: '#2196F3',
-            '&:hover': { bgcolor: '#1976D2' },
-            mt: 3,
+            bgcolor: '#1976D2',
+            color: 'white',
             py: 1.5,
+            fontSize: '1.1rem',
+            fontWeight: 600,
+            textTransform: 'none',
+            boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+            '&:hover': {
+              bgcolor: '#1565C0',
+              boxShadow: '0 6px 16px rgba(25, 118, 210, 0.4)',
+            },
           }}
         >
-          Submit
+          Save Availability
         </Button>
-      </Paper>
 
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
-        message={message || 'Submission Successful'}
-      />
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          sx={{
+            '& .MuiSnackbarContent-root': {
+              bgcolor: message?.includes('error') ? '#f44336' : '#43a047',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            }
+          }}
+          message={message}
+        />
+      </Paper>
     </Box>
   );
 };
