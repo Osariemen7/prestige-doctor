@@ -10,7 +10,11 @@ import {
   Alert,
   Container,
   CircularProgress,
-  Fade
+  Fade,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +29,7 @@ const RegistrationPage = () => {
     first_name: '',
     middle_name: '',
   });
+  const [countryCode, setCountryCode] = useState('+234');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -41,7 +46,12 @@ const RegistrationPage = () => {
     setSnackbarOpen(true);
     setLoading(true);
     try {
-      const formattedPhoneNumber = formData.phone_number.replace(/^0/, '+234');
+      // Format phone number with selected country code
+      const rawPhoneNumber = formData.phone_number.startsWith('0') 
+        ? formData.phone_number.slice(1) 
+        : formData.phone_number;
+      const formattedPhoneNumber = countryCode + rawPhoneNumber;
+      
       const item = {
         ...formData,
         phone_number: formattedPhoneNumber,
@@ -76,7 +86,6 @@ const RegistrationPage = () => {
     { name: 'middle_name', label: 'Middle Name', required: false },
     { name: 'last_name', label: 'Last Name', required: true },
     { name: 'email', label: 'Email', type: 'email', required: true },
-    { name: 'phone_number', label: 'Phone Number', type: 'tel', required: true },
   ];
 
   return (
@@ -197,6 +206,61 @@ const RegistrationPage = () => {
                 }}
               />
             ))}
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <FormControl sx={{ width: '30%' }}>
+                <InputLabel id="country-code-label">Code</InputLabel>
+                <Select
+                  labelId="country-code-label"
+                  value={countryCode}
+                  label="Code"
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  sx={{
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    '&:hover': {
+                      bgcolor: 'rgba(255,255,255,0.9)',
+                    },
+                  }}
+                >
+                  <MenuItem value="+234">+234 (Nigeria)</MenuItem>
+                  <MenuItem value="+44">+44 (UK)</MenuItem>
+                  <MenuItem value="+1">+1 (USA/Canada)</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                name="phone_number"
+                label="Phone Number"
+                type="tel"
+                variant="outlined"
+                value={formData.phone_number}
+                onChange={handleInputChange}
+                required
+                fullWidth
+                InputProps={{
+                  sx: {
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    '&:hover': {
+                      bgcolor: 'rgba(255,255,255,0.9)',
+                    },
+                  },
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: 'rgba(25, 118, 210, 0.2)',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'rgba(25, 118, 210, 0.5)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#1976D2',
+                    },
+                  },
+                }}
+              />
+            </Box>
 
             <TextField
               name="password"
