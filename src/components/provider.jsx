@@ -11,6 +11,8 @@ import {
   InputAdornment,
   Autocomplete,
   Snackbar,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { ArrowLeft } from 'lucide-react';
 
@@ -28,6 +30,7 @@ const ProviderPage = () => {
   const [message, setMessage] = useState('');
   const [amount, setAmount] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('NGN');
   const navigate = useNavigate();
 
   const qualificationOptions = [
@@ -53,6 +56,12 @@ const ProviderPage = () => {
     {value:'radiographer', label:'Radiographer'},
     {value:'nurse', label:'Nurse'},
 ]
+
+const currencies = {
+  NGN: '₦',
+  USD: '$',
+  GBP: '£'
+};
 
 const getRefreshToken = async () => {
   try {
@@ -117,7 +126,7 @@ const getRefreshToken = async () => {
       provider_type: provider?.value,
       bio: bio,
       rate_per_hour: amount,
-      rate_currency: 'NGN',
+      rate_currency: selectedCurrency,
       referral_code: referral_code,
     };
     const accessToken = await getAccessToken();
@@ -277,12 +286,33 @@ const getRefreshToken = async () => {
               onChange={(e) => setAmount(e.target.value)}
               required
               InputProps={{
-                startAdornment: <InputAdornment position="start">₦</InputAdornment>,
-                sx: { backgroundColor: 'rgba(255,255,255,0.8)' },
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Select
+                      value={selectedCurrency}
+                      onChange={(e) => setSelectedCurrency(e.target.value)}
+                      variant="standard"
+                      sx={{ 
+                        minWidth: '60px',
+                        '&:before, &:after': { display: 'none' },
+                        '& .MuiSelect-select': { 
+                          py: 0,
+                          border: 'none',
+                          backgroundColor: 'transparent' 
+                        }
+                      }}
+                    >
+                      <MenuItem value="NGN">₦</MenuItem>
+                      <MenuItem value="USD">$</MenuItem>
+                      <MenuItem value="GBP">£</MenuItem>
+                    </Select>
+                  </InputAdornment>
+                )
               }}
               variant="outlined"
               sx={{
                 '& .MuiOutlinedInput-root': {
+                  backgroundColor: 'rgba(255,255,255,0.8)',
                   '&:hover': {
                     '& .MuiOutlinedInput-notchedOutline': {
                       borderColor: '#2196F3',
@@ -296,7 +326,7 @@ const getRefreshToken = async () => {
           <FormControl fullWidth>
             <TextField
               label="Referral Code"
-              type="number"
+              type="text"
               value={referral_code}
               onChange={(e) => setReferal(e.target.value)}
               required
