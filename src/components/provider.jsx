@@ -265,7 +265,7 @@ const getRefreshToken = async () => {
           ))}
 
           <TextField
-            label="Date of Registration"
+            label="Date of Professional Registration"
             type="date"
             value={dateOfRegistration}
             onChange={handleDateChange}
