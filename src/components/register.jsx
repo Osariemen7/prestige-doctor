@@ -55,6 +55,7 @@ const RegistrationPage = () => {
       const item = {
         ...formData,
         phone_number: formattedPhoneNumber,
+        confirm_password: formData.password,
       };
       const response = await fetch('https://health.prestigedelta.com/register/', {
         method: 'POST',
