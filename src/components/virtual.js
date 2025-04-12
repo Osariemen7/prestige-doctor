@@ -9,9 +9,25 @@ import {
   Divider,
   VStack,
   IconButton,
-  Button
+  Button,
+  SimpleGrid,
+  useColorModeValue,
+  Badge,
+  Container,
+  Card,
+  CardBody,
+  CardHeader,
+  CardFooter,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatGroup,
+  Skeleton,
+  Image,
+  useBreakpointValue
 } from "@chakra-ui/react";
-import { FiCopy } from 'react-icons/fi'
+import { FiCopy, FiVideo, FiCalendar, FiClock, FiUser } from 'react-icons/fi';
+import { motion } from "framer-motion";
 import axios from "axios";
 import { getAccessToken } from "./api";
 import {useNavigate} from 'react-router-dom';
@@ -32,25 +48,30 @@ import {
 } from '@chakra-ui/react';
 import { Input, Select } from "@chakra-ui/react";
 
+const MotionBox = motion(Box);
+const MotionButton = motion(Button);
+
 const Va = () => {
   const [data, setData] = useState(null);
   const [info, setInfo] = useState([]);
   const { isOpen, onOpen, onClose } = useDisclosure();
-    const [date, setDate] = useState('');
+  const [date, setDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [phoneNumber, setPhone] = useState('');
-    const [reason, setReason] = useState('');
-    const [buttonVisible, setButtonVisible] = useState(false);
-    const [startTime, setStartTime] = useState('2025-01-25 09:00');
-    const toast = useToast();
-    const [message, setmessage] = useState('')
-    const [isInstance, setInstance] = useState(false)
-    const [link, setLink] = useState('')  
-    const modal1 = useDisclosure()
-    const modal2 = useDisclosure()
-    const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
-    
+  const [reason, setReason] = useState('');
+  const [buttonVisible, setButtonVisible] = useState(false);
+  const [startTime, setStartTime] = useState('2025-01-25 09:00');
+  const toast = useToast();
+  const [message, setmessage] = useState('');
+  const [isInstance, setInstance] = useState(false);
+  const [link, setLink] = useState('');
+  const modal1 = useDisclosure();
+  const modal2 = useDisclosure();
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   
+  // Move useColorModeValue hook to component level
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+
   const navigate = useNavigate()
   const opt =['Yes', 'No']
 
@@ -323,99 +344,185 @@ console.log(link)
   
   return (
     <div className="dashboard-container">
-    <Sidebar 
-      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
-      onNavigate={(path) => navigate(path)} 
-      onLogout={handleLogout}
-    />
-    <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}> 
-    <ChakraProvider>
-      <Box p={5} >
-      
-        <Heading textAlign='center' fontSize="24px" mb={9}>
-          Virtual Appointment
-        </Heading>
-
-        <Flex
-  direction={['column', 'row']}
-  gap="6"
-  justify="center"
-  align="center"
-  my="4"
->
-  <Button
-    colorScheme="blue"
-    size="lg"
-    px="8"
-    py="6"
-    boxShadow="md"
-    _hover={{ bg: 'blue.500', transform: 'scale(1.02)' }}
-    onClick={modal1.onOpen}
-  >
-    Schedule Call
-  </Button>
-  <Button
-    colorScheme="blue"
-    size="lg"
-    px="8"
-    py="6"
-    boxShadow="md"
-    _hover={{ bg: 'blue.500', transform: 'scale(1.02)' }}
-    onClick={modal2.onOpen}
-  >
-    Start Instant Call
-  </Button>
-</Flex>
-       
-        <Heading fontSize="20px" mb={4}>
-          Call Schedules
-        </Heading>
-
-        <VStack spacing={4} align="stretch">
-          {bookedItems.length > 0 ? (
-            bookedItems.map((item, index) => {
-              const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.appointment.channel_name}`;
-              return (
-                <Box
-                  key={index}
-                  p={4}
-                  bg="white"
-                  shadow="md"
-                  borderRadius="md"
-                  onClick={() => handleCalls(item)}
+      <Sidebar 
+        onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
+        onNavigate={(path) => navigate(path)} 
+        onLogout={handleLogout}
+      />
+      <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}> 
+        <ChakraProvider>
+          <Box p={5} bg={bgColor}>
+            <Container maxW="container.xl">
+              <VStack spacing={8} align="stretch">
+                <Flex 
+                  direction={['column', 'row']} 
+                  justify="space-between" 
+                  align="center"
+                  mb={6}
                 >
-                  <Text fontSize="md" fontWeight="bold" color="blue.500">
-                    Patient ID: {item.patient_id}
-                  </Text>
-                  <Text fontSize="sm">Time: {new Date(item.start_time).toLocaleString()}</Text>
-                 <Flex gap='15px'>
-                  <Text>Patient link: {dynamicLink}</Text>
-                  <CopyButton textToCopy={dynamicLink} />
+                  <Heading size="lg" mb={[4, 0]}>Virtual Appointments</Heading>
+                  <Flex gap={4}>
+                    <MotionButton
+                      colorScheme="blue"
+                      size="lg"
+                      leftIcon={<FiCalendar />}
+                      onClick={modal1.onOpen}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      Schedule Call
+                    </MotionButton>
+                    <MotionButton
+                      colorScheme="green"
+                      size="lg"
+                      leftIcon={<FiVideo />}
+                      onClick={modal2.onOpen}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      Instant Call
+                    </MotionButton>
                   </Flex>
-                  <Button colorScheme='blue'>Start call</Button>
+                </Flex>
+
+                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Total Appointments</StatLabel>
+                        <StatNumber>{bookedItems.length}</StatNumber>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Today's Appointments</StatLabel>
+                        <StatNumber>
+                          {bookedItems.filter(item => 
+                            new Date(item.start_time).toDateString() === new Date().toDateString()
+                          ).length}
+                        </StatNumber>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Available Slots</StatLabel>
+                        <StatNumber>{info.length - bookedItems.length}</StatNumber>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                </SimpleGrid>
+
+                <Box>
+                  <Heading size="md" mb={4}>Upcoming Appointments</Heading>
+                  <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
+                    {loading ? (
+                      Array(3).fill(0).map((_, i) => (
+                        <Card key={i}>
+                          <CardBody>
+                            <VStack align="stretch" spacing={4}>
+                              <Skeleton height="20px" />
+                              <Skeleton height="20px" />
+                              <Skeleton height="20px" />
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                      ))
+                    ) : bookedItems.length > 0 ? (
+                      bookedItems.map((item, index) => {
+                        const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.appointment.channel_name}`;
+                        const appointmentDate = new Date(item.start_time);
+                        const isToday = appointmentDate.toDateString() === new Date().toDateString();
+
+                        return (
+                          <MotionBox
+                            key={index}
+                            whileHover={{ y: -5 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <Card>
+                              <CardHeader>
+                                <Flex justify="space-between" align="center">
+                                  <Heading size="sm">Appointment #{index + 1}</Heading>
+                                  <Badge
+                                    colorScheme={isToday ? 'green' : 'blue'}
+                                    variant="solid"
+                                    borderRadius="full"
+                                    px={3}
+                                  >
+                                    {isToday ? 'Today' : appointmentDate.toLocaleDateString()}
+                                  </Badge>
+                                </Flex>
+                              </CardHeader>
+                              <CardBody>
+                                <VStack align="stretch" spacing={3}>
+                                  <Flex align="center" gap={2}>
+                                    <FiUser />
+                                    <Text>Patient ID: {item.patient_id}</Text>
+                                  </Flex>
+                                  <Flex align="center" gap={2}>
+                                    <FiClock />
+                                    <Text>{appointmentDate.toLocaleTimeString()}</Text>
+                                  </Flex>
+                                  <Flex align="center" justify="space-between">
+                                    <Text fontSize="sm" color="gray.600" noOfLines={1}>
+                                      {dynamicLink}
+                                    </Text>
+                                    <CopyButton textToCopy={dynamicLink} />
+                                  </Flex>
+                                </VStack>
+                              </CardBody>
+                              <CardFooter>
+                                <Button
+                                  colorScheme="blue"
+                                  width="full"
+                                  leftIcon={<FiVideo />}
+                                  onClick={() => handleCalls(item)}
+                                >
+                                  Join Call
+                                </Button>
+                              </CardFooter>
+                            </Card>
+                          </MotionBox>
+                        );
+                      })
+                    ) : (
+                      <Box p={6} textAlign="center" borderRadius="lg" bg="white">
+                        <Image
+                          src="https://illustrations.popsy.co/gray/work-from-home.svg"
+                          alt="No appointments"
+                          maxW="200px"
+                          mx="auto"
+                          mb={4}
+                        />
+                        <Text color="gray.500">No appointments scheduled</Text>
+                        {cLink && (
+                          <VStack mt={4} spacing={3}>
+                            <Flex align="center" justify="center" gap={2}>
+                              <Text noOfLines={1}>{cLink}</Text>
+                              <CopyButton textToCopy={cLink} />
+                            </Flex>
+                            <Button
+                              colorScheme="blue"
+                              leftIcon={<FiVideo />}
+                              onClick={handleInstCalls}
+                            >
+                              Join Instant Call
+                            </Button>
+                          </VStack>
+                        )}
+                      </Box>
+                    )}
+                  </SimpleGrid>
                 </Box>
-              );
-            })
-          ) : (
-            
-            <div>
-            <Text color="gray.500">No booked appointments available.</Text>
-         
-  {cLink ? (
-    <> <Flex gap="15px">
-      <Text>Patient link: {cLink}</Text>
-      <CopyButton textToCopy={cLink} /></Flex> 
-      <Button colorScheme='blue' onClick={handleInstCalls}>Start call</Button>
-    </>
-  ) : (
-    <Text color="gray.500"></Text>
-  )}
-     </div>
-          )}
-        </VStack>
-      </Box>
-      
-      <Modal isOpen={modal1.isOpen} onClose={modal1.onClose}>
+              </VStack>
+            </Container>
+
+            {/* Existing modals */}
+            <Modal isOpen={modal1.isOpen} onClose={modal1.onClose}>
                       <ModalOverlay />
                       <ModalContent>
                           <ModalHeader>Book Call Appointment</ModalHeader>
@@ -517,11 +624,10 @@ console.log(link)
                           </ModalFooter>
                       </ModalContent>
                   </Modal>
-     
-    </ChakraProvider>
-    </div>
+          </Box>
+        </ChakraProvider>
       </div>
-
+    </div>
   );
 };
 

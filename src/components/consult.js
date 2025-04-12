@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
 import {
   Box,
   ChakraProvider,
@@ -81,6 +81,7 @@ const ConsultAIPage = () => {
   const [thread, setThread] = useState('');
   const [isDocumentationSaved, setIsDocumentationSaved] = useState(false);
   const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
+  const [isEndConsultModalOpen, setIsEndConsultModalOpen] = useState(false);
   const patientProfileRef = useRef(null);
   const [patient, setPatient] = useState('')
   const [pageResetKey, setPageResetKey] = useState('initial');
@@ -627,46 +628,46 @@ const ConsultAIPage = () => {
 
 
   const endConsultation = async () => {
-    stopRealtimeTranscription(); // Stop transcription here
-    if (!isDocumentationSaved) {
-      if (patientProfileRef.current && patientProfileRef.current.handleSubmitFromParent) {
-        if (patientProfileRef.current.dataLoaded) { // Hypothetical check - you'd need to expose dataLoaded via ref or props
-          let saveSuccessful = false;
-          try {
-            saveSuccessful = await patientProfileRef.current.handleSubmitFromParent();
-          } catch (error) {
-            console.error("Error during handleSubmitFromParent:", error);
-            saveSuccessful = false; // Ensure saveSuccessful is false in case of error
-          }
-
-          if (saveSuccessful) {
-            setIsDocumentationSaved(true);
-            performEndConsultation();
-          } else {
-            onSaveModalOpen(); // Open modal if handleSubmitFromParent fails
-          }
-        } else {
-          console.warn("Data in PatientProfileDisplay might not be loaded yet. Proceeding with save attempt anyway.");
-          let saveSuccessful = false;
-          try {
-            saveSuccessful = await patientProfileRef.current.handleSubmitFromParent();
-          } catch (error) {
-            console.error("Error during handleSubmitFromParent:", error);
-            saveSuccessful = false; // Ensure saveSuccessful is false in case of error
-          }
-          if (saveSuccessful) {
-              setIsDocumentationSaved(true);
-              performEndConsultation();
-          } else {
-              onSaveModalOpen(); // Open modal if handleSubmitFromParent fails
-          }
-        }
-
+    if (wsStatus === 'Connected') {
+      if (!isDocumentationSaved) {
+        setIsEndConsultModalOpen(true); // Open the modal instead of showing alert
+        return;
       } else {
-        onSaveModalOpen();
+        stopRealtimeTranscription();
+        performEndConsultation();
       }
     } else {
+      stopRealtimeTranscription();
       performEndConsultation();
+    }
+  };
+
+  const handleEndWithoutSaving = () => {
+    setIsEndConsultModalOpen(false);
+    stopRealtimeTranscription();
+    performEndConsultation();
+  };
+
+  const handleSaveAndEnd = async () => {
+    setIsEndConsultModalOpen(false);
+    try {
+      if (patientProfileRef.current && patientProfileRef.current.handleSubmitFromParent) {
+        const saved = await patientProfileRef.current.handleSubmitFromParent('all');
+        if (saved) {
+          setIsDocumentationSaved(true);
+          stopRealtimeTranscription();
+          performEndConsultation();
+        }
+      }
+    } catch (error) {
+      console.error('Error saving documentation:', error);
+      toast({
+        title: 'Save Error',
+        description: 'Failed to save documentation',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
     }
   };
 
@@ -808,10 +809,20 @@ const ConsultAIPage = () => {
     }
   };
 
-  const handleBackClick = async () => {
+  const handleBackClick = useCallback(async () => {
+    if (wsStatus === 'Connected') {
+      toast({
+        title: 'Cannot Exit',
+        description: "You can't exit the page while consultation is ongoing. Please end the consultation first.",
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
     await handleBilling();
     navigate('/dashboard');
-  };
+  }, [wsStatus]);
 
 
   const toggleActiveScreen = (screenName) => {
@@ -865,6 +876,24 @@ const ConsultAIPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (timeLeft <= 1 && isTranscribing) {
+      // Auto-save documentation when timer expires
+      const autoSaveAndEnd = async () => {
+        if (patientProfileRef.current && patientProfileRef.current.handleSubmitFromParent) {
+          try {
+            await patientProfileRef.current.handleSubmitFromParent('all');
+            setIsDocumentationSaved(true);
+          } catch (error) {
+            console.error('Error auto-saving documentation:', error);
+          }
+        }
+        endConsultation();
+      };
+      autoSaveAndEnd();
+    }
+  }, [timeLeft, isTranscribing]);
+
   const isRecordButtonVisible = !isConsultationStarted && wsStatus !== 'Connected' && !isTranscribing;
   const isPausePlayButtonVisible = isConsultationStarted && isTranscribing;
   const animation = `${pulseAnimation} 2s linear infinite`;
@@ -873,6 +902,27 @@ const ConsultAIPage = () => {
   return (
     <ChakraProvider>
       <Flex key={pageResetKey} direction="column" height="100vh" bg="gray.50">
+        {/* End Consultation Modal */}
+        <Modal isOpen={isEndConsultModalOpen} onClose={() => setIsEndConsultModalOpen(false)} isCentered>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>End Consultation Without Saving?</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              Do you want to end the consultation without saving the documentation?
+            </ModalBody>
+            <ModalFooter>
+              <Button colorScheme="red" mr={3} onClick={handleEndWithoutSaving}>
+                End Without Saving
+              </Button>
+              <Button colorScheme="blue" mr={3} onClick={handleSaveAndEnd}>
+                Save and End
+              </Button>
+              <Button variant="ghost" onClick={() => setIsEndConsultModalOpen(false)}>Cancel</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
         {/* Save Documentation Modal */}
         <Modal isOpen={isSaveModalOpen} onClose={onSaveModalClose} isCentered>
           <ModalOverlay />
