@@ -123,6 +123,55 @@ const ConsultAIPage = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartPosition, setDragStartPosition] = useState({ x: 0, y: 0 });
   const [boxPosition, setBoxPosition] = useState({ top: 100, left: 20 });
+  const [dataList, setDataList] = useState([]);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [isManualInput, setIsManualInput] = useState(false);
+
+  const handlePatientSelect = (value) => {
+    if (value === 'manual') {
+      setIsManualInput(true);
+      setSelectedPatientId('');
+      setPhoneNumber('');
+    } else {
+      setIsManualInput(false);
+      setSelectedPatientId(value);
+      const selectedPatient = dataList.find(patient => patient.id.toString() === value);
+      if (selectedPatient) {
+        setPhoneNumber(selectedPatient.phone_number);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const fetchPatientList = async () => {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      try {
+        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (response.status === 401) {
+          navigate('/');
+        } else {
+          const result = await response.json();
+          setDataList(result);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPatientList();
+  }, []);
+
 
   const handleBilling = async () => {
     try {
@@ -745,7 +794,7 @@ const ConsultAIPage = () => {
 
 
   const startConsultationSession = async () => {
-    if (!phoneNumber || phoneNumber.length < 10) { // Check if phoneNumber is empty or has less than 10 digits
+    if (isManualInput && (!phoneNumber || phoneNumber.length < 10)) {
       setErrorMessage('Please enter a valid phone number with at least 10 digits to start consultation');
       toast({
         title: 'Invalid Phone Number',
@@ -755,15 +804,17 @@ const ConsultAIPage = () => {
         isClosable: true,
       });
       setLoading(false);
-      return false; // Booking failed
+      return false;
     }
-    setErrorMessage(''); // Clear error message if phone number is valid
+    setErrorMessage('');
 
-    const phone_number = formatPhoneNumber(phoneNumber, countryCode);
     const data = {
       start_time: new Date().toISOString(),
       reason: 'Instant Consultation',
-      phone_number,
+      ...(isManualInput 
+        ? { phone_number: formatPhoneNumber(phoneNumber, countryCode) }
+        : { patient_id: parseInt(selectedPatientId) }
+      ),
       is_instant: true,
     };
 
@@ -1030,34 +1081,46 @@ const ConsultAIPage = () => {
     </Heading>
 
     <FormControl isRequired isInvalid={!!errorMessage}>
-      <FormLabel htmlFor="phoneNumber">Patient Phone Number</FormLabel>
-      <HStack width="100%">
-        <Select
-          value={countryCode}
-          onChange={(e) => setCountryCode(e.target.value)}
-          maxWidth="120px"
-        >
-          <option value="+234">+234</option>
-          <option value="+44">+44</option>
-          <option value="+1">+1</option>
+      <FormLabel>Select Patient or Enter Phone Number</FormLabel>
+      <Select
+        value={isManualInput ? 'manual' : selectedPatientId}
+        onChange={(e) => handlePatientSelect(e.target.value)}
+        placeholder="Select a patient or enter manually"
+        mb={2}
+      >
+        {dataList.map(patient => (
+          <option key={patient.id} value={patient.id}>
+            {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
+          </option>
+        ))}
+        <option value="manual">Enter Phone Number Manually</option>
+      </Select>
 
-        </Select>
-        <Input
-          id="phoneNumber"
-          placeholder="Patient's phone number"
-          value={phoneNumber}
-          onChange={(e) => {
-            const rawValue = e.target.value.replace(/\D/g, ''); // Remove non-digits
-            const lastTenDigits = rawValue.slice(-10); // Get last 10 digits
-            setPhoneNumber(lastTenDigits); // Update state with last 10 digits
-          }}
-          maxLength={15} // Increased to accommodate longer input for digit extraction
-          flex="1"
-        />
-      </HStack>
-      <FormHelperText>
-        Enter the patient's phone number (last 10 digits will be used) to start the consultation
-      </FormHelperText>
+      {isManualInput && (
+        <HStack width="100%">
+          <Select
+            value={countryCode}
+            onChange={(e) => setCountryCode(e.target.value)}
+            maxWidth="120px"
+          >
+            <option value="+234">+234</option>
+            <option value="+44">+44</option>
+            <option value="+1">+1</option>
+          </Select>
+          <Input
+            placeholder="Patient's phone number"
+            value={phoneNumber}
+            onChange={(e) => {
+              const rawValue = e.target.value.replace(/\D/g, '');
+              const lastTenDigits = rawValue.slice(-10);
+              setPhoneNumber(lastTenDigits);
+            }}
+            maxLength={15}
+            flex="1"
+          />
+        </HStack>
+      )}
+
       {errorMessage && (
         <Alert status="error" mt={2} borderRadius="md">
           <AlertIcon />
