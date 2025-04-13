@@ -1,243 +1,323 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ChakraProvider, 
-  Box, 
-  Grid, 
-  Text, 
-  Button, 
-  Input, 
-  Spinner,
-  Flex,
-  Badge,
-  Heading,
-  useColorModeValue,
-  Tooltip
+import { ChakraProvider, Box, Grid, VStack, Text, Button, Input, Spinner,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Select,
+  useDisclosure,
+  useToast,
+  Flex
 } from "@chakra-ui/react";
 import './DashboardPage.css';
-import Sidebar from './sidebar';
+import Sidebar from './sidebar'; // Import Sidebar component
 import { useNavigate } from 'react-router-dom';
+import {
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
+  Heading
+} from '@chakra-ui/react';
 import { getAccessToken } from './api';
+import axios from "axios";
 import { Search } from 'lucide-react';
-import { AlertTriangle } from 'lucide-react';
 
-const Dashboard = () => {
+
+const DashboardPage = () => {
   const navigate = useNavigate();
-  const [patients, setPatients] = useState([]);
+  const [data, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [startTime, setStartTime] = useState('');
+  const [selectedTab, setSelectedTab] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
+  const [date, setDate] = useState('');
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
-  
-  // Color settings for priority badges
-  const urgentColor = "red";
-  const highColor = "orange";
-  const normalColor = "blue";
-  
-  // Filter patients based on search term (first name, last name, or phone number)
-  const filteredPatients = patients.filter((patient) => {
-    const firstName = patient.profile_data?.demographics?.first_name?.toLowerCase() || '';
-    const lastName = patient.profile_data?.demographics?.last_name?.toLowerCase() || '';
-    const phoneNumber = patient.profile_data?.demographics?.phone_number?.toLowerCase() || '';
-    const searchTermLower = searchTerm.toLowerCase();
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+234'); // Default to Nigeria
+  const [buttonVisible, setButtonVisible] = useState(false);
+  const [message, setMessage] = useState('');
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const toast = useToast();
     
-    return (
-      firstName.includes(searchTermLower) ||
-      lastName.includes(searchTermLower) ||
-      phoneNumber.includes(searchTermLower)
-    );
-  });
+  const filteredPatients = data.filter((patient) =>
+    patient.phone_number.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  // Fetch patients data from providerdashboard endpoint
+  
+const handleAddPatient = async () => {
+    setButtonVisible(true);
+    setMessage('');
+
+    if (!phoneNumber) {
+        setMessage('Please enter a phone number');
+        setButtonVisible(false);
+        return;
+    }
+
+    // Format the phone number with country code
+    const formattedPhoneNumber = `${countryCode}${phoneNumber.startsWith('0') ? phoneNumber.slice(1) : phoneNumber}`;
+
+    try {
+        const token = await getAccessToken();
+        const response = await fetch('https://health.prestigedelta.com/appointments/create_patient/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                phone_number: formattedPhoneNumber
+            }),
+        });
+      
+        if (response.ok) {
+            const result = await response.json();
+            toast({
+                title: 'Success',
+                description: 'Patient added successfully',
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+            });
+            onClose(); // Close the modal
+            // Refresh the patient list
+            const updatedResponse = await fetch('https://health.prestigedelta.com/patientlist/', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                }
+            });
+            if (updatedResponse.ok) {
+                const updatedData = await updatedResponse.json();
+                setDataList(updatedData);
+            }
+        } else {
+            const errorData = await response.json();
+            setMessage(errorData.message || 'Failed to add patient');
+        }
+    } catch (error) {
+        setMessage('An error occurred while adding the patient');
+        console.error('Error:', error);
+    } finally {
+        setButtonVisible(false);
+    }
+};
+
   useEffect(() => {
     const fetchData = async () => {
       const accessToken = await getAccessToken();
       if (!accessToken) return;
 
       try {
-        const response = await fetch('https://health.prestigedelta.com/providerdashboard/', {
+        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'accept': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
         });
-        
         if (response.status === 401) {
           navigate('/');
         } else {
           const result = await response.json();
-          setPatients(result);
+          setDataList(result);
         }
       } catch (error) {
-        console.error('Error fetching patient data:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [navigate]);
+  }, []);
 
-  const handleViewDetails = (patient) => {
-    navigate('/detail', { state: { item: patient } });
+  useEffect(() => {
+    const fetchSub = async () => {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      try {
+        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (response.status === 401) {
+          navigate('/');
+        } else {
+          const result = await response.json();
+          setDataList(result);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSub();
+  }, []);
+
+
+  const handleViewDetails = (item) => {
+    navigate('/detail', { state: { item } }); // Navigate using the ID
   };
 
   const handleLogout = () => {
     localStorage.removeItem('user-info');
     navigate('/');
   };
+
   
-  // Patient card component with alert information
-  const PatientCard = ({ patient }) => {
-    const cardBg = useColorModeValue("white", "gray.700");
-    const hasUrgentAlerts = patient.urgent_unactioned_count > 0;
-    const hasHighAlerts = patient.high_unactioned_count > 0;
-    
-    // Get patient name or show "Unnamed Patient" if name is not available
-    const firstName = patient.profile_data?.demographics?.first_name || '';
-    const lastName = patient.profile_data?.demographics?.last_name || '';
-    const fullName = firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName || "Unnamed Patient";
-    
-    // Get phone number
-    const phoneNumber = patient.profile_data?.demographics?.phone_number || 'No phone number';
-    
-    return (
-      <Box 
-        p={5} 
-        borderWidth="1px" 
-        borderRadius="lg" 
-        bg={cardBg}
-        boxShadow="sm"
-        position="relative"
-      >
-        {/* Priority indicator */}
-        {hasUrgentAlerts && (
-          <Box position="absolute" top={2} right={2}>
-            <Tooltip label={`${patient.urgent_unactioned_count} urgent alerts require attention`}>
-              <span>
-                <AlertTriangle size={20} color="red" fill="red" />
-              </span>
-            </Tooltip>
-          </Box>
+  const PatientCard = ({ patient }) => (
+    <div className="bg-white rounded-lg p-6 shadow-sm">
+      <div className="space-y-4">
+        <div className="flex items-center space-x-2">
+          <span className="text-blue-600 text-sm">Patient ID: {patient.id}</span>
+        </div>
+        <h3 className="font-medium">
+          {patient.full_name || "Unnamed Patient"}
+        </h3>
+        <div className="flex items-center space-x-2 text-gray-600">
+          <span className="text-sm">{patient.phone_number}</span>
+        </div>
+        {patient.health_score && (
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Health Score</span>
+              <span className="text-sm font-medium">{patient.health_score}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full" 
+                style={{ width: `${patient.health_score}%` }}
+              />
+            </div>
+          </div>
         )}
-        
-        <Flex justify="space-between" align="center">
-          <Text fontSize="sm" color="blue.600">Patient ID: {patient.id}</Text>
-        </Flex>
-        
-        <Heading size="md" mt={2} mb={1}>
-          {fullName}
-        </Heading>
-        
-        <Text fontSize="sm" color="gray.600" mb={3}>
-          {phoneNumber}
-        </Text>
-        
-        {/* Alert badges */}
-        <Flex gap={2} mb={4} wrap="wrap">
-          {patient.urgent_unactioned_count > 0 && (
-            <Badge colorScheme={urgentColor} variant="solid" borderRadius="full" px={2}>
-              {patient.urgent_unactioned_count} Urgent
-            </Badge>
-          )}
-          
-          {patient.high_unactioned_count > 0 && (
-            <Badge colorScheme={highColor} variant="solid" borderRadius="full" px={2}>
-              {patient.high_unactioned_count} High
-            </Badge>
-          )}
-          
-          {patient.total_unactioned_count > 0 && (
-            <Badge colorScheme={normalColor} variant="outline" borderRadius="full" px={2}>
-              {patient.total_unactioned_count} Total Alerts
-            </Badge>
-          )}
-        </Flex>
-        
         <Button
           onClick={() => handleViewDetails(patient)}
           colorScheme="blue"
           size="sm"
-          width="full"
-        >
-          View Details
-        </Button>
-      </Box>
-    );
-  };
+          variant="outline" >View Details</Button>
+      </div>
+    </div>
+  );
 
+  
   return (
     <div className="dashboard-container">
-      {/* Sidebar */}
+      {/* Persistent Sidebar */}
       <Sidebar 
-        onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
-        onNavigate={(path) => navigate(path)} 
-        onLogout={handleLogout}
-      />
-      
+      onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)} 
+      onNavigate={(path) => navigate(path)} 
+      onLogout={handleLogout}
+    />
       {/* Main Content */}
       <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
-        <div className="min-h-screen bg-gray-50 p-6">
-          <ChakraProvider>
-            <Box flex="1" overflow="auto">
-              <Flex direction="column">
-                <Heading fontSize="2xl" mb={6} textAlign="center">
-                  Patient Dashboard
-                </Heading>
-                
-                {loading ? (
-                  <Flex direction="column" align="center" justify="center" minH="50vh">
-                    <Spinner size="xl" color="blue.500" thickness="4px" />
-                    <Text mt={4} fontSize="lg">Loading patient data...</Text>
-                  </Flex>
-                ) : (
-                  <Box p={4}>
-                    {/* Search Bar */}
-                    <Box mb={6} maxW="600px" mx="auto">
-                      <Box position="relative">
-                        <Box position="absolute" left={3} top="50%" transform="translateY(-50%)">
-                          <Search size={18} className="text-gray-400" />
-                        </Box>
-                        <Input
-                          pl="40px"
-                          placeholder="Search by name or phone number"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          borderRadius="full"
-                          bg="white"
-                          boxShadow="sm"
-                        />
-                      </Box>
-                    </Box>
-                    
-                    {/* Patient Cards Grid */}
-                    <Grid 
-                      templateColumns={{
-                        base: "1fr",
-                        md: "repeat(2, 1fr)",
-                        lg: "repeat(3, 1fr)"
-                      }} 
-                      gap={6}
-                    >
-                      {filteredPatients.length > 0 ? (
-                        filteredPatients.map((patient) => (
-                          <PatientCard key={patient.id} patient={patient} />
-                        ))
-                      ) : (
-                        <Box textAlign="center" gridColumn="1 / -1" py={10}>
-                          <Text fontSize="lg">No patients found matching your search.</Text>
-                        </Box>
-                      )}
-                    </Grid>
-                  </Box>
-                )}
-              </Flex>
+      <div className="min-h-screen bg-gray-50 p-6">
+      <ChakraProvider>
+      <Box flex="1" overflow="auto" p={4}>
+  
+    {/* Tab Content Below */}
+    <Flex justifyContent="space-between" alignItems="center" mb={4}>
+      <Heading fontSize='22px'>Patient Records</Heading>
+      <Button colorScheme="blue" onClick={onOpen}>Add New Patient</Button>
+    </Flex>
+
+    {/* Add New Patient Modal */}
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Add New Patient</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          <FormControl>
+            <FormLabel>Country Code</FormLabel>
+            <Select value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
+              <option value="+234">Nigeria (+234)</option>
+              <option value="+44">UK (+44)</option>
+              <option value="+1">USA/Canada (+1)</option>
+            </Select>
+          </FormControl>
+          <FormControl mt={4}>
+            <FormLabel>Phone Number</FormLabel>
+            <Input 
+              type="tel"
+              placeholder="Enter phone number"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+            />
+          </FormControl>
+          {message && (
+            <Text color="red.500" mt={2}>{message}</Text>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button colorScheme="blue" mr={3} onClick={handleAddPatient} isLoading={buttonVisible}>
+            Add Patient
+          </Button>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+
+        {loading ? (
+          <Box textAlign="center" mt={8}>
+            <Spinner size="xl" />
+            <Text mt={4}>Loading...</Text>
+          </Box>
+        ) : (
+          <Box p={4}>
+            <Text fontSize="20px" fontWeight="bold" mb={4}>
+              Patient List
+            </Text>
+            <div className="relative">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <Box mb={6}>
+              <Input pl='34px'
+                placeholder="    Search by phone number"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </Box>
-          </ChakraProvider>
-        </div>
-      </div>
+            </div>
+            
+            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={6}>
+              {filteredPatients.length > 0 ? (
+                filteredPatients.map((patient) => (
+                  <PatientCard key={patient.id} patient={patient} />
+                ))
+              ) : (
+                <Text>No patients found.</Text>
+              )}
+            </Grid>
+          </Box>
+        )}
+       
+      
+</Box>
+
+
+      </ChakraProvider>
+
+             </div>
+             </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default DashboardPage;

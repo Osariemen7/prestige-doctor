@@ -362,12 +362,8 @@ const Call = () => {
             // Update user count and start timer
             setUserCount((prev) => {
                 const newCount = prev + 1;
-                if (newCount === 2) { // Start transcription when second user joins
+                if (newCount === 2) { // Start timer when second user joins
                     startTimer();
-                    // Auto-start transcription
-                    if (assemblyAiToken && !isTranscribing) {
-                        connectWebSocket();
-                    }
                 }
                 return newCount;
             });
@@ -593,7 +589,7 @@ const Call = () => {
             console.error('Error enabling video:', error);
         }
     }
-
+ 
     // Clean up WebSocket
     useEffect(() => {
         return () => {
@@ -641,20 +637,12 @@ const Call = () => {
 
     // Modify the startRecording function
     const startRecording = async () => {
-        if (!ws?.current || ws.current.readyState !== WebSocket.OPEN) {
-            console.error('WebSocket is not connected.');
-            toast({
-                title: "Connection Error",
-                description: "Unable to establish connection. Retrying...",
-                status: "error",
-                duration: 3000,
-                isClosable: true
-            });
-            await connectWebSocket();
-            return;
-        }
-    
         try {
+            // Ensure WebSocket is connected before starting
+            if (!assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) {
+                await connectWebSocket();
+            }
+    
             setIsProcessingAudio(true);
             const audioConfig = getOptimalAudioConfig();
             const stream = await setupAudioWithFallback({ audio: audioConfig });
@@ -664,19 +652,17 @@ const Call = () => {
             const processor = audioContext.createScriptProcessor(2048, 1, 1);
             
             processor.onaudioprocess = (e) => {
-                if (!isProcessingAudio) return;
+                if (!isProcessingAudio || !assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) return;
                 
                 const inputData = e.inputBuffer.getChannelData(0);
                 const downsampledData = downsampleAudio(inputData, audioContext.sampleRate, 16000);
                 const encodedData = encodeAudioData(downsampledData);
                 
-                if (ws.current?.readyState === WebSocket.OPEN) {
-                    try {
-                        ws.current.send(encodedData);
-                    } catch (err) {
-                        console.error('Error sending audio data:', err);
-                        setIsProcessingAudio(false);
-                    }
+                try {
+                    assemblyWsRef.current.send(encodedData);
+                } catch (err) {
+                    console.error('Error sending audio data:', err);
+                    setIsProcessingAudio(false);
                 }
             };
     
@@ -698,7 +684,7 @@ const Call = () => {
                 description: error.message,
                 status: "error",
                 duration: 5000,
-                isClosable: true
+                isClosable: true,
             });
             setIsProcessingAudio(false);
         }
@@ -978,6 +964,8 @@ const Call = () => {
     
     // Add AssemblyAI token fetch useEffect
     useEffect(() => {
+        let tokenRefreshInterval;
+        
         const fetchAssemblyAiToken = async () => {
             try {
                 const token = await getAccessToken();
@@ -998,6 +986,11 @@ const Call = () => {
                 
                 const data = await response.json();
                 setAssemblyAiToken(data.token);
+                
+                // Only connect WebSocket if there are multiple users
+                if (userCount > 1) {
+                    await connectWebSocket();
+                }
             } catch (error) {
                 console.error("Error fetching AssemblyAI token:", error);
                 toast({
@@ -1010,15 +1003,20 @@ const Call = () => {
             }
         };
 
-        fetchAssemblyAiToken();
-        // Refresh token every hour
-        const tokenRefreshInterval = setInterval(fetchAssemblyAiToken, 3600000);
+        // Only fetch token if there are multiple users
+        if (userCount > 1) {
+            fetchAssemblyAiToken();
+            // Refresh token every hour
+            tokenRefreshInterval = setInterval(fetchAssemblyAiToken, 3600000);
+        }
 
         return () => {
-            clearInterval(tokenRefreshInterval);
+            if (tokenRefreshInterval) {
+                clearInterval(tokenRefreshInterval);
+            }
             stopTranscription();
         };
-    }, []);
+    }, [userCount]); // Add userCount as dependency to react to user count changes
 
     const handleConnectionError = async () => {
         setConnectionStatus('error');
@@ -1046,46 +1044,74 @@ const Call = () => {
 
     const connectWebSocket = async () => {
         if (!assemblyAiToken) {
-            toast({
-                title: "Error",
-                description: "Transcription service not initialized",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
+            console.log('Waiting for AssemblyAI token...');
+            // Wait for token if not available
+            await new Promise(resolve => {
+                const checkToken = setInterval(() => {
+                    if (assemblyAiToken) {
+                        clearInterval(checkToken);
+                        resolve();
+                    }
+                }, 500);
             });
-            return;
         }
 
-        const sampleRate = 16000;
-        const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=${sampleRate}&token=${assemblyAiToken}`;
-        assemblyWsRef.current = new WebSocket(socketUrl);
-
-        assemblyWsRef.current.onopen = () => {
-            console.log('AssemblyAI WebSocket connected');
-            setConnectionStatus('connected');
-            setIsTranscribing(true);
-            startAudioProcessing();
-        };
-
-        assemblyWsRef.current.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.message_type === 'FinalTranscript') {
-                    setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
-                }
-            } catch (error) {
-                console.error("Error processing transcription message:", error);
+        return new Promise((resolve, reject) => {
+            const sampleRate = 16000;
+            const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=${sampleRate}&token=${assemblyAiToken}`;
+            
+            if (assemblyWsRef.current?.readyState === WebSocket.OPEN) {
+                console.log('WebSocket already connected');
+                return resolve(assemblyWsRef.current);
             }
-        };
 
-        assemblyWsRef.current.onerror = () => {
-            handleConnectionError();
-        };
+            try {
+                assemblyWsRef.current = new WebSocket(socketUrl);
 
-        assemblyWsRef.current.onclose = () => {
-            setConnectionStatus('disconnected');
-            setIsTranscribing(false);
-        };
+                assemblyWsRef.current.onopen = () => {
+                    console.log('AssemblyAI WebSocket connected');
+                    setConnectionStatus('connected');
+                    setIsTranscribing(true);
+                    startAudioProcessing();
+                    resolve(assemblyWsRef.current);
+                };
+
+                assemblyWsRef.current.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    handleConnectionError();
+                    reject(error);
+                };
+
+                assemblyWsRef.current.onclose = () => {
+                    console.log('WebSocket closed');
+                    setConnectionStatus('disconnected');
+                    setIsTranscribing(false);
+                    
+                    // Attempt to reconnect if not intentionally closed
+                    if (isJoined && reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
+                        console.log('Attempting to reconnect...');
+                        setTimeout(() => {
+                            connectWebSocket().catch(console.error);
+                        }, 2000); // Wait 2 seconds before reconnecting
+                    }
+                };
+
+                assemblyWsRef.current.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.message_type === 'FinalTranscript') {
+                            setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
+                        }
+                    } catch (error) {
+                        console.error("Error processing transcription message:", error);
+                    }
+                };
+
+            } catch (error) {
+                console.error('Error creating WebSocket:', error);
+                reject(error);
+            }
+        });
     };
 
     const stopTranscription = () => {
@@ -1238,7 +1264,7 @@ const Call = () => {
                         zIndex={10}
                     >
                         <HStack spacing={4}>
-                            <StatusBadge />
+                        
                             <Text fontSize="lg" fontWeight="medium">
                                 {formatTime(callDuration)}
                             </Text>
@@ -1249,7 +1275,7 @@ const Call = () => {
                                     px={2}
                                     py={1}
                                 >
-                                    Recording
+                                    Transcribing
                                 </Badge>
                             )}
                         </HStack>
@@ -1337,6 +1363,7 @@ const Call = () => {
                                                 isLoading={isLoading}
                                             />
 
+                                            {/* Transcription Box */}
                                            
 
                                             {/* Progress Bar */}

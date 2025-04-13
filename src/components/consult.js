@@ -775,30 +775,29 @@ const ConsultAIPage = () => {
       setBottomTabIndex(0);
       setActiveScreen("voice");
       setLastPhoneNumber(phoneNumber);
-      setReviewId('');    // <<=== Clear old reviewId
-      setThread('');      // <<=== Clear old thread
-      setPageResetKey(Date.now()); // force remount
+      setReviewId('');    
+      setThread('');      
+      setPageResetKey(Date.now());
       console.log("Full page reset triggered due to phone number change.");
     }
 
     if (!isConsultationStarted) {
       setLoading(true);
       const appointmentBooked = await startConsultationSession();
-      setIsConsultationStarted(appointmentBooked); // Set based on booking success
+      setIsConsultationStarted(appointmentBooked);
       setLoading(false);
       if (appointmentBooked) {
-        startRealtimeTranscription(); // Only start transcription if appointment booking was successful
+        startRealtimeTranscription();
       }
     }
   };
 
-
   const startConsultationSession = async () => {
-    if (isManualInput && (!phoneNumber || phoneNumber.length < 10)) {
-      setErrorMessage('Please enter a valid phone number with at least 10 digits to start consultation');
+    if (!selectedPatientId) {
+      setErrorMessage('Please select a patient to start consultation');
       toast({
-        title: 'Invalid Phone Number',
-        description: 'Please enter a valid phone number with at least 10 digits to start consultation',
+        title: 'Selection Required',
+        description: 'Please select a patient from the list to start consultation',
         status: 'warning',
         duration: 5000,
         isClosable: true,
@@ -811,10 +810,7 @@ const ConsultAIPage = () => {
     const data = {
       start_time: new Date().toISOString(),
       reason: 'Instant Consultation',
-      ...(isManualInput 
-        ? { phone_number: formatPhoneNumber(phoneNumber, countryCode) }
-        : { patient_id: parseInt(selectedPatientId) }
-      ),
+      patient_id: parseInt(selectedPatientId),
       is_instant: true,
     };
 
@@ -1061,93 +1057,73 @@ const ConsultAIPage = () => {
         <Flex flex="1" overflow="hidden" direction={!isMobile && isBottomTabVisible ? "row" : "column" }>
         { !isConsultationStarted && wsStatus !== 'Connected' && (
           <Flex
-  direction="column"
-  align="center"
-  justify="center"
-  flex="1"
-  p={8}
-  bg="gray.50"
->
-  <VStack
-    spacing={8}
-    maxWidth="md"
-    bg="white"
-    p={8}
-    borderRadius="lg"
-    boxShadow="md"
-  >
-    <Heading size="lg" textAlign="center" color="blue.600">
-      Start a New Consultation
-    </Heading>
-
-    <FormControl isRequired isInvalid={!!errorMessage}>
-      <FormLabel>Select Patient or Enter Phone Number</FormLabel>
-      <Select
-        value={isManualInput ? 'manual' : selectedPatientId}
-        onChange={(e) => handlePatientSelect(e.target.value)}
-        placeholder="Select a patient or enter manually"
-        mb={2}
-      >
-        {dataList.map(patient => (
-          <option key={patient.id} value={patient.id}>
-            {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
-          </option>
-        ))}
-        <option value="manual">Enter Phone Number Manually</option>
-      </Select>
-
-      {isManualInput && (
-        <HStack width="100%">
-          <Select
-            value={countryCode}
-            onChange={(e) => setCountryCode(e.target.value)}
-            maxWidth="120px"
-          >
-            <option value="+234">+234</option>
-            <option value="+44">+44</option>
-            <option value="+1">+1</option>
-          </Select>
-          <Input
-            placeholder="Patient's phone number"
-            value={phoneNumber}
-            onChange={(e) => {
-              const rawValue = e.target.value.replace(/\D/g, '');
-              const lastTenDigits = rawValue.slice(-10);
-              setPhoneNumber(lastTenDigits);
-            }}
-            maxLength={15}
+            direction="column"
+            align="center"
+            justify="center"
             flex="1"
-          />
-        </HStack>
-      )}
+            p={8}
+            bg="gray.50"
+          >
+            <VStack
+              spacing={8}
+              maxWidth="md"
+              bg="white"
+              p={8}
+              borderRadius="lg"
+              boxShadow="md"
+            >
+              <Heading size="lg" textAlign="center" color="blue.600">
+                Start a New Consultation
+              </Heading>
 
-      {errorMessage && (
-        <Alert status="error" mt={2} borderRadius="md">
-          <AlertIcon />
-          {errorMessage}
-        </Alert>
-      )}
-    </FormControl>
+              <FormControl isRequired isInvalid={!!errorMessage}>
+                <FormLabel>Select Patient</FormLabel>
+                <Select
+                  value={selectedPatientId}
+                  onChange={(e) => {
+                    setSelectedPatientId(e.target.value);
+                    const selectedPatient = dataList.find(patient => patient.id.toString() === e.target.value);
+                    if (selectedPatient) {
+                      setPhoneNumber(selectedPatient.phone_number);
+                    }
+                  }}
+                  placeholder="Select a patient"
+                  mb={2}
+                >
+                  {dataList.map(patient => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
+                    </option>
+                  ))}
+                </Select>
 
-    <Button
-      onClick={startConsultationSessionFlow}
-      colorScheme="blue"
-      size="lg"
-      width="full"
-      isLoading={loading}
-      loadingText="Starting..."
-    >
-      Start Consultation
-    </Button>
+                {errorMessage && (
+                  <Alert status="error" mt={2} borderRadius="md">
+                    <AlertIcon />
+                    {errorMessage}
+                  </Alert>
+                )}
+              </FormControl>
 
-    {loading && (
-      <Text textAlign="center" color="gray.600">
-        {animationMessages[animationIndex]}
-      </Text>
-    )}
-  </VStack>
-</Flex>
-          )}
+              <Button
+                onClick={startConsultationSessionFlow}
+                colorScheme="blue"
+                size="lg"
+                width="full"
+                isLoading={loading}
+                loadingText="Starting..."
+              >
+                Start Consultation
+              </Button>
+
+              {loading && (
+                <Text textAlign="center" color="gray.600">
+                  {animationMessages[animationIndex]}
+                </Text>
+              )}
+            </VStack>
+          </Flex>
+        )}
 
           {/* Left Side (ChatScreen/VoiceNote) */}
           <Box

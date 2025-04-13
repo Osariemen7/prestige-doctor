@@ -65,36 +65,86 @@ const Va = () => {
   const [message, setmessage] = useState('');
   const [isInstance, setInstance] = useState(false);
   const [link, setLink] = useState('');
+  const [dataList, setDataList] = useState([]);
   const modal1 = useDisclosure();
   const modal2 = useDisclosure();
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
-  
-  // Move useColorModeValue hook to component level
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [isManualInput, setIsManualInput] = useState(false);
   const bgColor = useColorModeValue('gray.50', 'gray.900');
+
+  const handlePatientSelect = (value) => {
+    if (value === 'manual') {
+      setIsManualInput(true);
+      setSelectedPatientId('');
+      setPhone('');
+    } else {
+      setIsManualInput(false);
+      setSelectedPatientId(value);
+      const selectedPatient = dataList.find(patient => patient.id.toString() === value);
+      if (selectedPatient) {
+        setPhone(selectedPatient.phone_number);
+      }
+    }
+  };
 
   const navigate = useNavigate()
   const opt =['Yes', 'No']
 
+  useEffect(() => {
+      const fetchData = async () => {
+        const accessToken = await getAccessToken();
+        if (!accessToken) return;
+  
+        try {
+          const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              accept: 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          if (response.status === 401) {
+            navigate('/');
+          } else {
+            const result = await response.json();
+            setDataList(result);
+          }
+        } catch (error) {
+          console.error('Error fetching data:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+  
+      fetchData();
+    }, []);
+  
+
   const handleSubmit = async () => {
     setButtonVisible(true);
 
-    const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
+    // Only format phone number if using manual input
+    const phone_number = isManualInput && phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
     const formattedStartTime = formatDateTime(startTime);
 
     // Base data object
     let data = {
-      
-        start_time: formattedStartTime,
-        reason,
-        phone_number,
-        is_instant: isInstance
+      start_time: formattedStartTime,
+      reason,
+      is_instant: isInstance
     };
 
-    // Condition to modify the data object
-    if (phone_number === '') {
-        delete data.phone_number; // Remove phone_number if it's empty
+    // Add either phone_number or patient_id based on selection
+    if (isManualInput) {
+      if (phone_number) {
+        data.phone_number = phone_number;
+      }
     } else {
-        delete data.patient_id; // Remove patient_id if phone_number is provided
+      if (selectedPatientId) {
+        data.patient_id = parseInt(selectedPatientId);
+      }
     }
 
     const token = await getAccessToken();
@@ -145,23 +195,26 @@ const Va = () => {
 const handleSubmit2 = async () => {
   setButtonVisible(true);
 
-  const phone_number = phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
+  // Only format phone number if using manual input
+  const phone_number = isManualInput && phoneNumber ? `+234${phoneNumber.slice(1)}` : '';
   const formattedStartTime = formatDateTime(startTime);
 
   // Base data object
   let data = {
-    
-      start_time: formattedStartTime,
-      reason,
-      phone_number,
-      is_instant: true
+    start_time: formattedStartTime,
+    reason,
+    is_instant: true
   };
 
-  // Condition to modify the data object
-  if (phone_number === '') {
-      delete data.phone_number; // Remove phone_number if it's empty
+  // Add either phone_number or patient_id based on selection
+  if (isManualInput) {
+    if (phone_number) {
+      data.phone_number = phone_number;
+    }
   } else {
-      delete data.patient_id; // Remove patient_id if phone_number is provided
+    if (selectedPatientId) {
+      data.patient_id = parseInt(selectedPatientId);
+    }
   }
 
   const token = await getAccessToken();
@@ -431,47 +484,91 @@ console.log(link)
                           </CardBody>
                         </Card>
                       ))
-                    ) : bookedItems.length > 0 ? (
-                      bookedItems.map((item, index) => {
-                        const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.appointment.channel_name}`;
-                        const appointmentDate = new Date(item.start_time);
-                        const isToday = appointmentDate.toDateString() === new Date().toDateString();
+                    ) : bookedItems.length > 0 || link?.appointment ? (
+                      <>
+                        {bookedItems.map((item, index) => {
+                          const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.appointment.channel_name}`;
+                          const appointmentDate = new Date(item.start_time);
+                          const isToday = appointmentDate.toDateString() === new Date().toDateString();
 
-                        return (
+                          return (
+                            <MotionBox
+                              key={index}
+                              whileHover={{ y: -5 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Card>
+                                <CardHeader>
+                                  <Flex justify="space-between" align="center">
+                                    <Heading size="sm">Appointment #{index + 1}</Heading>
+                                    <Badge
+                                      colorScheme={isToday ? 'green' : 'blue'}
+                                      variant="solid"
+                                      borderRadius="full"
+                                      px={3}
+                                    >
+                                      {isToday ? 'Today' : appointmentDate.toLocaleDateString()}
+                                    </Badge>
+                                  </Flex>
+                                </CardHeader>
+                                <CardBody>
+                                  <VStack align="stretch" spacing={3}>
+                                    <Flex align="center" gap={2}>
+                                      <FiUser />
+                                      <Text>Patient ID: {item.patient_id}</Text>
+                                    </Flex>
+                                    <Flex align="center" gap={2}>
+                                      <FiClock />
+                                      <Text>{appointmentDate.toLocaleTimeString()}</Text>
+                                    </Flex>
+                                    <Flex align="center" justify="space-between">
+                                      <Text fontSize="sm" color="gray.600" noOfLines={1}>
+                                        {dynamicLink}
+                                      </Text>
+                                      <CopyButton textToCopy={dynamicLink} />
+                                    </Flex>
+                                  </VStack>
+                                </CardBody>
+                                <CardFooter>
+                                  <Button
+                                    colorScheme="blue"
+                                    width="full"
+                                    leftIcon={<FiVideo />}
+                                    onClick={() => handleCalls(item)}
+                                  >
+                                    Join Call
+                                  </Button>
+                                </CardFooter>
+                              </Card>
+                            </MotionBox>
+                          );
+                        })}
+                        {link?.appointment && (
                           <MotionBox
-                            key={index}
                             whileHover={{ y: -5 }}
                             transition={{ duration: 0.2 }}
                           >
                             <Card>
                               <CardHeader>
                                 <Flex justify="space-between" align="center">
-                                  <Heading size="sm">Appointment #{index + 1}</Heading>
+                                  <Heading size="sm">Instant Appointment</Heading>
                                   <Badge
-                                    colorScheme={isToday ? 'green' : 'blue'}
+                                    colorScheme="green"
                                     variant="solid"
                                     borderRadius="full"
                                     px={3}
                                   >
-                                    {isToday ? 'Today' : appointmentDate.toLocaleDateString()}
+                                    Now
                                   </Badge>
                                 </Flex>
                               </CardHeader>
                               <CardBody>
                                 <VStack align="stretch" spacing={3}>
-                                  <Flex align="center" gap={2}>
-                                    <FiUser />
-                                    <Text>Patient ID: {item.patient_id}</Text>
-                                  </Flex>
-                                  <Flex align="center" gap={2}>
-                                    <FiClock />
-                                    <Text>{appointmentDate.toLocaleTimeString()}</Text>
-                                  </Flex>
                                   <Flex align="center" justify="space-between">
                                     <Text fontSize="sm" color="gray.600" noOfLines={1}>
-                                      {dynamicLink}
+                                      {cLink}
                                     </Text>
-                                    <CopyButton textToCopy={dynamicLink} />
+                                    <CopyButton textToCopy={cLink} />
                                   </Flex>
                                 </VStack>
                               </CardBody>
@@ -480,15 +577,15 @@ console.log(link)
                                   colorScheme="blue"
                                   width="full"
                                   leftIcon={<FiVideo />}
-                                  onClick={() => handleCalls(item)}
+                                  onClick={handleInstCalls}
                                 >
                                   Join Call
                                 </Button>
                               </CardFooter>
                             </Card>
                           </MotionBox>
-                        );
-                      })
+                        )}
+                      </>
                     ) : (
                       <Box p={6} textAlign="center" borderRadius="lg" bg="white">
                         <Image
@@ -499,21 +596,6 @@ console.log(link)
                           mb={4}
                         />
                         <Text color="gray.500">No appointments scheduled</Text>
-                        {cLink && (
-                          <VStack mt={4} spacing={3}>
-                            <Flex align="center" justify="center" gap={2}>
-                              <Text noOfLines={1}>{cLink}</Text>
-                              <CopyButton textToCopy={cLink} />
-                            </Flex>
-                            <Button
-                              colorScheme="blue"
-                              leftIcon={<FiVideo />}
-                              onClick={handleInstCalls}
-                            >
-                              Join Instant Call
-                            </Button>
-                          </VStack>
-                        )}
                       </Box>
                     )}
                   </SimpleGrid>
@@ -547,15 +629,31 @@ console.log(link)
                                   
                               </FormControl>
                               <FormControl>
-                              <FormLabel>Phone Number</FormLabel>
-                                  <Input
-                                      type="number"
-                                      value={phoneNumber}
-                                      onChange={(e) => setPhone(e.target.value)}
-                                      placeholder="Input Phone Number"
-                                  />
-      
+                              <FormLabel>Select Patient</FormLabel>
+                              <Select
+                                placeholder="Select patient"
+                                value={isManualInput ? 'manual' : selectedPatientId}
+                                onChange={(e) => handlePatientSelect(e.target.value)}
+                              >
+                                <option value="manual">Enter Phone Number Manually</option>
+                                {dataList.map((patient) => (
+                                  <option key={patient.id} value={patient.id.toString()}>
+                                    {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
+                                  </option>
+                                ))}
+                              </Select>
+                            </FormControl>
+                            {isManualInput && (
+                              <FormControl>
+                                <FormLabel>Phone Number</FormLabel>
+                                <Input
+                                  type="number"
+                                  value={phoneNumber}
+                                  onChange={(e) => setPhone(e.target.value)}
+                                  placeholder="Input Phone Number"
+                                />
                               </FormControl>
+                            )}
                               <FormControl>
                                   <FormLabel>Reason for Appointment</FormLabel>
                                   <Textarea
@@ -588,16 +686,32 @@ console.log(link)
                           <ModalHeader>Start Instant Call</ModalHeader>
                           <ModalCloseButton />
                           <ModalBody>
+                          <FormControl>
+                              <FormLabel>Select Patient</FormLabel>
+                              <Select
+                                placeholder="Select patient"
+                                value={isManualInput ? 'manual' : selectedPatientId}
+                                onChange={(e) => handlePatientSelect(e.target.value)}
+                              >
+                                <option value="manual">Enter Phone Number Manually</option>
+                                {dataList.map((patient) => (
+                                  <option key={patient.id} value={patient.id.toString()}>
+                                    {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
+                                  </option>
+                                ))}
+                              </Select>
+                            </FormControl>
+                            {isManualInput && (
                               <FormControl>
-                              <FormLabel>Phone Number</FormLabel>
-                                  <Input
-                                      type="number"
-                                      value={phoneNumber}
-                                      onChange={(e) => setPhone(e.target.value)}
-                                      placeholder="Input Phone Number"
-                                  />
-      
+                                <FormLabel>Phone Number</FormLabel>
+                                <Input
+                                  type="number"
+                                  value={phoneNumber}
+                                  onChange={(e) => setPhone(e.target.value)}
+                                  placeholder="Input Phone Number"
+                                />
                               </FormControl>
+                            )}
                               <FormControl>
                                   <FormLabel>Reason for Appointment</FormLabel>
                                   <Textarea
