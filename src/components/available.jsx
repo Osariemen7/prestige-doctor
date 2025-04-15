@@ -96,7 +96,7 @@ const AvailabilitySelector = () => {
         
         // Delay navigation by 2 seconds
         setTimeout(() => {
-          navigate('/');
+          navigate('/dashboard');
         }, 2000);
       }
     } catch (error) {
