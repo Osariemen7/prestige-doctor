@@ -119,10 +119,10 @@ const AvailabilitySelector = () => {
     };
 
     setAvailabilities([...availabilities, newAvailability]);
-    // Reset selection and times after adding
+    // Autofill next selection with previous times
     setSelectedDay('');
-    setStartTime('');
-    setEndTime('');
+    setStartTime(startTime); // Keep previous start time
+    setEndTime(endTime);     // Keep previous end time
   };
 
   const handleRemoveAvailability = (index) => {
