@@ -38,9 +38,6 @@ const LoginPage = () => {
         if (result.user.profile_set !== true) {
           localStorage.setItem('user-info', JSON.stringify(result));
           navigate('/provider');
-        } else if (result.user.organization_set !== true) {
-          localStorage.setItem('user-info', JSON.stringify(result));
-          navigate('/organization');
         } else if (result.user.provider_rate_set !== true) {
           localStorage.setItem('user-info', JSON.stringify(result));
           navigate('/provider');
