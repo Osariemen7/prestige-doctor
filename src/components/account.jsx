@@ -196,11 +196,41 @@ const Account = () => {
 
         const fetchConfetti = async () => {
             try {
-                let response = await fetch("https://health.prestigedelta.com/confetti/");
+                const accessToken = await getAccessToken();
+                if (!accessToken) return;
+                
+                let response = await fetch("https://health.prestigedelta.com/confetti/", {
+                    method: "GET",
+                    headers: {'Authorization': `Bearer ${accessToken}`},
+                });
+                
+                if (!response.ok) {
+                    console.error(`Confetti fetch error: ${response.status}`);
+                    return;
+                }
+                
                 const data = await response.json();
                 if (data.show_confetti) {
                     setShowConfetti(true);
                     setTimeout(() => setShowConfetti(false), 5000);
+                    
+                    // Display celebratory toast message
+                    if (data.main_message && data.transaction?.transaction_type) {
+                        // Format transaction type: change underscore to space and uppercase
+                        const formattedType = data.transaction.transaction_type
+                            .replace(/_/g, ' ')
+                            .toUpperCase();
+                            
+                        toast({
+                            title: formattedType,
+                            description: data.main_message,
+                            status: 'success',
+                            duration: 6000,
+                            isClosable: true,
+                            position: 'top',
+                            variant: 'solid',
+                        });
+                    }
                 }
             } catch (error) {
                 console.error("Failed to fetch confetti", error);

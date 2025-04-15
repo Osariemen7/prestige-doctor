@@ -33,7 +33,6 @@ const PatientMessages = () => {
   const [datalist, setDataList] = useState([]); // Replace patients state with datalist
   const [selectedPatient, setSelectedPatient] = useState('');
   const [isNewConversation, setIsNewConversation] = useState(false);
-  const [aiAutoResponse, setAiAutoResponse] = useState(true); // Default to true
   const [isSending, setIsSending] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -146,7 +145,6 @@ const PatientMessages = () => {
       setSelectedPatient(initialPatientId);
       setSelectedThread(null);
       setMessages([]);
-      setAiAutoResponse(true); // Default to AI for new conversations
     }
   }, [state]);
 
@@ -165,16 +163,15 @@ const PatientMessages = () => {
   };
 
   const doSendMessage = async (messageText) => {
-    // For display purposes only, use full template if it's a new conversation without AI
-    const displayMessage = isNewConversation && !aiAutoResponse ? 
-      generateTemplatePreview() : messageText;
+    // For display purposes only, use full template if it's a new conversation
+    const displayMessage = messageText;
 
     // Set temporary message with display version
     if (selectedThread) {
       setSelectedThread(prev => ({
         ...prev,
         messages: [...prev.messages, {
-          role: aiAutoResponse ? 'assistant' : 'doctor',
+          role: 'doctor',
           message_value: displayMessage,
           created: new Date().toISOString(),
           pending: true,
@@ -183,7 +180,7 @@ const PatientMessages = () => {
       }));
     } else {
       setMessages([{
-        role: aiAutoResponse ? 'assistant' : 'doctor',
+        role: 'doctor',
         message_value: displayMessage,
         created: new Date().toISOString(),
         pending: true,
@@ -199,14 +196,13 @@ const PatientMessages = () => {
         throw new Error('Authentication failed');
       }
 
-      // Always send the raw message without template
+      // Always send as doctor
       const payload = {
         patient: selectedThread ? selectedThread.patient : selectedPatient,
-        doctor_message: messageText, // Send raw message always
-        responder: aiAutoResponse ? "assistant" : "doctor"
+        doctor_message: messageText,
+        responder: 'doctor'
       };
 
-      // Add conversation_id only for follow-up messages
       if (selectedThread) {
         payload.conversation_id = selectedThread.thread_id;
       }
@@ -223,7 +219,7 @@ const PatientMessages = () => {
       if (!response.ok) {
         const errorData = await response.json();
         const errorMessage = Array.isArray(errorData) 
-          ? errorData[0] // Use first message if array
+          ? errorData[0]
           : (errorData.message || 'Failed to send message');
         throw new Error(errorMessage);
       }
@@ -232,13 +228,12 @@ const PatientMessages = () => {
 
       // Update with confirmed message
       const confirmedMessage = {
-        role: aiAutoResponse ? 'assistant' : 'doctor',
+        role: 'doctor',
         message_value: messageText,
         created: new Date().toISOString(),
       };
 
       if (isNewConversation) {
-        // For new conversations, create a new thread
         const newThread = {
           id: data.id,
           thread_id: data.thread_id,
@@ -251,43 +246,32 @@ const PatientMessages = () => {
         setIsNewConversation(false);
         setConversationId(data.thread_id);
       } else {
-        // For existing conversations, update the thread
         setSelectedThread(prev => ({
           ...prev,
-          messages: prev.messages.filter(msg => !msg.pending) // Remove pending message
-            .concat([{
-              role: aiAutoResponse ? 'assistant' : 'doctor',
-              message_value: messageText,
-              created: new Date().toISOString(),
-              message_id: data.id // Use actual message ID from response
-            }])
+          messages: prev.messages.filter(msg => !msg.pending)
+            .concat([{ ...confirmedMessage, message_id: data.id }])
         }));
       }
 
-      // Refresh the threads list
+      // Refresh threads
       const threadsResponse = await fetch('https://health.prestigedelta.com/providermessages/', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         }
       });
-      
       if (threadsResponse.ok) {
         const updatedThreads = await threadsResponse.json();
         setThreads(updatedThreads);
       }
-
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage = error.message || 'Failed to send message';
       showSnackbar(errorMessage);
-
-      // Add error message to conversation
       const errorDisplayMessage = {
         role: 'error',
         message_value: errorMessage,
         created: new Date().toISOString()
       };
-
       if (selectedThread) {
         setSelectedThread(prev => ({
           ...prev,
@@ -311,19 +295,13 @@ const PatientMessages = () => {
         showSnackbar('Please select a patient first');
         return;
       }
-      
-      // Get the raw message regardless of AI setting
-      const messageToCheck = aiAutoResponse ? newMessage : customSnippet;
-      if (!messageToCheck.trim()) {
+      if (!newMessage.trim()) {
         showSnackbar('Please enter a message');
         return;
       }
-      
       setPreviewDialogOpen(true);
       return;
     }
-
-    // For existing conversations, just send the raw message
     const messageText = newMessage;
     setNewMessage('');
     doSendMessage(messageText);
@@ -331,13 +309,8 @@ const PatientMessages = () => {
 
   const handleConfirmPreview = () => {
     setPreviewDialogOpen(false);
-    // Send the raw message without template
-    const messageText = aiAutoResponse ? newMessage : customSnippet;
-    if (!aiAutoResponse) {
-      setCustomSnippet('');
-    } else {
-      setNewMessage('');
-    }
+    const messageText = newMessage;
+    setNewMessage('');
     doSendMessage(messageText);
   };
 
@@ -347,7 +320,6 @@ const PatientMessages = () => {
 
   const handleThreadSelect = (thread) => {
     setSelectedThread(thread);
-    setAiAutoResponse(thread.responder === 'assistant');
     setIsNewConversation(false);
     if(isMobile) setBottomSheetOpen(false);
   };
@@ -357,7 +329,6 @@ const PatientMessages = () => {
     setIsNewConversation(true);
     setSelectedPatient('');
     setMessages([]);
-    setAiAutoResponse(true); // Default to true for new conversations
     if(isMobile) setBottomSheetOpen(false);
   };
 
@@ -513,7 +484,7 @@ const PatientMessages = () => {
     >
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {isNewConversation && !aiAutoResponse ? (
+          {isNewConversation ? (
             <>
               <TextField
                 fullWidth
@@ -591,7 +562,7 @@ const PatientMessages = () => {
             </>
           )}
         </Box>
-        {isNewConversation && !aiAutoResponse && (
+        {isNewConversation && (
           <>
             <Typography variant="caption" sx={{ mt: 1, alignSelf: 'flex-start' }}>
               Preview:
@@ -603,7 +574,7 @@ const PatientMessages = () => {
             </Paper>
           </>
         )}
-        {isNewConversation && aiAutoResponse && (
+        {isNewConversation && (
           <Typography 
             variant="caption" 
             color={newMessage.length > 150 ? "error" : "textSecondary"}
@@ -668,26 +639,6 @@ const PatientMessages = () => {
             </Button>
           )
         )}
-        
-        {/* AI Auto-response Toggle */}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={aiAutoResponse}
-              onChange={(e) => setAiAutoResponse(e.target.checked)}
-              color="primary"
-            />
-          }
-          label={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AutoFixHighIcon color={aiAutoResponse ? 'primary' : 'disabled'} />
-              <Typography variant="caption">
-                AI Auto-response
-              </Typography>
-            </Box>
-          }
-          sx={{ ml: 'auto' }}
-        />
       </Box>
     </Box>
   );
@@ -759,10 +710,24 @@ const PatientMessages = () => {
           position: 'relative'
         }}
       >
-        {/* Existing message content */}
         <Typography variant="caption" sx={{ /* ...existing styles... */ }}>
           {getRoleName(msg.role)}
         </Typography>
+        {msg.image && (
+          <Box sx={{ mt: 1, mb: 1, textAlign: 'center' }}>
+            <img
+              src={msg.image}
+              alt="Attached"
+              style={{
+                maxWidth: '220px',
+                maxHeight: '180px',
+                borderRadius: 8,
+                display: 'inline-block',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+              }}
+            />
+          </Box>
+        )}
         <Typography variant="body1">
           {msg.message_value}
         </Typography>
@@ -837,7 +802,7 @@ const PatientMessages = () => {
               gap: 2,
             }}>
               {/* Show either thread messages or new conversation messages */}
-              {(selectedThread ? selectedThread.messages : messages).map((msg) => 
+              {((selectedThread && Array.isArray(selectedThread.messages)) ? selectedThread.messages : Array.isArray(messages) ? messages : []).map((msg) => 
                 renderMessage(msg, selectedThread)
               )}
             </Box>

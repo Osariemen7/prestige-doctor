@@ -28,24 +28,30 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
       state: {
         newConversation: true,
         selectedPatientId: patientId,
-        patientName: `${patientData.profile_data.demographics.first_name} ${patientData.profile_data.demographics.last_name}`,
+        patientName: `${patientData.profile_data?.demographics?.first_name || ""} ${patientData.profile_data?.demographics?.last_name || ""}`,
       },
     });
   };
 
   // Extract patient name for avatar
-  const firstName = patientData.profile_data.demographics.first_name;
-  const lastName = patientData.profile_data.demographics.last_name;
+  const demographics = patientData.profile_data?.demographics || {};
+  const lifestyle = patientData.profile_data?.lifestyle || {};
+  const biometrics = lifestyle.biometrics || {};
+  const healthGoal = patientData.health_goal || {};
+  const location = demographics.location || {};
+
+  const firstName = demographics.first_name || "";
+  const lastName = demographics.last_name || "";
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`;
-  
+
   // Calculate overall health status
   const healthStatus = 
-    patientData.health_goal.overall_probability > 70 ? "Good" :
-    patientData.health_goal.overall_probability > 50 ? "Fair" : "Needs Attention";
+    healthGoal.overall_probability > 70 ? "Good" :
+    healthGoal.overall_probability > 50 ? "Fair" : "Needs Attention";
   
   const healthStatusColor = 
-    patientData.health_goal.overall_probability > 70 ? "green" :
-    patientData.health_goal.overall_probability > 50 ? "yellow" : "red";
+    healthGoal.overall_probability > 70 ? "green" :
+    healthGoal.overall_probability > 50 ? "yellow" : "red";
 
   return (
     <Box mb={8} id="patient-overview">
@@ -74,9 +80,9 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                 <Heading size="lg" fontWeight="bold">
                   {firstName} {lastName}
                 </Heading>
-                {patientData.profile_data.demographics.gender && (
+                {demographics.gender && (
                   <Badge ml={2} colorScheme="purple">
-                    {patientData.profile_data.demographics.gender}
+                    {demographics.gender}
                   </Badge>
                 )}
               </Flex>
@@ -116,11 +122,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                 <Text>
                   Age:{" "}
                   <Text as="span" fontWeight="bold">
-                    {patientData.profile_data.demographics.age ||
-                      new Date().getFullYear() -
-                        new Date(
-                          patientData.profile_data.demographics.date_of_birth
-                        ).getFullYear()}
+                    {demographics.age || (demographics.date_of_birth ? new Date().getFullYear() - new Date(demographics.date_of_birth).getFullYear() : "N/A")}
                   </Text>
                 </Text>
               </Flex>
@@ -130,7 +132,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                 <Text>
                   Location:{" "}
                   <Text as="span" fontWeight="bold">
-                    {patientData.profile_data.demographics.location.country_code}
+                    {location.country_code || "N/A"}
                   </Text>
                 </Text>
               </Flex>
@@ -139,7 +141,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                 <EmailIcon color="blue.500" mr={2} />
                 <Text isTruncated maxW="200px">
                   Email: <Text as="span" fontWeight="bold">
-                    {patientData.profile_data.demographics.email || "N/A"}
+                    {demographics.email || "N/A"}
                   </Text>
                 </Text>
               </Flex>
@@ -151,7 +153,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                 <Text>
                   Phone:{" "}
                   <Text as="span" fontWeight="bold">
-                    {patientData.profile_data.demographics.phone_number}
+                    {demographics.phone_number || "N/A"}
                   </Text>
                 </Text>
               </Flex>
@@ -161,7 +163,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                 <Text>
                   Height:{" "}
                   <Text as="span" fontWeight="bold">
-                    {patientData.profile_data.lifestyle.biometrics.height} cm
+                    {biometrics.height ? `${biometrics.height} cm` : "N/A"}
                   </Text>
                 </Text>
               </Flex>
@@ -171,7 +173,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                 <Text>
                   Weight:{" "}
                   <Text as="span" fontWeight="bold">
-                    {patientData.profile_data.lifestyle.biometrics.weight} kg
+                    {biometrics.weight ? `${biometrics.weight} kg` : "N/A"}
                   </Text>
                 </Text>
               </Flex>
@@ -189,7 +191,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
             <Stat>
               <StatLabel color="gray.600">Overall Probability</StatLabel>
               <StatNumber fontSize="3xl" color={`${healthStatusColor}.500`}>
-                {patientData.health_goal.overall_probability}%
+                {healthGoal.overall_probability !== undefined ? `${healthGoal.overall_probability}%` : "N/A"}
               </StatNumber>
               <StatHelpText>
                 <Flex align="center">
@@ -204,7 +206,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                       h="8px" 
                       bg={`${healthStatusColor}.400`}
                       borderRadius="full"
-                      w={`${patientData.health_goal.overall_probability}%`}
+                      w={healthGoal.overall_probability !== undefined ? `${healthGoal.overall_probability}%` : "0%"}
                     />
                   </Box>
                 </Flex>
@@ -215,10 +217,10 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
               <StatLabel color="gray.600">Progress to Goal</StatLabel>
               <Flex align="baseline">
                 <StatNumber fontSize="3xl" color="blue.500">
-                  {patientData.health_goal.progress}%
+                  {healthGoal.progress !== undefined ? `${healthGoal.progress}%` : "N/A"}
                 </StatNumber>
                 <Text fontSize="md" ml={2} color="gray.600">
-                  of {patientData.health_goal.expected_progress}%
+                  of {healthGoal.expected_progress !== undefined ? `${healthGoal.expected_progress}%` : "N/A"}
                 </Text>
               </Flex>
               <StatHelpText>
@@ -234,7 +236,7 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
                       h="8px" 
                       bg="blue.400"
                       borderRadius="full"
-                      w={`${(patientData.health_goal.progress / patientData.health_goal.expected_progress) * 100}%`}
+                      w={healthGoal.progress !== undefined && healthGoal.expected_progress ? `${(healthGoal.progress / healthGoal.expected_progress) * 100}%` : "0%"}
                     />
                   </Box>
                 </Flex>
@@ -248,24 +250,26 @@ const PatientOverview = ({ patientData, navigate, patientId }) => {
             <Stat>
               <StatLabel fontSize="sm" color="gray.600">BMI</StatLabel>
               <StatNumber fontSize="xl">
-                {patientData.profile_data.lifestyle.biometrics.bmi}
+                {biometrics.bmi !== undefined ? biometrics.bmi : "N/A"}
               </StatNumber>
               <StatHelpText fontSize="xs">
-                {patientData.profile_data.lifestyle.biometrics.bmi < 18.5 ? "Underweight" :
-                 patientData.profile_data.lifestyle.biometrics.bmi < 25 ? "Normal" :
-                 patientData.profile_data.lifestyle.biometrics.bmi < 30 ? "Overweight" : "Obese"}
+                {biometrics.bmi !== undefined ? (
+                  biometrics.bmi < 18.5 ? "Underweight" :
+                  biometrics.bmi < 25 ? "Normal" :
+                  biometrics.bmi < 30 ? "Overweight" : "Obese"
+                ) : "N/A"}
               </StatHelpText>
             </Stat>
             
             <Stat>
               <StatLabel fontSize="sm" color="gray.600">Compliance Rate</StatLabel>
               <StatNumber fontSize="xl">
-                {patientData.health_goal.overall_compliance_rate}%
+                {healthGoal.overall_compliance_rate !== undefined ? `${healthGoal.overall_compliance_rate}%` : "N/A"}
               </StatNumber>
               <StatHelpText fontSize="xs">
                 <Flex align="center">
                   <Icon as={StarIcon} color="yellow.400" mr={1} />
-                  <Text>{patientData.health_goal.streak_count}-day streak</Text>
+                  <Text>{healthGoal.streak_count !== undefined ? `${healthGoal.streak_count}-day streak` : "N/A"}</Text>
                 </Flex>
               </StatHelpText>
             </Stat>
