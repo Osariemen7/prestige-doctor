@@ -347,7 +347,7 @@ const RegistrationPage = () => {
           >
             Already have an account?{' '}
             <Button
-              href="/login"
+              href="/"
               sx={{
                 color: '#1976D2',
                 textTransform: 'none',
