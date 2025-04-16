@@ -1159,7 +1159,7 @@ const SearchBox = () => {
                       <MenuItem value="low">
                           <em>Expertise Level</em>
                         </MenuItem>
-                        <MenuItem value="low" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.0</MenuItem>
+                        <MenuItem value="low" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.05</MenuItem>
                         <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.2</MenuItem>
                         <MenuItem value="high">Advanced $0.5</MenuItem>
                       </Select>

@@ -3,10 +3,14 @@ import { Paper, Typography, List, ListItem, ListItemText, Divider, Box, Circular
 import SendIcon from '@mui/icons-material/Send';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import RefreshIcon from '@mui/icons-material/Refresh'; // Add RefreshIcon import
+import AttachFileIcon from '@mui/icons-material/AttachFile'; // Add AttachFileIcon for image uploads
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import DownloadIcon from '@mui/icons-material/Download';
 import Sidebar from '../components/sidebar';
 import { useNavigate, useLocation } from 'react-router-dom'; // Add useLocation
 import { getAccessToken } from './api'; // Add this import
 import AskQuestionIcon from '@mui/icons-material/Psychology'; // Add this import
+import PersonIcon from '@mui/icons-material/Person';
 
 const PatientMessages = () => {
   const navigate = useNavigate();
@@ -27,7 +31,6 @@ const PatientMessages = () => {
   // Check if mobile view (lg breakpoint is 1024px)
   const isMobile = useMediaQuery('(max-width:1024px)');
 
-  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [conversationId, setConversationId] = useState(''); // empty => new conversation
   const [datalist, setDataList] = useState([]); // Replace patients state with datalist
@@ -41,8 +44,48 @@ const PatientMessages = () => {
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const [customSnippet, setCustomSnippet] = useState('');
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [messages, setMessages] = useState([]); // Add messages state for new conversations
+  const [expandedImage, setExpandedImage] = useState(null);
 
   const messageContainerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
+
+  // Add state for per-thread input
+  const [threadInputState, setThreadInputState] = useState({});
+  const prevThreadKeyRef = useRef();
+
+  // Helper to get thread key (thread_id for existing, patient id for new)
+  const getThreadKey = (thread, patient) => {
+    if (thread && thread.thread_id) return thread.thread_id;
+    if (patient) return `new_${patient}`;
+    return 'new';
+  };
+
+  // Save input state for previous thread before switching
+  useEffect(() => {
+    const prevKey = prevThreadKeyRef.current;
+    if (prevKey) {
+      setThreadInputState(prev => ({
+        ...prev,
+        [prevKey]: {
+          newMessage,
+          imageFile,
+          imagePreview,
+        }
+      }));
+    }
+    // Restore input state for new thread
+    const newKey = getThreadKey(selectedThread, selectedPatient);
+    const state = threadInputState[newKey] || {};
+    setNewMessage(state.newMessage || '');
+    setImageFile(state.imageFile || null);
+    setImagePreview(state.imagePreview || null);
+    prevThreadKeyRef.current = newKey;
+    // eslint-disable-next-line
+  }, [selectedThread, selectedPatient]);
 
   const scrollToBottom = () => {
     if (messageContainerRef.current) {
@@ -93,7 +136,8 @@ const PatientMessages = () => {
           setThreads([]);
         } else {
           setThreads(data);
-          if(data.length > 0) {
+          // Only auto-select most recent thread if not in new conversation mode
+          if (data.length > 0 && !(state?.newConversation && initialPatientId)) {
             setSelectedThread(data[0]);
             setIsNewConversation(false);
           }
@@ -145,6 +189,15 @@ const PatientMessages = () => {
       setSelectedPatient(initialPatientId);
       setSelectedThread(null);
       setMessages([]);
+      // Focus the message input after a short delay to ensure render
+      setTimeout(() => {
+        if (messageInputRef.current) messageInputRef.current.focus();
+      }, 200);
+    } else if (!state?.selectedPatientId) {
+      setIsNewConversation(true);
+      setSelectedPatient("");
+      setSelectedThread(null);
+      setMessages([]);
     }
   }, [state]);
 
@@ -163,10 +216,16 @@ const PatientMessages = () => {
   };
 
   const doSendMessage = async (messageText) => {
+    // Check if caption is provided when uploading an image
+    if (imageFile && !messageText.trim()) {
+      showSnackbar('Please add a caption for your image', 'error');
+      return;
+    }
+
     // For display purposes only, use full template if it's a new conversation
     const displayMessage = messageText;
 
-    // Set temporary message with display version
+    // Set temporary message with display version and image preview
     if (selectedThread) {
       setSelectedThread(prev => ({
         ...prev,
@@ -175,7 +234,8 @@ const PatientMessages = () => {
           message_value: displayMessage,
           created: new Date().toISOString(),
           pending: true,
-          temp_id: Date.now()
+          temp_id: Date.now(),
+          image: imagePreview // Add image preview
         }]
       }));
     } else {
@@ -184,7 +244,8 @@ const PatientMessages = () => {
         message_value: displayMessage,
         created: new Date().toISOString(),
         pending: true,
-        temp_id: Date.now()
+        temp_id: Date.now(),
+        image: imagePreview // Add image preview
       }]);
     }
 
@@ -196,25 +257,56 @@ const PatientMessages = () => {
         throw new Error('Authentication failed');
       }
 
-      // Always send as doctor
-      const payload = {
-        patient: selectedThread ? selectedThread.patient : selectedPatient,
-        doctor_message: messageText,
-        responder: 'doctor'
-      };
+      let response;
+      
+      // Check if we need to upload an image
+      if (imageFile) {
+        // Use FormData for image uploads
+        const formData = new FormData();
+        
+        // Add the required fields
+        formData.append('patient', selectedThread ? selectedThread.patient : selectedPatient);
+        formData.append('doctor_message', messageText);
+        formData.append('responder', 'doctor');
+        
+        // Add conversation_id for follow-up messages
+        if (selectedThread) {
+          formData.append('conversation_id', selectedThread.thread_id);
+        }
+        
+        // Add the image file
+        formData.append('image', imageFile);
+        
+        // Send the FormData request
+        response = await fetch('https://health.prestigedelta.com/providermessages/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            // Note: Don't set Content-Type here, it will be set automatically with boundary
+          },
+          body: formData
+        });
+      } else {
+        // Regular JSON request for text-only messages
+        const payload = {
+          patient: selectedThread ? selectedThread.patient : selectedPatient,
+          doctor_message: messageText,
+          responder: 'doctor'
+        };
 
-      if (selectedThread) {
-        payload.conversation_id = selectedThread.thread_id;
+        if (selectedThread) {
+          payload.conversation_id = selectedThread.thread_id;
+        }
+
+        response = await fetch('https://health.prestigedelta.com/providermessages/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload)
+        });
       }
-
-      const response = await fetch('https://health.prestigedelta.com/providermessages/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload)
-      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -226,11 +318,15 @@ const PatientMessages = () => {
 
       const data = await response.json();
 
+      // Get image URL from response if available
+      const imageUrl = data.image_url || null;
+
       // Update with confirmed message
       const confirmedMessage = {
         role: 'doctor',
         message_value: messageText,
         created: new Date().toISOString(),
+        image: imageUrl
       };
 
       if (isNewConversation) {
@@ -252,6 +348,9 @@ const PatientMessages = () => {
             .concat([{ ...confirmedMessage, message_id: data.id }])
         }));
       }
+
+      // Clear the image after sending
+      handleClearImage();
 
       // Refresh threads
       const threadsResponse = await fetch('https://health.prestigedelta.com/providermessages/', {
@@ -289,6 +388,17 @@ const PatientMessages = () => {
     }
   };
 
+  const clearInputForThread = () => {
+    setNewMessage('');
+    setImageFile(null);
+    setImagePreview(null);
+    const key = getThreadKey(selectedThread, selectedPatient);
+    setThreadInputState(prev => ({
+      ...prev,
+      [key]: { newMessage: '', imageFile: null, imagePreview: null }
+    }));
+  };
+
   const handleSendMessage = async () => {
     if (isNewConversation) {
       if (!selectedPatient) {
@@ -305,6 +415,7 @@ const PatientMessages = () => {
     const messageText = newMessage;
     setNewMessage('');
     doSendMessage(messageText);
+    clearInputForThread();
   };
 
   const handleConfirmPreview = () => {
@@ -312,6 +423,7 @@ const PatientMessages = () => {
     const messageText = newMessage;
     setNewMessage('');
     doSendMessage(messageText);
+    clearInputForThread();
   };
 
   const handleCancelPreview = () => {
@@ -374,6 +486,44 @@ const PatientMessages = () => {
         perplexityThread: perplexityThread
       }
     });
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showSnackbar("Image size should be less than 5MB", "error");
+        return;
+      }
+      
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        showSnackbar("Please select an image file", "error");
+        return;
+      }
+      
+      setImageFile(file);
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onload = (e) => setImagePreview(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleClearImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+  
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   const getLastMessageTime = (thread) => {
@@ -473,145 +623,103 @@ const PatientMessages = () => {
       sx={{
         width: '100%',
         maxWidth: '700px',
-        borderRadius: '24px',
-        boxShadow: '0px 2px 10px rgba(0,0,0,0.1)',
-        backgroundColor: 'white',
-        padding: '8px 16px',
+        borderRadius: '999px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
+        background: 'linear-gradient(90deg, #f8fafc 80%, #e3f2fd 100%)',
+        px: 2,
+        py: 1,
         display: 'flex',
-        flexDirection: 'column',
-        gap: '12px'
+        flexDirection: 'column', // allow stacking preview above controls
+        alignItems: 'stretch',
+        gap: 1,
+        position: 'relative',
+        mt: 0,
+        mb: 0,
       }}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {isNewConversation ? (
-            <>
-              <TextField
-                fullWidth
-                placeholder="Enter custom snippet for message..."
-                variant="standard"
-                multiline
-                minRows={1}
-                maxRows={4}
-                InputProps={{
-                  disableUnderline: true,
-                  style: { fontSize: '16px' }
-                }}
-                sx={{ marginBottom: '8px' }}
-                value={customSnippet}
-                onChange={(e) => setCustomSnippet(e.target.value)}
-                disabled={isSending}
-              />
-              <IconButton 
-                color="primary" 
-                onClick={handleSendMessage} 
-                disabled={!customSnippet.trim() || isSending}
-              >
-                {isSending ? (
-                  <CircularProgress size={24} />
-                ) : (
-                  <SendIcon />
-                )}
-              </IconButton>
-            </>
-          ) : (
-            <>
-              <TextField
-                fullWidth
-                placeholder="Type your message here..."
-                variant="standard"
-                multiline
-                minRows={1}
-                maxRows={4}
-                InputProps={{
-                  disableUnderline: true,
-                  style: { fontSize: '16px' },
-                  maxLength: isNewConversation ? 150 : undefined,
-                }}
-                inputProps={{
-                  maxLength: isNewConversation ? 150 : undefined,
-                }}
-                sx={{ marginBottom: '8px' }}
-                value={newMessage}
-                onChange={(e) => {
-                  if (isNewConversation && e.target.value.length <= 150) {
-                    setNewMessage(e.target.value);
-                  } else if (!isNewConversation) {
-                    setNewMessage(e.target.value);
-                  }
-                }}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                disabled={isSending}
-              />
-              <IconButton 
-                color="primary" 
-                onClick={handleSendMessage} 
-                disabled={(!newMessage.trim()) || (isNewConversation && !selectedPatient) || (isNewConversation && newMessage.length > 150) || isSending}
-              >
-                {isSending ? (
-                  <CircularProgress size={24} />
-                ) : (
-                  <SendIcon />
-                )}
-              </IconButton>
-            </>
-          )}
+      {/* Image preview (if any) at the top of the input area */}
+      {imagePreview && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, mt: 0.5 }}>
+          <Paper elevation={1} sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            p: 1,
+            borderRadius: 2,
+            background: '#fff',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            maxWidth: 180,
+          }}>
+            <img
+              src={imagePreview}
+              alt="Preview"
+              style={{
+                width: 60,
+                height: 60,
+                objectFit: 'cover',
+                borderRadius: 6,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.10)'
+              }}
+            />
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              onClick={handleClearImage}
+              sx={{ minWidth: 0, px: 1.5, fontSize: 13 }}
+            >
+              Clear
+            </Button>
+          </Paper>
         </Box>
+      )}
+      {/* Controls row */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
         {isNewConversation && (
-          <>
-            <Typography variant="caption" sx={{ mt: 1, alignSelf: 'flex-start' }}>
-              Preview:
-            </Typography>
-            <Paper sx={{ p: 1, backgroundColor: '#f5f5f5' }}>
-              <Typography variant="body2">
-                {generateTemplatePreview()}
-              </Typography>
-            </Paper>
-          </>
-        )}
-        {isNewConversation && (
-          <Typography 
-            variant="caption" 
-            color={newMessage.length > 150 ? "error" : "textSecondary"}
-            sx={{ alignSelf: 'flex-end', mr: 6 }}
+          <FormControl
+            variant="outlined"
+            sx={{
+              minWidth: 90,
+              mr: 0.5,
+              '.MuiOutlinedInput-root': {
+                borderRadius: '999px',
+                background: '#f0f4f8',
+                height: 38,
+                pl: 0.5,
+                pr: 1,
+                fontSize: 13,
+                boxShadow: 'none',
+              },
+            }}
+            size="small"
           >
-            {newMessage.length}/150 characters
-          </Typography>
-        )}
-      </Box>
-      
-      {/* Bottom Row: Controls */}
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        gap: '10px' 
-      }}>
-        {/* Patient dropdown (only for new conversations) */}
-        {isNewConversation ? (
-          <FormControl variant="standard">
             <Select
               value={selectedPatient || ""}
               onChange={(e) => setSelectedPatient(e.target.value)}
               displayEmpty
+              startAdornment={<PersonIcon sx={{ color: '#1976d2', fontSize: 18, mr: 0.5 }} />}
               renderValue={(selected) =>
                 selected
-                  ? (datalist.find((p) => p.id === selected)?.full_name || `Patient (${selected})`)
-                  : 'Choose Patient'
+                  ? (datalist.find((p) => p.id === selected)?.full_name?.split(' ')[0] || `Patient`)
+                  : 'Patient'
               }
               sx={{
-                fontSize: '14px',
-                backgroundColor: '#1E90FF',
-                color: 'white',
-                borderRadius: '4px',
-                padding: '4px 12px',
-                '& .MuiSelect-icon': { color: 'white' },
-                '&:hover': { backgroundColor: '#187bcd' },
+                borderRadius: '999px',
+                fontSize: 13,
+                color: '#1976d2',
+                fontWeight: 500,
+                minWidth: 70,
+                height: 38,
+                pl: 0,
+                pr: 0,
+                background: 'none',
+                boxShadow: 'none',
+                '.MuiSelect-icon': { color: '#1976d2', fontSize: 18 },
+              }}
+              MenuProps={{
+                PaperProps: {
+                  style: { zIndex: 1302 },
+                },
               }}
             >
               <MenuItem value="">
@@ -626,19 +734,86 @@ const PatientMessages = () => {
               ))}
             </Select>
           </FormControl>
-        ) : (
-          // If not a new conversation and a doctor message exists, show the Ask button
-          selectedThread &&
-          selectedThread.messages.some(msg => msg.role === 'doctor') && (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => handleAskAI(selectedThread.thread_id, selectedThread.patient, selectedThread.perplexity_thread)}
-            >
-              Ask Dr House AI
-            </Button>
-          )
         )}
+        <IconButton onClick={triggerFileInput} sx={{
+          width: 36,
+          height: 36,
+          borderRadius: '50%',
+          background: '#f0f4f8',
+          color: '#1976d2',
+          boxShadow: 'none',
+          transition: 'background 0.2s',
+          '&:hover': { background: '#e3f2fd' },
+          flexShrink: 0,
+        }}>
+          <AttachFileIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          accept="image/*"
+          onChange={handleImageSelect}
+        />
+        <TextField
+          fullWidth
+          placeholder={isNewConversation ? "Type a message..." : "Type your message here..."}
+          variant="standard"
+          multiline
+          minRows={1}
+          maxRows={4}
+          InputProps={{
+            disableUnderline: true,
+            style: {
+              fontSize: '15px',
+              background: 'none',
+              borderRadius: '999px',
+              paddingLeft: 10,
+              paddingRight: 10,
+            },
+          }}
+          sx={{
+            background: 'none',
+            borderRadius: '999px',
+            boxShadow: 'none',
+            mx: 0.5,
+            my: 0,
+            minHeight: 38,
+            '& textarea': { padding: 0, lineHeight: 1.6 },
+          }}
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          }}
+          disabled={isSending}
+          inputRef={messageInputRef}
+        />
+        <IconButton
+          color="primary"
+          onClick={handleSendMessage}
+          disabled={
+            isNewConversation
+              ? (!selectedPatient || !newMessage.trim() || isSending)
+              : (!newMessage.trim() || isSending)
+          }
+          sx={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: '#1976d2',
+            color: 'white',
+            ml: 0.5,
+            boxShadow: 'none',
+            '&:hover': { background: '#125ea2' },
+            flexShrink: 0,
+          }}
+        >
+          {isSending ? <CircularProgress size={22} sx={{ color: 'white' }} /> : <SendIcon sx={{ fontSize: 20 }} />}
+        </IconButton>
       </Box>
     </Box>
   );
@@ -713,19 +888,31 @@ const PatientMessages = () => {
         <Typography variant="caption" sx={{ /* ...existing styles... */ }}>
           {getRoleName(msg.role)}
         </Typography>
-        {msg.image && (
-          <Box sx={{ mt: 1, mb: 1, textAlign: 'center' }}>
+        {/* Display image if present at the top, clickable for expand */}
+        {msg.image && typeof msg.image === 'string' && msg.image.startsWith('http') && (
+          <Box sx={{ mb: 1, textAlign: 'center', position: 'relative' }}>
             <img
               src={msg.image}
-              alt="Attached"
+              alt="attachment"
               style={{
                 maxWidth: '220px',
                 maxHeight: '180px',
                 borderRadius: 8,
+                boxShadow: '0 1px 6px rgba(0,0,0,0.13)',
                 display: 'inline-block',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                cursor: 'pointer',
+                transition: 'box-shadow 0.2s',
               }}
+              onClick={() => setExpandedImage(msg.image)}
             />
+            <IconButton
+              size="small"
+              sx={{ position: 'absolute', top: 6, right: 6, background: 'rgba(255,255,255,0.7)' }}
+              onClick={() => setExpandedImage(msg.image)}
+              aria-label="Expand image"
+            >
+              <ZoomInIcon fontSize="small" />
+            </IconButton>
           </Box>
         )}
         <Typography variant="body1">
@@ -763,11 +950,12 @@ const PatientMessages = () => {
               borderBottom: '1px solid rgba(0,0,0,0.12)'
             }}
           >
-            {selectedThread && (
-              <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 500 }}>
-                {selectedThread.patient_name || `Patient (${selectedThread.patient})`}
-              </Typography>
-            )}
+            {/* Show patient name for new conversation if selected, or thread name for existing */}
+            <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 500 }}>
+              {isNewConversation && selectedPatient
+                ? datalist.find(p => p.id === selectedPatient)?.full_name || `Patient (${selectedPatient})`
+                : selectedThread?.patient_name || (selectedThread ? `Patient (${selectedThread.patient})` : '')}
+            </Typography>
             <IconButton 
               onClick={handleRefresh} 
               disabled={isRefreshing}
@@ -791,23 +979,53 @@ const PatientMessages = () => {
               flex: 1,
               overflowY: 'auto',
               p: { xs: 2, lg: 4 },
-              mb: '180px', // Increased bottom margin to ensure last message is visible
-              scrollBehavior: 'smooth', // Add smooth scrolling
-            }}
-          >
-            {/* Messages */}
-            <Box sx={{ 
+              mb: 0, // Remove artificial margin-bottom
+              scrollBehavior: 'smooth',
               display: 'flex',
               flexDirection: 'column',
-              gap: 2,
-            }}>
-              {/* Show either thread messages or new conversation messages */}
-              {((selectedThread && Array.isArray(selectedThread.messages)) ? selectedThread.messages : Array.isArray(messages) ? messages : []).map((msg) => 
-                renderMessage(msg, selectedThread)
-              )}
-            </Box>
+              alignItems: 'center',
+              justifyContent: (isNewConversation && messages.length === 0) ? 'center' : 'flex-start',
+            }}
+          >
+            {/* If new conversation and no messages, show instructions centered */}
+            {isNewConversation && messages.length === 0 ? (
+              <Box sx={{ textAlign: 'center', width: '100%', maxWidth: 340 }}>
+                <Paper elevation={0} sx={{
+                  background: '#f5f7fa',
+                  color: '#607D8B',
+                  p: 2,
+                  borderRadius: 2,
+                  fontSize: 15,
+                  textAlign: 'center',
+                  lineHeight: 1.6,
+                  wordBreak: 'break-word',
+                  maxWidth: '100%',
+                  minHeight: 36,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mx: 'auto',
+                }}>
+                  <span style={{ opacity: 0.9 }}>
+                    To start a conversation, select a patient, type your message, and optionally attach an image. The patient will receive your message on WhatsApp as a secure chat.
+                  </span>
+                </Paper>
+              </Box>
+            ) : (
+              <Box sx={{ 
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                width: '100%',
+                alignItems: 'flex-start',
+              }}>
+                {/* Show either thread messages or new conversation messages */}
+                {((selectedThread && Array.isArray(selectedThread.messages)) ? selectedThread.messages : Array.isArray(messages) ? messages : []).map((msg) => 
+                  renderMessage(msg, selectedThread)
+                )}
+              </Box>
+            )}
           </Box>
-
           {/* Fixed input box at bottom */}
           <Box sx={{
             position: 'absolute',
@@ -817,7 +1035,7 @@ const PatientMessages = () => {
             bgcolor: 'background.paper',
             borderTop: '1px solid rgba(0,0,0,0.12)',
             p: 2,
-            maxHeight: '170px', // Fixed height for input box
+            maxHeight: '170px',
             zIndex: 1,
           }}>
             {renderInputBox()}
@@ -879,6 +1097,14 @@ const PatientMessages = () => {
           </>
         )}
       </div>
+      {/* Hidden file input for image uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        accept="image/*"
+        onChange={handleImageSelect}
+      />
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
@@ -929,6 +1155,44 @@ const PatientMessages = () => {
             Send Message
           </Button>
         </DialogActions>
+      </Dialog>
+      {/* Image expand modal */}
+      <Dialog open={!!expandedImage} onClose={() => setExpandedImage(null)} maxWidth="md" fullWidth>
+        <Box sx={{ position: 'relative', bgcolor: 'black', p: 0 }}>
+          {expandedImage && (
+            <img
+              src={expandedImage}
+              alt="Expanded"
+              style={{
+                width: '100%',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                background: 'black',
+                display: 'block',
+              }}
+            />
+          )}
+          <IconButton
+            onClick={() => setExpandedImage(null)}
+            sx={{ position: 'absolute', top: 8, right: 8, color: 'white', background: 'rgba(0,0,0,0.4)' }}
+            aria-label="Close"
+          >
+            ×
+          </IconButton>
+          {expandedImage && (
+            <IconButton
+              component="a"
+              href={expandedImage}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{ position: 'absolute', top: 8, left: 8, color: 'white', background: 'rgba(0,0,0,0.4)' }}
+              aria-label="Download image"
+            >
+              <DownloadIcon fontSize="medium" />
+            </IconButton>
+          )}
+        </Box>
       </Dialog>
     </div>
   );
