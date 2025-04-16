@@ -270,6 +270,7 @@ const Call = () => {
     const processorRef = useRef(null);
     const [isPaused, setIsPaused] = useState(false);
     const isPausedRef = useRef(false);
+    const transcriptionBgColor = useColorModeValue('white', 'gray.700');
     
     // Update isPausedRef when isPaused changes
     useEffect(() => {
@@ -1313,71 +1314,133 @@ const Call = () => {
                             Generate Documentation
                         </Button>
 
-                        <Tabs variant="enclosed" colorScheme="blue" onChange={(index) => setActiveTab(index === 0 ? 'consultation' : 'documentation')}>
-                                <TabList mb="1em">
-                                    <Tab>Consultation</Tab>
-                                    <Tab color='white'>Documentation</Tab>
-                                </TabList>
+                        <Tabs 
+                            variant="enclosed" 
+                            colorScheme="blue" 
+                            onChange={(index) => setActiveTab(index === 0 ? 'consultation' : 'documentation')}
+                            isFitted // Makes tabs take up equal space
+                            w="100%"
+                        >
+                            <TabList 
+                                mb="1em" 
+                                overflowX={{ base: "auto", md: "hidden" }} // Allows horizontal scroll on mobile
+                                sx={{
+                                    '&::-webkit-scrollbar': {
+                                        display: 'none' // Hides scrollbar
+                                    },
+                                    scrollbarWidth: 'none', // Firefox
+                                    msOverflowStyle: 'none', // IE/Edge
+                                }}
+                            >
+                                <Tab 
+                                    flex={{ base: "none", md: 1 }}
+                                    minW={{ base: "150px", md: "auto" }}
+                                    px={4}
+                                >
+                                    Consultation
+                                </Tab>
+                                <Tab 
+                                    flex={{ base: "none", md: 1 }}
+                                    minW={{ base: "150px", md: "auto" }}
+                                    px={4}
+                                    color="white"
+                                >
+                                    Documentation
+                                </Tab>
+                            </TabList>
 
-                                <TabPanels>
-                                    <TabPanel>
-                                        <VStack spacing={6} align="stretch">
-                                            {/* Status Controls */}
-                                            <StatusControls 
-                                                isVideoEnabled={isVideoEnabled}
-                                                isRecording={isRecording}
-                                                connectionStatus={connectionStatus}
-                                            />
-                                            
-                                            {/* Video Display */}
-                                            {isVideoEnabled && (
-                                                <Box
-                                                    borderRadius="md"
-                                                    overflow="hidden"
-                                                    bg="black"
-                                                    aspectRatio={16/9}
-                                                >
-                                                    <VideoDisplay
-                                                        localVideoTrack={localVideoTrack}
-                                                        remoteUsers={remoteUsers}
-                                                    />
-                                                </Box>
-                                            )}
-
-                                            {/* Audio Visualizer */}
-                                            {isRecording && visualizer && (
-                                                <AudioVisualizer
-                                                    analyser={visualizer.analyser}
-                                                    dataArray={visualizer.dataArray}
-                                                    bufferLength={visualizer.bufferLength}
+                            <TabPanels>
+                                <TabPanel p={{ base: 2, md: 4 }}>
+                                    <VStack spacing={6} align="stretch">
+                                        {/* Status Controls */}
+                                        <StatusControls 
+                                            isVideoEnabled={isVideoEnabled}
+                                            isRecording={isRecording}
+                                            connectionStatus={connectionStatus}
+                                        />
+                                        
+                                        {/* Video Display */}
+                                        {isVideoEnabled && (
+                                            <Box
+                                                borderRadius="md"
+                                                overflow="hidden"
+                                                bg="black"
+                                                aspectRatio={16/9}
+                                            >
+                                                <VideoDisplay
+                                                    localVideoTrack={localVideoTrack}
+                                                    remoteUsers={remoteUsers}
                                                 />
-                                            )}
+                                            </Box>
+                                        )}
 
-                                            {/* Video Controls */}
-                                            <VideoControls
-                                                isVideoEnabled={isVideoEnabled}
-                                                toggleVideo={() => isVideoEnabled ? disableVideo() : enableVideo()}
-                                                isRecording={isRecording}
-                                                toggleRecording={() => isRecording ? stopRecording() : startRecording()}
-                                                endCall={leaveChannel}
-                                                isLoading={isLoading}
+                                        {/* Audio Visualizer */}
+                                        {isRecording && visualizer && (
+                                            <AudioVisualizer
+                                                analyser={visualizer.analyser}
+                                                dataArray={visualizer.dataArray}
+                                                bufferLength={visualizer.bufferLength}
                                             />
+                                        )}
 
-                                            {/* Transcription Box */}
-                                           
+                                        {/* Video Controls */}
+                                        <VideoControls
+                                            isVideoEnabled={isVideoEnabled}
+                                            toggleVideo={() => isVideoEnabled ? disableVideo() : enableVideo()}
+                                            isRecording={isRecording}
+                                            toggleRecording={() => isRecording ? stopRecording() : startRecording()}
+                                            endCall={leaveChannel}
+                                            isLoading={isLoading}
+                                        />
 
-                                            {/* Progress Bar */}
+                                        {/* Transcription Box */}
+                                        {userCount <= 1 ? (
+                                            <Alert
+                                                status="info"
+                                                variant="solid"
+                                                position="fixed"
+                                                top="50%"
+                                                left="50%"
+                                                transform="translate(-50%, -50%)"
+                                                zIndex={1000}
+                                                borderRadius="md"
+                                                width="auto"
+                                            >
+                                                <AlertIcon />
+                                                Waiting for user to join...
+                                            </Alert>
+                                        ) : (
+                                            <Box
+                                                p={4}
+                                                bg={transcriptionBgColor}
+                                                borderRadius="md"
+                                                boxShadow="sm"
+                                                maxH="300px"
+                                                overflowY="auto"
+                                            >
+                                                <Heading size="sm" mb={4}>Live Transcription</Heading>
+                                                <Text whiteSpace="pre-wrap">{transcript}</Text>
+                                            </Box>
+                                        )}
+
+                                        {userCount > 1 && (
                                             <Progress
                                                 value={(900 - callDuration) / 9}
                                                 size="sm"
                                                 colorScheme="blue"
                                                 borderRadius="full"
                                             />
-                                        </VStack>
-                                    </TabPanel>
-                                    
-                                    {/* Documentation Panel */}
-                                    <TabPanel>
+                                        )}
+                                    </VStack>
+                                </TabPanel>
+                                
+                                <TabPanel p={{ base: 2, md: 4 }}>
+                                    <Box 
+                                        maxW="100%" 
+                                        overflowX="hidden"
+                                        overflowY="auto"
+                                        maxH={{ base: "calc(100vh - 200px)", md: "auto" }}
+                                    >
                                         <PatientProfile
                                             ref={patientProfileRef}
                                             reviewid={reviewId}
@@ -1386,9 +1449,10 @@ const Call = () => {
                                             setIsDocumentationSaved={setIsDocumentationSaved}
                                             transcript={transcript}
                                         />
-                                    </TabPanel>
-                                </TabPanels>
-                            </Tabs>
+                                    </Box>
+                                </TabPanel>
+                            </TabPanels>
+                        </Tabs>
                     </Box>
                 </Box>
                 <AnimatePresence>
