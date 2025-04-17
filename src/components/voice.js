@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from 'agora-rtc-sdk-ng';
 import Recorder from 'recorder-js';
 import { getAccessToken } from './api';
-import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff } from 'react-icons/md';
+import axios from 'axios';
+import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff, MdDescription } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar } from '@chakra-ui/react';
+import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, 
+  Popover, PopoverTrigger, PopoverContent, PopoverBody, PopoverArrow, PopoverCloseButton } from '@chakra-ui/react';
 import VideoDisplay from './vod';
-
 
 const Voice = () => {
     const { state } = useLocation();
@@ -26,14 +27,101 @@ const Voice = () => {
     const [recorder, setRecorder] = useState(null);
     const [isLoading, setIsLoading] = useState(false); // New loading state
     const [userCount, setUserCount] = useState(0);
-    const [callDuration, setCallDuration] = useState(60); // Countdown from 60 seconds
+    const [callDuration, setCallDuration] = useState(900); // Countdown from 60 seconds
     const [timerId, setTimerId] = useState(null);
     const timerIdRef = useRef('')
     const navigate = useNavigate()
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const destination = audioContext.createMediaStreamDestination();
+    const [transcript, setTranscript] = useState('');
+    const [assemblyAiToken, setAssemblyAiToken] = useState('');
+    const assemblyWsRef = useRef(null);
+    let transcriptionInterval = null;
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [data, setData] = useState(null);
+    const [editableData, setEditableData] = useState(null);
+    const [suggestionData, setSuggestionData] = useState(null);
+    const [appliedSuggestions, setAppliedSuggestions] = useState({
+        profile: {},
+        goals: {},
+        review: {}
+    });
+    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const isGettingSuggestion = useRef(false);
+    const { state: locationState } = useLocation();
+    const reviewid = locationState?.item?.review_id;
+    const thread = locationState?.item?.thread_id;
 
     const client = createClient({ mode: 'rtc', codec: 'vp8' });
+
+    const getSuggestion = async () => {
+        if (isGettingSuggestion.current) return;
+        isGettingSuggestion.current = true;
+    
+        setIsSaving(true);
+        try {
+            let suggestionPayload = {
+                note: JSON.parse(JSON.stringify(editableData))
+            };
+    
+            if (transcript) {
+                const currentTime = new Date().toISOString();
+                suggestionPayload.transcript = [
+                    {
+                        time: currentTime,
+                        speaker: "patient",
+                        content: transcript
+                    },
+                    {
+                        time: currentTime,
+                        speaker: "doctor",
+                        content: ''
+                    }
+                ];
+            }
+    
+            if (thread) {
+                suggestionPayload.note.thread_id = thread;
+            }
+    
+            const accessToken = await getAccessToken();
+            const response = await axios.post(
+                `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
+                suggestionPayload,
+                {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                }
+            );
+    
+            const result = response.data;
+            setData(result); // Update the main data
+            setEditableData(JSON.parse(JSON.stringify(result))); // Update editable data
+            setSuggestionData(result); // Update suggestion data
+    
+            setAppliedSuggestions({
+                profile: {},
+                goals: {},
+                review: {}
+            });
+    
+            setSnackbarSeverity('success');
+            setSnackbarMessage('Suggestion generated successfully!');
+            setSnackbarOpen(true);
+            return true;
+        } catch (error) {
+            console.error("Error getting suggestion:", error);
+            setSnackbarSeverity('error');
+            setSnackbarMessage('Failed to generate suggestion.');
+            setSnackbarOpen(true);
+            return false;
+        } finally {
+            setIsSaving(false);
+            isGettingSuggestion.current = false;
+        }
+    };
 
     useEffect(() => {
         client.on('user-published', async (user, mediaType) => {
@@ -223,6 +311,56 @@ const Voice = () => {
         return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
+    // Add transcription WebSocket connection
+    const connectWebSocket = async () => {
+        if (!assemblyAiToken) return;
+
+        const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${assemblyAiToken}`;
+        assemblyWsRef.current = new WebSocket(socketUrl);
+
+        assemblyWsRef.current.onmessage = (message) => {
+            const data = JSON.parse(message.data);
+            if (data.message_type === 'FinalTranscript') {
+                setTranscript(prev => prev + ' ' + data.text);
+            }
+        };
+
+        // Send transcription every 15 seconds to suggestion API
+        transcriptionInterval = setInterval(() => {
+            if (transcript) {
+                sendTranscriptionToApi(transcript);
+            }
+        }, 15000);
+    };
+
+    const sendTranscriptionToApi = async (text) => {
+        try {
+            const token = await getAccessToken();
+            await fetch('https://health.prestigedelta.com/suggestions/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ transcript: text })
+            });
+        } catch (error) {
+            console.error('Error sending transcription:', error);
+        }
+    };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (assemblyWsRef.current) {
+                assemblyWsRef.current.close();
+            }
+            if (transcriptionInterval) {
+                clearInterval(transcriptionInterval);
+            }
+        };
+    }, []);
+
     return (
         <ChakraProvider>
         <Box position="relative" height="95vh" width="100%" bg="#2c2c2c">
@@ -310,6 +448,37 @@ const Voice = () => {
                     </Text>
                 </Box>
             )}
+
+            {/* Add Transcription Icon and Popup */}
+            <Box position="absolute" top="20px" right="20px" zIndex={2}>
+                <Popover placement="left">
+                    <PopoverTrigger>
+                        <IconButton
+                            icon={<MdDescription />}
+                            colorScheme="blue"
+                            variant="solid"
+                            borderRadius="full"
+                            aria-label="View Transcription"
+                        />
+                    </PopoverTrigger>
+                    <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
+                        <PopoverArrow />
+                        <PopoverCloseButton />
+                        <PopoverBody p={4}>
+                            <Text fontWeight="bold" mb={2}>Transcription</Text>
+                            <Box 
+                                bg="gray.50" 
+                                p={3} 
+                                borderRadius="md" 
+                                fontSize="sm"
+                                whiteSpace="pre-wrap"
+                            >
+                                {transcript || "No transcription available yet..."}
+                            </Box>
+                        </PopoverBody>
+                    </PopoverContent>
+                </Popover>
+            </Box>
 
         </Box>
     </ChakraProvider>
