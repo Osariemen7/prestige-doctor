@@ -134,12 +134,14 @@ const Voice = () => {
             setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
           }
       
-          setUserCount((prev) => prev + 1);
-      
-          // Start timer when the first remote user joins
-          if (!timerId) {
-            startTimer();
-          }
+          setUserCount((prev) => {
+            const newCount = prev + 1;
+            // Only start timer when second user joins
+            if (newCount === 2) {
+                startTimer();
+            }
+            return newCount;
+          });
         });
       
         client.on('user-unpublished', (user) => {
@@ -147,12 +149,14 @@ const Voice = () => {
           setRemoteAudioTracks((prev) =>
             prev.filter((track) => track.getUserId() !== user.uid)
           );
-          setUserCount((prev) => Math.max(prev - 1, 0));
-      
-          // Stop timer if no remote users remain
-          if (userCount <= 1) {
-            stopTimer();
-          }
+          setUserCount((prev) => {
+            const newCount = Math.max(prev - 1, 0);
+            // Stop timer if less than 2 users
+            if (newCount < 2) {
+                stopTimer();
+            }
+            return newCount;
+          });
         });
       }, [client, timerId, userCount]);
       
@@ -202,15 +206,15 @@ const Voice = () => {
     
             await client.join(appId, channel, token, null);
            
-                const audioTrack = await createMicrophoneAudioTrack({
-                    constraints: {
-                        audio: true
-                    }
-                });
+            const audioTrack = await createMicrophoneAudioTrack({
+                constraints: {
+                    audio: true
+                }
+            });
 
-                await client.publish(audioTrack);
-                setLocalAudioTrack(audioTrack);
-             console.log('Local Audio Track Published', audioTrack);
+            await client.publish(audioTrack);
+            setLocalAudioTrack(audioTrack);
+            console.log('Local Audio Track Published', audioTrack);
 
             const videoTrack = await createCameraVideoTrack();
             await client.publish(videoTrack);
@@ -218,6 +222,7 @@ const Voice = () => {
             setIsVideoEnabled(true);
             setIsJoined(true);
             setUserCount(1);
+            // Removed startTimer() from here since we only want it to start when second user joins
     
             console.log('Joined channel with audio and video.');
     

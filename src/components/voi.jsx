@@ -13,6 +13,7 @@ import {
     MdPlayArrow, 
     MdOutlineDocumentScanner, 
     MdNotes,
+    MdDescription,
 } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -52,6 +53,11 @@ import {
     keyframes,
     Icon,
     useMediaQuery,
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+    PopoverArrow,
+    PopoverCloseButton,
 } from '@chakra-ui/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BsWaveform } from 'react-icons/bs';
@@ -478,7 +484,7 @@ const Call = () => {
             setIsVideoEnabled(true);
             setIsJoined(true);
             setUserCount(1);
-            startTimer();
+            // Remove startTimer from here since we only want it to start when a second user joins
             connectWebSocket(); // Start transcription automatically
 
         } catch (error) {
@@ -1114,7 +1120,7 @@ const Call = () => {
             }
         });
     };
-
+ console.log(transcript)
     const stopTranscription = () => {
         if (assemblyWsRef.current) {
             assemblyWsRef.current.close();
@@ -1227,6 +1233,7 @@ const Call = () => {
         }
     }, [userCount, assemblyAiToken]);
 
+
     // Main UI Render
     return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -1279,6 +1286,64 @@ const Call = () => {
                                     Transcribing
                                 </Badge>
                             )}
+                            {/* Add Transcription Icon and Popup */}
+                            <Popover placement="bottom-start" isLazy>
+                                <PopoverTrigger>
+                                    <IconButton
+                                        icon={<MdDescription />}
+                                        colorScheme="blue"
+                                        variant="ghost"
+                                        size="sm"
+                                        aria-label="View Live Transcription"
+                                        isDisabled={!isTranscribing}
+                                    />
+                                </PopoverTrigger>
+                                <PopoverContent width="400px" maxHeight="500px">
+                                    <PopoverArrow />
+                                    <PopoverCloseButton />
+                                    <Box p={4}>
+                                        <VStack align="stretch" spacing={3}>
+                                            <Flex justify="space-between" align="center">
+                                                <Text fontWeight="bold">Live Transcription</Text>
+                                                {isTranscribing && (
+                                                    <Badge colorScheme="green" variant="subtle">
+                                                        Active
+                                                    </Badge>
+                                                )}
+                                            </Flex>
+                                            <Box 
+                                                bg={useColorModeValue('gray.50', 'gray.700')}
+                                                p={3} 
+                                                borderRadius="md" 
+                                                fontSize="sm"
+                                                whiteSpace="pre-wrap"
+                                                minHeight="200px"
+                                                maxHeight="400px"
+                                                overflowY="auto"
+                                                css={{
+                                                    '&::-webkit-scrollbar': {
+                                                        width: '4px',
+                                                    },
+                                                    '&::-webkit-scrollbar-thumb': {
+                                                        background: 'gray',
+                                                        borderRadius: '24px',
+                                                    },
+                                                }}
+                                            >
+                                                {transcript || "No transcription available yet..."}
+                                            </Box>
+                                            {/* Audio Visualization */}
+                                            {visualizer && (
+                                                <AudioVisualizer 
+                                                    analyser={visualizer.analyser}
+                                                    dataArray={visualizer.dataArray}
+                                                    bufferLength={visualizer.bufferLength}
+                                                />
+                                            )}
+                                        </VStack>
+                                    </Box>
+                                </PopoverContent>
+                            </Popover>
                         </HStack>
                     </Flex>
 
@@ -1314,133 +1379,144 @@ const Call = () => {
                             Generate Documentation
                         </Button>
 
-                        <Tabs 
-                            variant="enclosed" 
-                            colorScheme="blue" 
-                            onChange={(index) => setActiveTab(index === 0 ? 'consultation' : 'documentation')}
-                            isFitted // Makes tabs take up equal space
-                            w="100%"
-                        >
-                            <TabList 
-                                mb="1em" 
-                                overflowX={{ base: "auto", md: "hidden" }} // Allows horizontal scroll on mobile
-                                sx={{
-                                    '&::-webkit-scrollbar': {
-                                        display: 'none' // Hides scrollbar
-                                    },
-                                    scrollbarWidth: 'none', // Firefox
-                                    msOverflowStyle: 'none', // IE/Edge
-                                }}
-                            >
-                                <Tab 
-                                    flex={{ base: "none", md: 1 }}
-                                    minW={{ base: "150px", md: "auto" }}
-                                    px={4}
-                                >
-                                    Consultation
-                                </Tab>
-                                <Tab 
-                                    flex={{ base: "none", md: 1 }}
-                                    minW={{ base: "150px", md: "auto" }}
-                                    px={4}
-                                    color="white"
-                                >
-                                    Documentation
-                                </Tab>
-                            </TabList>
+                        <Tabs variant="enclosed" colorScheme="blue" onChange={(index) => setActiveTab(index === 0 ? 'consultation' : 'documentation')}>
+                                <TabList mb="1em">
+                                    <Tab>Consultation</Tab>
+                                    <Tab color='white'>Documentation</Tab>
+                                </TabList>
 
-                            <TabPanels>
-                                <TabPanel p={{ base: 2, md: 4 }}>
-                                    <VStack spacing={6} align="stretch">
-                                        {/* Status Controls */}
-                                        <StatusControls 
-                                            isVideoEnabled={isVideoEnabled}
-                                            isRecording={isRecording}
-                                            connectionStatus={connectionStatus}
-                                        />
-                                        
-                                        {/* Video Display */}
-                                        {isVideoEnabled && (
+                                <TabPanels>
+                                    <TabPanel p={0} h="calc(100vh - 80px)"> {/* Remove padding and set full height */}
+                                        <Box position="relative" h="100%">
+                                            {/* Status Controls - Floating at top */}
                                             <Box
-                                                borderRadius="md"
-                                                overflow="hidden"
-                                                bg="black"
-                                                aspectRatio={16/9}
+                                                position="absolute"
+                                                top={4}
+                                                left={4}
+                                                right={4}
+                                                zIndex={2}
                                             >
-                                                <VideoDisplay
-                                                    localVideoTrack={localVideoTrack}
-                                                    remoteUsers={remoteUsers}
+                                                <StatusControls 
+                                                    isVideoEnabled={isVideoEnabled}
+                                                    isRecording={isRecording}
+                                                    connectionStatus={connectionStatus}
                                                 />
                                             </Box>
-                                        )}
-
-                                        {/* Audio Visualizer */}
-                                        {isRecording && visualizer && (
-                                            <AudioVisualizer
-                                                analyser={visualizer.analyser}
-                                                dataArray={visualizer.dataArray}
-                                                bufferLength={visualizer.bufferLength}
-                                            />
-                                        )}
-
-                                        {/* Video Controls */}
-                                        <VideoControls
-                                            isVideoEnabled={isVideoEnabled}
-                                            toggleVideo={() => isVideoEnabled ? disableVideo() : enableVideo()}
-                                            isRecording={isRecording}
-                                            toggleRecording={() => isRecording ? stopRecording() : startRecording()}
-                                            endCall={leaveChannel}
-                                            isLoading={isLoading}
-                                        />
-
-                                        {/* Transcription Box */}
-                                        {userCount <= 1 ? (
-                                            <Alert
-                                                status="info"
-                                                variant="solid"
-                                                position="fixed"
-                                                top="50%"
-                                                left="50%"
-                                                transform="translate(-50%, -50%)"
-                                                zIndex={1000}
-                                                borderRadius="md"
-                                                width="auto"
-                                            >
-                                                <AlertIcon />
-                                                Waiting for user to join...
-                                            </Alert>
-                                        ) : (
+                                            
+                                            {/* Video Display - Full height */}
                                             <Box
-                                                p={4}
-                                                bg={transcriptionBgColor}
-                                                borderRadius="md"
-                                                boxShadow="sm"
-                                                maxH="300px"
-                                                overflowY="auto"
+                                                position="relative"
+                                                h="100%"
+                                                bg="black"
                                             >
-                                                <Heading size="sm" mb={4}>Live Transcription</Heading>
-                                                <Text whiteSpace="pre-wrap">{transcript}</Text>
-                                            </Box>
-                                        )}
+                                                {isVideoEnabled ? (
+                                                    <Box h="100%">
+                                                        <VideoDisplay
+                                                            localVideoTrack={localVideoTrack}
+                                                            remoteUsers={remoteUsers}
+                                                        />
+                                                    </Box>
+                                                ) : (
+                                                    <Flex
+                                                        h="100%"
+                                                        justify="center"
+                                                        align="center"
+                                                        bg="gray.900"
+                                                    >
+                                                        <Text color="white">Video is disabled</Text>
+                                                    </Flex>
+                                                )}
 
-                                        {userCount > 1 && (
-                                            <Progress
-                                                value={(900 - callDuration) / 9}
-                                                size="sm"
-                                                colorScheme="blue"
-                                                borderRadius="full"
-                                            />
-                                        )}
-                                    </VStack>
-                                </TabPanel>
-                                
-                                <TabPanel p={{ base: 2, md: 4 }}>
-                                    <Box 
-                                        maxW="100%" 
-                                        overflowX="hidden"
-                                        overflowY="auto"
-                                        maxH={{ base: "calc(100vh - 200px)", md: "auto" }}
-                                    >
+                                                {/* Floating Controls at bottom */}
+                                                <Box
+                                                    position="absolute"
+                                                    bottom={8}
+                                                    left="50%"
+                                                    transform="translateX(-50%)"
+                                                    zIndex={2}
+                                                    p={4}
+                                                    borderRadius="full"
+                                                    bg="rgba(0, 0, 0, 0.6)"
+                                                >
+                                                    <HStack spacing={4}>
+                                                        <Tooltip label={isVideoEnabled ? "Disable Video" : "Enable Video"}>
+                                                            <IconButton
+                                                                icon={isVideoEnabled ? <MdVideocam /> : <MdVideocamOff />}
+                                                                onClick={() => isVideoEnabled ? disableVideo() : enableVideo()}
+                                                                colorScheme={isVideoEnabled ? "blue" : "gray"}
+                                                                isRound
+                                                                size="lg"
+                                                                variant="ghost"
+                                                                _hover={{ bg: 'whiteAlpha.200' }}
+                                                            />
+                                                        </Tooltip>
+                                                        <Tooltip label={isRecording ? "Stop Recording" : "Start Recording"}>
+                                                            <IconButton
+                                                                icon={isRecording ? <MdStop /> : <MdMic />}
+                                                                onClick={() => isRecording ? stopRecording() : startRecording()}
+                                                                colorScheme={isRecording ? "red" : "blue"}
+                                                                isRound
+                                                                size="lg"
+                                                                variant="ghost"
+                                                                _hover={{ bg: 'whiteAlpha.200' }}
+                                                            />
+                                                        </Tooltip>
+                                                        <Tooltip label="End Call">
+                                                            <IconButton
+                                                                icon={<MdCallEnd />}
+                                                                onClick={leaveChannel}
+                                                                colorScheme="red"
+                                                                isRound
+                                                                size="lg"
+                                                                variant="solid"
+                                                                isLoading={isLoading}
+                                                            />
+                                                        </Tooltip>
+                                                    </HStack>
+                                                </Box>
+
+                                               
+
+                                                {/* Progress bar at bottom */}
+                                                {userCount > 1 && (
+                                                    <Box
+                                                        position="absolute"
+                                                        bottom={0}
+                                                        left={0}
+                                                        right={0}
+                                                        zIndex={2}
+                                                    >
+                                                        <Progress
+                                                            value={(900 - callDuration) / 9}
+                                                            size="xs"
+                                                            colorScheme="blue"
+                                                        />
+                                                    </Box>
+                                                )}
+                                            </Box>
+
+                                            {/* Waiting for user message */}
+                                            {userCount <= 1 && (
+                                                <Alert
+                                                    status="info"
+                                                    variant="solid"
+                                                    position="absolute"
+                                                    top="50%"
+                                                    left="50%"
+                                                    transform="translate(-50%, -50%)"
+                                                    zIndex={2}
+                                                    borderRadius="md"
+                                                    width="auto"
+                                                >
+                                                    <AlertIcon />
+                                                    Waiting for user to join...
+                                                </Alert>
+                                            )}
+                                        </Box>
+                                    </TabPanel>
+                                    
+                                    {/* Documentation Panel - Scrollable */}
+                                    <TabPanel>
                                         <PatientProfile
                                             ref={patientProfileRef}
                                             reviewid={reviewId}
@@ -1449,10 +1525,9 @@ const Call = () => {
                                             setIsDocumentationSaved={setIsDocumentationSaved}
                                             transcript={transcript}
                                         />
-                                    </Box>
-                                </TabPanel>
-                            </TabPanels>
-                        </Tabs>
+                                    </TabPanel>
+                                </TabPanels>
+                            </Tabs>
                     </Box>
                 </Box>
                 <AnimatePresence>
