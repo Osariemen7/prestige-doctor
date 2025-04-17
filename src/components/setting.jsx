@@ -23,7 +23,8 @@ import {
   Schedule as ScheduleIcon,
   Edit as EditIcon,
   Save as SaveIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
@@ -520,23 +521,55 @@ const SettingPage = () => {
   };
 
   return (
-    <div className='dashboard-container'>
+    <div className="dashboard-container" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)' }}>
       <Sidebar
         onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
         onNavigate={(path) => navigate(path)}
         onLogout={handleLogout}
       />
       <div className={`${isSidebarMinimized ? 'ml-14 md:ml-76' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
-        <Container maxWidth="md" sx={{ mt: 4 }}>
-          <Typography variant='h6'>Settings</Typography>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-            <Tabs value={activeSection} onChange={(e, newValue) => setActiveSection(newValue)} centered>
-              <Tab icon={<PersonIcon />} label="Profile" />
-              <Tab icon={<MoneyIcon />} label="Compensation" />
-              <Tab icon={<ScheduleIcon />} label="Availability" />
-            </Tabs>
-          </Box>
-          {renderActiveSection()}
+        <Container maxWidth="md" sx={{ mt: 8, mb: 8, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Paper elevation={6} sx={{
+            width: '100%',
+            borderRadius: 5,
+            p: { xs: 2, md: 5 },
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+            background: 'rgba(255,255,255,0.95)',
+            backdropFilter: 'blur(6px)',
+            minHeight: 600,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+          }}>
+            <Typography variant='h4' fontWeight={700} color="primary.main" sx={{ mb: 3, letterSpacing: 1 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <SettingsIcon sx={{ fontSize: 36, color: 'primary.main' }} /> Settings
+              </span>
+            </Typography>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+              <Tabs
+                value={activeSection}
+                onChange={(e, newValue) => setActiveSection(newValue)}
+                centered
+                TabIndicatorProps={{ style: { height: 4, borderRadius: 2, background: 'linear-gradient(90deg, #1976d2 0%, #64b5f6 100%)' } }}
+                sx={{
+                  '.MuiTab-root': {
+                    fontWeight: 600,
+                    fontSize: 18,
+                    color: 'text.secondary',
+                    transition: 'color 0.2s',
+                    '&.Mui-selected': { color: 'primary.main' },
+                  },
+                  '.MuiTabs-flexContainer': { gap: 2 },
+                }}
+              >
+                <Tab icon={<PersonIcon sx={{ fontSize: 28 }} />} label="Profile" />
+                <Tab icon={<MoneyIcon sx={{ fontSize: 28 }} />} label="Compensation" />
+                <Tab icon={<ScheduleIcon sx={{ fontSize: 28 }} />} label="Availability" />
+              </Tabs>
+            </Box>
+            <Box sx={{ flex: 1, width: '100%' }}>{renderActiveSection()}</Box>
+          </Paper>
         </Container>
       </div>
       <Snackbar
@@ -545,6 +578,15 @@ const SettingPage = () => {
         onClose={handleSnackbarClose}
         message={snackbarMessage}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        ContentProps={{
+          sx: {
+            background: 'linear-gradient(90deg, #1976d2 0%, #64b5f6 100%)',
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: 16,
+            borderRadius: 2,
+          }
+        }}
       />
     </div>
   );

@@ -597,7 +597,10 @@ const PatientMessages = () => {
                         color: '#1976d2'
                       }}
                     >
-                      {thread.patient_name || `Patient (${thread.patient})`}
+                      {(() => {
+                        const name = thread.patient_name || `Patient (${thread.patient})`;
+                        return name.length > 15 ? name.slice(0, 15) + '…' : name;
+                      })()}
                     </Typography>
                   }
                   secondary={

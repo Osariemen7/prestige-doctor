@@ -23,13 +23,15 @@ import { FiAlertTriangle, FiAlertCircle } from "react-icons/fi";
 const AlertsRecommendations = ({ patientData, handleActionRecommendation }) => {
   // Organize recommendations by priority
   const recommendations = patientData?.recommendations?.recommendations || [];
-  const urgentRecs = recommendations.filter((rec) => rec.priority === "high");
-  const highRecs = recommendations.filter((rec) => rec.priority === "medium");
+  const urgentRecs = recommendations.filter((rec) => rec.priority === "urgent");
+  const highRecs = recommendations.filter((rec) => rec.priority === "high");
+  const mediumRecs = recommendations.filter((rec) => rec.priority === "medium");
   const lowRecs = recommendations.filter((rec) => rec.priority === "low");
   const infoRecs = recommendations.filter((rec) => rec.priority === "info");
 
   // Priority icon mapping
   const priorityIcons = {
+    urgent: FiAlertTriangle,
     high: FiAlertTriangle,
     medium: FiAlertCircle,
     low: TimeIcon,
@@ -131,13 +133,13 @@ const AlertsRecommendations = ({ patientData, handleActionRecommendation }) => {
             <Badge colorScheme="red" p={1} borderRadius="md">
               <Flex align="center">
                 <Icon as={FiAlertTriangle} mr={1} />
-                Urgent: {patientData.recommendations.urgent_count}
+                Urgent: {patientData.recommendations.urgent_count || urgentRecs.length}
               </Flex>
             </Badge>
             <Badge colorScheme="orange" p={1} borderRadius="md">
               <Flex align="center">
-                <Icon as={FiAlertCircle} mr={1} />
-                High: {patientData.recommendations.high_count}
+                <Icon as={FiAlertTriangle} mr={1} />
+                High: {patientData.recommendations.high_count || highRecs.length}
               </Flex>
             </Badge>
           </HStack>
@@ -146,7 +148,7 @@ const AlertsRecommendations = ({ patientData, handleActionRecommendation }) => {
         {urgentRecs.length > 0 && (
           <Box mb={5} p={2}>
             <Flex align="center" mb={3}>
-              <Icon as={WarningIcon} color="red.500" mr={2} boxSize={5} />
+              <Icon as={FiAlertTriangle} color="red.500" mr={2} boxSize={5} />
               <Text fontWeight="bold" fontSize="md" color="red.600">
                 Urgent - Immediate Action Required
               </Text>
@@ -157,11 +159,11 @@ const AlertsRecommendations = ({ patientData, handleActionRecommendation }) => {
           </Box>
         )}
         
-        {urgentRecs.length === 0 && highRecs.length === 0 ? (
+        {urgentRecs.length === 0 && highRecs.length === 0 && mediumRecs.length === 0 ? (
           <Box textAlign="center" py={8} px={4} bg="green.50" rounded="md">
             <Icon as={CheckIcon} boxSize={10} color="green.500" mb={3} />
             <Text color="green.600" fontWeight="medium" fontSize="lg">
-              No urgent actions required at this time.
+              No urgent or high-priority actions required at this time.
             </Text>
             <Text color="gray.600" mt={2}>
               The patient is currently following all recommended clinical guidelines.
@@ -172,7 +174,7 @@ const AlertsRecommendations = ({ patientData, handleActionRecommendation }) => {
             {highRecs.length > 0 && (
               <Box mb={4} p={2}>
                 <Flex align="center" mb={3}>
-                  <Icon as={FiAlertCircle} color="orange.500" mr={2} boxSize={5} />
+                  <Icon as={FiAlertTriangle} color="orange.500" mr={2} boxSize={5} />
                   <Text fontWeight="bold" fontSize="md" color="orange.600">
                     High Priority - Action Within 24 Hours
                   </Text>
@@ -193,6 +195,36 @@ const AlertsRecommendations = ({ patientData, handleActionRecommendation }) => {
                       rightIcon={<AiOutlineArrowRight />}
                     >
                       View {highRecs.length - 3} more high priority alerts
+                    </Button>
+                  </Flex>
+                )}
+              </Box>
+            )}
+            
+            {mediumRecs.length > 0 && (
+              <Box mb={4} p={2}>
+                <Flex align="center" mb={3}>
+                  <Icon as={FiAlertCircle} color="yellow.500" mr={2} boxSize={5} />
+                  <Text fontWeight="bold" fontSize="md" color="yellow.600">
+                    Medium Priority - Action Recommended
+                  </Text>
+                </Flex>
+                
+                <Box maxH="300px" overflowY="auto" px={2}>
+                  {mediumRecs.slice(0, 3).map((rec) =>
+                    renderRecommendationCard(rec, "yellow", "yellow.500")
+                  )}
+                </Box>
+                
+                {mediumRecs.length > 3 && (
+                  <Flex justify="center" mt={2}>
+                    <Button 
+                      size="sm" 
+                      colorScheme="yellow" 
+                      variant="outline"
+                      rightIcon={<AiOutlineArrowRight />}
+                    >
+                      View {mediumRecs.length - 3} more medium priority alerts
                     </Button>
                   </Flex>
                 )}
