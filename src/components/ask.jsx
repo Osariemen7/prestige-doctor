@@ -29,7 +29,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper as MuiPaper
+  Paper as MuiPaper,
+  Dialog,
+  DialogContent
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -62,6 +64,7 @@ import ThoughtAccordion from './ask/ThoughtAccordion';
 import CitationLink from './ask/CitationLink';
 import FollowUpQuestionsPanel from './ask/FollowUpQuestionsPanel';
 import PersonIcon from '@mui/icons-material/Person';
+import DownloadIcon from '@mui/icons-material/Download';
 
 // ----------------------------------------------------
 // Utility: preprocess citations in markdown
@@ -240,6 +243,7 @@ const SearchBox = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [isLoadingThreadMessages, setIsLoadingThreadMessages] = useState(false);
   const [isDesktopThreadPanelOpen, setIsDesktopThreadPanelOpen] = useState(false);
+  const [expandedImage, setExpandedImage] = useState(null);
 
   // New state for suggested questions
   const [suggestions, setSuggestions] = useState([]);
@@ -250,6 +254,10 @@ const SearchBox = () => {
   const [followUpQuestions, setFollowUpQuestions] = useState([]);
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [isLoadingFollowUp, setIsLoadingFollowUp] = useState(false);
+
+  // Add state for uploaded image URL and loading
+  const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Initialize expandedCategories with the first two categories when suggestions are loaded
   useEffect(() => {
@@ -276,30 +284,51 @@ const SearchBox = () => {
     fileInputRef.current.click(); // Programmatically click the hidden file input
   };
 
-  const handleImageSelect = (event) => {
+  const handleImageSelect = async (event) => {
     const file = event.target.files[0];
     if (file) {
       setSelectedImage(file);
-
+      setUploadedImageUrl(null); // Reset previous upload
+      setIsUploadingImage(true);
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImagePreview(reader.result); // Set image preview URL
       };
       reader.readAsDataURL(file);
-
-      setExpertLevel('advanced'); // Automatically set to advanced on image upload
-      setIsExpertLevelLocked(true); // Lock the dropdown
+      setExpertLevel('advanced');
+      setIsExpertLevelLocked(true);
+      // Upload image to server
+      try {
+        const token = await getAccessToken();
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await fetch('https://health.prestigedelta.com/research/upload-image/', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        if (!response.ok) throw new Error('Image upload failed');
+        const data = await response.json();
+        setUploadedImageUrl(data.image_url);
+      } catch (e) {
+        setUploadedImageUrl(null);
+        showSnackbar('Image upload failed. Please try again.', 'error');
+      } finally {
+        setIsUploadingImage(false);
+      }
     } else {
       setSelectedImage(null);
       setSelectedImagePreview(null);
+      setUploadedImageUrl(null);
       setIsExpertLevelLocked(false);
-      setExpertLevel('basic'); // Reset to default if image selection is cancelled
+      setExpertLevel('basic');
     }
   };
 
   const handleCancelImage = () => {
     setSelectedImage(null);
     setSelectedImagePreview(null);
+    setUploadedImageUrl(null);
     setIsExpertLevelLocked(false);
     setExpertLevel('basic');
   };
@@ -348,7 +377,9 @@ const SearchBox = () => {
   }, [threadId]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!message.trim() && !selectedImage) return;
+    // Require text if image is present
+    if ((selectedImage || uploadedImageUrl) && !message.trim()) return;
+    if (!message.trim() && !selectedImage && !uploadedImageUrl) return;
 
     const currentMessage = message;
     setMessage("");
@@ -402,38 +433,40 @@ const SearchBox = () => {
         payload.patient_id = selectedPatient.id;
       }
 
-      const userMessageContent = selectedImagePreview ? selectedImagePreview : currentMessage;
-      const userTextMessage = selectedImage ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
+      const userMessageContent = uploadedImageUrl ? uploadedImageUrl : selectedImagePreview ? selectedImagePreview : currentMessage;
+      const userTextMessage = uploadedImageUrl || selectedImage ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
 
       const userMessage = {
         role: "user",
         content: userMessageContent,
-        isImage: !!selectedImagePreview, // Flag as image message
+        isImage: !!(uploadedImageUrl || selectedImagePreview), // Flag as image message
         text: userTextMessage, // Store text content separately for image messages
         id: `query-${Date.now()}` // Add unique id to each user message
       };
       setChatMessages((prev) => [...prev, userMessage]);
 
-      if (selectedImage) {
-        const formData = new FormData();
-        for (const key in payload) {
-          formData.append(key, payload[key]);
-        }
-        formData.append('image', selectedImage);
-        formData.append('caption', currentMessage.trim() ? currentMessage : "Analyze this image");
-        requestBody = formData;
+      if (uploadedImageUrl) {
+        // Send JSON body with image URL and caption
+        payload.image = uploadedImageUrl;
+        payload.caption = currentMessage;
+        if (selectedPatient) payload.patient_id = selectedPatient.id;
+        requestBody = JSON.stringify(payload);
         headers = {
-          "Authorization": `Bearer ${token}`, // FormData handles content-type
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         };
-        console.log("Image request with payload:", Object.fromEntries(formData.entries()));
+      } else if (selectedImage) {
+        // Should not happen, but fallback
+        showSnackbar('Image not uploaded yet.', 'error');
+        setIsResponseLoading(false);
+        return;
       } else {
         payload.query = currentMessage;
         requestBody = JSON.stringify(payload);
         headers = {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         };
-        console.log("Text request with payload:", payload);
       }
 
       const response = await fetch(apiUrl, {
@@ -449,6 +482,7 @@ const SearchBox = () => {
       // Reset selected image and preview after sending
       setSelectedImage(null);
       setSelectedImagePreview(null);
+      setUploadedImageUrl(null);
       setIsExpertLevelLocked(false);
 
       let assistantMessage = { 
@@ -463,7 +497,7 @@ const SearchBox = () => {
       const decoder = new TextDecoder();
       let done = false;
 
-      if (selectedImage) {
+      if (uploadedImageUrl) {
         // Handle image response - we need to parse the complete response
         let accumulatedResponse = '';
         while (!done) {
@@ -635,7 +669,7 @@ const SearchBox = () => {
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, selectedImage, selectedImagePreview, isExpertLevelLocked, location.state, refreshThreads, selectedThread]);
+  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, selectedImage, selectedImagePreview, uploadedImageUrl, isExpertLevelLocked, location.state, refreshThreads, selectedThread]);
 
   const handleSourcesToggle = () => {
     setIsSourcesVisible((prev) => !prev);
@@ -714,7 +748,8 @@ const SearchBox = () => {
       const formattedMessages = data.messages.map(msg => ({
         role: msg.role,
         content: msg.content,
-        citations: msg.citations || []
+        citations: msg.citations || [],
+        image: msg.image || null
       }));
       
       setChatMessages(formattedMessages);
@@ -1276,7 +1311,36 @@ const SearchBox = () => {
                                 border: '1px solid #dcedc8', // Light green border
                               }}
                             >
-                              {chat.isImage ? (
+                              {/* Show image if present (for user or assistant) */}
+                              {chat.image && (
+                                <Box sx={{ maxWidth: 300, mb: 1, position: 'relative' }}>
+                                  <img
+                                    src={chat.image}
+                                    alt="Uploaded"
+                                    style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8, cursor: 'pointer' }}
+                                    onClick={() => setExpandedImage(chat.image)}
+                                  />
+                                  <IconButton
+                                    component="a"
+                                    href={chat.image}
+                                    download
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{
+                                      position: 'absolute',
+                                      top: 4,
+                                      right: 4,
+                                      background: 'rgba(255,255,255,0.7)',
+                                      zIndex: 2,
+                                      p: 0.5,
+                                    }}
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <DownloadIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )}
+                              {chat.isImage && !chat.image ? (
                                 <Box sx={{ maxWidth: 300 }}>
                                   <img
                                     src={chat.content}
@@ -1286,7 +1350,7 @@ const SearchBox = () => {
                                   {chat.text && <Typography sx={{ mt: 1, color: '#333' }}>{chat.text}</Typography>}
                                 </Box>
                               ) : (
-                                <Typography variant="body1" sx={{ color: '#333' }}>{chat.content}</Typography> // Ensure text color is readable
+                                <Typography variant="body1" sx={{ color: '#333' }}>{chat.content}</Typography>
                               )}
                             </Box>
                           </ListItem>
@@ -1360,7 +1424,7 @@ const SearchBox = () => {
                   >
                     {/* ... existing desktop input content ... */}
                     {selectedImagePreview && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, mb: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, mb: 1, position: 'relative' }}>
                         <Paper elevation={1} sx={{
                           display: 'flex', alignItems: 'center', gap: 1, p: 0.5, borderRadius: 2, background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', maxWidth: 120, position: 'relative',
                         }}>
@@ -1369,6 +1433,18 @@ const SearchBox = () => {
                             alt="Preview"
                             style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }}
                           />
+                          {isUploadingImage && (
+                            <Box sx={{
+                              position: 'absolute',
+                              top: 0, left: 0, width: '100%', height: '100%',
+                              bgcolor: 'rgba(255,255,255,0.7)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              borderRadius: 2,
+                              zIndex: 2
+                            }}>
+                              <CircularProgress size={24} />
+                            </Box>
+                          )}
                           <IconButton
                             aria-label="Remove image"
                             onClick={handleCancelImage}
@@ -1381,6 +1457,7 @@ const SearchBox = () => {
                               borderRadius: 1.5,
                               p: 0.5,
                             }}
+                            disabled={isUploadingImage}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -1406,7 +1483,7 @@ const SearchBox = () => {
                       />
                       <TextField
                         fullWidth
-                        placeholder={placeholder}
+                        placeholder={selectedImage || uploadedImageUrl ? 'Type your instruction for the image (required)' : placeholder}
                         variant="standard"
                         multiline
                         minRows={1}
@@ -1430,7 +1507,10 @@ const SearchBox = () => {
                       <IconButton
                         color="primary"
                         onClick={handleSendMessage}
-                        disabled={(!message.trim() && !selectedImage) || isResponseLoading}
+                        disabled={
+                          isResponseLoading ||
+                          ((selectedImage || uploadedImageUrl) ? !message.trim() || isUploadingImage : !message.trim())
+                        }
                         sx={{
                           width: 36, height: 36, borderRadius: '50%', background: '#1976d2', color: 'white', ml: 0.5, boxShadow: 'none', '&:hover': { background: '#125ea2' }, flexShrink: 0,
                         }}
@@ -1520,6 +1600,20 @@ const SearchBox = () => {
           </Box>
         </ThemeProvider>
       </div>
+
+      {/* Image expand dialog */}
+      <Dialog open={!!expandedImage} onClose={() => setExpandedImage(null)} maxWidth="md">
+        <DialogContent sx={{ p: 0, background: '#222' }}>
+          {expandedImage && (
+            <img
+              src={expandedImage}
+              alt="Expanded"
+              style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '80vh', objectFit: 'contain', background: '#222' }}
+              onClick={() => setExpandedImage(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Snackbar */} 
       <Snackbar
