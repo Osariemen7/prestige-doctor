@@ -130,35 +130,51 @@ const Voice = () => {
           if (mediaType === 'video') {
             setRemoteUsers((prev) => [...prev, user]);
           } else if (mediaType === 'audio') {
-            user.audioTrack.play();
+            // Ensure we play the audio track immediately
+            if (user.audioTrack) {
+                user.audioTrack.play();
+                // Set audio output to system default
+                user.audioTrack.setPlaybackDevice('default');
+                console.log('Playing remote audio track');
+            }
             setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
           }
       
           setUserCount((prev) => {
             const newCount = prev + 1;
-            // Only start timer when second user joins
             if (newCount === 2) {
                 startTimer();
             }
             return newCount;
           });
         });
-      
-        client.on('user-unpublished', (user) => {
-          setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-          setRemoteAudioTracks((prev) =>
-            prev.filter((track) => track.getUserId() !== user.uid)
-          );
-          setUserCount((prev) => {
-            const newCount = Math.max(prev - 1, 0);
-            // Stop timer if less than 2 users
-            if (newCount < 2) {
-                stopTimer();
+
+        client.on('user-unpublished', (user, mediaType) => {
+            if (mediaType === 'audio') {
+                if (user.audioTrack) {
+                    user.audioTrack.stop();
+                }
+                setRemoteAudioTracks((prev) =>
+                    prev.filter((track) => track.getUserId() !== user.uid)
+                );
+            } else if (mediaType === 'video') {
+                setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
             }
-            return newCount;
-          });
+            
+            setUserCount((prev) => {
+                const newCount = Math.max(prev - 1, 0);
+                if (newCount < 2) {
+                    stopTimer();
+                }
+                return newCount;
+            });
         });
-      }, [client, timerId, userCount]);
+
+        return () => {
+            client.removeAllListeners();
+            stopTimer();
+        };
+    }, []);
       
 
       const startTimer = () => {
@@ -222,8 +238,11 @@ const Voice = () => {
             setIsVideoEnabled(true);
             setIsJoined(true);
             setUserCount(1);
-            // Removed startTimer() from here since we only want it to start when second user joins
-    
+
+            // Start WebSocket connection and transcription immediately
+            await connectWebSocket();
+            await startRecording();
+            
             console.log('Joined channel with audio and video.');
     
             // Add listener to stop all tracks on page unload
@@ -318,24 +337,38 @@ const Voice = () => {
 
     // Add transcription WebSocket connection
     const connectWebSocket = async () => {
-        if (!assemblyAiToken) return;
+        if (!assemblyAiToken) {
+            console.log('No AssemblyAI token available');
+            return;
+        }
 
         const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${assemblyAiToken}`;
         assemblyWsRef.current = new WebSocket(socketUrl);
 
-        assemblyWsRef.current.onmessage = (message) => {
-            const data = JSON.parse(message.data);
-            if (data.message_type === 'FinalTranscript') {
-                setTranscript(prev => prev + ' ' + data.text);
-            }
+        assemblyWsRef.current.onopen = () => {
+            console.log('AssemblyAI WebSocket connected');
         };
 
-        // Send transcription every 15 seconds to suggestion API
-        transcriptionInterval = setInterval(() => {
-            if (transcript) {
-                sendTranscriptionToApi(transcript);
+        assemblyWsRef.current.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        assemblyWsRef.current.onclose = () => {
+            console.log('WebSocket closed');
+            setIsRecording(false);
+        };
+
+        assemblyWsRef.current.onmessage = (message) => {
+            try {
+                const data = JSON.parse(message.data);
+                if (data.message_type === 'FinalTranscript') {
+                    console.log('Received transcript:', data.text);
+                    setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
+                }
+            } catch (error) {
+                console.error('Error processing transcript:', error);
             }
-        }, 15000);
+        };
     };
 
     const sendTranscriptionToApi = async (text) => {
@@ -354,6 +387,19 @@ const Voice = () => {
         }
     };
 
+    // Add WebSocket connection and transcription function
+    const startRecording = async () => {
+        try {
+            if (!assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) {
+                await connectWebSocket();
+            }
+            setIsRecording(true);
+            console.log('Recording started');
+        } catch (error) {
+            console.error('Error starting recording:', error);
+        }
+    };
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -363,6 +409,43 @@ const Voice = () => {
             if (transcriptionInterval) {
                 clearInterval(transcriptionInterval);
             }
+        };
+    }, []);
+
+    // Add AssemblyAI token fetch effect
+    useEffect(() => {
+        const fetchAssemblyAiToken = async () => {
+            try {
+                const token = await getAccessToken();
+                const response = await fetch(
+                    "https://health.prestigedelta.com/assemblyai/generate-token/",
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                            Accept: "application/json",
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch AssemblyAI token');
+                }
+                
+                const data = await response.json();
+                setAssemblyAiToken(data.token);
+                console.log('AssemblyAI token fetched successfully');
+            } catch (error) {
+                console.error("Error fetching AssemblyAI token:", error);
+            }
+        };
+
+        fetchAssemblyAiToken();
+        // Refresh token every hour
+        const tokenRefreshInterval = setInterval(fetchAssemblyAiToken, 3600000);
+
+        return () => {
+            clearInterval(tokenRefreshInterval);
         };
     }, []);
 
