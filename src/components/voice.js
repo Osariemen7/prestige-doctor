@@ -6,11 +6,12 @@ import axios from 'axios';
 import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff, MdDescription } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, 
-  Popover, PopoverTrigger, PopoverContent, PopoverBody, PopoverArrow, PopoverCloseButton } from '@chakra-ui/react';
+  Popover, PopoverTrigger, PopoverContent, PopoverBody, PopoverArrow, PopoverCloseButton, useToast } from '@chakra-ui/react';
 import VideoDisplay from './vod';
 
 const Voice = () => {
     const { state } = useLocation();
+    const toast = useToast(); // Add toast initialization
     const item = state?.item || {};
     const [searchParams] = useSearchParams();
     const chanel = searchParams.get("channel");
@@ -342,61 +343,256 @@ const Voice = () => {
 
     // Add transcription WebSocket connection
     const connectWebSocket = async () => {
-        if (!assemblyAiToken) {
-            console.log('No AssemblyAI token available');
-            return;
-        }
-
-        const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${assemblyAiToken}`;
-        assemblyWsRef.current = new WebSocket(socketUrl);
-
-        assemblyWsRef.current.onopen = () => {
-            console.log('AssemblyAI WebSocket connected');
-            // Set up interval to call getSuggestion every 18 seconds
-            const suggestionInterval = setInterval(getSuggestion, 18000);
-            // Store interval ID to clear it later
-            setTimerId(prev => ({...prev, suggestionInterval}));
-            startRecording()
-        };
-
-        assemblyWsRef.current.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-
-        assemblyWsRef.current.onclose = () => {
-            console.log('WebSocket closed');
-            setIsRecording(false);
-            // Clear suggestion interval when WebSocket closes
-            if (timerId?.suggestionInterval) {
-                clearInterval(timerId.suggestionInterval);
-            }
-        };
-
-        assemblyWsRef.current.onmessage = (message) => {
-            try {
-                const data = JSON.parse(message.data);
-                if (data.message_type === 'FinalTranscript') {
-                    console.log('Received transcript:', data.text);
-                    setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
-                }
-            } catch (error) {
-                console.error('Error processing transcript:', error);
-            }
-        };
-    };
-
-    // Add WebSocket connection and transcription function
-    const startRecording = async () => {
         try {
-            if (!assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) {
-                await connectWebSocket();
+            if (!assemblyAiToken) {
+                console.log('No AssemblyAI token available, waiting...');
+                // Wait for token if not available
+                await new Promise((resolve, reject) => {
+                    let attempts = 0;
+                    const checkToken = setInterval(() => {
+                        attempts++;
+                        if (assemblyAiToken) {
+                            clearInterval(checkToken);
+                            resolve();
+                        }
+                        if (attempts > 20) { // 10 seconds timeout
+                            clearInterval(checkToken);
+                            reject(new Error('Timeout waiting for AssemblyAI token'));
+                        }
+                    }, 500);
+                });
             }
-            setIsRecording(true);
-            console.log('Recording started');
+
+            const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${assemblyAiToken}`;
+            
+            if (assemblyWsRef.current?.readyState === WebSocket.OPEN) {
+                console.log('WebSocket already connected');
+                return;
+            }
+
+            assemblyWsRef.current = new WebSocket(socketUrl);
+
+            assemblyWsRef.current.onopen = () => {
+                console.log('AssemblyAI WebSocket connected');
+                // Start audio capture and processing
+                startAudioProcessing();
+                setIsRecording(true);
+            };
+
+            assemblyWsRef.current.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                handleConnectionError();
+            };
+
+            assemblyWsRef.current.onclose = () => {
+                console.log('WebSocket closed');
+                setIsRecording(false);
+                stopAudioProcessing();
+                
+                // Attempt to reconnect if not intentionally closed
+                if (isJoined) {
+                    setTimeout(() => {
+                        connectWebSocket().catch(console.error);
+                    }, 2000);
+                }
+            };
+
+            assemblyWsRef.current.onmessage = (message) => {
+                try {
+                    const data = JSON.parse(message.data);
+                    if (data.message_type === 'FinalTranscript') {
+                        console.log('Received transcript:', data.text);
+                        setTranscript(prev => {
+                            const newTranscript = prev + (prev ? '\n' : '') + data.text;
+                            console.log('Updated transcript:', newTranscript);
+                            return newTranscript;
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error processing transcript:', error);
+                }
+            };
         } catch (error) {
-            console.error('Error starting recording:', error);
+            console.error('Error in connectWebSocket:', error);
         }
     };
+
+// Add after the connectWebSocket function
+const handleConnectionError = async () => {
+    try {
+        console.error('WebSocket connection error');
+        toast({
+            title: 'Connection Error',
+            description: 'Failed to maintain connection. Please try reconnecting.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+        });
+
+        // Attempt to reconnect
+        await connectWebSocket();
+    } catch (error) {
+        console.error('Reconnection attempt failed:', error);
+    }
+};
+
+const startRecording = async () => {
+    try {
+        // Ensure WebSocket is connected
+        if (!assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) {
+            await connectWebSocket();
+        }
+
+        // Start audio processing
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+            }
+        });
+
+        const audioContext = new AudioContext({ sampleRate: 16000 });
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+        
+        processor.onaudioprocess = (e) => {
+            if (!isRecording || !assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) return;
+            
+            const inputData = e.inputBuffer.getChannelData(0);
+            const pcmData = convertFloat32ToInt16(inputData);
+            assemblyWsRef.current.send(pcmData.buffer);
+        };
+
+        setIsRecording(true);
+        console.log('Recording started successfully');
+    } catch (error) {
+        console.error('Error starting recording:', error);
+        toast({
+            title: 'Recording Error',
+            description: 'Failed to start recording',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+        });
+    }
+};
+
+// Add helper function for audio conversion
+const convertFloat32ToInt16 = (float32Array) => {
+    const int16Array = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return int16Array;
+};
+
+    // Add audio processing functions
+    const [audioStream, setAudioStream] = useState(null);
+    const audioContextRef = useRef(null);
+    const processorRef = useRef(null);
+
+    const startAudioProcessing = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                }
+            });
+            
+            setAudioStream(stream);
+            audioContextRef.current = new AudioContext({ sampleRate: 16000 });
+            const source = audioContextRef.current.createMediaStreamSource(stream);
+            processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+            
+            source.connect(processorRef.current);
+            processorRef.current.connect(audioContextRef.current.destination);
+            
+            processorRef.current.onaudioprocess = (e) => {
+                if (!isRecording || !assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) return;
+                
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcmData = convertFloat32ToInt16(inputData);
+                assemblyWsRef.current.send(pcmData.buffer);
+            };
+        } catch (error) {
+            console.error('Error starting audio processing:', error);
+        }
+    };
+
+    const stopAudioProcessing = () => {
+        if (processorRef.current) {
+            processorRef.current.disconnect();
+            processorRef.current = null;
+        }
+        if (audioContextRef.current) {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
+        if (audioStream) {
+            audioStream.getTracks().forEach(track => track.stop());
+            setAudioStream(null);
+        }
+    };
+
+    // Modify the Transcription Popover component
+    const TranscriptionPopover = () => (
+        <Popover placement="left">
+            <PopoverTrigger>
+                <IconButton
+                    icon={<MdDescription />}
+                    colorScheme="blue"
+                    variant="solid"
+                    borderRadius="full"
+                    aria-label="View Transcription"
+                    size="lg"
+                />
+            </PopoverTrigger>
+            <PopoverContent width="400px" maxHeight="500px" overflowY="auto">
+                <PopoverArrow />
+                <PopoverCloseButton />
+                <PopoverBody p={4}>
+                    <Flex direction="column" gap={2}>
+                        <Heading size="sm" mb={2}>Live Transcription</Heading>
+                        <Box 
+                            bg="gray.50" 
+                            p={4} 
+                            borderRadius="md" 
+                            fontSize="sm"
+                            whiteSpace="pre-wrap"
+                            minHeight="200px"
+                            maxHeight="400px"
+                            overflowY="auto"
+                            css={{
+                                '&::-webkit-scrollbar': {
+                                    width: '4px',
+                                },
+                                '&::-webkit-scrollbar-thumb': {
+                                    background: 'gray',
+                                    borderRadius: '24px',
+                                },
+                            }}
+                        >
+                            {transcript || "No transcription available yet..."}
+                        </Box>
+                        {isRecording && (
+                            <Text fontSize="sm" color="green.500" mt={2}>
+                                Recording in progress...
+                            </Text>
+                        )}
+                    </Flex>
+                </PopoverBody>
+            </PopoverContent>
+        </Popover>
+    );
 
     // Cleanup on unmount
     useEffect(() => {
@@ -540,33 +736,7 @@ const Voice = () => {
 
                     {/* Transcription Icon */}
                     <Box position="absolute" top="20px" right="20px" zIndex={2}>
-                        <Popover placement="left">
-                            <PopoverTrigger>
-                                <IconButton
-                                    icon={<MdDescription />}
-                                    colorScheme="blue"
-                                    variant="solid"
-                                    borderRadius="full"
-                                    aria-label="View Transcription"
-                                />
-                            </PopoverTrigger>
-                            <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
-                                <PopoverArrow />
-                                <PopoverCloseButton />
-                                <PopoverBody p={4}>
-                                    <Text fontWeight="bold" mb={2}>Transcription</Text>
-                                    <Box 
-                                        bg="gray.50" 
-                                        p={3} 
-                                        borderRadius="md" 
-                                        fontSize="sm"
-                                        whiteSpace="pre-wrap"
-                                    >
-                                        {transcript || "No transcription available yet..."}
-                                    </Box>
-                                </PopoverBody>
-                            </PopoverContent>
-                        </Popover>
+                        <TranscriptionPopover />
                     </Box>
 
                     {/* Loading Spinner */}
