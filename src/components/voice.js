@@ -97,15 +97,6 @@ const Voice = () => {
             );
     
             const result = response.data;
-            setData(result); // Update the main data
-            setEditableData(JSON.parse(JSON.stringify(result))); // Update editable data
-            setSuggestionData(result); // Update suggestion data
-    
-            setAppliedSuggestions({
-                profile: {},
-                goals: {},
-                review: {}
-            });
     
             setSnackbarSeverity('success');
             setSnackbarMessage('Suggestion generated successfully!');
@@ -232,6 +223,13 @@ const Voice = () => {
             setLocalAudioTrack(audioTrack);
             console.log('Local Audio Track Published', audioTrack);
 
+            // Clean up any existing video track before creating a new one
+            if (localVideoTrack) {
+                await client.unpublish(localVideoTrack);
+                localVideoTrack.stop();
+                localVideoTrack.close();
+            }
+
             const videoTrack = await createCameraVideoTrack();
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
@@ -261,11 +259,12 @@ const Voice = () => {
     async function disableVideo() {
         if (isVideoEnabled && localVideoTrack) {
             try {
+                await client.unpublish(localVideoTrack);
                 localVideoTrack.stop();
                 localVideoTrack.close();
                 setLocalVideoTrack(null);
                 setIsVideoEnabled(false);
-                setVid(true)
+                setVid(true);
                 console.log('Video disabled.');
             } catch (error) {
                 console.error('Error disabling video:', error);
@@ -318,16 +317,22 @@ const Voice = () => {
     
     async function enableVideo() {
         try {
-          const videoTrack = await createCameraVideoTrack();
-          
-          setLocalVideoTrack(videoTrack);
-          setIsVideoEnabled(true);
-          console.log('Video enabled.');
-          console.log(isVideoEnabled)
-      } catch (error) {
-          console.error('Error enabling video:', error);
-      }
-  }
+            if (localVideoTrack) {
+                console.log('Cleaning up existing video track before creating new one');
+                await client.unpublish(localVideoTrack);
+                localVideoTrack.stop();
+                localVideoTrack.close();
+            }
+            
+            const videoTrack = await createCameraVideoTrack();
+            await client.publish(videoTrack);
+            setLocalVideoTrack(videoTrack);
+            setIsVideoEnabled(true);
+            console.log('Video enabled.');
+        } catch (error) {
+            console.error('Error enabling video:', error);
+        }
+    }
    
     const formatDuration = (seconds) => {
         const minutes = Math.floor(seconds / 60);
@@ -347,6 +352,11 @@ const Voice = () => {
 
         assemblyWsRef.current.onopen = () => {
             console.log('AssemblyAI WebSocket connected');
+            // Set up interval to call getSuggestion every 18 seconds
+            const suggestionInterval = setInterval(getSuggestion, 18000);
+            // Store interval ID to clear it later
+            setTimerId(prev => ({...prev, suggestionInterval}));
+            startRecording()
         };
 
         assemblyWsRef.current.onerror = (error) => {
@@ -356,6 +366,10 @@ const Voice = () => {
         assemblyWsRef.current.onclose = () => {
             console.log('WebSocket closed');
             setIsRecording(false);
+            // Clear suggestion interval when WebSocket closes
+            if (timerId?.suggestionInterval) {
+                clearInterval(timerId.suggestionInterval);
+            }
         };
 
         assemblyWsRef.current.onmessage = (message) => {
@@ -369,22 +383,6 @@ const Voice = () => {
                 console.error('Error processing transcript:', error);
             }
         };
-    };
-
-    const sendTranscriptionToApi = async (text) => {
-        try {
-            const token = await getAccessToken();
-            await fetch('https://health.prestigedelta.com/suggestions/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ transcript: text })
-            });
-        } catch (error) {
-            console.error('Error sending transcription:', error);
-        }
     };
 
     // Add WebSocket connection and transcription function
@@ -451,125 +449,165 @@ const Voice = () => {
 
     return (
         <ChakraProvider>
-        <Box position="relative" height="95vh" width="100%" bg="#2c2c2c">
-            {/* Full-Screen Video */}
-            <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
-
-            {/* Header */}
-           
-            {/* Call Timer */}
-            
-            {/* Overlayed Controls */}
-            <Flex
-                position="absolute"
-                bottom="20px"
-                left="50%"
-                transform="translateX(-50%)"
-                gap="30px"
-                zIndex="1"
+            <Box 
+                position="relative" 
+                height="100vh" 
+                width="100%" 
+                bg="#2c2c2c"
+                display="flex"
+                flexDirection="column"
             >
-                <Box textAlign="center">
-                    <IconButton
-                        icon={<MdCallEnd />}
-                        colorScheme="red"
-                        fontSize="36px"
-                        onClick={leaveChannel}
-                        borderRadius="full"
-                        size="lg"
-                    />
-                    <Text marginTop="5px" color="white">End Call</Text>
-                </Box>
+                {/* Video Container */}
+                <Box flex="1" position="relative">
+                    <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
 
-                {!isVideoEnabled && vid ? <Box textAlign='center'> <IconButton icon={<MdVideoCall />} colorScheme="blue" fontSize="36px" onClick={enableVideo}  borderRadius="full" size="lg" />
-                   <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text></Box> : <Box textAlign="center">
-                        {isVideoEnabled ? (
-                            <IconButton icon={<MdVideocamOff />} colorScheme="red" fontSize="36px" onClick={disableVideo} borderRadius="full" size="lg" />
-                        ) : (
-                            <IconButton icon={<MdVideocam />} colorScheme="green" fontSize="36px" onClick={joinChannelWithVideo}  borderRadius="full" size="lg" />
-                        )}
-                        <Text marginTop="5px" fontSize='12px' color='white'>{isVideoEnabled ? 'Disable Video' : 'Start Call'}</Text>
-                    </Box>}
-                
-            </Flex>
+                    {/* Overlayed Controls */}
+                    <Flex
+                        position="absolute"
+                        bottom="20px"
+                        left="50%"
+                        transform="translateX(-50%)"
+                        gap="30px"
+                        zIndex="1"
+                    >
+                        <Box textAlign="center">
+                            <IconButton
+                                icon={<MdCallEnd />}
+                                colorScheme="red"
+                                fontSize="36px"
+                                onClick={leaveChannel}
+                                borderRadius="full"
+                                size="lg"
+                            />
+                            <Text marginTop="5px" color="white">End Call</Text>
+                        </Box>
 
-            {/* Loading Spinner */}
-            {isLoading && (
-                <Box
-                    position="absolute"
-                    top="50%"
-                    left="50%"
-                    transform="translate(-50%, -50%)"
-                    textAlign="center"
-                    zIndex="1"
-                >
-                    <Spinner color="blue.500" size="xl" />
-                    <Text fontSize="lg" color="white">Processing...</Text>
-                </Box>
-            )}
-
-            {/* Waiting for Caller */}
-            {isJoined && remoteUsers.length === 0 && (
-    <Box
-        position="absolute"
-        top="50%"
-        left="50%"
-        transform="translate(-50%, -50%)"
-        textAlign="center"
-        zIndex="1"
-    >
-        <Text fontSize="lg" color="yellow.400">
-            Waiting for other caller to join...
-        </Text>
-    </Box>
-)}
-
-            {isJoined && (
-                <Box
-                    position="absolute"
-                    bottom="120px"
-                    left="50%"
-                    transform="translateX(-50%)"
-                    zIndex="1"
-                >
-                    <Text fontSize="m" color="green.300">
-                         {formatDuration(callDuration)}
-                    </Text>
-                </Box>
-            )}
-
-            {/* Add Transcription Icon and Popup */}
-            <Box position="absolute" top="20px" right="20px" zIndex={2}>
-                <Popover placement="left">
-                    <PopoverTrigger>
-                        <IconButton
-                            icon={<MdDescription />}
-                            colorScheme="blue"
-                            variant="solid"
-                            borderRadius="full"
-                            aria-label="View Transcription"
-                        />
-                    </PopoverTrigger>
-                    <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
-                        <PopoverArrow />
-                        <PopoverCloseButton />
-                        <PopoverBody p={4}>
-                            <Text fontWeight="bold" mb={2}>Transcription</Text>
-                            <Box 
-                                bg="gray.50" 
-                                p={3} 
-                                borderRadius="md" 
-                                fontSize="sm"
-                                whiteSpace="pre-wrap"
-                            >
-                                {transcript || "No transcription available yet..."}
+                        {!isVideoEnabled && vid ? (
+                            <Box textAlign='center'> 
+                                <IconButton 
+                                    icon={<MdVideoCall />} 
+                                    colorScheme="blue" 
+                                    fontSize="36px" 
+                                    onClick={enableVideo}  
+                                    borderRadius="full" 
+                                    size="lg" 
+                                />
+                                <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text>
                             </Box>
-                        </PopoverBody>
-                    </PopoverContent>
-                </Popover>
-            </Box>
+                        ) : (
+                            <Box textAlign="center">
+                                {isVideoEnabled ? (
+                                    <IconButton 
+                                        icon={<MdVideocamOff />} 
+                                        colorScheme="red" 
+                                        fontSize="36px" 
+                                        onClick={disableVideo} 
+                                        borderRadius="full" 
+                                        size="lg" 
+                                    />
+                                ) : (
+                                    <IconButton 
+                                        icon={<MdVideocam />} 
+                                        colorScheme="green" 
+                                        fontSize="36px" 
+                                        onClick={joinChannelWithVideo}  
+                                        borderRadius="full" 
+                                        size="lg" 
+                                    />
+                                )}
+                                <Text marginTop="5px" fontSize='12px' color='white'>
+                                    {isVideoEnabled ? 'Disable Video' : 'Start Call'}
+                                </Text>
+                            </Box>
+                        )}
+                    </Flex>
 
-        </Box>
-    </ChakraProvider>
+                    {/* Fixed Position Elements */}
+                    {/* Timer */}
+                    {isJoined && (
+                        <Box
+                            position="absolute"
+                            top="20px"
+                            left="50%"
+                            transform="translateX(-50%)"
+                            zIndex="1"
+                        >
+                            <Text fontSize="xl" color="white" fontWeight="bold">
+                                {formatDuration(callDuration)}
+                            </Text>
+                        </Box>
+                    )}
+
+                    {/* Transcription Icon */}
+                    <Box position="absolute" top="20px" right="20px" zIndex={2}>
+                        <Popover placement="left">
+                            <PopoverTrigger>
+                                <IconButton
+                                    icon={<MdDescription />}
+                                    colorScheme="blue"
+                                    variant="solid"
+                                    borderRadius="full"
+                                    aria-label="View Transcription"
+                                />
+                            </PopoverTrigger>
+                            <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
+                                <PopoverArrow />
+                                <PopoverCloseButton />
+                                <PopoverBody p={4}>
+                                    <Text fontWeight="bold" mb={2}>Transcription</Text>
+                                    <Box 
+                                        bg="gray.50" 
+                                        p={3} 
+                                        borderRadius="md" 
+                                        fontSize="sm"
+                                        whiteSpace="pre-wrap"
+                                    >
+                                        {transcript || "No transcription available yet..."}
+                                    </Box>
+                                </PopoverBody>
+                            </PopoverContent>
+                        </Popover>
+                    </Box>
+
+                    {/* Loading Spinner */}
+                    {isLoading && (
+                        <Box
+                            position="absolute"
+                            top="50%"
+                            left="50%"
+                            transform="translate(-50%, -50%)"
+                            textAlign="center"
+                            zIndex="2"
+                            bg="rgba(0, 0, 0, 0.7)"
+                            p={4}
+                            borderRadius="md"
+                        >
+                            <Spinner color="blue.500" size="xl" />
+                            <Text fontSize="lg" color="white" mt={2}>Processing...</Text>
+                        </Box>
+                    )}
+
+                    {/* Waiting for Caller */}
+                    {isJoined && remoteUsers.length === 0 && (
+                        <Box
+                            position="absolute"
+                            top="50%"
+                            left="50%"
+                            transform="translate(-50%, -50%)"
+                            textAlign="center"
+                            zIndex="2"
+                            bg="rgba(0, 0, 0, 0.7)"
+                            p={4}
+                            borderRadius="md"
+                        >
+                            <Text fontSize="lg" color="yellow.400">
+                                Waiting for other caller to join...
+                            </Text>
+                        </Box>
+                    )}
+                </Box>
+            </Box>
+        </ChakraProvider>
     );
 };
 

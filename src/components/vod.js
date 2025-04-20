@@ -10,19 +10,25 @@ const VideoDisplay = ({ localVideoTrack, remoteUsers }) => {
     };
 
     return (
-        <Box position="relative" width="100%" height="100vh" bg="black">
-            {/* Main Video Covering the Entire Screen */}
+        <Box position="relative" width="100%" height="100%" bg="black">
+            {/* Main Video */}
             <Box width="100%" height="100%" onClick={toggleVideoPosition} cursor="pointer">
-                {isLocalPrimary && localVideoTrack ? (
-                    <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '100%', height: '100%' }} />
-                ) : remoteUsers.length > 0 && remoteUsers[0].videoTrack ? (
-                    <div ref={(ref) => ref && remoteUsers[0].videoTrack.play(ref)} style={{ width: '100%', height: '100%' }} />
+                {isLocalPrimary ? (
+                    localVideoTrack ? (
+                        <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                        <Box bg="gray.900" width="100%" height="100%" />
+                    )
                 ) : (
-                    <Box bg="gray.700" width="100%" height="100%" />
+                    remoteUsers.length > 0 && remoteUsers[0].videoTrack ? (
+                        <div ref={(ref) => ref && remoteUsers[0].videoTrack.play(ref)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                        <Box bg="gray.900" width="100%" height="100%" />
+                    )
                 )}
             </Box>
 
-            {/* Inset (Smaller) Video Positioned at the Top-Right */}
+            {/* Inset (Smaller) Video */}
             <Box
                 position="absolute"
                 top="20px"
@@ -35,13 +41,20 @@ const VideoDisplay = ({ localVideoTrack, remoteUsers }) => {
                 onClick={toggleVideoPosition}
                 cursor="pointer"
                 boxShadow="lg"
+                overflow="hidden"
             >
-                {!isLocalPrimary && localVideoTrack ? (
-                    <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '100%', height: '100%' }} />
-                ) : remoteUsers.length > 0 && remoteUsers[0].videoTrack ? (
-                    <div ref={(ref) => ref && remoteUsers[0].videoTrack.play(ref)} style={{ width: '100%', height: '100%' }} />
+                {!isLocalPrimary ? (
+                    localVideoTrack ? (
+                        <div ref={(ref) => ref && localVideoTrack.play(ref)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                        <Box bg="gray.900" width="100%" height="100%" />
+                    )
                 ) : (
-                    <Box bg="gray.700" width="100%" height="100%" />
+                    remoteUsers.length > 0 && remoteUsers[0].videoTrack ? (
+                        <div ref={(ref) => ref && remoteUsers[0].videoTrack.play(ref)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                        <Box bg="gray.900" width="100%" height="100%" />
+                    )
                 )}
             </Box>
         </Box>
