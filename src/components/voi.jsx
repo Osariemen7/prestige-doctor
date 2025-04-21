@@ -308,8 +308,6 @@ const Call = () => {
     const clientRef = useRef(null);
     const [chatMessages, setChatMessages] = useState([]);
     const ws = useRef(null);
-    const [oobRequestType, setOobRequestType] = useState('summary');
-    const [oobRequestDetails, setOobRequestDetails] = useState('');
     // Chakra UI color mode values
     const bgColor = useColorModeValue("#2c2c2c", "gray.900"); // Dark background
     const textColor = useColorModeValue("white", "gray.200");
@@ -471,20 +469,27 @@ const Call = () => {
             const channel = item.channel_name;
 
             await clientRef.current.join(appId, channel, token, null);
+            
+            // Create and publish audio track
             const audioTrack = await createMicrophoneAudioTrack();
-            const videoTrack = await createCameraVideoTrack();
-
-            await Promise.all([
-                clientRef.current.publish(audioTrack),
-                clientRef.current.publish(videoTrack)
-            ]);
-
+            await clientRef.current.publish(audioTrack);
             setLocalAudioTrack(audioTrack);
+
+            // Clean up any existing video track
+            if (localVideoTrack) {
+                await clientRef.current.unpublish(localVideoTrack);
+                localVideoTrack.stop();
+                localVideoTrack.close();
+            }
+
+            // Create and publish new video track
+            const videoTrack = await createCameraVideoTrack();
+            await clientRef.current.publish(videoTrack);
+            
             setLocalVideoTrack(videoTrack);
             setIsVideoEnabled(true);
             setIsJoined(true);
             setUserCount(1);
-            // Remove startTimer from here since we only want it to start when a second user joins
             connectWebSocket(); // Start transcription automatically
 
         } catch (error) {
@@ -510,6 +515,9 @@ const Call = () => {
         try {
             stopRecording();
             setIsLoading(true);
+            
+            // Stop timer immediately when leaving
+            stopTimer();
             
             // Ensure we handle billing before cleaning up
             if (startTimeRef.current) {
@@ -538,13 +546,15 @@ const Call = () => {
             setRemoteAudioTracks([]);
 
             await clientRef.current.leave();
-            stopTimer();
             
             setRemoteUsers([]);
             setIsVideoEnabled(false);
             setIsRecording(false);
             setIsJoined(false);
             setUserCount(0);
+            // Reset timer state
+            startTimeRef.current = null;
+            setCallDuration(900);
 
             console.log('Successfully left the channel and cleaned up.');
         } catch (error) {
@@ -568,6 +578,7 @@ const Call = () => {
     async function disableVideo() {
         if (isVideoEnabled && localVideoTrack) {
             try {
+                await clientRef.current.unpublish(localVideoTrack);
                 localVideoTrack.stop();
                 localVideoTrack.close();
                 setLocalVideoTrack(null);
@@ -576,24 +587,47 @@ const Call = () => {
                 setVid(true);
             } catch (error) {
                 console.error('Error disabling video:', error);
+                toast({
+                    title: 'Video Error',
+                    description: 'Failed to disable video',
+                    status: 'error',
+                    duration: 5000,
+                    isClosable: true,
+                });
             }
         }
     }
     // Enable video
     async function enableVideo() {
         try {
+            // Clean up existing video track if any
+            if (localVideoTrack) {
+                await clientRef.current.unpublish(localVideoTrack);
+                localVideoTrack.stop();
+                localVideoTrack.close();
+            }
+
             const videoTrack = await createCameraVideoTrack({
                 encoderConfig: {
-                    resolution: '1280x720', // Options: '120p', '360p', '720p', '1080p'
-                    frameRate: 30,         // Frame rate: 15, 30
-                    bitrateMax: 1130,      // Adjust bitrate (Kbps) for better quality
+                    resolution: '1280x720',
+                    frameRate: 30,
+                    bitrateMax: 1130,
                 },
             });
+            
+            await clientRef.current.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
             setIsVideoEnabled(true);
-            console.log('Video enabled.');
+            console.log('Video enabled successfully');
         } catch (error) {
             console.error('Error enabling video:', error);
+            toast({
+                title: 'Video Error',
+                description: 'Failed to enable video',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
         }
     }
  
@@ -645,11 +679,7 @@ const Call = () => {
     // Modify the startRecording function
     const startRecording = async () => {
         try {
-            // Ensure WebSocket is connected before starting
-            if (!assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) {
-                await connectWebSocket();
-            }
-    
+        
             setIsProcessingAudio(true);
             const audioConfig = getOptimalAudioConfig();
             const stream = await setupAudioWithFallback({ audio: audioConfig });
@@ -970,60 +1000,54 @@ const Call = () => {
     const threadId = item.thread_id;
     
     // Add AssemblyAI token fetch useEffect
-    useEffect(() => {
-        let tokenRefreshInterval;
-        
-        const fetchAssemblyAiToken = async () => {
-            try {
-                const token = await getAccessToken();
-                const response = await fetch(
-                    "https://health.prestigedelta.com/assemblyai/generate-token/",
-                    {
-                        headers: {
-                            "Content-Type": "application/json",
-                            Accept: "application/json",
-                            Authorization: `Bearer ${token}`,
-                        },
-                    }
-                );
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch AssemblyAI token');
-                }
-                
-                const data = await response.json();
-                setAssemblyAiToken(data.token);
-                
-                // Only connect WebSocket if there are multiple users
-                if (userCount > 1) {
-                    await connectWebSocket();
-                }
-            } catch (error) {
-                console.error("Error fetching AssemblyAI token:", error);
-                toast({
-                    title: "Error",
-                    description: "Failed to initialize transcription service",
-                    status: "error",
-                    duration: 5000,
-                    isClosable: true,
-                });
+     useEffect(() => {
+        const fetchTranscriptToken = async () => {
+          try {
+            const tok = await getAccessToken();
+            const tokenRes = await fetch(
+              "https://health.prestigedelta.com/assemblyai/generate-token/",
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                  Authorization: `Bearer ${tok}`,
+                },
+              }
+            );
+            if (!tokenRes.ok) {
+              const message = `Failed to fetch AssemblyAI token, status code: ${tokenRes.status}`;
+              console.error(message);
+              toast({
+                title: 'Token Error',
+                description: message,
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+              });
+              return;
             }
+            const tokenData = await tokenRes.json();
+            setAssemblyAiToken(tokenData.token);
+            console.log("AssemblyAI token:", tokenData.token);
+          } catch (error) {
+            console.error("Error initializing AssemblyAI:", error);
+            toast({
+              title: 'Token Error',
+              description: 'Failed to initialize AssemblyAI token service.',
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+            });
+          }
         };
-
-        // Only fetch token if there are multiple users
-        if (userCount > 1) {
-            fetchAssemblyAiToken();
-            // Refresh token every hour
-            tokenRefreshInterval = setInterval(fetchAssemblyAiToken, 3600000);
-        }
-
-        return () => {
-            if (tokenRefreshInterval) {
-                clearInterval(tokenRefreshInterval);
-            }
-            stopTranscription();
-        };
-    }, [userCount]); // Add userCount as dependency to react to user count changes
+    
+        fetchTranscriptToken();
+    
+        const intervalId = setInterval(fetchTranscriptToken, 249000);
+    
+        return () => clearInterval(intervalId);
+      }, [toast]);
+    
 
     const handleConnectionError = async () => {
         setConnectionStatus('error');
@@ -1050,37 +1074,26 @@ const Call = () => {
     };
 
     const connectWebSocket = async () => {
-        if (!assemblyAiToken) {
-            console.log('Waiting for AssemblyAI token...');
-            // Wait for token if not available
-            await new Promise(resolve => {
-                const checkToken = setInterval(() => {
-                    if (assemblyAiToken) {
-                        clearInterval(checkToken);
-                        resolve();
-                    }
-                }, 500);
-            });
-        }
+        try {
+            // First attempt to wait for existing tokens
+            const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${assemblyAiToken}`;
 
-        return new Promise((resolve, reject) => {
-            const sampleRate = 16000;
-            const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=${sampleRate}&token=${assemblyAiToken}`;
-            
-            if (assemblyWsRef.current?.readyState === WebSocket.OPEN) {
-                console.log('WebSocket already connected');
-                return resolve(assemblyWsRef.current);
-            }
+            return new Promise((resolve, reject) => {
+                if (assemblyWsRef.current?.readyState === WebSocket.OPEN) {
+                    console.log('WebSocket already connected');
+                    return resolve(assemblyWsRef.current);
+                }
 
-            try {
+                console.log('Creating new WebSocket connection...');
                 assemblyWsRef.current = new WebSocket(socketUrl);
 
                 assemblyWsRef.current.onopen = () => {
-                    console.log('AssemblyAI WebSocket connected');
+                    console.log('AssemblyAI WebSocket connected successfully');
                     setConnectionStatus('connected');
                     setIsTranscribing(true);
                     startAudioProcessing();
                     resolve(assemblyWsRef.current);
+                    startRecording();
                 };
 
                 assemblyWsRef.current.onerror = (error) => {
@@ -1094,16 +1107,17 @@ const Call = () => {
                     setConnectionStatus('disconnected');
                     setIsTranscribing(false);
                     
-                    // Attempt to reconnect if not intentionally closed
+                    // Attempt to reconnect if not intentionally closed and still in call
                     if (isJoined && reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
                         console.log('Attempting to reconnect...');
                         setTimeout(() => {
                             connectWebSocket().catch(console.error);
-                        }, 2000); // Wait 2 seconds before reconnecting
+                        }, 2000);
                     }
                 };
 
                 assemblyWsRef.current.onmessage = (event) => {
+                    console.log("Raw WS message:", event.data);
                     try {
                         const data = JSON.parse(event.data);
                         if (data.message_type === 'FinalTranscript') {
@@ -1113,14 +1127,20 @@ const Call = () => {
                         console.error("Error processing transcription message:", error);
                     }
                 };
-
-            } catch (error) {
-                console.error('Error creating WebSocket:', error);
-                reject(error);
-            }
-        });
+            });
+        } catch (error) {
+            console.error('Error in connectWebSocket:', error);
+            toast({
+                title: 'Connection Error',
+                description: 'Failed to initialize transcription service',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+            throw error;
+        }
     };
- console.log(transcript)
+
     const stopTranscription = () => {
         if (assemblyWsRef.current) {
             assemblyWsRef.current.close();
@@ -1239,40 +1259,24 @@ const Call = () => {
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ChakraProvider>
                 <Box 
-                    minH="100vh" 
+                    h="100vh" 
                     bg={bgColor} 
                     position="relative"
-                    overflow="auto" // Enable scrolling
-                    css={{
-                        '&::-webkit-scrollbar': {
-                            width: '4px',
-                        },
-                        '&::-webkit-scrollbar-track': {
-                            width: '6px',
-                        },
-                        '&::-webkit-scrollbar-thumb': {
-                            background: 'gray',
-                            borderRadius: '24px',
-                        },
-                    }}
+                    display="flex"
+                    flexDirection="column"
                 >
                     {/* Fixed Header */}
                     <Flex
-                        position="fixed"
-                        top={0}
-                        left={0}
-                        right={0}
-                        py={4}
-                        px={6}
+                        py={2}
+                        px={4}
                         bg={useColorModeValue('white', 'gray.800')}
                         borderBottomWidth="1px"
                         borderColor={borderColor}
                         justify="space-between"
                         align="center"
-                        zIndex={10}
+                        h="48px"
                     >
                         <HStack spacing={4}>
-                        
                             <Text fontSize="lg" fontWeight="medium">
                                 {formatTime(callDuration)}
                             </Text>
@@ -1286,7 +1290,6 @@ const Call = () => {
                                     Transcribing
                                 </Badge>
                             )}
-                            {/* Add Transcription Icon and Popup */}
                             <Popover placement="bottom-start" isLazy>
                                 <PopoverTrigger>
                                     <IconButton
@@ -1298,7 +1301,7 @@ const Call = () => {
                                         isDisabled={!isTranscribing}
                                     />
                                 </PopoverTrigger>
-                                <PopoverContent width="400px" maxHeight="500px">
+                                <PopoverContent width="400px">
                                     <PopoverArrow />
                                     <PopoverCloseButton />
                                     <Box p={4}>
@@ -1346,17 +1349,7 @@ const Call = () => {
                             </Popover>
                         </HStack>
                     </Flex>
-
-                    {/* Main Content with proper padding for fixed header */}
-                    <Box 
-                        pt="80px" 
-                        px={6} 
-                        pb="100px" 
-                        height="100%"
-                        overflowY="auto"
-                    >
-                        {/* Add Generate Documentation Button */}
-                        <Button
+                    <Button
                             leftIcon={<MdNotes />}
                             colorScheme="blue"
                             mb={4}
@@ -1378,122 +1371,61 @@ const Call = () => {
                         >
                             Generate Documentation
                         </Button>
+                    {/* Main Content Area */}
+                    <Box flex="1" display="flex" flexDirection="column" height="calc(100vh - 48px)">
+                       
+                        <Tabs 
+                            variant="enclosed" 
+                            colorScheme="blue" 
+                            onChange={(index) => setActiveTab(index === 0 ? 'consultation' : 'documentation')}
+                            display="flex"
+                            flexDirection="column"
+                            height="100%"
+                        >
+                            <TabList>
+                                <Tab>Consultation</Tab>
+                                <Tab color='white'>Documentation</Tab>
+                            </TabList>
 
-                        <Tabs variant="enclosed" colorScheme="blue" onChange={(index) => setActiveTab(index === 0 ? 'consultation' : 'documentation')}>
-                                <TabList mb="1em">
-                                    <Tab>Consultation</Tab>
-                                    <Tab color='white'>Documentation</Tab>
-                                </TabList>
-
-                                <TabPanels>
-                                    <TabPanel p={0} h="calc(100vh - 80px)"> {/* Remove padding and set full height */}
-                                        <Box position="relative" h="100%">
-                                            {/* Status Controls - Floating at top */}
-                                            <Box
-                                                position="absolute"
-                                                top={4}
-                                                left={4}
-                                                right={4}
-                                                zIndex={2}
-                                            >
-                                                <StatusControls 
-                                                    isVideoEnabled={isVideoEnabled}
-                                                    isRecording={isRecording}
-                                                    connectionStatus={connectionStatus}
+                            <TabPanels flex="1">
+                                <TabPanel p={0} height="100%">
+                                    <Box position="relative" height="100%">
+                                        {/* Status Controls */}
+                                        <Box
+                                            position="absolute"
+                                            top={2}
+                                            left={2}
+                                            right={2}
+                                            zIndex={2}
+                                        >
+                                            <StatusControls 
+                                                isVideoEnabled={isVideoEnabled}
+                                                isRecording={isRecording}
+                                                connectionStatus={connectionStatus}
+                                            />
+                                        </Box>
+                                        
+                                        {/* Video Display */}
+                                        <Box
+                                            position="relative"
+                                            height="100%"
+                                            bg="black"
+                                        >
+                                            {isVideoEnabled ? (
+                                                <VideoDisplay
+                                                    localVideoTrack={localVideoTrack}
+                                                    remoteUsers={remoteUsers}
                                                 />
-                                            </Box>
-                                            
-                                            {/* Video Display - Full height */}
-                                            <Box
-                                                position="relative"
-                                                h="100%"
-                                                bg="black"
-                                            >
-                                                {isVideoEnabled ? (
-                                                    <Box h="100%">
-                                                        <VideoDisplay
-                                                            localVideoTrack={localVideoTrack}
-                                                            remoteUsers={remoteUsers}
-                                                        />
-                                                    </Box>
-                                                ) : (
-                                                    <Flex
-                                                        h="100%"
-                                                        justify="center"
-                                                        align="center"
-                                                        bg="gray.900"
-                                                    >
-                                                        <Text color="white">Video is disabled</Text>
-                                                    </Flex>
-                                                )}
-
-                                                {/* Floating Controls at bottom */}
-                                                <Box
-                                                    position="absolute"
-                                                    bottom={8}
-                                                    left="50%"
-                                                    transform="translateX(-50%)"
-                                                    zIndex={2}
-                                                    p={4}
-                                                    borderRadius="full"
-                                                    bg="rgba(0, 0, 0, 0.6)"
+                                            ) : (
+                                                <Flex
+                                                    height="100%"
+                                                    justify="center"
+                                                    align="center"
+                                                    bg="gray.900"
                                                 >
-                                                    <HStack spacing={4}>
-                                                        <Tooltip label={isVideoEnabled ? "Disable Video" : "Enable Video"}>
-                                                            <IconButton
-                                                                icon={isVideoEnabled ? <MdVideocam /> : <MdVideocamOff />}
-                                                                onClick={() => isVideoEnabled ? disableVideo() : enableVideo()}
-                                                                colorScheme={isVideoEnabled ? "blue" : "gray"}
-                                                                isRound
-                                                                size="lg"
-                                                                variant="ghost"
-                                                                _hover={{ bg: 'whiteAlpha.200' }}
-                                                            />
-                                                        </Tooltip>
-                                                        <Tooltip label={isRecording ? "Stop Recording" : "Start Recording"}>
-                                                            <IconButton
-                                                                icon={isRecording ? <MdStop /> : <MdMic />}
-                                                                onClick={() => isRecording ? stopRecording() : startRecording()}
-                                                                colorScheme={isRecording ? "red" : "blue"}
-                                                                isRound
-                                                                size="lg"
-                                                                variant="ghost"
-                                                                _hover={{ bg: 'whiteAlpha.200' }}
-                                                            />
-                                                        </Tooltip>
-                                                        <Tooltip label="End Call">
-                                                            <IconButton
-                                                                icon={<MdCallEnd />}
-                                                                onClick={leaveChannel}
-                                                                colorScheme="red"
-                                                                isRound
-                                                                size="lg"
-                                                                variant="solid"
-                                                                isLoading={isLoading}
-                                                            />
-                                                        </Tooltip>
-                                                    </HStack>
-                                                </Box>
-
-                                               
-
-                                                {/* Progress bar at bottom */}
-                                                {userCount > 1 && (
-                                                    <Box
-                                                        position="absolute"
-                                                        bottom={0}
-                                                        left={0}
-                                                        right={0}
-                                                        zIndex={2}
-                                                    >
-                                                        <Progress
-                                                            value={(900 - callDuration) / 9}
-                                                            size="xs"
-                                                            colorScheme="blue"
-                                                        />
-                                                    </Box>
-                                                )}
-                                            </Box>
+                                                    <Text color="white">Video is disabled</Text>
+                                                </Flex>
+                                            )}
 
                                             {/* Waiting for user message */}
                                             {userCount <= 1 && (
@@ -1512,76 +1444,80 @@ const Call = () => {
                                                     Waiting for user to join...
                                                 </Alert>
                                             )}
+
+                                            {/* Controls */}
+                                            <Box
+                                                position="absolute"
+                                                bottom={4}
+                                                left="50%"
+                                                transform="translateX(-50%)"
+                                                zIndex={2}
+                                            >
+                                                <HStack 
+                                                    spacing={4} 
+                                                    p={3} 
+                                                    bg="rgba(0, 0, 0, 0.6)" 
+                                                    borderRadius="full"
+                                                >
+                                                    <Tooltip label={isVideoEnabled ? "Disable Video" : "Enable Video"}>
+                                                        <IconButton
+                                                            icon={isVideoEnabled ? <MdVideocam /> : <MdVideocamOff />}
+                                                            onClick={() => isVideoEnabled ? disableVideo() : enableVideo()}
+                                                            colorScheme={isVideoEnabled ? "blue" : "gray"}
+                                                            isRound
+                                                            size="lg"
+                                                            variant="ghost"
+                                                            _hover={{ bg: 'whiteAlpha.200' }}
+                                                        />
+                                                    </Tooltip>
+                                                    <Tooltip label="End Call">
+                                                        <IconButton
+                                                            icon={<MdCallEnd />}
+                                                            onClick={leaveChannel}
+                                                            colorScheme="red"
+                                                            isRound
+                                                            size="lg"
+                                                            variant="solid"
+                                                            isLoading={isLoading}
+                                                        />
+                                                    </Tooltip>
+                                                </HStack>
+                                            </Box>
+
+                                            {/* Progress bar */}
+                                            {userCount > 1 && (
+                                                <Box
+                                                    position="absolute"
+                                                    bottom={0}
+                                                    left={0}
+                                                    right={0}
+                                                    zIndex={2}
+                                                >
+                                                    <Progress
+                                                        value={(900 - callDuration) / 9}
+                                                        size="xs"
+                                                        colorScheme="blue"
+                                                    />
+                                                </Box>
+                                            )}
                                         </Box>
-                                    </TabPanel>
-                                    
-                                    {/* Documentation Panel - Scrollable */}
-                                    <TabPanel>
-                                        <PatientProfile
-                                            ref={patientProfileRef}
-                                            reviewid={reviewId}
-                                            thread={threadId}
-                                            wsStatus={connectionStatus}
-                                            setIsDocumentationSaved={setIsDocumentationSaved}
-                                            transcript={transcript}
-                                        />
-                                    </TabPanel>
-                                </TabPanels>
-                            </Tabs>
+                                    </Box>
+                                </TabPanel>
+
+                                <TabPanel>
+                                    <PatientProfile
+                                        ref={patientProfileRef}
+                                        reviewid={reviewId}
+                                        thread={threadId}
+                                        wsStatus={connectionStatus}
+                                        setIsDocumentationSaved={setIsDocumentationSaved}
+                                        transcript={transcript}
+                                    />
+                                </TabPanel>
+                            </TabPanels>
+                        </Tabs>
                     </Box>
                 </Box>
-                <AnimatePresence>
-                    {isLoading && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            style={{
-                                position: 'fixed',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                background: 'rgba(0,0,0,0.7)',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                zIndex: 1000,
-                            }}
-                        >
-                            <VStack spacing={4}>
-                                <Spinner size="xl" color="white" />
-                                <Text color="white">{loadingMessage}</Text>
-                            </VStack>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-                
-                {/* Transition Overlay */}
-                <AnimatePresence>
-                    {isTransitioning && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            style={{
-                                position: 'fixed',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                background: 'rgba(0,0,0,0.5)',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                zIndex: 999,
-                            }}
-                        >
-                            <Spinner size="xl" color="white" />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-                
             </ChakraProvider>
         </ErrorBoundary>
     );
