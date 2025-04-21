@@ -14,6 +14,7 @@ const Voice = () => {
     const item = state?.item || {};
     const [searchParams] = useSearchParams();
     const chanel = searchParams.get("channel");
+
   
 
     const [vid, setVid] = useState(false)
@@ -52,7 +53,7 @@ const Voice = () => {
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const isGettingSuggestion = useRef(false);
     const { state: locationState } = useLocation();
-    const reviewid = locationState?.item?.review_id;
+    const reviewid = searchParams.get("reviewid") || locationState?.item?.review_id;
     const thread = locationState?.item?.thread_id;
 
     const client = createClient({ mode: 'rtc', codec: 'vp8' });
@@ -373,7 +374,7 @@ const Voice = () => {
 
     // Add transcription WebSocket connection
     const connectWebSocket = async () => {
-        startRecording()
+
         if (!assemblyAiToken) {
             console.log('No AssemblyAI token available');
             return;
@@ -419,18 +420,7 @@ const Voice = () => {
     };
 
     // Add WebSocket connection and transcription function
-    const startRecording = async () => {
-        try {
-            if (!assemblyWsRef.current || assemblyWsRef.current.readyState !== WebSocket.OPEN) {
-                await connectWebSocket();
-            }
-            setIsRecording(true);
-            console.log('Recording started');
-        } catch (error) {
-            console.error('Error starting recording:', error);
-        }
-    };
-
+    
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -480,6 +470,12 @@ const Voice = () => {
         };
     }, []);
 
+  useEffect(() => {
+          if (userCount > 1 && assemblyAiToken) {
+              connectWebSocket();
+          }
+      }, [userCount, assemblyAiToken]);
+  
     // Add connection status display
     const getConnectionStatusMessage = () => {
         switch (connectionState) {
