@@ -1276,10 +1276,42 @@ const Call = () => {
                         align="center"
                         h="48px"
                     >
+                        <HStack spacing={4} align="center">
+                            <Box
+                                bg={useColorModeValue('gray.100', 'gray.700')}
+                                px={3}
+                                py={1}
+                                borderRadius="full"
+                            >
+                                <Text fontSize="lg" fontWeight="medium">
+                                    {formatTime(callDuration)}
+                                </Text>
+                            </Box>
+                            <Button
+                                leftIcon={<MdNotes />}
+                                size="sm"
+                                colorScheme="blue"
+                                onClick={() => {
+                                    if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
+                                        toast({
+                                            title: "Generating Documentation",
+                                            description: "Analyzing conversation and generating suggestions...",
+                                            status: "info",
+                                            duration: 3000,
+                                            isClosable: true,
+                                        });
+                                        // Call getSuggestion for all tabs
+                                        patientProfileRef.current.getSuggestion('patientProfile');
+                                        patientProfileRef.current.getSuggestion('healthGoals');
+                                        patientProfileRef.current.getSuggestion('medicalReview');
+                                    }
+                                }}
+                            >
+                                Generate Documentation
+                            </Button>
+                        </HStack>
+
                         <HStack spacing={4}>
-                            <Text fontSize="lg" fontWeight="medium">
-                                {formatTime(callDuration)}
-                            </Text>
                             {isTranscribing && (
                                 <Badge 
                                     colorScheme="red" 
@@ -1349,28 +1381,7 @@ const Call = () => {
                             </Popover>
                         </HStack>
                     </Flex>
-                    <Button
-                            leftIcon={<MdNotes />}
-                            colorScheme="blue"
-                            mb={4}
-                            onClick={() => {
-                                if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
-                                    toast({
-                                        title: "Generating Documentation",
-                                        description: "Analyzing conversation and generating suggestions...",
-                                        status: "info",
-                                        duration: 3000,
-                                        isClosable: true,
-                                    });
-                                    // Call getSuggestion for all tabs
-                                    patientProfileRef.current.getSuggestion('patientProfile');
-                                    patientProfileRef.current.getSuggestion('healthGoals');
-                                    patientProfileRef.current.getSuggestion('medicalReview');
-                                }
-                            }}
-                        >
-                            Generate Documentation
-                        </Button>
+                    
                     {/* Main Content Area */}
                     <Box flex="1" display="flex" flexDirection="column" height="calc(100vh - 48px)">
                        
