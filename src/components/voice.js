@@ -57,6 +57,8 @@ const Voice = () => {
 
     const client = createClient({ mode: 'rtc', codec: 'vp8' });
 
+    const [connectionState, setConnectionState] = useState('DISCONNECTED');
+
     const getSuggestion = async () => {
         if (isGettingSuggestion.current) return;
         isGettingSuggestion.current = true;
@@ -115,40 +117,63 @@ const Voice = () => {
     };
 
     useEffect(() => {
+        // Add connection state handlers
+        client.on('connection-state-change', (curState, prevState) => {
+            console.log(`Connection state changed from ${prevState} to ${curState}`);
+            setConnectionState(curState);
+        });
+
         client.on('user-published', async (user, mediaType) => {
-          await client.subscribe(user, mediaType);
-      
-          if (mediaType === 'video') {
-            setRemoteUsers((prev) => [...prev, user]);
-          } else if (mediaType === 'audio') {
-            // Ensure we play the audio track immediately
-            if (user.audioTrack) {
-                user.audioTrack.play();
-                // Set audio output to system default
-                user.audioTrack.setPlaybackDevice('default');
-                console.log('Playing remote audio track');
+            console.log('User published:', user.uid, mediaType);
+            try {
+                // Subscribe to the remote user
+                await client.subscribe(user, mediaType);
+                console.log('Subscribed to', user.uid, mediaType);
+
+                if (mediaType === 'video') {
+                    setRemoteUsers((prevUsers) => {
+                        // Check if user already exists
+                        if (prevUsers.find(u => u.uid === user.uid)) {
+                            return prevUsers;
+                        }
+                        return [...prevUsers, user];
+                    });
+                }
+                
+                if (mediaType === 'audio') {
+                    // Play audio immediately after successful subscription
+                    if (user.audioTrack) {
+                        user.audioTrack.play();
+                        // Set volume to normal level
+                        user.audioTrack.setVolume(100);
+                        console.log('Playing remote audio track for user:', user.uid);
+                    }
+                    setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
+                }
+
+                setUserCount((prev) => {
+                    const newCount = prev + 1;
+                    if (newCount === 2) {
+                        startTimer();
+                    }
+                    return newCount;
+                });
+            } catch (error) {
+                console.error('Error subscribing to user:', error);
             }
-            setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
-          }
-      
-          setUserCount((prev) => {
-            const newCount = prev + 1;
-            if (newCount === 2) {
-                startTimer();
-            }
-            return newCount;
-          });
         });
 
         client.on('user-unpublished', (user, mediaType) => {
+            console.log('User unpublished:', user.uid, mediaType);
             if (mediaType === 'audio') {
                 if (user.audioTrack) {
                     user.audioTrack.stop();
                 }
                 setRemoteAudioTracks((prev) =>
-                    prev.filter((track) => track.getUserId() !== user.uid)
+                    prev.filter((track) => track !== user.audioTrack)
                 );
-            } else if (mediaType === 'video') {
+            }
+            if (mediaType === 'video') {
                 setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
             }
             
@@ -211,71 +236,50 @@ const Voice = () => {
             const token = null;
             const channel = item.channel_name || chanel;
     
+            // First try to join the channel
+            console.log('Attempting to join channel:', channel);
             await client.join(appId, channel, token, null);
+            console.log('Successfully joined channel');
            
-            // Create audio track with processing enabled
+            // Create and publish audio track
             const audioTrack = await createMicrophoneAudioTrack({
                 encoderConfig: {
-                    sampleRate: 16000, // Match AssemblyAI requirements
+                    sampleRate: 48000,
                     stereo: false,
-                    bitrate: 32 // Adjust as needed
+                    bitrate: 128
                 }
             });
 
-            // Set up audio processing
-            const audioStream = new MediaStream();
-            const audioSource = audioContext.createMediaStreamSource(audioTrack.getMediaStream());
-            audioSource.connect(destination);
-            audioStream.addTrack(destination.stream.getAudioTracks()[0]);
-
-            // Create a processor to handle audio data
-            const processor = audioContext.createScriptProcessor(4096, 1, 1);
-            audioSource.connect(processor);
-            processor.connect(audioContext.destination);
-
-            processor.onaudioprocess = (e) => {
-                if (assemblyWsRef.current?.readyState === WebSocket.OPEN && isRecording) {
-                    const float32Array = e.inputBuffer.getChannelData(0);
-                    const int16Array = new Int16Array(float32Array.length);
-                    for (let i = 0; i < float32Array.length; i++) {
-                        int16Array[i] = Math.max(-32768, Math.min(32767, Math.floor(float32Array[i] * 32768)));
-                    }
-                    assemblyWsRef.current.send(JSON.stringify({
-                        audio_data: Array.from(int16Array)
-                    }));
-                }
-            };
-
+            console.log('Created audio track, publishing...');
             await client.publish(audioTrack);
             setLocalAudioTrack(audioTrack);
-            console.log('Local Audio Track Published with processing', audioTrack);
+            console.log('Published audio track successfully');
 
-            // Clean up any existing video track before creating a new one
-            if (localVideoTrack) {
-                await client.unpublish(localVideoTrack);
-                localVideoTrack.stop();
-                localVideoTrack.close();
-            }
-
-            const videoTrack = await createCameraVideoTrack();
+            // Create and publish video track
+            console.log('Creating video track...');
+            const videoTrack = await createCameraVideoTrack({
+                encoderConfig: {
+                    width: 640,
+                    height: 480,
+                    frameRate: 30,
+                    bitrateMin: 400,
+                    bitrateMax: 1000
+                }
+            });
+            
+            console.log('Publishing video track...');
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
             setIsVideoEnabled(true);
+            console.log('Published video track successfully');
+
             setIsJoined(true);
             setUserCount(1);
 
-            // Start WebSocket connection and transcription immediately
-            await connectWebSocket();
-            await startRecording();
-            
-            console.log('Joined channel with audio and video.');
-    
-            // Add listener to stop all tracks on page unload
-            window.onbeforeunload = () => {
-                leaveChannel();
-            };
         } catch (error) {
-            console.error('Error joining channel with video:', error);
+            console.error('Error joining channel:', error);
+            // Show error message to user
+            alert(`Failed to join call: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -476,6 +480,24 @@ const Voice = () => {
         };
     }, []);
 
+    // Add connection status display
+    const getConnectionStatusMessage = () => {
+        switch (connectionState) {
+            case 'CONNECTING':
+                return 'Connecting...';
+            case 'CONNECTED':
+                return 'Connected';
+            case 'DISCONNECTED':
+                return 'Disconnected';
+            case 'DISCONNECTING':
+                return 'Disconnecting...';
+            case 'RECONNECTING':
+                return 'Reconnecting...';
+            default:
+                return '';
+        }
+    };
+
     return (
         <ChakraProvider>
             <Box 
@@ -486,6 +508,22 @@ const Voice = () => {
                 display="flex"
                 flexDirection="column"
             >
+                {/* Connection Status */}
+                <Box
+                    position="absolute"
+                    top="20px"
+                    left="20px"
+                    zIndex={2}
+                    bg={connectionState === 'CONNECTED' ? 'green.500' : 'orange.500'}
+                    color="white"
+                    px="3"
+                    py="1"
+                    borderRadius="full"
+                    fontSize="sm"
+                >
+                    {getConnectionStatusMessage()}
+                </Box>
+
                 {/* Video Container */}
                 <Box flex="1" position="relative">
                     <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
