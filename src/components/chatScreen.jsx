@@ -321,7 +321,7 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
           </Paper>
 
           {/* Citations section */}
-          {!isUser && chat.citations && Array.isArray(chat.citations) && chat.citations.length > 0 && !isResponseLoading && (
+          {!isUser && chat.citations && chat.citations.length > 0 && !isResponseLoading && (
             <Box sx={{ mt: 1.5, ml: isUser ? 'auto' : 0 }}>
               <Button
                 onClick={handleSourcesToggle}
@@ -364,7 +364,7 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
                     Sources:
                   </Typography>
 
-                  {Array.isArray(chat.citations) && chat.citations.map((citation, citationIndex) => {
+                  {chat.citations.map((citation, citationIndex) => {
                     const hostname = new URL(citation).hostname;
                     return (
                       <Box
@@ -449,13 +449,21 @@ const ChatScreen = ({
   const [error, setError] = useState('');
   const [expertLevel, setExpertLevel] = useState('low');
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [suggestions, setSuggestion] = useState([]); // Step 4: Initial state is [] - empty array
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
+  const [suggestions, setSuggestion] = useState([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // State for selected image file
   const [selectedImagePreview, setSelectedImagePreview] = useState(null); // State for image preview URL
   const [isExpertLevelLocked, setIsExpertLevelLocked] = useState(false); // State to lock expert level
   const isMobile = useMediaQuery('(max-width: 768px)');
   const fileInputRef = useRef(null); // Ref for hidden file input
+
+  // Initial example suggestions for the welcome screen
+  const initialSuggestions = [
+    "What are the symptoms of hypertension?",
+    "How to manage diabetes?",
+    "Common causes of chronic fatigue",
+    "Best practices for preventive care"
+  ];
 
   // Handle input changes
   const handleTyping = (e) => {
@@ -658,13 +666,27 @@ const ChatScreen = ({
   }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript, selectedImage, isExpertLevelLocked, selectedImagePreview]);
 
   const handleSuggestion = async () => {
+    console.log('handleSuggestion called with patient:', patient);
+    
+    // Validate patient ID is a non-empty string or number
+    const patientId = String(patient).trim();
+    if (!patientId) {
+      console.log('No valid patient ID available');
+      setSuggestion([]);
+      setIsLoadingSuggestions(false);
+      return;
+    }
+
     setIsLoadingSuggestions(true);
     const formData = {
       user_type: 'doctor',
-      patient_id: patient,
+      patient_id: patientId,
     };
-    const accessToken = await getAccessToken();
+
     try {
+      const accessToken = await getAccessToken();
+      console.log('Fetching suggestions for patient ID:', patientId);
+      
       const response = await fetch('https://health.prestigedelta.com/suggestions/', {
         method: 'POST',
         headers: {
@@ -674,26 +696,41 @@ const ChatScreen = ({
         },
         body: JSON.stringify(formData),
       });
+      
       const result = await response.json();
+      console.log('Suggestions API response:', result);
+      
       if (response.status !== 200) {
-        setError("Failed to load suggestions.");
-      } else {
-        setSuggestion(result);
-        console.log("Suggestions after fetch (Success):", result); // Debug log after successful fetch
+        throw new Error("Failed to load suggestions");
       }
+
+      // Ensure result is an array and not empty
+      const suggestions = Array.isArray(result) ? result : [];
+      console.log('Setting suggestions:', suggestions);
+      setSuggestion(suggestions);
+      
     } catch (error) {
-      console.error(error);
+      console.error('Error fetching suggestions:', error);
       setError("Failed to load suggestions.");
-      setSuggestion(null); // Or set to an empty array [] if you prefer a default array in error case
-      console.log("Suggestions fetch failed, setting to null/[]"); // Debug log on failure
+      setSuggestion([]);
     } finally {
       setIsLoadingSuggestions(false);
     }
   };
 
   useEffect(() => {
-    handleSuggestion();
-  }, [patient]);
+    console.log('useEffect triggered with patient:', patient);
+    const patientId = String(patient).trim();
+    
+    if (patientId) {
+      console.log('Valid patient ID detected, fetching suggestions...');
+      handleSuggestion();
+    } else {
+      console.log('No valid patient ID, resetting suggestions');
+      setSuggestion([]);
+      setIsLoadingSuggestions(false);
+    }
+  }, [patient]); // Only depend on patient ID changes
 
   if (isLoadingSuggestions) {
     return (
@@ -718,7 +755,32 @@ const ChatScreen = ({
     );
   }
 
-  console.log("Suggestions before render:", suggestions); // Debug log before rendering suggestions
+  const renderSuggestions = () => {
+    if (!suggestions || suggestions.length === 0) return null;
+
+    return (
+      <Box sx={{ mt: 2 }}>
+        {suggestions.map((category, index) => (
+          <Box key={`category-${index}`} sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              {category.category_name}
+            </Typography>
+            <Box sx={{ pl: 2 }}>
+              {category.sample_questions.map((question, qIndex) => (
+                <Typography 
+                  key={`question-${index}-${qIndex}`} 
+                  variant="body2" 
+                  sx={{ mb: 1 }}
+                >
+                  • {question}
+                </Typography>
+              ))}
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    );
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -798,12 +860,11 @@ const ChatScreen = ({
                   Try asking about:
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                  {/* Step 3: Defensive check - only map if suggestions is an array */}
-                  {Array.isArray(suggestions) ? suggestions.map((suggestion) => (
+                  {initialSuggestions.map((suggestionItem, index) => (
                     <Chip
-                      key={suggestion}
-                      label={suggestion}
-                      onClick={() => setMessage(suggestion)}
+                      key={`initial-suggestion-${index}`}
+                      label={suggestionItem}
+                      onClick={() => setMessage(suggestionItem)}
                       sx={{
                         bgcolor: 'grey.100',
                         '&:hover': {
@@ -812,12 +873,10 @@ const ChatScreen = ({
                         },
                       }}
                     />
-                  )) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Failed to load suggestions.
-                    </Typography>
-                  )}
+                  ))}
                 </Box>
+                {/* Replace suggestion with suggestions state variable */}
+                {suggestions && suggestions.length > 0 && renderSuggestions()}
               </Paper>
             </Box>
           )}
@@ -926,10 +985,10 @@ const ChatScreen = ({
                   }}
                 >
                   <MenuItem value="low">
-                    <em>Expertise Level</em>
+                    <em>AI Level</em>
                   </MenuItem>
                   <MenuItem value="low" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.05</MenuItem>
-                  <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.2</MenuItem>
+                  <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.15</MenuItem>
                   <MenuItem value="high">Advanced $0.5</MenuItem>
                 </Select>
               </FormControl>

@@ -24,7 +24,11 @@ import {
   StatGroup,
   Skeleton,
   Image,
-  useBreakpointValue
+  useBreakpointValue,
+  Grid,
+  GridItem,
+  Tooltip,
+  SkeletonText,
 } from "@chakra-ui/react";
 import { FiCopy, FiVideo, FiCalendar, FiClock, FiUser } from 'react-icons/fi';
 import { motion } from "framer-motion";
@@ -47,6 +51,9 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 import { Input, Select } from "@chakra-ui/react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import "./virtual.css";  // Add this line to import the custom styles
 
 const MotionBox = motion(Box);
 const MotionButton = motion(Button);
@@ -72,6 +79,10 @@ const Va = () => {
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [isManualInput, setIsManualInput] = useState(false);
   const bgColor = useColorModeValue('gray.50', 'gray.900');
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   const handlePatientSelect = (value) => {
     if (value === 'manual') {
@@ -121,7 +132,12 @@ const Va = () => {
       fetchData();
     }, []);
   
-
+    useEffect(() => {
+      if (date) {
+        fetchAvailableSlots(date);
+      }
+    }, [date]);
+    
   const handleSubmit = async () => {
     setButtonVisible(true);
 
@@ -264,28 +280,13 @@ const handleSubmit2 = async () => {
 };
 
 useEffect(() => {
-  if (date) {
-  const fetchDa = async () => {
-    try {
-      const accessToken = await getAccessToken();
-      const response = await axios.get(
-        `https://health.prestigedelta.com/appointments/available_slots/?date=${date}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-      setInfo(response.data); // Assuming response.data is the array of slots
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    } finally {
-      setLoading(false);
+  const fetchSlotsData = async () => {
+    if (!date) return;
     
-    }
+    await fetchAvailableSlots(date);
   };
 
-  fetchDa();}
+  fetchSlotsData();
 }, [date]);
 
 const options = info.map((slot) => (
@@ -376,7 +377,7 @@ console.log(link)
     navigate('/call', { state: { item } }); // Navigate using the ID
   };
   const cLink = link?.appointment?.channel_name
-  ? `https://prestige-doctor.vercel.app/appointment?channel=${link.appointment.channel_name}`
+  ? `https://prestige-doctor.vercel.app/appointment?channel=${link.appointment.channel_name}&reviewId=${link.appointment.review_id}`
   : '';
 
   if (loading) {
@@ -395,6 +396,60 @@ console.log(link)
     navigate('/');
   };
   
+  const fetchAvailableSlots = async (selectedDate) => {
+    setIsLoadingSlots(true);
+    try {
+      const token = await getAccessToken();
+      const response = await axios.get(
+        `https://health.prestigedelta.com/appointments/available_slots/?date=${selectedDate}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      setAvailableSlots(response.data);
+      if (response.data.length > 0) {
+        setStartTime(response.data[0].start_time);
+      }
+    } catch (error) {
+      console.error("Error fetching slots:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch available time slots",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  // Group slots by hour
+  const groupSlotsByHour = (slots) => {
+    const grouped = {};
+    slots.forEach(slot => {
+      const hour = new Date(slot.start_time).getHours();
+      if (!grouped[hour]) {
+        grouped[hour] = [];
+      }
+      grouped[hour].push(slot);
+    });
+    return grouped;
+  };
+
+  const formatTime = (timeString) => {
+    const date = new Date(timeString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+    setDate(date.toISOString().split('T')[0]);
+  };
+
+ 
   return (
     <div className="dashboard-container">
       <Sidebar 
@@ -604,140 +659,236 @@ console.log(link)
             </Container>
 
             {/* Existing modals */}
-            <Modal isOpen={modal1.isOpen} onClose={modal1.onClose}>
-                      <ModalOverlay />
-                      <ModalContent>
-                          <ModalHeader>Book Call Appointment</ModalHeader>
-                          <ModalCloseButton />
-                          <ModalBody>
-                               <FormControl mb={4}>
-                          <FormLabel>Set Date</FormLabel>
-                                  <Input
-                                      type="date"
-                                      value={date}
-                                      onChange={(e) => setDate(e.target.value)}
-                                      placeholder="Select start time"
-                                  />
-                              <FormLabel>Select available Slot</FormLabel>
-                              <Select
-                      placeholder="Select start time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
+            <Modal isOpen={modal1.isOpen} onClose={modal1.onClose} size="xl">
+              <ModalOverlay />
+              <ModalContent maxW="4xl">
+                <ModalHeader>Book Call Appointment</ModalHeader>
+                <ModalCloseButton />
+                <ModalBody>
+                  <Flex direction={{ base: "column", md: "row" }} gap={6}>
+                    <Box flex="1">
+                      <FormControl>
+                        <FormLabel>Select Date</FormLabel>
+                        <Box 
+                          borderWidth="1px" 
+                          borderRadius="lg" 
+                          p={2}
+                          bg="white"
+                          shadow="sm"
+                        >
+                          <DatePicker
+                            selected={selectedDate}
+                            onChange={handleDateChange}
+                            inline
+                            minDate={new Date()}
+                            calendarClassName="custom-calendar"
+                            dayClassName={date => {
+                              const dateString = date.toISOString().split('T')[0];
+                              return availableSlots.some(slot => 
+                                slot.start_time.startsWith(dateString) && 
+                                slot.status === "AVAILABLE"
+                              ) ? "has-slots" : undefined;
+                            }}
+                          />
+                        </Box>
+                      </FormControl>
+                    </Box>
+
+                    <Box flex="1">
+                      {isLoadingSlots ? (
+                        <VStack spacing={4} align="stretch">
+                          <Skeleton height="24px" width="150px" />
+                          <Grid templateColumns="repeat(3, 1fr)" gap={2}>
+                            {[...Array(9)].map((_, i) => (
+                              <Skeleton key={i} height="36px" />
+                            ))}
+                          </Grid>
+                        </VStack>
+                      ) : date && availableSlots.length > 0 ? (
+                        <Box>
+                          <Text mb={4} fontWeight="bold">Available Time Slots</Text>
+                          <Grid templateColumns="repeat(3, 1fr)" gap={3} maxH="400px" overflowY="auto">
+                            {Object.entries(groupSlotsByHour(availableSlots)).map(([hour, slots]) => (
+                              <React.Fragment key={hour}>
+                                <GridItem colSpan={3} bg="gray.50" p={2} borderRadius="md">
+                                  <Text fontWeight="bold">{`${hour}:00`}</Text>
+                                </GridItem>
+                                {slots.map((slot) => (
+                                  <GridItem key={slot.start_time}>
+                                    <Tooltip 
+                                      label={slot.status === "AVAILABLE" ? "Click to select this time slot" : "This slot is already booked"}
+                                      placement="top"
+                                    >
+                                      <Button
+                                        size="sm"
+                                        width="100%"
+                                        colorScheme={slot.status === "AVAILABLE" ? 
+                                          (startTime === slot.start_time ? "blue" : "gray") : 
+                                          "red"}
+                                        onClick={() => {
+                                          if (slot.status === "AVAILABLE") {
+                                            setStartTime(slot.start_time);
+                                            setSelectedSlot(slot);
+                                          }
+                                        }}
+                                        isDisabled={slot.status !== "AVAILABLE"}
+                                        _hover={
+                                          slot.status === "AVAILABLE" && startTime !== slot.start_time
+                                            ? { bg: "gray.200" }
+                                            : undefined
+                                        }
+                                        transition="all 0.2s"
+                                      >
+                                        {new Date(slot.start_time).toLocaleTimeString([], { 
+                                          hour: '2-digit', 
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })}
+                                      </Button>
+                                    </Tooltip>
+                                  </GridItem>
+                                ))}
+                              </React.Fragment>
+                            ))}
+                          </Grid>
+                        </Box>
+                      ) : date ? (
+                        <Flex 
+                          direction="column" 
+                          align="center" 
+                          justify="center" 
+                          p={6} 
+                          bg="gray.50" 
+                          borderRadius="lg"
+                        >
+                          <Text color="gray.500" fontSize="lg">No available slots for selected date</Text>
+                        </Flex>
+                      ) : (
+                        <Flex 
+                          direction="column" 
+                          align="center" 
+                          justify="center" 
+                          p={6} 
+                          bg="gray.50" 
+                          borderRadius="lg"
+                        >
+                          <Text color="gray.500" fontSize="lg">Please select a date to view available slots</Text>
+                        </Flex>
+                      )}
+                    </Box>
+                  </Flex>
+
+                  {/* Rest of the form controls */}
+                  <FormControl mt={4}>
+                    <FormLabel>Select Patient</FormLabel>
+                    <Select
+                      placeholder="Select patient"
+                      value={isManualInput ? 'manual' : selectedPatientId}
+                      onChange={(e) => handlePatientSelect(e.target.value)}
                     >
-                      {options}
+                      <option value="manual">Enter Phone Number Manually</option>
+                      {dataList.map((patient) => (
+                        <option key={patient.id} value={patient.id.toString()}>
+                          {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
+                        </option>
+                      ))}
                     </Select>
-                                  
-                              </FormControl>
-                              <FormControl>
-                              <FormLabel>Select Patient</FormLabel>
-                              <Select
-                                placeholder="Select patient"
-                                value={isManualInput ? 'manual' : selectedPatientId}
-                                onChange={(e) => handlePatientSelect(e.target.value)}
-                              >
-                                <option value="manual">Enter Phone Number Manually</option>
-                                {dataList.map((patient) => (
-                                  <option key={patient.id} value={patient.id.toString()}>
-                                    {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
-                                  </option>
-                                ))}
-                              </Select>
-                            </FormControl>
-                            {isManualInput && (
-                              <FormControl>
-                                <FormLabel>Phone Number</FormLabel>
-                                <Input
-                                  type="number"
-                                  value={phoneNumber}
-                                  onChange={(e) => setPhone(e.target.value)}
-                                  placeholder="Input Phone Number"
-                                />
-                              </FormControl>
-                            )}
-                              <FormControl>
-                                  <FormLabel>Reason for Appointment</FormLabel>
-                                  <Textarea
-                                      value={reason}
-                                      onChange={(e) => setReason(e.target.value)}
-                                      placeholder="Enter the reason for your appointment"
-                                  />
-                              </FormControl>
-                              <Text color='red'>{message}</Text>
-                          </ModalBody>
-      
-                          <ModalFooter>
-                              <Button
-                                  colorScheme="blue"
-                                  mr={3}
-                                  onClick={handleSubmit}
-                                  isDisabled={loading} // Disable button while loading
-                              >
-                                  {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
-                              </Button>
-                              <Button variant="ghost" onClick={modal1.onClose}>
-                                  Cancel
-                              </Button>
-                          </ModalFooter>
-                      </ModalContent>
-                  </Modal>
-                  <Modal isOpen={modal2.isOpen} onClose={modal2.onClose}>
-                      <ModalOverlay />
-                      <ModalContent>
-                          <ModalHeader>Start Instant Call</ModalHeader>
-                          <ModalCloseButton />
-                          <ModalBody>
-                          <FormControl>
-                              <FormLabel>Select Patient</FormLabel>
-                              <Select
-                                placeholder="Select patient"
-                                value={isManualInput ? 'manual' : selectedPatientId}
-                                onChange={(e) => handlePatientSelect(e.target.value)}
-                              >
-                                <option value="manual">Enter Phone Number Manually</option>
-                                {dataList.map((patient) => (
-                                  <option key={patient.id} value={patient.id.toString()}>
-                                    {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
-                                  </option>
-                                ))}
-                              </Select>
-                            </FormControl>
-                            {isManualInput && (
-                              <FormControl>
-                                <FormLabel>Phone Number</FormLabel>
-                                <Input
-                                  type="number"
-                                  value={phoneNumber}
-                                  onChange={(e) => setPhone(e.target.value)}
-                                  placeholder="Input Phone Number"
-                                />
-                              </FormControl>
-                            )}
-                              <FormControl>
-                                  <FormLabel>Reason for Appointment</FormLabel>
-                                  <Textarea
-                                      value={reason}
-                                      onChange={(e) => setReason(e.target.value)}
-                                      placeholder="Enter the reason for your appointment"
-                                  />
-                              </FormControl>
-                              <Text color='red'>{message}</Text>
-                          </ModalBody>
-      
-                          <ModalFooter>
-                              <Button
-                                  colorScheme="blue"
-                                  mr={3}
-                                  onClick={handleSubmit2}
-                                  isDisabled={loading} // Disable button while loading
-                              >
-                                  {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
-                              </Button>
-                              <Button variant="ghost" onClick={modal2.onClose}>
-                                  Cancel
-                              </Button>
-                          </ModalFooter>
-                      </ModalContent>
-                  </Modal>
+                  </FormControl>
+                  {isManualInput && (
+                    <FormControl>
+                      <FormLabel>Phone Number</FormLabel>
+                      <Input
+                        type="number"
+                        value={phoneNumber}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="Input Phone Number"
+                      />
+                    </FormControl>
+                  )}
+                  <FormControl>
+                    <FormLabel>Reason for Appointment</FormLabel>
+                    <Textarea
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Enter the reason for your appointment"
+                    />
+                  </FormControl>
+                  <Text color='red'>{message}</Text>
+                </ModalBody>
+
+                <ModalFooter>
+                  <Button
+                    colorScheme="blue"
+                    mr={3}
+                    onClick={handleSubmit}
+                    isDisabled={loading} // Disable button while loading
+                  >
+                    {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
+                  </Button>
+                  <Button variant="ghost" onClick={modal1.onClose}>
+                    Cancel
+                  </Button>
+                </ModalFooter>
+              </ModalContent>
+            </Modal>
+            <Modal isOpen={modal2.isOpen} onClose={modal2.onClose}>
+              <ModalOverlay />
+              <ModalContent>
+                <ModalHeader>Start Instant Call</ModalHeader>
+                <ModalCloseButton />
+                <ModalBody>
+                  <FormControl>
+                    <FormLabel>Select Patient</FormLabel>
+                    <Select
+                      placeholder="Select patient"
+                      value={isManualInput ? 'manual' : selectedPatientId}
+                      onChange={(e) => handlePatientSelect(e.target.value)}
+                    >
+                      <option value="manual">Enter Phone Number Manually</option>
+                      {dataList.map((patient) => (
+                        <option key={patient.id} value={patient.id.toString()}>
+                          {patient.phone_number} {patient.full_name ? `(${patient.full_name})` : ''}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {isManualInput && (
+                    <FormControl>
+                      <FormLabel>Phone Number</FormLabel>
+                      <Input
+                        type="number"
+                        value={phoneNumber}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="Input Phone Number"
+                      />
+                    </FormControl>
+                  )}
+                  <FormControl>
+                    <FormLabel>Reason for Appointment</FormLabel>
+                    <Textarea
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Enter the reason for your appointment"
+                    />
+                  </FormControl>
+                  <Text color='red'>{message}</Text>
+                </ModalBody>
+
+                <ModalFooter>
+                  <Button
+                    colorScheme="blue"
+                    mr={3}
+                    onClick={handleSubmit2}
+                    isDisabled={loading} // Disable button while loading
+                  >
+                    {buttonVisible ? <Spinner size="sm" /> : 'Submit'}
+                  </Button>
+                  <Button variant="ghost" onClick={modal2.onClose}>
+                    Cancel
+                  </Button>
+                </ModalFooter>
+              </ModalContent>
+            </Modal>
           </Box>
         </ChakraProvider>
       </div>
