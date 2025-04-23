@@ -341,7 +341,7 @@ const Voice = () => {
     } finally {
         setIsLoading(false); // Stop loading
         navigate('/');
-            window.location.href = 'https://prestige-health.vercel.app/';
+            window.location.href = 'https://prestigehealth.app/';
     }
 }
 
