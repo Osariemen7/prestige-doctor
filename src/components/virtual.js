@@ -469,7 +469,7 @@ console.log(link)
                   mb={6}
                 >
                   <Heading size="lg" mb={[4, 0]}>Virtual Appointments</Heading>
-                  <Flex gap={4}>
+                  <Flex gap={1}>
                     <MotionButton
                       colorScheme="blue"
                       size="md"
