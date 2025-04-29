@@ -27,6 +27,7 @@ import {
 import { getAccessToken } from './api';
 import Sidebar from './sidebar'; // Import Sidebar
 import { useNavigate } from 'react-router-dom';
+import { getUser } from './api'; // Import getUser function
 import {
   CardHeader,
   Avatar,
@@ -39,6 +40,7 @@ import CloseIcon from '@mui/icons-material/Close'; // Import CloseIcon
 
 const DocDash = () => {
   const [data, setData] = useState(null);
+  const [doc, setDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const theme = useTheme();
@@ -129,6 +131,33 @@ const DocDash = () => {
   }, []);
 
   useEffect(() => {
+    const fetchDoc = async () => {
+      const accessToken = await getAccessToken();
+      const phones = await getUser()
+      const phone = phones.phone_number
+      try {
+        const response = await fetch(`https://health.prestigedelta.com/providerlist/?phone_number=${phone}/`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'content-type': 'application/json',
+          },
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch data');
+
+        const jsonData = await response.json();
+        setDoc(jsonData[0] || {});
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDoc();
+  }, []);
+
+  useEffect(() => {
     const fetchDat = async () => {
       const accessToken = await getAccessToken();
       if (!accessToken) return;
@@ -146,10 +175,41 @@ const DocDash = () => {
           navigate("/login");
         } else {
           const result = await response.json();
-          setDoctorData(result);
+          const formattedData = result.map(provider => ({
+            ...provider,
+            date_of_registration: new Date(provider.date_of_registration).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric'
+            }),
+            subscription_expires: provider.subscription_expires ? 
+              new Date(provider.subscription_expires).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) : 'Not subscribed',
+            rating: provider.rating ?? 'No ratings yet',
+            number_of_reviews: provider.number_of_reviews ?? 0,
+            successful_treatments: provider.successful_treatments ?? 0,
+            consultation_fee: provider.consultation_fee ?? 'Not set',
+            bio: provider.bio || 'No bio available',
+            rate_per_minute: provider.rate_per_minute ? 
+              `₦${provider.rate_per_minute}` : 'Not set',
+            free_queries_used_today: provider.free_queries_used_today ?? 0,
+            organization: provider.organization ?? 'Independent Practice',
+            specialty: provider.specialty ?? 'General Practice',
+            qualifications: provider.qualifications ?? 'Not specified',
+            gpt_session_count: provider.gpt_session_count ?? 0
+          }));
+          setDoctorData(formattedData);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
+        setSnackbarMessage('Failed to fetch provider data');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
       } finally {
         setIsLoading(false);
       }
@@ -298,14 +358,14 @@ const DocDash = () => {
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
 
                 <Typography variant="h5" sx={{ fontWeight: "bold", color: "#333" }}>
-                  .{" "}
-                  {doctorData[0].bio
+                {doc && doc[0]?.name ? doc[0].name : doctorData[0]?.name || 'Not Available'}
+                </Typography>
+                <Typography  variant='subtitle1' >
+                {doctorData[0].bio
                     ? doctorData[0].bio.split(" ").slice(1).join(" ")
                     : ""}
                 </Typography>
-                <Typography variant="subtitle1" sx={{ color: "#0EA5E9" }}>
-                  {doctorData[0].specialty}
-                </Typography>
+               
               </Box>
             }
           />
@@ -340,10 +400,10 @@ const DocDash = () => {
                   <Stethoscope size={20} color="#0EA5E9" />
                   <Box>
                     <Typography variant="body2" color="textSecondary">
-                      GPT Sessions
+                      Specialty
                     </Typography>
                     <Typography variant="subtitle1" sx={{ fontWeight: "medium" }}>
-                      {doctorData[0].gpt_session_count}
+                      {doc && doc[0]?.specialty ? doc[0].specialty : doctorData[0]?.specialty || 'Not specified'}
                     </Typography>
                   </Box>
                 </Box>
@@ -360,6 +420,42 @@ const DocDash = () => {
                 </Box>
               </Grid>
             </Grid>
+
+            <Box
+              sx={{
+                mt: 3,
+                pt: 2,
+                borderTop: "1px solid #e0e0e0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: "bold", mb: 1 }}>
+                  Subscription Status
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Expires:{" "}
+                  {doctorData[0].subscription_expires
+                    ? new Date(doctorData[0].subscription_expires).toLocaleDateString('en-GB')
+                    : "N/A"}
+                </Typography>
+              </Box>
+              <Button
+               onClick={handleSubmit}
+               disabled={buttonVisible}
+                variant="contained"
+                sx={{
+                  bgcolor: "#2196F3",
+                  "&:hover": { bgcolor: "#1976D2" },
+                  whiteSpace: "nowrap",
+                }}
+              >
+              
+              </Button>
+            </Box>
+            <Typography>Subscription is on a monthly basis</Typography>
           </CardContent>
         </Card>
       {/* Stats Grid */}
@@ -374,7 +470,7 @@ const DocDash = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Current Earnings"
-            value={`$${data?.current_earnings || 0}`}
+            value={`₦${data?.current_earnings || 0}`}
             icon={MdAttachMoney}
           />
         </Grid>
@@ -388,7 +484,7 @@ const DocDash = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Consultation Rate"
-            value={`${(data?.consultation_rate || 0).toFixed(2)}%`}
+            value={`${data?.consultation_rate || 0}%`}
             icon={MdTrendingUp}
           />
         </Grid>
