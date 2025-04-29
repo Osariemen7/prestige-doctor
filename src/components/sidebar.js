@@ -11,11 +11,12 @@ import {
   Menu,
   MessageSquare // added for patient messages
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const location = useLocation();
   
   const menuItems = [
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
@@ -82,21 +83,28 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
         {/* Navigation Container - Adjusted to use flex-1 and flex-shrink-0 */}
         <div className="flex-1 overflow-y-auto min-h-0">
           <nav className="pt-4">
-            {menuItems.map((item, index) => (
-              <button
-                key={index}
-                onClick={() => onNavigate(item.path)}
-                className="w-full px-4 py-3 flex items-center text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                title={isMinimized ? item.text : ''}
-              >
-                <span className="text-gray-500">
-                  {item.icon}
-                </span>
-                {!isMinimized && (
-                  <span className="ml-3 text-sm font-medium">{item.text}</span>
-                )}
-              </button>
-            ))}
+            {menuItems.map((item, index) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <button
+                  key={index}
+                  onClick={() => onNavigate(item.path)}
+                  className={`w-full px-4 py-3 flex items-center transition-colors
+                    ${isActive 
+                      ? 'bg-blue-50 text-blue-600' 
+                      : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                    }`}
+                  title={isMinimized ? item.text : ''}
+                >
+                  <span className={isActive ? 'text-blue-600' : 'text-gray-500'}>
+                    {item.icon}
+                  </span>
+                  {!isMinimized && (
+                    <span className="ml-3 text-sm font-medium">{item.text}</span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
