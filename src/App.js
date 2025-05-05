@@ -26,6 +26,7 @@ import SearchBox from './components/ask';
 import PaymentForm from './components/payment';
 import PatientMessages from './components/PatientMessages';
 import ForgotPassword from './components/ForgotPassword'; // New import
+import LandingPage from './components/LandingPage'; // Import the new landing page
 
 const App = () => {
   return (
@@ -33,7 +34,8 @@ const App = () => {
     <ReviewProvider>
       <div className="app-container">
         <Routes>
-          <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/provider" element={<ProviderPage />} />
           <Route path="/dashboard" element={<Dashboard />} />

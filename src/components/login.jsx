@@ -6,20 +6,31 @@ import { Button } from '@chakra-ui/react';
 
 const LoginPage = () => {
   // Main login state
-  const [phone, setPhoneNumber] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [countryCode, setCountryCode] = useState('+234');
   const navigate = useNavigate();
 
+  // Validate international phone number format
+  const validatePhoneNumber = (phone) => {
+    // Match international format: +[country code][number]
+    const regex = /^\+[1-9]\d{1,14}$/;
+    return regex.test(phone);
+  };
+
   const handleLogin = async () => {
+    // Validate phone number format
+    if (!validatePhoneNumber(phoneNumber)) {
+      setMessage('Please enter a valid international phone number (e.g., +2347012345678)');
+      return;
+    }
+
     setLoading(true);
     setMessage('');
     try {
-      const phone_number = countryCode + phone;
-      const item = { phone_number, password };
+      const item = { phone_number: phoneNumber, password };
 
       const response = await fetch('https://health.prestigedelta.com/login/', {
         method: 'POST',
@@ -79,27 +90,12 @@ const LoginPage = () => {
           <div className="space-y-4">
             {/* Phone Input */}
             <div className="relative">
-              <select
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="absolute left-0 top-0 h-12 pl-2 pr-2 rounded-l-lg border 
-                          border-blue-200 bg-blue-50 focus:outline-none focus:ring-2 
-                          focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="+234">+234</option>
-                <option value="+44">+44</option>
-                <option value="+1">+1</option>
-              </select>
               <input
                 type="tel"
-                placeholder="Phone Number"
-                value={phone}
-                onChange={(e) => {
-                  const rawValue = e.target.value.replace(/[\D\s]/g, ''); // Remove spaces and non-digits
-                  const lastTenDigits = rawValue.slice(-10);
-                  setPhoneNumber(lastTenDigits);
-                }}
-                className="w-full h-12 pl-20 pr-4 rounded-lg border border-blue-200 
+                placeholder="Phone Number (e.g., +2347012345678)"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className="w-full h-12 pl-4 pr-4 rounded-lg border border-blue-200 
                         focus:outline-none focus:ring-2 focus:ring-blue-500 
                         focus:border-transparent bg-blue-50"
               />

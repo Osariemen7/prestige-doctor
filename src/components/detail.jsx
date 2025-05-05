@@ -358,6 +358,207 @@ const Details = () => {
     return patientData.recommendations.recommendations.filter(rec => rec.priority === "high" && !rec.actioned_at).length;
   };
 
+  // Fetch pending AI medical reviews that need doctor approval
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const [approvedReviews, setApprovedReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [selectedReview, setSelectedReview] = useState(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+
+  const fetchMedicalReviews = async () => {
+    if (!item.id) return;
+    
+    setLoadingReviews(true);
+    try {
+      const token = await getAccessToken();
+      
+      // Fetch pending reviews
+      const pendingResponse = await fetch(
+        `https://health.prestigedelta.com/medicalreview/pending-ai/?patient_id=${item.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      // Fetch approved reviews
+      const approvedResponse = await fetch(
+        `https://health.prestigedelta.com/medicalreview/approved/?patient_id=${item.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (pendingResponse.ok && approvedResponse.ok) {
+        const pendingData = await pendingResponse.json();
+        const approvedData = await approvedResponse.json();
+        
+        setPendingReviews(pendingData);
+        setApprovedReviews(approvedData);
+      } else {
+        throw new Error("Failed to fetch medical reviews");
+      }
+    } catch (error) {
+      console.error("Error fetching medical reviews:", error);
+      toast({
+        title: "Error fetching medical reviews",
+        description: error.message,
+        status: "error",
+        duration: 3000,
+      });
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // Function to view details of a specific review
+  const viewReviewDetails = (review) => {
+    setSelectedReview(review);
+    setReviewModalOpen(true);
+  };
+
+  // Function to approve a pending review
+  const approveReview = async (reviewId) => {
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `https://health.prestigedelta.com/medicalreview/${reviewId}/approve/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      
+      if (response.ok) {
+        toast({
+          title: "Review approved",
+          description: "Medical review has been successfully approved.",
+          status: "success",
+          duration: 3000,
+        });
+        
+        // Refresh the reviews
+        fetchMedicalReviews();
+        
+        // Close the modal if open
+        if (reviewModalOpen) {
+          setReviewModalOpen(false);
+        }
+      } else {
+        throw new Error("Failed to approve review");
+      }
+    } catch (error) {
+      console.error("Error approving review:", error);
+      toast({
+        title: "Error approving review",
+        description: error.message,
+        status: "error",
+        duration: 3000,
+      });
+    }
+  };
+
+  // Function to reject a pending review
+  const rejectReview = async (reviewId) => {
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `https://health.prestigedelta.com/medicalreview/${reviewId}/reject/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      
+      if (response.ok) {
+        toast({
+          title: "Review rejected",
+          description: "Medical review has been rejected.",
+          status: "success",
+          duration: 3000,
+        });
+        
+        // Refresh the reviews
+        fetchMedicalReviews();
+        
+        // Close the modal if open
+        if (reviewModalOpen) {
+          setReviewModalOpen(false);
+        }
+      } else {
+        throw new Error("Failed to reject review");
+      }
+    } catch (error) {
+      console.error("Error rejecting review:", error);
+      toast({
+        title: "Error rejecting review",
+        description: error.message,
+        status: "error",
+        duration: 3000,
+      });
+    }
+  };
+
+  // Format the review of systems JSON
+  const formatReviewOfSystems = (reviewOfSystems) => {
+    try {
+      // Return empty array for falsy values
+      if (!reviewOfSystems) return [];
+      
+      // If already an array, return it directly
+      if (Array.isArray(reviewOfSystems)) return reviewOfSystems;
+      
+      // Handle string representation
+      if (typeof reviewOfSystems === 'string') {
+        try {
+          const parsed = JSON.parse(reviewOfSystems);
+          
+          // Check if the parsed result is an array
+          if (Array.isArray(parsed)) {
+            return parsed;
+          } else {
+            console.warn("Review of systems parsed but not an array:", parsed);
+            // Try to convert object to array if possible
+            if (parsed && typeof parsed === 'object') {
+              return [parsed]; // Convert single object to array with one item
+            }
+            return [];
+          }
+        } catch (parseError) {
+          console.error("Error parsing review of systems JSON:", parseError);
+          return [];
+        }
+      }
+      
+      // If it's an object but not an array, wrap it in an array
+      if (typeof reviewOfSystems === 'object') {
+        return [reviewOfSystems];
+      }
+      
+      // Fallback - return empty array
+      console.warn("Unknown format for review of systems:", reviewOfSystems);
+      return [];
+    } catch (error) {
+      console.error("Unexpected error handling review of systems:", error);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    if (patientData) {
+      fetchMedicalReviews();
+    }
+  }, [patientData]);
+
   return (
     <ChakraProvider theme={customTheme}>
       <Box 
@@ -756,6 +957,151 @@ const Details = () => {
                     />
                   </Box>
 
+                  {/* Medical Reviews Section */}
+                  <Box id="medical-reviews" mb={8} scrollMarginTop="120px">
+                    <Flex
+                      bg="white"
+                      p={5}
+                      rounded="lg"
+                      shadow="md"
+                      flexDirection="column"
+                      borderTop="4px"
+                      borderColor="blue.500"
+                    >
+                      <Heading size="md" mb={4} color="gray.700">
+                        <Flex align="center">
+                          <Icon as={FiClipboard} mr={2} color="blue.500" />
+                          Medical Reviews
+                        </Flex>
+                      </Heading>
+
+                      {loadingReviews ? (
+                        <Flex justify="center" align="center" p={8}>
+                          <Spinner size="lg" color="blue.500" />
+                        </Flex>
+                      ) : (
+                        <Tabs variant="enclosed" colorScheme="blue">
+                          <TabList mb={4}>
+                            <Tab>Pending Reviews ({pendingReviews.length})</Tab>
+                            <Tab>Approved Reviews ({approvedReviews.length})</Tab>
+                          </TabList>
+                          <TabPanels>
+                            {/* Pending Reviews Tab */}
+                            <TabPanel p={0}>
+                              {pendingReviews.length === 0 ? (
+                                <Box p={6} textAlign="center" bg="gray.50" rounded="md">
+                                  <Text>No pending reviews available.</Text>
+                                </Box>
+                              ) : (
+                                <VStack spacing={4} align="stretch">
+                                  {pendingReviews.map((review) => (
+                                    <Box 
+                                      key={review.id}
+                                      p={4}
+                                      bg="blue.50"
+                                      rounded="md"
+                                      borderLeft="4px"
+                                      borderColor="blue.500"
+                                    >
+                                      <Flex justify="space-between" align="center" mb={2}>
+                                        <Heading size="sm">{review.assessment_diagnosis}</Heading>
+                                        <Badge colorScheme="yellow">Pending Approval</Badge>
+                                      </Flex>
+                                      
+                                      <Text fontSize="sm" mb={1}>
+                                        <b>Patient:</b> {review.patient_full_name}
+                                      </Text>
+                                      
+                                      <Text fontSize="sm" mb={1}>
+                                        <b>Chief Complaint:</b> {review.chief_complaint}
+                                      </Text>
+                                      
+                                      <Text fontSize="sm" mb={3}>
+                                        <b>Created:</b> {new Date(review.created).toLocaleString()}
+                                      </Text>
+                                      
+                                      <HStack spacing={3} mt={2}>
+                                        <Button 
+                                          size="sm" 
+                                          colorScheme="blue" 
+                                          onClick={() => viewReviewDetails(review)}
+                                        >
+                                          View Details
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          colorScheme="green" 
+                                          onClick={() => approveReview(review.id)}
+                                        >
+                                          Approve
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          colorScheme="red" 
+                                          variant="outline"
+                                          onClick={() => rejectReview(review.id)}
+                                        >
+                                          Reject
+                                        </Button>
+                                      </HStack>
+                                    </Box>
+                                  ))}
+                                </VStack>
+                              )}
+                            </TabPanel>
+                            
+                            {/* Approved Reviews Tab */}
+                            <TabPanel p={0}>
+                              {approvedReviews.length === 0 ? (
+                                <Box p={6} textAlign="center" bg="gray.50" rounded="md">
+                                  <Text>No approved reviews available.</Text>
+                                </Box>
+                              ) : (
+                                <VStack spacing={4} align="stretch">
+                                  {approvedReviews.map((review) => (
+                                    <Box 
+                                      key={review.id}
+                                      p={4}
+                                      bg="green.50"
+                                      rounded="md"
+                                      borderLeft="4px"
+                                      borderColor="green.500"
+                                    >
+                                      <Flex justify="space-between" align="center" mb={2}>
+                                        <Heading size="sm">{review.assessment_diagnosis}</Heading>
+                                        <Badge colorScheme="green">Approved</Badge>
+                                      </Flex>
+                                      
+                                      <Text fontSize="sm" mb={1}>
+                                        <b>Patient:</b> {review.patient_full_name}
+                                      </Text>
+                                      
+                                      <Text fontSize="sm" mb={1}>
+                                        <b>Chief Complaint:</b> {review.chief_complaint}
+                                      </Text>
+                                      
+                                      <Text fontSize="sm" mb={3}>
+                                        <b>Created:</b> {new Date(review.created).toLocaleString()}
+                                      </Text>
+                                      
+                                      <Button 
+                                        size="sm" 
+                                        colorScheme="blue" 
+                                        onClick={() => viewReviewDetails(review)}
+                                      >
+                                        View Details
+                                      </Button>
+                                    </Box>
+                                  ))}
+                                </VStack>
+                              )}
+                            </TabPanel>
+                          </TabPanels>
+                        </Tabs>
+                      )}
+                    </Flex>
+                  </Box>
+
                   {/* Alerts & Recommendations */}
                   <Box ref={alertsRef} id="alerts-recommendations" mb={8} scrollMarginTop="120px">
                     <AlertsRecommendations 
@@ -778,11 +1124,180 @@ const Details = () => {
                   <Box ref={metricsRef} id="health-metrics" mb={8} scrollMarginTop="120px">
                     <HealthMetricsCarousel patientData={patientData} />
                   </Box>
-
-                  {/* Latest Medical Review Section */}
-                  <Box id="medical-review" mb={8}>
-                    <MedicalReviewSection patientData={patientData} />
-                  </Box>
+                  
+                  {/* Medical Review Modal */}
+                  {reviewModalOpen && selectedReview && (
+                    <Box
+                      position="fixed"
+                      top="0"
+                      left="0"
+                      right="0"
+                      bottom="0"
+                      bg="rgba(0, 0, 0, 0.7)"
+                      zIndex="modal"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      onClick={() => setReviewModalOpen(false)}
+                    >
+                      <Box
+                        bg="white"
+                        p={6}
+                        rounded="lg"
+                        shadow="xl"
+                        maxW="800px"
+                        w="90%"
+                        maxH="90vh"
+                        overflowY="auto"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Flex justify="space-between" align="center" mb={4}>
+                          <Heading size="lg">Medical Review</Heading>
+                          <Badge 
+                            colorScheme={selectedReview.review_status === "approved" ? "green" : "yellow"}
+                            p={2}
+                            fontSize="md"
+                          >
+                            {selectedReview.review_status === "approved" ? "Approved" : "Pending Approval"}
+                          </Badge>
+                        </Flex>
+                        
+                        <Divider mb={4} />
+                        
+                        <Grid templateColumns="1fr 1fr" gap={6} mb={4}>
+                          <Box>
+                            <Text fontWeight="bold" mb={1}>Patient:</Text>
+                            <Text mb={3}>{selectedReview.patient_full_name}</Text>
+                            
+                            <Text fontWeight="bold" mb={1}>Status:</Text>
+                            <Text mb={3}>{selectedReview.status}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontWeight="bold" mb={1}>Created:</Text>
+                            <Text mb={3}>{new Date(selectedReview.created).toLocaleString()}</Text>
+                            
+                            <Text fontWeight="bold" mb={1}>Last Updated:</Text>
+                            <Text mb={3}>{new Date(selectedReview.updated).toLocaleString()}</Text>
+                          </Box>
+                        </Grid>
+                        
+                        <Box mb={4} p={3} bg="gray.50" rounded="md">
+                          <Text fontWeight="bold" mb={1}>Chief Complaint:</Text>
+                          <Text>{selectedReview.chief_complaint}</Text>
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" mb={1}>History of Present Illness:</Text>
+                          <Text>{selectedReview.history_of_present_illness}</Text>
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" mb={1}>Review of Systems:</Text>
+                          <Box p={3} bg="gray.50" rounded="md">
+                            {formatReviewOfSystems(selectedReview.review_of_systems).map((item, index) => (
+                              <Box key={index} mb={index < formatReviewOfSystems(selectedReview.review_of_systems).length - 1 ? 3 : 0}>
+                                <Text fontWeight="semibold">{item.system}:</Text>
+                                <Text>Symptoms: {item.symptoms}</Text>
+                                {item.comments && <Text>Comments: {item.comments}</Text>}
+                              </Box>
+                            ))}
+                          </Box>
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" mb={1}>Physical Examination Findings:</Text>
+                          <Text>{selectedReview.physical_examination_findings}</Text>
+                        </Box>
+                        
+                        <Box mb={4} p={3} bg="blue.50" rounded="md">
+                          <Text fontWeight="bold" mb={1}>Assessment & Diagnosis:</Text>
+                          <Text mb={3}>{selectedReview.assessment_diagnosis}</Text>
+                          
+                          <Text fontWeight="bold" mb={1}>Diagnosis Reasoning:</Text>
+                          <Text>{selectedReview.diagnosis_reason}</Text>
+                        </Box>
+                        
+                        <Box mb={4} p={3} bg="green.50" rounded="md">
+                          <Text fontWeight="bold" mb={1}>Management Plan:</Text>
+                          <Text mb={3}>{selectedReview.management_plan}</Text>
+                          
+                          <Text fontWeight="bold" mb={1}>Management Plan Reasoning:</Text>
+                          <Text>{selectedReview.management_plan_reason}</Text>
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" mb={1}>Lifestyle Advice:</Text>
+                          <Text>{selectedReview.lifestyle_advice}</Text>
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" mb={1}>Patient Education:</Text>
+                          <Text>{selectedReview.patient_education}</Text>
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" mb={1}>Follow-up Plan:</Text>
+                          <Text>{selectedReview.follow_up_plan}</Text>
+                        </Box>
+                        
+                        {selectedReview.prescriptions && selectedReview.prescriptions.length > 0 && (
+                          <Box mb={4} p={3} bg="purple.50" rounded="md">
+                            <Text fontWeight="bold" mb={2}>Prescriptions:</Text>
+                            {selectedReview.prescriptions.map((prescription, index) => (
+                              <Box key={index} mb={index < selectedReview.prescriptions.length - 1 ? 4 : 0}>
+                                <Text fontWeight="semibold">Prescription #{prescription.id}</Text>
+                                <Text mb={1}>Created: {new Date(prescription.created).toLocaleString()}</Text>
+                                <Text mb={1}>Sent to patient: {prescription.sent_to_patient ? "Yes" : "No"}</Text>
+                                
+                                <Box mt={2}>
+                                  <Text fontWeight="semibold">Medications:</Text>
+                                  {prescription.medications.map((med, idx) => (
+                                    <Box key={idx} ml={3} mt={1}>
+                                      <Text fontWeight="medium">{med.name} - {med.dosage}</Text>
+                                      <Text>Route: {med.route}</Text>
+                                      <Text>Instructions: {med.instructions}</Text>
+                                    </Box>
+                                  ))}
+                                </Box>
+                                
+                                {prescription.pdf_url && (
+                                  <Link href={prescription.pdf_url} isExternal color="blue.500" mt={2} display="inline-block">
+                                    View Prescription PDF
+                                  </Link>
+                                )}
+                              </Box>
+                            ))}
+                          </Box>
+                        )}
+                        
+                        <Divider my={4} />
+                        
+                        <Flex justify="space-between">
+                          <Button onClick={() => setReviewModalOpen(false)}>
+                            Close
+                          </Button>
+                          
+                          {selectedReview.review_status !== "approved" && (
+                            <HStack>
+                              <Button 
+                                colorScheme="green" 
+                                onClick={() => approveReview(selectedReview.id)}
+                              >
+                                Approve Review
+                              </Button>
+                              <Button 
+                                colorScheme="red" 
+                                variant="outline"
+                                onClick={() => rejectReview(selectedReview.id)}
+                              >
+                                Reject Review
+                              </Button>
+                            </HStack>
+                          )}
+                        </Flex>
+                      </Box>
+                    </Box>
+                  )}
                 </GridItem>
                 
                 {/* Sidebar */}

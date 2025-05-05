@@ -11,11 +11,12 @@ import {
   Menu,
   MessageSquare // added for patient messages
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const location = useLocation();
   
   const menuItems = [
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
@@ -86,14 +87,20 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
               <button
                 key={index}
                 onClick={() => onNavigate(item.path)}
-                className="w-full px-4 py-3 flex items-center text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                className={`w-full px-4 py-3 flex items-center transition-colors
+                  ${location.pathname === item.path 
+                    ? 'bg-blue-100 text-blue-700 font-medium border-l-4 border-blue-600' 
+                    : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                  }`}
                 title={isMinimized ? item.text : ''}
               >
-                <span className="text-gray-500">
+                <span className={`${location.pathname === item.path ? 'text-blue-600' : 'text-gray-500'}`}>
                   {item.icon}
                 </span>
                 {!isMinimized && (
-                  <span className="ml-3 text-sm font-medium">{item.text}</span>
+                  <span className={`ml-3 text-sm ${location.pathname === item.path ? 'font-semibold' : 'font-medium'}`}>
+                    {item.text}
+                  </span>
                 )}
               </button>
             ))}

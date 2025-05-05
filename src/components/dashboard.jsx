@@ -32,12 +32,55 @@ const Dashboard = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [countryCode, setCountryCode] = useState('+234'); // Default to Nigeria
   const [buttonVisible, setButtonVisible] = useState(false);
   const [data, setDataList] = useState([]);
   const [message, setMessage] = useState('');
+  const [chronicConditions, setChronicConditions] = useState([]);
+  const [customCondition, setCustomCondition] = useState('');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
+  
+  // Function to validate international phone number format
+  const isValidPhoneNumber = (phoneNumber) => {
+    // Basic international phone number validation
+    // Allows formats like: +1234567890, +123 456 7890, +123-456-7890
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    return phoneRegex.test(phoneNumber.replace(/[\s-]/g, ''));
+  };
+
+  // List of common chronic conditions for dropdown
+  const commonChronicConditions = [
+    { value: 'Hypertension', label: 'Hypertension' },
+    { value: 'Diabetes', label: 'Diabetes' },
+    { value: 'Asthma', label: 'Asthma' },
+    { value: 'COPD', label: 'COPD (Chronic Obstructive Pulmonary Disease)' },
+    { value: 'Arthritis', label: 'Arthritis' },
+    { value: 'Heart Disease', label: 'Heart Disease' },
+    { value: 'Cancer', label: 'Cancer' },
+    { value: 'Stroke', label: 'Stroke' },
+    { value: 'Depression', label: 'Depression' },
+    { value: 'Anxiety', label: 'Anxiety' },
+    { value: 'Bipolar Disorder', label: 'Bipolar Disorder' },
+    { value: 'Schizophrenia', label: 'Schizophrenia' },
+    { value: 'Epilepsy', label: 'Epilepsy' },
+    { value: 'Parkinson\'s Disease', label: 'Parkinson\'s Disease' },
+    { value: 'Multiple Sclerosis', label: 'Multiple Sclerosis' },
+    { value: 'HIV/AIDS', label: 'HIV/AIDS' },
+    { value: 'Kidney Disease', label: 'Kidney Disease' },
+    { value: 'Liver Disease', label: 'Liver Disease' },
+    { value: 'GERD', label: 'GERD (Gastroesophageal Reflux Disease)' },
+    { value: 'IBS', label: 'IBS (Irritable Bowel Syndrome)' },
+    { value: 'Crohn\'s Disease', label: 'Crohn\'s Disease' },
+    { value: 'Ulcerative Colitis', label: 'Ulcerative Colitis' },
+    { value: 'Celiac Disease', label: 'Celiac Disease' },
+    { value: 'Fibromyalgia', label: 'Fibromyalgia' },
+    { value: 'Lupus', label: 'Lupus' },
+    { value: 'Sickle Cell Disease', label: 'Sickle Cell Disease' },
+    { value: 'Thyroid Disorders', label: 'Thyroid Disorders' },
+    { value: 'Osteoporosis', label: 'Osteoporosis' },
+    { value: 'Chronic Fatigue Syndrome', label: 'Chronic Fatigue Syndrome' },
+    { value: 'Sleep Apnea', label: 'Sleep Apnea' },
+  ];
 
   // Color settings for priority badges
   const urgentColor = "red";
@@ -69,8 +112,11 @@ const Dashboard = () => {
         return;
     }
 
-    // Format the phone number with country code
-    const formattedPhoneNumber = `${countryCode}${phoneNumber.startsWith('0') ? phoneNumber.slice(1) : phoneNumber}`;
+    if (!isValidPhoneNumber(phoneNumber)) {
+        setMessage('Please enter a valid international phone number');
+        setButtonVisible(false);
+        return;
+    }
 
     try {
         const token = await getAccessToken();
@@ -81,9 +127,10 @@ const Dashboard = () => {
                 'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
-                phone_number: formattedPhoneNumber,
+                phone_number: phoneNumber,
                 first_name: firstName,
-                last_name: lastName
+                last_name: lastName,
+                chronic_conditions: chronicConditions
             }),
         });
       
@@ -92,6 +139,8 @@ const Dashboard = () => {
             setPhoneNumber('');
             setFirstName('');
             setLastName('');
+            setChronicConditions([]);
+            setCustomCondition('');
             
             // Close the modal
             onClose(); 
@@ -212,7 +261,6 @@ const Dashboard = () => {
   const PatientCard = ({ patient }) => {
     const cardBg = useColorModeValue("white", "gray.700");
     const hasUrgentAlerts = patient.urgent_unactioned_count > 0;
-    const hasHighAlerts = patient.high_unactioned_count > 0;
     
     // Get patient name or show "Unnamed Patient" if name is not available
     const firstName = patient.profile_data?.demographics?.first_name || '';
@@ -256,21 +304,15 @@ const Dashboard = () => {
         
         {/* Alert badges */}
         <Flex gap={2} mb={4} wrap="wrap">
-          {patient.urgent_unactioned_count > 0 && (
-            <Badge colorScheme={urgentColor} variant="solid" borderRadius="full" px={2}>
-              {patient.urgent_unactioned_count} Urgent
-            </Badge>
-          )}
-          
-          {patient.high_unactioned_count > 0 && (
-            <Badge colorScheme={highColor} variant="solid" borderRadius="full" px={2}>
-              {patient.high_unactioned_count} High
+          {patient.pending_ai_review_count > 0 && (
+            <Badge colorScheme="purple" variant="solid" borderRadius="full" px={2}>
+              {patient.pending_ai_review_count} Pending Review
             </Badge>
           )}
           
           {patient.total_unactioned_count > 0 && (
-            <Badge colorScheme={normalColor} variant="outline" borderRadius="full" px={2}>
-              {patient.total_unactioned_count} Total Alerts
+            <Badge colorScheme="blue" variant="solid" borderRadius="full" px={2}>
+              {patient.total_unactioned_count} Unactioned
             </Badge>
           )}
         </Flex>
@@ -306,39 +348,30 @@ const Dashboard = () => {
                 <Heading fontSize='22px'>Patient Dashboard</Heading>
                 <Button
                   colorScheme="blue"
-                  size="lg"
-                  px={{ base: 4, md: 6 }}
-                  py={{ base: 2, md: 4 }}
+                  size="md"
+                  px={6}
+                  py={2}
                   fontWeight="bold"
-                  fontSize={{ base: 'md', md: 'lg' }}
-                  bgGradient="linear(to-r, blue.500, cyan.400)"
+                  bg="blue.500"
                   _hover={{
-                    transform: 'scale(1.05)',
-                    bgGradient: 'linear(to-r, cyan.400, blue.500)',
-                    boxShadow: '0 4px 20px rgba(0, 112, 244, 0.15)'
+                    bg: "blue.600",
+                    boxShadow: '0 4px 8px rgba(0, 112, 244, 0.2)'
                   }}
-                  boxShadow="lg"
-                  borderRadius="full"
+                  boxShadow="sm"
+                  borderRadius="md"
                   onClick={onOpen}
-                  display="flex"
-                  flexDirection="column"
                   height="auto"
-                  minH={{ base: "70px", md: "80px" }}
-                  textAlign="center"
+                  minH="48px"
+                  display="flex"
+                  alignItems="center"
                   justifyContent="center"
-                  whiteSpace="normal"
+                  leftIcon={
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 6V18M18 12H6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  }
                 >
-                  <Text as="span" display="block" lineHeight="1.2" mb={1}>
-                    Add New Patient
-                  </Text>
-                  <Text as="span" 
-                    fontSize="xs" 
-                    fontWeight="normal"
-                    color="#e0f2fe"
-                    lineHeight="1"
-                  >
-                    (Grow Your Practice)
-                  </Text>
+                  {patients.length === 0 ? "Add Your First Patient" : "Add New Patient"}
                 </Button>
               </Flex>
      {/* Add New Patient Modal */}
@@ -386,38 +419,100 @@ const Dashboard = () => {
             </FormControl>
           </Grid>
           
-          <Grid templateColumns={{ base: "100px 1fr", md: "120px 1fr" }} gap={4} mt={4}>
-            <FormControl isRequired>
-              <FormLabel fontWeight="medium" color="gray.700">Country</FormLabel>
+          <FormControl isRequired mt={4}>
+            <FormLabel fontWeight="medium" color="gray.700">Phone Number</FormLabel>
+            <Input 
+              type="tel"
+              placeholder="Enter phone number in international format (e.g., +1234567890)"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              borderRadius="md"
+              focusBorderColor="blue.400"
+              _hover={{ borderColor: "blue.300" }}
+              size="lg"
+            />
+          </FormControl>
+          
+          <FormControl mt={4}>
+            <FormLabel fontWeight="medium" color="gray.700">Chronic Conditions</FormLabel>
+            <Box border="1px" borderColor="gray.200" borderRadius="md" p={2}>
+              {/* Selected conditions tags */}
+              <Flex wrap="wrap" mb={chronicConditions.length > 0 ? 2 : 0} gap={2}>
+                {chronicConditions.map((condition, index) => (
+                  <Badge 
+                    key={index} 
+                    colorScheme="blue" 
+                    borderRadius="full" 
+                    px={2} 
+                    py={1}
+                    display="flex"
+                    alignItems="center"
+                  >
+                    {condition}
+                    <Box 
+                      as="span" 
+                      ml={1} 
+                      cursor="pointer" 
+                      onClick={() => {
+                        const updatedConditions = [...chronicConditions];
+                        updatedConditions.splice(index, 1);
+                        setChronicConditions(updatedConditions);
+                      }}
+                    >
+                      ✕
+                    </Box>
+                  </Badge>
+                ))}
+              </Flex>
+              
+              {/* Dropdown for common conditions */}
               <Select 
-                value={countryCode} 
-                onChange={(e) => setCountryCode(e.target.value)}
-                borderRadius="md"
+                placeholder="Select or type a chronic condition" 
+                onChange={(e) => {
+                  if (e.target.value && !chronicConditions.includes(e.target.value)) {
+                    setChronicConditions([...chronicConditions, e.target.value]);
+                    e.target.value = ""; // Reset select after selection
+                  }
+                }}
                 focusBorderColor="blue.400"
-                _hover={{ borderColor: "blue.300" }}
-                size="lg"
-                h="auto"
+                border="none"
+                _focus={{ boxShadow: "none" }}
               >
-                <option value="+234">+234 🇳🇬</option>
-                <option value="+44">+44 🇬🇧</option>
-                <option value="+1">+1 🇺🇸</option>
+                {commonChronicConditions.map((condition) => (
+                  <option key={condition.value} value={condition.value} disabled={chronicConditions.includes(condition.value)}>
+                    {condition.label}
+                  </option>
+                ))}
               </Select>
-            </FormControl>
-            
-            <FormControl isRequired>
-              <FormLabel fontWeight="medium" color="gray.700">Phone Number</FormLabel>
-              <Input 
-                type="tel"
-                placeholder="Enter phone number"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                borderRadius="md"
-                focusBorderColor="blue.400"
-                _hover={{ borderColor: "blue.300" }}
-                size="lg"
-              />
-            </FormControl>
-          </Grid>
+              
+              {/* Custom condition input */}
+              <Flex mt={2}>
+                <Input 
+                  placeholder="Add a custom condition"
+                  value={customCondition}
+                  onChange={(e) => setCustomCondition(e.target.value)}
+                  mr={2}
+                  size="md"
+                />
+                <Button 
+                  colorScheme="blue" 
+                  size="md"
+                  isDisabled={!customCondition.trim()}
+                  onClick={() => {
+                    if (customCondition.trim() && !chronicConditions.includes(customCondition.trim())) {
+                      setChronicConditions([...chronicConditions, customCondition.trim()]);
+                      setCustomCondition("");
+                    }
+                  }}
+                >
+                  Add
+                </Button>
+              </Flex>
+            </Box>
+            <Text fontSize="sm" color="gray.500" mt={1}>
+              Select from common conditions or add custom ones
+            </Text>
+          </FormControl>
           
           {message && (
             <Box 
@@ -616,6 +711,11 @@ const Dashboard = () => {
                             onClick={onOpen}
                             boxShadow="lg"
                             borderRadius="lg"
+                            leftIcon={
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 6V18M18 12H6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            }
                           >
                             Add Your First Patient
                           </Button>
