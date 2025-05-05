@@ -9,7 +9,7 @@ import {
   Search,
   LogOut,
   Menu,
-  MessageSquare // added for patient messages
+  MessageSquare
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 

@@ -469,10 +469,10 @@ console.log(link)
                   mb={6}
                 >
                   <Heading size="lg" mb={[4, 0]}>Virtual Appointments</Heading>
-                  <Flex gap={4}>
+                  <Flex gap={1}>
                     <MotionButton
                       colorScheme="blue"
-                      size="lg"
+                      size="md"
                       leftIcon={<FiCalendar />}
                       onClick={modal1.onOpen}
                       whileHover={{ scale: 1.05 }}
@@ -482,7 +482,7 @@ console.log(link)
                     </MotionButton>
                     <MotionButton
                       colorScheme="green"
-                      size="lg"
+                      size="md"
                       leftIcon={<FiVideo />}
                       onClick={modal2.onOpen}
                       whileHover={{ scale: 1.05 }}
