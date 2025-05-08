@@ -27,6 +27,8 @@ import PaymentForm from './components/payment';
 import PatientMessages from './components/PatientMessages';
 import ForgotPassword from './components/ForgotPassword'; // New import
 import LandingPage from './components/LandingPage'; // Import the new landing page
+import PatientUpdate from './components/patientUpdate'; // New import
+
 
 const App = () => {
   return (
@@ -56,6 +58,7 @@ const App = () => {
           <Route path='/payment' element={<PaymentForm />} />
           <Route path="/patient-messages" element={<PatientMessages />} />
           <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
+          <Route path="/patient-update" element={<PatientUpdate />} />
         </Routes>
       </div>
     </ReviewProvider>

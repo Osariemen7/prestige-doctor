@@ -220,6 +220,11 @@ const Details = () => {
     }
   };
 
+  const handleUpdate = () => {
+    const review_id = item.id
+    navigate('/patient-update', { state: { review_id} }); // Navigate using the ID
+  };
+  
   // Journey navigation
   const patientJourneySteps = [
     { name: "Overview", icon: AiOutlineUser, ref: overviewRef },
@@ -691,7 +696,7 @@ const Details = () => {
                       <MenuItem icon={<MdOutlineAssignment />} onClick={() => navigate(`/patient/${item.id}/progress-report`)}>
                         Create Progress Report
                       </MenuItem>
-                      <MenuItem icon={<FiClipboard />}>Update Medical Record</MenuItem>
+                      <MenuItem icon={<FiClipboard />} onClick={handleUpdate}>Update Medical Record</MenuItem>
                     </MenuList>
                   </Menu>
                   

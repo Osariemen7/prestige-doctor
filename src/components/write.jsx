@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import NavigationBar from './tab';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
+import { muiTheme } from '../theme/mui';
 import TranscriptTab from './transcript';
 import PatientProfileTab from './patent';
 import HealthGoalsTab from './healthgoal';
 import MedicalReviewTab from './medical';
-import { Container, Box, Button, Typography } from '@mui/material';
+import { Container, Box, Button, Typography, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import SnackbarComponent from './snackbar';
 import axios from 'axios';
 import { getAccessToken } from './api';
 import './write.css';
 
-const theme = createTheme();
-
-const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentationSaved, transcript, resetKey }, ref) => {
+const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, transcript, resetKey }, ref) => {
     const [activeTab, setActiveTab] = useState('medicalReview');
     const [data, setData] = useState(null);
     const [editableData, setEditableData] = useState(null);
@@ -30,6 +29,9 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
     const [snackbarSeverity, setSnackbarSeverity] = useState('success');
     const parentalSetIsDocumentationSaved = setIsDocumentationSaved || (() => {});
     const [hasChanges, setHasChanges] = useState(false);
+    const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+    const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
+    const [suggestionLoading, setSuggestionLoading] = useState({});
 
     const didFetch = useRef(false);
     const fetchSubscribers = async () => {
@@ -124,7 +126,68 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
             isGettingSuggestion.current = false;
         }
     };
+    const getSuggestions = async () => {
+        if (isGettingSuggestion.current) return;
+        isGettingSuggestion.current = true;
+        
+        setSuggestionLoading(prev => ({ ...prev, [activeTab]: true }));
+        
+        try {
+            let suggestionPayload = {
+                note: JSON.parse(JSON.stringify(editableData))
+            };
 
+            // Include transcript if available
+            if (transcript) {
+                const currentTime = new Date().toISOString();
+                suggestionPayload.transcript = [
+                    {
+                        time: currentTime,
+                        speaker: "patient",
+                        content: ""
+                    },
+                    {
+                        time: currentTime,
+                        speaker: "doctor",
+                        content: transcript
+                    }
+                ];
+            }
+
+            // Include thread ID if available
+            if (thread) {
+                suggestionPayload.note.thread_id = thread;
+            }
+
+            const accessToken = await getAccessToken();
+            const response = await axios.post(
+                `https://health.prestigedelta.com/documentreview/${reviewid}/generate-suggestions/`,
+                suggestionPayload,
+                {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                }
+            );
+
+            const result = response.data;
+            console.log("Received suggestions:", result);
+            setSuggestionData(result);
+            
+            setSnackbarSeverity('success');
+            setSnackbarMessage('Suggestions generated successfully!');
+            setSnackbarOpen(true);
+            
+            return true;
+        } catch (error) {
+            console.error("Error getting suggestions:", error);
+            setSnackbarSeverity('error');
+            setSnackbarMessage('Failed to generate suggestions.');
+            setSnackbarOpen(true);
+            return false;
+        } finally {
+            setSuggestionLoading(prev => ({ ...prev, [activeTab]: false }));
+            isGettingSuggestion.current = false;
+        }
+    };
 
     const handleSubmit = async (tabName) => {
         let sectionDataToSave = {};
@@ -361,33 +424,10 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
     };
 
     useEffect(() => {
-        console.log("useEffect in PatientProfile.js (data fetch) - suggestionData changed:", suggestionData); // Add this log for debugging
-        if (!didFetch.current) {
-            fetchSubscribers();
-            didFetch.current = true;
-        }
-    }, [suggestionData]);
-    
-    useEffect(() => {
-        setData(null);
-        setEditableData(null);
-        setSuggestionData(null);
-        didFetch.current = false; // ensure refetch on reset
-    }, [resetKey]);
-    
-    useEffect(() => {
-        // Clear data and force re-fetch when resetKey changes
-        setData(null);
-        setEditableData(null);
-        setSuggestionData(null);
-        didFetch.current = false;
-        fetchSubscribers();
-        didFetch.current = true;
-    }, [resetKey]);
-
-    useEffect(() => {
-        if (reviewid) {
-            // Clear old data when a new appointment (reviewid) is provided or resetKey changes
+        // Only fetch if we have a reviewid and either:
+        // 1. We haven't fetched before (didFetch.current is false)
+        // 2. The resetKey has changed
+        if (reviewid && (!didFetch.current || resetKey)) {
             setData(null);
             setEditableData(null);
             setSuggestionData(null);
@@ -396,14 +436,77 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
             didFetch.current = true;
         }
     }, [reviewid, resetKey]);
+
+    // Remove other duplicate useEffect hooks that call fetchSubscribers
+    useEffect(() => {
+        console.log("useEffect in PatientProfile.js (data fetch) - suggestionData changed:", suggestionData);
+    }, [suggestionData]);
     
     useImperativeHandle(ref, () => ({
         getSuggestion: getSuggestion,
         handleSubmitFromParent: handleSubmit,
+        getSuggestions,
         dataLoaded: !loading
     }));
 
-    
+    const SuggestionsDialog = () => (
+        <Dialog
+            open={suggestionDialogOpen}
+            onClose={() => setSuggestionDialogOpen(false)}
+            maxWidth="md"
+            fullWidth
+        >
+            <DialogTitle>AI Generated Suggestions</DialogTitle>
+            <DialogContent>
+                {suggestionData && (
+                    <Box sx={{ mt: 2 }}>
+                        {Object.entries(suggestionData).map(([section, suggestions], index) => (
+                            <Box key={index} sx={{ mb: 3 }}>
+                                <Typography variant="h6" sx={{ mb: 1 }}>
+                                    {section.charAt(0).toUpperCase() + section.slice(1)}
+                                </Typography>
+                                {Object.entries(suggestions).map(([field, suggestion], idx) => (
+                                    <Box key={idx} sx={{ mb: 2 }}>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                            {field}:
+                                        </Typography>
+                                        <Typography>{suggestion}</Typography>
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            sx={{ mt: 1 }}
+                                            onClick={() => applySuggestion(section, field, suggestion)}
+                                            disabled={appliedSuggestions[section]?.[field]}
+                                        >
+                                            {appliedSuggestions[section]?.[field] ? 'Applied' : 'Apply Suggestion'}
+                                        </Button>
+                                    </Box>
+                                ))}
+                            </Box>
+                        ))}
+                    </Box>
+                )}
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => setSuggestionDialogOpen(false)}>Close</Button>
+            </DialogActions>
+        </Dialog>
+    );
+
+    const applySuggestion = (section, field, suggestion) => {
+        setEditableData(prev => ({
+            ...prev,
+            [field]: suggestion
+        }));
+        
+        setAppliedSuggestions(prev => ({
+            ...prev,
+            [section]: {
+                ...prev[section],
+                [field]: true
+            }
+        }));
+    };
 
     if (loading) {
         return <div>Loading...</div>;
@@ -414,75 +517,99 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
     }
 
     return (
-        <ThemeProvider theme={theme}>
-            <Container maxWidth="xl">
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-    <Button
-        variant="contained"
-        color="primary"
-        onClick={saveAllDocumentation}
-        disabled={isSaving}
-    >
-        Save All Documentation
-    </Button>
-    {isSaving && (
-        <Typography
-            variant="body1"
-            sx={{ ml: 2, display: 'flex', alignItems: 'center', color: 'primary.main' }}
-        >
-            <span className="loading-dots">Generating doctor's note</span>
-        </Typography>
-    )}
-</Box>
+        <ThemeProvider theme={muiTheme}>
+            <Container 
+                maxWidth="xl" 
+                sx={{
+                    height: '100%',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    pb: 4
+                }}
+            >
+                <Box sx={{ position: 'sticky', top: 0, zIndex: 1, bg: 'background.paper', pt: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={saveAllDocumentation}
+                                disabled={isSaving}
+                            >
+                                Save All Documentation
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                color="secondary"
+                                onClick={getSuggestions}
+                                disabled={isSuggestionsLoading || isSaving}
+                                startIcon={isSuggestionsLoading ? <CircularProgress size={20} /> : null}
+                            >
+                                {isSuggestionsLoading ? 'Loading Suggestions...' : 'Show Suggestions'}
+                            </Button>
+                        </Box>
+                        {isSaving && (
+                            <Typography
+                                variant="body1"
+                                sx={{ ml: 2, display: 'flex', alignItems: 'center', color: 'primary.main' }}
+                            >
+                                <span className="loading-dots">Generating doctor's note</span>
+                            </Typography>
+                        )}
+                    </Box>
+                    <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
+                </Box>
 
-                <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
-
-                {activeTab === 'transcript' && (
-    <TranscriptTab transcript={transcript} />
-)}
-{activeTab === 'patientProfile' && (
-    <PatientProfileTab
-        data={data.profile_data}
-        editableData={editableData.profile_data}
-        schema={data.profile_data_schema}
-        onDataChange={(newData) => handleDataChange('patientProfile', newData)}
-        suggestion={suggestionData?.profile_data}
-        appliedSuggestions={appliedSuggestions.profile}
-        onApplySuggestion={(field, value) => handleApplySuggestion('profile', { [field]: value })}
-        onSaveProfile={() => handleSubmit('patientProfile')}
-        isSaving={isSaving}
-    />
-)}
-{activeTab === 'healthGoals' && (
-    <HealthGoalsTab
-        data={data.goal_data}
-        editableData={editableData.goal_data}
-        schema={data.goal_data_schema}
-        suggestion={suggestionData?.goal_data}
-        appliedSuggestions={appliedSuggestions.goals}
-        onDataChange={(newData) => handleDataChange('healthGoals', newData)}
-        onApplySuggestion={(field, value) => handleApplySuggestion('goals', { [field]: value })}
-        onSaveGoals={() => handleSubmit('healthGoals')}
-        isSaving={isSaving}
-    />
-)}
-{activeTab === 'medicalReview' && (
-    <MedicalReviewTab
-        key={JSON.stringify(editableData.review_data)} // Use a unique key to force re-render
-        data={data.review_data}
-        editableData={editableData.review_data}
-        schema={data.review_data_schema}
-        onDataChange={(newData) => handleDataChange('medicalReview', newData)}
-        suggestion={suggestionData?.review_data}
-        appliedSuggestions={appliedSuggestions.review}
-        onApplySuggestion={(field, value) => handleApplySuggestion('review', { [field]: value })}
-        onGetSuggestion={getSuggestion}
-        onSaveReview={() => handleSubmit('medicalReview')}
-        isGeneratingSuggestion={isSaving}
-        isSavingReview={isSaving}
-        hasChanges={hasChanges}
-    />
-)}
+                <Box sx={{ flex: 1, overflowY: 'auto' }}>
+                    {activeTab === 'transcript' && (
+                        <TranscriptTab transcript={transcript} />
+                    )}
+                    {activeTab === 'patientProfile' && (
+                        <PatientProfileTab
+                            data={data.profile_data}
+                            editableData={editableData.profile_data}
+                            schema={data.profile_data_schema}
+                            onDataChange={(newData) => handleDataChange('patientProfile', newData)}
+                            suggestion={suggestionData?.profile_data}
+                            appliedSuggestions={appliedSuggestions.profile}
+                            onApplySuggestion={(field, value) => handleApplySuggestion('profile', { [field]: value })}
+                            onSaveProfile={() => handleSubmit('patientProfile')}
+                            isSaving={isSaving}
+                        />
+                    )}
+                    {activeTab === 'healthGoals' && (
+                        <HealthGoalsTab
+                            data={data.goal_data}
+                            editableData={editableData.goal_data}
+                            schema={data.goal_data_schema}
+                            suggestion={suggestionData?.goal_data}
+                            appliedSuggestions={appliedSuggestions.goals}
+                            onDataChange={(newData) => handleDataChange('healthGoals', newData)}
+                            onApplySuggestion={(field, value) => handleApplySuggestion('goals', { [field]: value })}
+                            onSaveGoals={() => handleSubmit('healthGoals')}
+                            isSaving={isSaving}
+                        />
+                    )}
+                    {activeTab === 'medicalReview' && (
+                        <MedicalReviewTab
+                            key={JSON.stringify(editableData.review_data)} // Use a unique key to force re-render
+                            data={data.review_data}
+                            editableData={editableData.review_data}
+                            schema={data.review_data_schema}
+                            onDataChange={(newData) => handleDataChange('medicalReview', newData)}
+                            suggestion={suggestionData?.review_data}
+                            appliedSuggestions={appliedSuggestions.review}
+                            onApplySuggestion={(field, value) => handleApplySuggestion('review', { [field]: value })}
+                            onGetSuggestion={getSuggestion}
+                            onSaveReview={() => handleSubmit('medicalReview')}
+                            isGeneratingSuggestion={isSaving}
+                            isSavingReview={isSaving}
+                            hasChanges={hasChanges}
+                        />
+                    )}
+                </Box>
 
                 <SnackbarComponent
                     open={snackbarOpen}
@@ -490,6 +617,7 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
                     severity={snackbarSeverity}
                     onClose={handleSnackbarClose}
                 />
+                <SuggestionsDialog />
             </Container>
         </ThemeProvider>
     );
