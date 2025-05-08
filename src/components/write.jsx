@@ -70,18 +70,19 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
     
             if (transcript) {
                 const currentTime = new Date().toISOString();
-                suggestionPayload.transcript = [
-                    {
-                        time: currentTime,
-                        speaker: "patient",
-                        content: ""
-                    },
-                    {
-                        time: currentTime,
-                        speaker: "doctor",
-                        content: transcript
-                    }
-                ];
+                suggestionPayload.transcript = transcript;
+                // suggestionPayload.transcript = [
+                //     {
+                //         time: currentTime,
+                //         speaker: "patient",
+                //         content: ""
+                //     },
+                //     {
+                //         time: currentTime,
+                //         speaker: "doctor",
+                //         content: transcript
+                //     }
+                // ];
             }
     
             if (thread) {
@@ -213,19 +214,38 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
         }
     };
 
-    const handleDataChange = (tabName, newData) => {
-        console.log("handleDataChange called for tab:", tabName, "newData:", newData); // ADD THIS LINE
+    const handleDataChange = (tabName, newDataFromChild) => {
         setEditableData(prevData => {
-            let updatedData = { ...prevData };
+            const updatedData = JSON.parse(JSON.stringify(prevData));
+
+            const updateSectionConditionally = (currentSectionInPrevData, newSectionDataFromChild) => {
+                const sectionCopy = { ...currentSectionInPrevData };
+
+                for (const key in newSectionDataFromChild) {
+                    if (newSectionDataFromChild.hasOwnProperty(key)) {
+                        const value = newSectionDataFromChild[key];
+                        if (value !== null && value !== "") {
+                            sectionCopy[key] = value;
+                        }
+                    }
+                }
+                return sectionCopy;
+            };
+
             if (tabName === 'patientProfile') {
-                updatedData.profile_data = newData;
+                if (updatedData.profile_data && newDataFromChild) {
+                    updatedData.profile_data = updateSectionConditionally(prevData.profile_data, newDataFromChild);
+                }
             } else if (tabName === 'healthGoals') {
-                updatedData.goal_data = newData;
+                if (updatedData.goal_data && newDataFromChild) {
+                    updatedData.goal_data = updateSectionConditionally(prevData.goal_data, newDataFromChild);
+                }
             } else if (tabName === 'medicalReview') {
-                updatedData.review_data = newData;
+                if (updatedData.review_data && newDataFromChild) {
+                    updatedData.review_data = updateSectionConditionally(prevData.review_data, newDataFromChild);
+                }
             }
             setHasChanges(true);
-            console.log("Updated editableData in handleDataChange:", updatedData); // ADD THIS LINE
             return updatedData;
         });
     };

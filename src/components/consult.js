@@ -73,7 +73,7 @@ const ConsultAIPage = () => {
   const [isBottomTabVisible, setIsBottomTabVisible] = useState(false);
   const [timeLeft, setTimeLeft] = useState(900);
   const [isTranscriptionPanelOpen, setIsTranscriptionPanelOpen] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState([]); // Changed initial state to empty array
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [realtimeStarted, setRealtimeStarted] = useState(false);
   const [animationIndex, setAnimationIndex] = useState(0);
@@ -345,10 +345,15 @@ const ConsultAIPage = () => {
         if (data.message_type === 'FinalTranscript') {
           if (data.text) {
             setTranscript(prev => {
-              const updatedTranscript = prev + (prev ? '\n\n' : '') + data.text;
-              console.log("Transcript received after resume:", updatedTranscript);
+              const newEntry = {
+                time: new Date().toISOString(),
+                speaker: "",
+                content: data.text
+              };
+              const updatedTranscript = [...prev, newEntry];
+              console.log("Transcript entry received:", newEntry);
+              console.log("Updated transcript array:", updatedTranscript);
               return updatedTranscript;
-
             });
           } else {
             console.log("FinalTranscript message received with empty text.");
@@ -532,8 +537,17 @@ const ConsultAIPage = () => {
             try {
               const data = JSON.parse(event.data);
               if (data.message_type === 'FinalTranscript' && data.text) {
-                setTranscript((prev) => `${prev}\n\n${data.text}`);
-                console.log("Transcript received after resume:", data.text);
+                setTranscript(prev => {
+                  const newEntry = {
+                    time: new Date().toISOString(),
+                    speaker: "",
+                    content: data.text
+                  };
+                  const updatedTranscript = [...prev, newEntry];
+                  console.log("Transcript entry received after resume:", newEntry);
+                  console.log("Updated transcript array after resume:", updatedTranscript);
+                  return updatedTranscript;
+                });
               }
             } catch (err) {
               console.error('Error parsing transcription message:', err);
@@ -751,7 +765,7 @@ const ConsultAIPage = () => {
     // Do not clear reviewId and chat so that they persist
     // setPhoneNumber(''); <- Optionally you can clear phone number if desired
     // setReviewId('');
-    setTranscript('');
+    setTranscript([]); // Reset to empty array
     setIsBottomTabVisible(true); // Show documentation tabs
     setBottomTabIndex(1);        // Set active tab to document
     setActiveScreen("document"); // Switch to document view
@@ -771,7 +785,7 @@ const ConsultAIPage = () => {
     // Reset documentation state if a new phone number is used
     if (phoneNumber !== lastPhoneNumber) {
       setPatientInfo(null);
-      setTranscript('');
+      setTranscript([]); // Reset to empty array
       setBottomTabIndex(0);
       setActiveScreen("voice");
       setLastPhoneNumber(phoneNumber);
@@ -1204,7 +1218,7 @@ const ConsultAIPage = () => {
                   overflowY="auto"
                   maxHeight="calc(100% - 60px)"
                 >
-                  <Text fontSize="md">{transcript}</Text>
+                  <Text fontSize="md">{transcript.map(entry => `${entry.time} - ${entry.speaker}: ${entry.content}`).join('\n')}</Text>
                 </Box>
               </Box>
             )}
