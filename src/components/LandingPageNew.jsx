@@ -357,12 +357,12 @@ const LandingPageNew = () => {
       <Box
         id="hero"
         sx={{
-          minHeight: '100vh',
+          minHeight: { xs: '120vh', md: '100vh' },
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           pt: { xs: 15, md: 20 },
-          pb: { xs: 10, md: 15 },
+          pb: { xs: 12, md: 15 },
           background: 'linear-gradient(180deg, #001C82 0%, #050816 100%)',
           position: 'relative',
           overflow: 'hidden',
@@ -410,6 +410,7 @@ const LandingPageNew = () => {
                   lineHeight: 1.15,
                   color: '#F9FAFB',
                   textShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                  wordBreak: 'break-word',
                 }}
               >
                 Build Your Profitable Private Practice{' '}
@@ -446,6 +447,7 @@ const LandingPageNew = () => {
                   maxWidth: '600px',
                   mx: { xs: 'auto', md: 0 },
                   lineHeight: 1.6,
+                  wordBreak: 'break-word',
                 }}
               >
                 Your AI physician copilot helps manage administrative tasks so you can focus on what matters—seeing patients directly and building meaningful doctor-patient relationships.
@@ -488,6 +490,19 @@ const LandingPageNew = () => {
                 >
                   Watch Demo
                 </Button>
+                <Button
+                  variant="text"
+                  size="large"
+                  onClick={navigateToLogin}
+                  sx={{
+                    color: '#B0C4DE',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    '&:hover': { color: '#2C75FB', backgroundColor: 'transparent' },
+                  }}
+                >
+                  Log In
+                </Button>
               </Stack>
             </Grid>
             <Grid item xs={12} md={5} sx={{ display: { xs: 'none', md: 'block' } }}>
@@ -528,15 +543,28 @@ const LandingPageNew = () => {
             </Grid>
           </Grid>
         </Container>
-        <Box sx={{ position: 'absolute', bottom: 30, left: '50%', transform: 'translateX(-50%)', animation: `${pulseAnimation} 1.5s infinite` }}>
-          <IconButton onClick={() => scrollToSection('stats')} sx={{ color: '#2C75FB' }}>
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: { xs: 30, md: 80 }, // raised on desktop
+            left: 0,
+            right: 0,
+            mx: 'auto',
+            animation: `${pulseAnimation} 1.5s infinite`,
+          }}
+          onClick={() => scrollToSection('stats')}
+        >
+          <IconButton sx={{ color: '#2C75FB' }}>
             <ChevronDown size={40} />
           </IconButton>
         </Box>
       </Box>
 
       {/* Stats Section */}
-      <Section id="stats" sx={{ backgroundColor: '#0a192f' }}>
+      <Section id="stats" sx={{
+        backgroundColor: '#0a192f',
+        py: { xs: 6, md: 8 },  // reduced top/bottom padding for tighter layout
+      }}>
         <Grid container spacing={4} justifyContent="center">
           {[
             { value: '75%', label: 'Revenue Share for Direct Consultations', icon: TrendingUp },

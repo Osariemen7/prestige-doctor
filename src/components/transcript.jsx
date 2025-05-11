@@ -1,16 +1,42 @@
-import React from 'react';
-import { Paper, Typography, Box, TextField, Chip, Divider, Avatar } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
+import React, { useState } from 'react';
+import { 
+  Paper, 
+  Typography, 
+  Box, 
+  TextField, 
+  Chip, 
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  IconButton,
+  Tooltip
+} from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DoneIcon from '@mui/icons-material/Done';
 
 function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
+    const [editIndex, setEditIndex] = useState(null);
+    const [editContent, setEditContent] = useState('');
+
     const handleContentChange = (index, newContent) => {
         const updatedTranscript = transcript.map((item, i) =>
-            i === index ? { ...item, content: newContent } : item
+            i === index ? { ...item, content: newContent, speaker: "" } : item
         );
         if (onTranscriptChange) {
             onTranscriptChange(updatedTranscript);
         }
+    };
+
+    const startEditing = (index, content) => {
+        setEditIndex(index);
+        setEditContent(content);
+    };
+
+    const saveEdit = (index) => {
+        handleContentChange(index, editContent);
+        setEditIndex(null);
     };
 
     const formatDisplayTime = (isoString) => {
@@ -41,18 +67,20 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                 minHeight: '200px',
                 border: '1px dashed #cbd5e1'
             }}>
-                <Typography variant="h6" color="primary.main" sx={{ mb: 1, fontWeight: 500 }}>Conversation Transcript</Typography>
+                <Typography variant="h6" color="primary.main" sx={{ mb: 1, fontWeight: 500 }}>Consultation Transcript</Typography>
                 <Typography sx={{ color: 'text.secondary', fontSize: '0.95rem' }}>No transcript available yet.</Typography>
             </Paper>
         );
-    }    return (
+    }
+    
+    return (
         <Paper 
             elevation={0} 
             sx={{ 
-                padding: isMobile ? 2 : 3, 
-                mt: 0, 
-                maxHeight: '80vh',
-                overflowY: 'auto',
+                padding: 0, 
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
                 backgroundColor: '#fcfcfc',
                 borderRadius: '4px',
                 border: '1px solid #eaeaea'
@@ -62,9 +90,9 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'space-between',
-                mb: 3,
-                pb: 1,
-                borderBottom: '1px solid #f0f0f0'
+                padding: isMobile ? '12px 16px' : '16px 24px',
+                borderBottom: '1px solid #f0f0f0',
+                backgroundColor: '#f5f7fa'
             }}>
                 <Typography 
                     variant="h6" 
@@ -74,7 +102,7 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                         fontSize: isMobile ? '1.1rem' : '1.25rem'
                     }}
                 >
-                    Conversation Transcript
+                    Consultation Transcript
                 </Typography>
                 <Chip 
                     label={`${transcript.length} entries`} 
@@ -84,82 +112,120 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                     sx={{ fontSize: '0.75rem' }}
                 />
             </Box>
-
-            {transcript.map((entry, index) => {
-                const isPatient = entry.speaker?.toLowerCase() === 'patient';
-                return (
-                    <Box 
-                        key={index} 
-                        sx={{ 
-                            mb: 2.5, 
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: isPatient ? 'flex-start' : 'flex-end'
-                        }}
-                    >
-                        <Box sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            mb: 0.5,
-                            gap: 1
-                        }}>
-                            <Avatar 
+            
+            <Table 
+                stickyHeader 
+                size={isMobile ? "small" : "medium"} 
+                sx={{ 
+                    tableLayout: 'fixed',
+                    '& .MuiTableCell-root': {
+                        borderBottom: '1px solid rgba(224, 224, 224, 0.3)'
+                    }
+                }}
+            >
+                <TableHead>
+                    <TableRow>
+                        <TableCell width="20%" sx={{ 
+                            fontWeight: 600, 
+                            backgroundColor: '#f5f7fa', 
+                            color: '#475569' 
+                        }}>Time</TableCell>
+                        <TableCell width="65%" sx={{ 
+                            fontWeight: 600, 
+                            backgroundColor: '#f5f7fa', 
+                            color: '#475569' 
+                        }}>Content</TableCell>
+                        <TableCell width="15%" sx={{ 
+                            fontWeight: 600, 
+                            backgroundColor: '#f5f7fa', 
+                            color: '#475569',
+                            textAlign: 'center'
+                        }}>Edit</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {transcript.map((entry, index) => {
+                        const isEditing = editIndex === index;
+                        
+                        return (
+                            <TableRow 
+                                key={index} 
                                 sx={{ 
-                                    width: 28, 
-                                    height: 28,
-                                    bgcolor: isPatient ? 'secondary.light' : 'primary.light',
-                                    fontSize: '0.875rem'
-                                }}
-                            >
-                                {isPatient ? <PersonIcon fontSize="small" /> : <MedicalServicesIcon fontSize="small" />}
-                            </Avatar>
-                            <Typography 
-                                variant="caption" 
-                                color="text.secondary" 
-                                sx={{ 
-                                    fontSize: '0.75rem', 
-                                    fontWeight: 500 
-                                }}
-                            >
-                                {isPatient ? 'Patient' : 'Doctor'} • {formatDisplayTime(entry.time)}
-                            </Typography>
-                        </Box>
-
-                        <Box sx={{
-                            maxWidth: '85%',
-                            alignSelf: isPatient ? 'flex-start' : 'flex-end',
-                            backgroundColor: isPatient ? '#f0f7ff' : '#f0f9f6',
-                            borderRadius: '12px',
-                            borderBottomLeftRadius: isPatient ? '4px' : '12px',
-                            borderBottomRightRadius: isPatient ? '12px' : '4px',
-                            p: 2,
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                        }}>
-                            <TextField
-                                fullWidth
-                                multiline
-                                variant="standard"
-                                value={entry.content}
-                                onChange={(e) => handleContentChange(index, e.target.value)}
-                                InputProps={{
-                                    disableUnderline: true,
-                                    sx: {
-                                        fontSize: '0.9rem',
-                                        lineHeight: 1.6,
-                                        color: 'text.primary',
-                                        padding: 0
+                                    backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
+                                    '&:hover': {
+                                        backgroundColor: '#f1f5f9'
                                     }
                                 }}
-                                sx={{
-                                    '& .MuiInputBase-root': {
-                                        padding: 0
-                                    }
-                                }}
-                            />
-                        </Box>
-                    </Box>
-                );
-            })}
+                            >
+                                <TableCell sx={{ 
+                                    color: 'text.secondary',
+                                    fontSize: '0.8rem',
+                                    verticalAlign: 'top',
+                                    pt: 2
+                                }}>
+                                    {formatDisplayTime(entry.time)}
+                                </TableCell>
+                                <TableCell sx={{
+                                    py: 1.5,
+                                    verticalAlign: 'top'
+                                }}>
+                                    {isEditing ? (
+                                        <TextField
+                                            fullWidth
+                                            multiline
+                                            variant="outlined"
+                                            value={editContent}
+                                            onChange={(e) => setEditContent(e.target.value)}
+                                            size="small"
+                                            autoFocus
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {
+                                                    backgroundColor: '#ffffff',
+                                                    fontSize: '0.9rem'
+                                                }
+                                            }}
+                                        />
+                                    ) : (
+                                        <Typography 
+                                            variant="body2" 
+                                            sx={{ 
+                                                whiteSpace: 'pre-wrap',
+                                                fontSize: '0.9rem',
+                                                lineHeight: 1.6,
+                                                color: 'text.primary'
+                                            }}
+                                        >
+                                            {entry.content}
+                                        </Typography>
+                                    )}
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'center', verticalAlign: 'top', pt: 1.5 }}>
+                                    {isEditing ? (
+                                        <Tooltip title="Save">
+                                            <IconButton 
+                                                size="small" 
+                                                onClick={() => saveEdit(index)}
+                                                color="primary"
+                                            >
+                                                <DoneIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    ) : (
+                                        <Tooltip title="Edit">
+                                            <IconButton 
+                                                size="small" 
+                                                onClick={() => startEditing(index, entry.content)}
+                                            >
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        );
+                    })}
+                </TableBody>
+            </Table>
         </Paper>
     );
 }

@@ -210,19 +210,7 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             };
 
             if (transcript) {
-                const currentTime = new Date().toISOString();
-                suggestionPayload.transcript = [
-                    {
-                        time: currentTime,
-                        speaker: "patient",
-                        content: ""
-                    },
-                    {
-                        time: currentTime,
-                        speaker: "doctor",
-                        content: transcript
-                    }
-                ];
+                suggestionPayload.transcript = transcript
             }
 
             if (thread) {
@@ -904,7 +892,7 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                             onApplySuggestion={(field, value) => applySuggestion('review_data', field, value)}
                             onGetSuggestion={getSuggestion}
                             onSaveReview={() => handleSubmit('medicalReview')}
-                            isGeneratingSuggestion={isSaving}
+                            isDocumenting={isSaving}
                             isSavingReview={isSaving}
                             isMobile={isMobile}
                         />

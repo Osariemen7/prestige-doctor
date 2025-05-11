@@ -70,7 +70,7 @@
 
 /* More compact styling for image preview */
 .chat-container .chat-image-preview {
-  max-height: 36px;
+  /* Removed max-height to allow full image preview on desktop */
   padding: 4px 8px;
   margin-bottom: 6px;
 }

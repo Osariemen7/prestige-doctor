@@ -933,12 +933,21 @@ const ConsultAIPage = () => {
   };
 
   useEffect(() => {
+    // Ensure documentation tab is default when entering on mobile
+    if (isMobile) {
+      setBottomTabIndex(1);
+      setActiveScreen('documentation');
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
     // Only update isBottomTabVisible based on wsStatus if not paused
     if (!isPaused) {
       setActiveScreen(wsStatus === 'Connected' ? 'chat' : 'voice');
       if (wsStatus === 'Connected') {
         setIsBottomTabVisible(true);
-        if (isMobile) {
+        // only auto-switch to chat on desktop
+        if (!isMobile) {
           setBottomTabIndex(0);
         }
       } else {
@@ -1496,6 +1505,7 @@ const ConsultAIPage = () => {
                           parentalSetIsDocumentationSaved={setIsDocumentationSaved}
                           onDocumentationChange={handleDocumentationChange}
                           onDocumentationSaved={handleDocumentationSaved}
+                          isPaused={isPaused}
                         />
                       </Box>
                     </Box>
@@ -1568,6 +1578,7 @@ const ConsultAIPage = () => {
                       onDocumentationChange={handleDocumentationChange}
                       onDocumentationSaved={handleDocumentationSaved}
                       isMobile={isMobile} // Pass isMobile flag to PatientProfile
+                      isPaused={isPaused}
                     />
                   </Box>
                 </Box>
@@ -1588,7 +1599,7 @@ const ConsultAIPage = () => {
             boxShadow="0 -1px 5px rgba(0,0,0,0.1)" // Reduced shadow
             borderTop="1px solid"
             borderColor="gray.200"
-            height="40px" // Fixed smaller height
+            height="56px" // Increased height for better touch targets
           >
             <Tabs
               index={bottomTabIndex}
