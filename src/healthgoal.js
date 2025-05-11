@@ -28,7 +28,9 @@ const HealthGoalsTab = ({
   appliedSuggestions,
   onApplySuggestion,
   onSaveGoals,
-  isSaving
+  isSaving,
+  isMobile
+// }) => {
 }) => {
   const [localData, setLocalData] = useState(() => {
     return editableData || data || { // Initialize with editableData if available, else data, else default
@@ -228,7 +230,16 @@ const HealthGoalsTab = ({
   );
 
   const renderSuggestionItem = (suggestionValue, currentValue, applySuggestionHandler, fieldName) => {
-    if (suggestionValue && suggestionValue !== currentValue && !appliedSuggestions[fieldName]) {
+    // Only show suggestion if:
+    // 1. suggestionValue exists and is not empty
+    // 2. suggestionValue is different from currentValue
+    // 3. This specific suggestion hasn't been applied yet
+    if (suggestionValue !== undefined && 
+        suggestionValue !== null && 
+        suggestionValue !== '' && 
+        suggestionValue !== currentValue && 
+        !appliedSuggestions?.[fieldName]) {
+        
       return (
         <Box sx={{
             mt: 1,
@@ -892,4 +903,4 @@ const HealthGoalsTab = ({
   );
 };
 
-export default HealthGoalsTab
+export default HealthGoalsTab;

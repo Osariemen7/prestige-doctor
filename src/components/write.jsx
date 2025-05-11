@@ -6,20 +6,19 @@ import TranscriptTab from './transcript';
 import PatientProfileTab from './patent';
 import HealthGoalsTab from './healthgoal';
 import MedicalReviewTab from './medical';
+import SuggestedQuestionsTab from './suggestedQuestions';
 import { Container, Box, Button, Typography, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import SnackbarComponent from './snackbar';
 import axios from 'axios';
 import { getAccessToken } from './api';
 import './write.css';
 
-const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, transcript, resetKey }, ref) => {
+const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, transcript, resetKey, onDocumentationChange, onDocumentationSaved, isMobile }, ref) => {
     const [activeTab, setActiveTab] = useState('medicalReview');
     const [data, setData] = useState(null);
     const [editableData, setEditableData] = useState(null);
     const [suggestionData, setSuggestionData] = useState(null);
     const [appliedSuggestions, setAppliedSuggestions] = useState({
-        profile: {},
-        goals: {},
         review: {}
     });
     const [loading, setLoading] = useState(true);
@@ -32,8 +31,46 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
     const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
     const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
     const [suggestionLoading, setSuggestionLoading] = useState({});
+    const [isShowRecommendationsLoading, setIsShowRecommendationsLoading] = useState(false);
+    const [isSaveAllLoading, setIsSaveAllLoading] = useState(false);
+    const [isGenerateQuestionsLoading, setIsGenerateQuestionsLoading] = useState(false);
+    
+    // Added state for suggested questions
+    const [suggestedQuestions, setSuggestedQuestions] = useState([]);
+    const [isQuestionsLoading, setIsQuestionsLoading] = useState(false);
 
     const didFetch = useRef(false);
+    const assessmentRef = useRef(null); // Ref for Assessment section
+
+    const mergeSourceIntoTarget = (target, source) => {
+        const output = { ...(target || {}) };
+
+        for (const key in source) {
+            if (source.hasOwnProperty(key)) {
+                const sourceValue = source[key];
+                const targetValue = output[key];
+
+                if (sourceValue !== null && sourceValue !== "") {
+                    if (
+                        typeof sourceValue === 'object' &&
+                        !Array.isArray(sourceValue) &&
+                        typeof targetValue === 'object' &&
+                        !Array.isArray(targetValue) && targetValue !== null
+                    ) {
+                        output[key] = mergeSourceIntoTarget(targetValue, sourceValue);
+                    } else {
+                        if (typeof sourceValue === 'object' && sourceValue !== null) {
+                            output[key] = JSON.parse(JSON.stringify(sourceValue));
+                        } else {
+                            output[key] = sourceValue;
+                        }
+                    }
+                }
+            }
+        }
+        return output;
+    };
+
     const fetchSubscribers = async () => {
         setLoading(true);
         try {
@@ -61,30 +98,31 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
     const isGettingSuggestion = useRef(false);
 
     const getSuggestion = async () => {
-        if (isGettingSuggestion.current) return;
+        if (isGettingSuggestion.current) {
+            console.warn("getSuggestion: Call ignored, an AI process (getSuggestion or getSuggestions) is already running.");
+            setSnackbarSeverity('info');
+            setSnackbarMessage('An AI process is already running. Please wait for it to complete.');
+            setSnackbarOpen(true);
+            return;
+        }
         isGettingSuggestion.current = true;
     
         setIsSaving(true);
         try {
             let suggestionPayload = {
-                note: JSON.parse(JSON.stringify(editableData))
+                note: {
+                    profile_data: editableData?.profile_data || {},
+                    goal_data: editableData?.goal_data || {},
+                    review_data: editableData?.review_data || {},
+                    ...(editableData || {})
+                }
             };
-    
-            if (transcript) {
-                const currentTime = new Date().toISOString();
+            if (Object.keys(suggestionPayload.note.profile_data).length === 0) delete suggestionPayload.note.profile_data;
+            if (Object.keys(suggestionPayload.note.goal_data).length === 0) delete suggestionPayload.note.goal_data;
+            if (Object.keys(suggestionPayload.note.review_data).length === 0) delete suggestionPayload.note.review_data;
+
+            if (transcript && transcript.length > 0) {
                 suggestionPayload.transcript = transcript;
-                // suggestionPayload.transcript = [
-                //     {
-                //         time: currentTime,
-                //         speaker: "patient",
-                //         content: ""
-                //     },
-                //     {
-                //         time: currentTime,
-                //         speaker: "doctor",
-                //         content: transcript
-                //     }
-                // ];
             }
     
             if (thread) {
@@ -101,18 +139,51 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             );
     
             const result = response.data;
-            setData(result); // Update the main data
-            setEditableData(JSON.parse(JSON.stringify(result))); // Update editable data
-            setSuggestionData(result); // Update suggestion data
-    
-            setAppliedSuggestions({
-                profile: {},
-                goals: {},
+
+            setData(prevData => {
+                const updatedData = JSON.parse(JSON.stringify(prevData || {}));
+                if (result.profile_data) {
+                    updatedData.profile_data = mergeSourceIntoTarget(updatedData.profile_data || {}, result.profile_data);
+                }
+                if (result.goal_data) {
+                    updatedData.goal_data = mergeSourceIntoTarget(updatedData.goal_data || {}, result.goal_data);
+                }
+                if (result.review_data) {
+                    updatedData.review_data = mergeSourceIntoTarget(updatedData.review_data || {}, result.review_data);
+                }
+                Object.keys(result).forEach(key => {
+                    if (!['profile_data', 'goal_data', 'review_data'].includes(key) && result[key] !== null && result[key] !== "") {
+                        updatedData[key] = typeof result[key] === 'object' ? JSON.parse(JSON.stringify(result[key])) : result[key];
+                    }
+                });
+                return updatedData;
+            });
+            
+            setEditableData(prevEditableData => {
+                const updatedEditableData = JSON.parse(JSON.stringify(prevEditableData || {}));
+                if (result.profile_data) {
+                    updatedEditableData.profile_data = mergeSourceIntoTarget(updatedEditableData.profile_data || {}, result.profile_data);
+                }
+                if (result.goal_data) {
+                    updatedEditableData.goal_data = mergeSourceIntoTarget(updatedEditableData.goal_data || {}, result.goal_data);
+                }
+                if (result.review_data) {
+                    updatedEditableData.review_data = mergeSourceIntoTarget(updatedEditableData.review_data || {}, result.review_data);
+                }
+                Object.keys(result).forEach(key => {
+                    if (!['profile_data', 'goal_data', 'review_data'].includes(key) && result[key] !== null && result[key] !== "") {
+                        updatedEditableData[key] = typeof result[key] === 'object' ? JSON.parse(JSON.stringify(result[key])) : result[key];
+                    }
+                });
+                return updatedEditableData;
+            });
+            
+            setSuggestionData(result);            setAppliedSuggestions({
                 review: {}
             });
     
             setSnackbarSeverity('success');
-            setSnackbarMessage('Suggestion generated successfully!');
+            setSnackbarMessage('Documentation generated successfully!');
             setSnackbarOpen(true);
             return true;
         } catch (error) {
@@ -126,10 +197,11 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             isGettingSuggestion.current = false;
         }
     };
+
     const getSuggestions = async () => {
         if (isGettingSuggestion.current) return;
         isGettingSuggestion.current = true;
-        
+        setIsShowRecommendationsLoading(true);
         setSuggestionLoading(prev => ({ ...prev, [activeTab]: true }));
         
         try {
@@ -137,7 +209,6 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                 note: JSON.parse(JSON.stringify(editableData))
             };
 
-            // Include transcript if available
             if (transcript) {
                 const currentTime = new Date().toISOString();
                 suggestionPayload.transcript = [
@@ -154,7 +225,6 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                 ];
             }
 
-            // Include thread ID if available
             if (thread) {
                 suggestionPayload.note.thread_id = thread;
             }
@@ -176,6 +246,14 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             setSnackbarMessage('Suggestions generated successfully!');
             setSnackbarOpen(true);
             
+            // Switch to Doctor Note tab and scroll to Assessment
+            setActiveTab('medicalReview');
+            setTimeout(() => {
+                if (assessmentRef.current) {
+                    assessmentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 400); // Delay to ensure tab content is rendered
+
             return true;
         } catch (error) {
             console.error("Error getting suggestions:", error);
@@ -185,6 +263,86 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             return false;
         } finally {
             setSuggestionLoading(prev => ({ ...prev, [activeTab]: false }));
+            setIsShowRecommendationsLoading(false);
+            isGettingSuggestion.current = false;
+        }
+    };
+
+    // Function to get suggested questions for the doctor
+    const getSuggestedQuestions = async () => {
+        if (isGettingSuggestion.current) {
+            setSnackbarSeverity('info');
+            setSnackbarMessage('An AI process is already running. Please wait for it to complete.');
+            setSnackbarOpen(true);
+            return;
+        }
+        
+        setIsGenerateQuestionsLoading(true);
+        setIsQuestionsLoading(true);
+        isGettingSuggestion.current = true;
+        
+        try {
+            let payload = {
+                note: {
+                    profile_data: editableData?.profile_data || {},
+                    goal_data: editableData?.goal_data || {},
+                    review_data: editableData?.review_data || {},
+                    ...(editableData || {})
+                }
+            };
+            
+            // Clean up payload
+            if (Object.keys(payload.note.profile_data).length === 0) delete payload.note.profile_data;
+            if (Object.keys(payload.note.goal_data).length === 0) delete payload.note.goal_data;
+            if (Object.keys(payload.note.review_data).length === 0) delete payload.note.review_data;
+
+            // Add transcript if available
+            if (transcript && transcript.length > 0) {
+                payload.transcript = transcript;
+            }
+            
+            // Add thread if available
+            if (thread) {
+                payload.note.thread_id = thread;
+            }
+            
+            const accessToken = await getAccessToken();
+            const response = await axios.post(
+                `https://health.prestigedelta.com/documentreview/${reviewid}/generate-questions/`,
+                payload,
+                {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                }
+            );
+            
+            const result = response.data;
+            console.log("Received suggested questions:", result);
+            
+            if (result?.insightful_questions) {
+                setSuggestedQuestions(result.insightful_questions);
+                
+                // Switch to the suggested questions tab automatically
+                setActiveTab('suggestedQuestions');
+                
+                setSnackbarSeverity('success');
+                setSnackbarMessage('Questions generated successfully!');
+                setSnackbarOpen(true);
+            } else {
+                setSnackbarSeverity('warning');
+                setSnackbarMessage('No suggested questions were generated.');
+                setSnackbarOpen(true);
+            }
+            
+            return true;
+        } catch (error) {
+            console.error("Error getting suggested questions:", error);
+            setSnackbarSeverity('error');
+            setSnackbarMessage('Failed to generate questions.');
+            setSnackbarOpen(true);
+            return false;
+        } finally {
+            setIsGenerateQuestionsLoading(false);
+            setIsQuestionsLoading(false);
             isGettingSuggestion.current = false;
         }
     };
@@ -230,17 +388,16 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             }
             const response = result.data;
             console.log("Response from submit:", response);
-            
-            setSnackbarSeverity('success');
-            setSnackbarMessage(`${tabName === 'all' ? 'All' : tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} documentation updated successfully!`);
+              setSnackbarSeverity('success');
+            setSnackbarMessage(`${tabName === 'all' ? 'All' : tabName === 'medicalReview' ? 'Doctor Note' : tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} documentation updated successfully!`);
             setSnackbarOpen(true);
             parentalSetIsDocumentationSaved(true);
             setHasChanges(false);
+            if (onDocumentationSaved) onDocumentationSaved();
             return true;
         } catch (error) {
-            console.error(`Error submitting edits for ${tabName}:`, error);
-            setSnackbarSeverity('error');
-            setSnackbarMessage(`Failed to update ${tabName === 'all' ? 'all' : tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} documentation.`);
+            console.error(`Error submitting edits for ${tabName}:`, error);            setSnackbarSeverity('error');
+            setSnackbarMessage(`Failed to update ${tabName === 'all' ? 'all' : tabName === 'medicalReview' ? 'Doctor Note' : tabName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} documentation.`);
             setSnackbarOpen(true);
             return false;
         } finally {
@@ -248,15 +405,12 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
         }
     };
 
-    
-
     const handleTabChange = (tabName) => {
         setActiveTab(tabName);
     };
 
-    
     const saveAllDocumentation = async () => {
-        setIsSaving(true);
+        setIsSaveAllLoading(true);
         try {
             const success = await handleSubmit('all');
 
@@ -273,146 +427,90 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             setSnackbarMessage('Failed to save all documentation.');
             setSnackbarOpen(true);
         } finally {
-            setIsSaving(false);
+            setIsSaveAllLoading(false);
         }
     };
 
     const handleDataChange = (tabName, newDataFromChild) => {
-        setEditableData(prevData => {
-            const updatedData = JSON.parse(JSON.stringify(prevData));
-
-            const updateSectionConditionally = (currentSectionInPrevData, newSectionDataFromChild) => {
-                const sectionCopy = { ...currentSectionInPrevData };
-
-                for (const key in newSectionDataFromChild) {
-                    if (newSectionDataFromChild.hasOwnProperty(key)) {
-                        const value = newSectionDataFromChild[key];
-                        if (value !== null && value !== "") {
-                            sectionCopy[key] = value;
-                        }
-                    }
-                }
-                return sectionCopy;
-            };
-
-            if (tabName === 'patientProfile') {
-                if (updatedData.profile_data && newDataFromChild) {
-                    updatedData.profile_data = updateSectionConditionally(prevData.profile_data, newDataFromChild);
-                }
-            } else if (tabName === 'healthGoals') {
-                if (updatedData.goal_data && newDataFromChild) {
-                    updatedData.goal_data = updateSectionConditionally(prevData.goal_data, newDataFromChild);
-                }
-            } else if (tabName === 'medicalReview') {
-                if (updatedData.review_data && newDataFromChild) {
-                    updatedData.review_data = updateSectionConditionally(prevData.review_data, newDataFromChild);
+        setEditableData(prevEditableData => {
+            const newEditableDataState = JSON.parse(JSON.stringify(prevEditableData || {}));
+            if (newDataFromChild) {
+                if (tabName === 'patientProfile') {
+                    newEditableDataState.profile_data = mergeSourceIntoTarget(newEditableDataState.profile_data || {}, newDataFromChild);
+                } else if (tabName === 'healthGoals') {
+                    newEditableDataState.goal_data = mergeSourceIntoTarget(newEditableDataState.goal_data || {}, newDataFromChild);
+                } else if (tabName === 'medicalReview') {
+                    newEditableDataState.review_data = mergeSourceIntoTarget(newEditableDataState.review_data || {}, newDataFromChild);
                 }
             }
             setHasChanges(true);
-            return updatedData;
+            if (onDocumentationChange && (tabName === 'patientProfile' || tabName === 'healthGoals' || tabName === 'medicalReview')) onDocumentationChange();
+            return newEditableDataState;
         });
     };
 
-    const handleApplySuggestion = (suggestionSection, fieldsToApply) => {
-        console.log("handleApplySuggestion called for section:", suggestionSection, "fields:", fieldsToApply);
-        console.log("Current editableData before apply:", editableData);
-        console.log("Current data before apply:", data);
-    
-        setEditableData(prevData => {
-            let updatedData = JSON.parse(JSON.stringify(prevData));
-            if (suggestionData) {
-                let sectionSuggestionData;
-                let sectionEditableData;
-    
-                if (suggestionSection === 'profile') {
-                    sectionSuggestionData = suggestionData.profile_data;
-                    sectionEditableData = updatedData.profile_data;
-                } else if (suggestionSection === 'goals') {
-                    sectionSuggestionData = suggestionData.goal_data;
-                    sectionEditableData = updatedData.goal_data;
-                } else if (suggestionSection === 'review') {
-                    sectionSuggestionData = suggestionData.review_data;
-                    sectionEditableData = updatedData.review_data;
-                }
-    
-                if (sectionSuggestionData && fieldsToApply) {
-                    Object.keys(fieldsToApply).forEach(fieldKey => {
-                        if (sectionSuggestionData.hasOwnProperty(fieldKey)) {
-                            if (suggestionSection === 'profile') {
-                                updatedData.profile_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'goals') {
-                                updatedData.goal_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'review') {
-                                if (fieldKey.includes('.')) { //nested fields like assessment.primary_diagnosis
-                                    const parts = fieldKey.split('.');
-                                    if (parts.length === 2) {
-                                        updatedData.review_data[parts[0]][parts[1]] = sectionSuggestionData[parts[0] + '_suggestion'][parts[1]] || sectionSuggestionData[parts[0]][parts[1]];
-                                    }
-                                } else {
-                                    updatedData.review_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
-                                }
-                            }
-                        }
-                    });
-                }
-                console.log("Updated editableData in handleApplySuggestion:", updatedData);
-                return updatedData;
+    const applySuggestion = (sectionKey, fieldPath, suggestionValue) => {
+        console.log(`Applying suggestion: sectionKey=${sectionKey}, fieldPath=${fieldPath}, value=${ typeof suggestionValue === 'object' ? JSON.stringify(suggestionValue) : suggestionValue}`);
+        if (suggestionValue === null || suggestionValue === undefined) {
+            console.warn(`Cannot apply null or undefined suggestion for ${sectionKey}.${fieldPath}`);
+            setSnackbarSeverity('warning');
+            setSnackbarMessage(`Cannot apply empty suggestion for ${fieldPath.split('.').pop()}.`);
+            setSnackbarOpen(true);
+            return;
+        }
+
+        setEditableData(prev => {
+            const newData = JSON.parse(JSON.stringify(prev || {})); // Deep clone
+
+            // Ensure the top-level section object/array exists (e.g., newData.review_data)
+            if (!newData[sectionKey]) {
+                // This assumes sections like 'review_data' are objects. 
+                // If a section itself could be an array at the top level of suggestionData,
+                // this might need more specific handling based on expected structure.
+                newData[sectionKey] = {}; 
             }
-            return updatedData; // Add this return to handle cases where suggestionData is null
-        });
-    
-        setData(prevData => {
-            let updatedData = JSON.parse(JSON.stringify(prevData));
-            if (suggestionData) {
-                let sectionSuggestionData;
-                let sectionData;
-    
-                if (suggestionSection === 'profile') {
-                    sectionSuggestionData = suggestionData.profile_data;
-                    sectionData = updatedData.profile_data;
-                } else if (suggestionSection === 'goals') {
-                    sectionSuggestionData = suggestionData.goal_data;
-                    sectionData = updatedData.goal_data;
-                } else if (suggestionSection === 'review') {
-                    sectionSuggestionData = suggestionData.review_data;
-                    sectionData = updatedData.review_data;
+
+            const pathParts = fieldPath.split('.');
+            let currentLevel = newData[sectionKey];
+
+            for (let i = 0; i < pathParts.length - 1; i++) {
+                const part = pathParts[i];
+                const nextPart = pathParts[i + 1];
+                const nextPartIsNumber = /^[0-9]+$/.test(nextPart);
+
+                // If the current part doesn't exist, or isn't the correct type (obj/array), create/recreate it.
+                if (currentLevel[part] === undefined || currentLevel[part] === null || typeof currentLevel[part] !== 'object') {
+                    currentLevel[part] = nextPartIsNumber ? [] : {};
                 }
-    
-                if (sectionSuggestionData && fieldsToApply) {
-                    Object.keys(fieldsToApply).forEach(fieldKey => {
-                        if (sectionSuggestionData.hasOwnProperty(fieldKey)) {
-                            if (suggestionSection === 'profile') {
-                                updatedData.profile_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'goals') {
-                                updatedData.goal_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
-                            } else if (suggestionSection === 'review') {
-                                if (fieldKey.includes('.')) { //nested fields like assessment.primary_diagnosis
-                                    const parts = fieldKey.split('.');
-                                    if (parts.length === 2) {
-                                        updatedData.review_data[parts[0]][parts[1]] = sectionSuggestionData[parts[0] + '_suggestion'][parts[1]] || sectionSuggestionData[parts[0]][parts[1]];
-                                    }
-                                } else {
-                                    updatedData.review_data[fieldKey] = sectionSuggestionData[fieldKey + '_suggestion'] || sectionSuggestionData[fieldKey];
-                                }
-                            }
-                        }
-                    });
-                }
-                console.log("Updated data in handleApplySuggestion:", updatedData);
-                return updatedData;
+                currentLevel = currentLevel[part];
             }
-            return updatedData; // Add this return to handle cases where suggestionData is null
+
+            const lastPart = pathParts[pathParts.length - 1];
+            // Apply the value to the target property or array index
+            if (Array.isArray(currentLevel) && /^[0-9]+$/.test(lastPart)) {
+                currentLevel[parseInt(lastPart, 10)] = suggestionValue;
+            } else {
+                currentLevel[lastPart] = suggestionValue;
+            }
+            
+            console.log("Updated editableData in applySuggestion:", JSON.stringify(newData, null, 2));
+            setHasChanges(true); // Ensure changes are flagged for saving
+            return newData;
         });
-    
-    
-        setAppliedSuggestions(prev => ({
-            ...prev,
-            [suggestionSection]: { ...prev[suggestionSection], ...fieldsToApply }
-        }));
-        console.log("Updated appliedSuggestions:", appliedSuggestions);
-    
+
+        setAppliedSuggestions(prev => {
+            const updatedSectionApplied = { ...(prev[sectionKey] || {}) }; 
+            updatedSectionApplied[fieldPath] = true;
+            const newAppliedSuggestions = {
+                ...prev,
+                [sectionKey]: updatedSectionApplied,
+            };
+            console.log("Updated appliedSuggestions:", JSON.stringify(newAppliedSuggestions, null, 2));
+            return newAppliedSuggestions;
+        });
+
         setSnackbarSeverity('success');
-        setSnackbarMessage(`Suggestion applied to ${suggestionSection} successfully!`);
+        setSnackbarMessage(`Suggestion for '${fieldPath.split('.').pop()}' in '${sectionKey.replace('_data', '')}' applied!`);
         setSnackbarOpen(true);
     };
 
@@ -424,9 +522,6 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
     };
 
     useEffect(() => {
-        // Only fetch if we have a reviewid and either:
-        // 1. We haven't fetched before (didFetch.current is false)
-        // 2. The resetKey has changed
         if (reviewid && (!didFetch.current || resetKey)) {
             setData(null);
             setEditableData(null);
@@ -437,7 +532,6 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
         }
     }, [reviewid, resetKey]);
 
-    // Remove other duplicate useEffect hooks that call fetchSubscribers
     useEffect(() => {
         console.log("useEffect in PatientProfile.js (data fetch) - suggestionData changed:", suggestionData);
     }, [suggestionData]);
@@ -446,74 +540,201 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
         getSuggestion: getSuggestion,
         handleSubmitFromParent: handleSubmit,
         getSuggestions,
+        getSuggestedQuestions,
         dataLoaded: !loading
     }));
 
-    const SuggestionsDialog = () => (
-        <Dialog
-            open={suggestionDialogOpen}
-            onClose={() => setSuggestionDialogOpen(false)}
-            maxWidth="md"
-            fullWidth
-        >
-            <DialogTitle>AI Generated Suggestions</DialogTitle>
-            <DialogContent>
-                {suggestionData && (
-                    <Box sx={{ mt: 2 }}>
-                        {Object.entries(suggestionData).map(([section, suggestions], index) => (
-                            <Box key={index} sx={{ mb: 3 }}>
-                                <Typography variant="h6" sx={{ mb: 1 }}>
-                                    {section.charAt(0).toUpperCase() + section.slice(1)}
+    const SuggestionsDialog = () => {
+        // Helper function to render array-type suggestions (like prescriptions or investigations)
+        const renderArraySuggestion = (arr) => {
+            if (!Array.isArray(arr) || arr.length === 0) {
+                return "None";
+            }
+            
+            return (
+                <Box sx={{ mt: 1 }}>
+                    {arr.map((item, idx) => (
+                        <Box key={idx} sx={{ 
+                            mb: 1, 
+                            p: 1, 
+                            backgroundColor: '#f5f5f5',
+                            borderRadius: '4px',
+                            border: '1px solid #e0e0e0'
+                        }}>
+                            {Object.entries(item).map(([key, value]) => (
+                                <Typography key={key} sx={{ fontSize: '0.85rem', mb: 0.5 }}>
+                                    <strong>{key.replace(/_/g, ' ')}:</strong> {value}
                                 </Typography>
-                                {Object.entries(suggestions).map(([field, suggestion], idx) => (
-                                    <Box key={idx} sx={{ mb: 2 }}>
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                                            {field}:
-                                        </Typography>
-                                        <Typography>{suggestion}</Typography>
-                                        <Button
-                                            variant="outlined"
-                                            size="small"
-                                            sx={{ mt: 1 }}
-                                            onClick={() => applySuggestion(section, field, suggestion)}
-                                            disabled={appliedSuggestions[section]?.[field]}
-                                        >
-                                            {appliedSuggestions[section]?.[field] ? 'Applied' : 'Apply Suggestion'}
-                                        </Button>
-                                    </Box>
-                                ))}
-                            </Box>
+                            ))}
+                        </Box>
+                    ))}
+                </Box>
+            );
+        };
+
+        // Helper function to format suggestion values for display
+        const renderSuggestionValue = (value, field) => {
+            if (value === null || value === undefined) {
+                return "None";
+            }
+            
+            // Special handling for arrays (like prescriptions or investigations)
+            if (Array.isArray(value)) {
+                return renderArraySuggestion(value);
+            }
+            
+            // Special handling for objects
+            if (typeof value === 'object') {
+                return (
+                    <Box sx={{ 
+                        mt: 1,
+                        p: 1, 
+                        backgroundColor: '#f5f5f5',
+                        borderRadius: '4px',
+                        border: '1px solid #e0e0e0' 
+                    }}>
+                        {Object.entries(value).map(([key, val]) => (
+                            <Typography key={key} sx={{ fontSize: '0.85rem', mb: 0.5 }}>
+                                <strong>{key.replace(/_/g, ' ')}:</strong> {
+                                    typeof val === 'object' ? JSON.stringify(val) : val
+                                }
+                            </Typography>
                         ))}
                     </Box>
-                )}
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={() => setSuggestionDialogOpen(false)}>Close</Button>
-            </DialogActions>
-        </Dialog>
-    );
-
-    const applySuggestion = (section, field, suggestion) => {
-        setEditableData(prev => ({
-            ...prev,
-            [field]: suggestion
-        }));
-        
-        setAppliedSuggestions(prev => ({
-            ...prev,
-            [section]: {
-                ...prev[section],
-                [field]: true
+                );
             }
-        }));
-    };
+            
+            // Simple string/number values
+            return String(value);
+        };
 
-    if (loading) {
-        return <div>Loading...</div>;
+        // Format field name for display (e.g., "prescription_suggestion" -> "Prescription Suggestion")
+        const formatFieldName = (field) => {
+            return field
+                .split('_')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        };
+
+        return (
+            <Dialog
+                open={suggestionDialogOpen}
+                onClose={() => setSuggestionDialogOpen(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: '8px',
+                        overflow: 'hidden'
+                    }
+                }}
+            >
+                <DialogTitle sx={{ 
+                    borderBottom: '1px solid #eaeaea',
+                    backgroundColor: '#f8fafc',
+                    fontSize: '1.2rem',
+                    py: 1.5
+                }}>
+                    AI Generated Suggestions
+                </DialogTitle>
+                <DialogContent sx={{ px: isMobile ? 1.5 : 2, py: 2 }}>
+                    {suggestionData ? (
+                        <Box sx={{ mt: 1 }}>
+                            {Object.entries(suggestionData).map(([section, suggestions], index) => {
+                                // Make sure suggestions is an object before trying to iterate
+                                if (!suggestions || typeof suggestions !== 'object') {
+                                    return null;
+                                }
+
+                                // Format section name (e.g., "review_data" -> "Review Data")
+                                const formattedSection = section
+                                    .split('_')
+                                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                    .join(' ');
+
+                                return (
+                                    <Box key={section} sx={{ mb: 2.5 }}>
+                                        <Typography variant="h6" sx={{ 
+                                            mb: 0.75, 
+                                            fontSize: isMobile ? '1rem' : '1.1rem',
+                                            color: 'primary.main',
+                                            borderBottom: '1px solid #f0f0f0',
+                                            pb: 0.5
+                                        }}>
+                                            {formattedSection}
+                                        </Typography>
+                                        {Object.entries(suggestions).map(([field, suggestionValue], idx) => (
+                                            <Box key={`${section}-${field}`} sx={{ 
+                                                mb: 1.5, 
+                                                backgroundColor: idx % 2 === 0 ? '#f9f9f9' : 'transparent',
+                                                p: 1.5, 
+                                                borderRadius: 1,
+                                                border: '1px solid #eee'
+                                            }}>
+                                                <Typography variant="subtitle1" sx={{ 
+                                                    fontWeight: 'bold',
+                                                    fontSize: isMobile ? '0.9rem' : '0.95rem',
+                                                    color: 'text.primary'
+                                                }}>
+                                                    {formatFieldName(field)}:
+                                                </Typography>
+                                                <Box sx={{ 
+                                                    fontSize: isMobile ? '0.85rem' : '0.9rem',
+                                                    mb: 1,
+                                                    mt: 0.5
+                                                }}>
+                                                    {renderSuggestionValue(suggestionValue, field)}
+                                                </Box>
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    color="primary"
+                                                    sx={{ 
+                                                        fontSize: '0.8rem',
+                                                        py: 0.5,
+                                                        height: 28,
+                                                        mt: 1
+                                                    }}
+                                                    onClick={() => applySuggestion(section, field, suggestionValue)}
+                                                    disabled={appliedSuggestions[section]?.[field]}
+                                                >
+                                                    {appliedSuggestions[section]?.[field] ? 'Applied' : 'Apply Suggestion'}
+                                                </Button>
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                    ) : (
+                        <Box sx={{ p: 2, textAlign: 'center' }}>
+                            <Typography>No suggestions available.</Typography>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ 
+                    borderTop: '1px solid #eaeaea',
+                    px: 2,
+                    py: 1.5
+                }}>
+                    <Button 
+                        onClick={() => setSuggestionDialogOpen(false)}
+                        variant="outlined"
+                        size={isMobile ? "small" : "medium"}
+                    >
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        );
+    };    if (loading) {
+        return <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+            <CircularProgress />
+        </Box>;
     }
 
     if (!data) {
-        return <div>Error loading data.</div>;
+        return <Typography>No data available for this review.</Typography>;
     }
 
     return (
@@ -521,48 +742,125 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             <Container 
                 maxWidth="xl" 
                 sx={{
-                    height: '100%',
-                    overflowY: 'auto',
+                    height: '100vh',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 2,
-                    pb: 4
+                    pb: 2,
+                    pt: isMobile ? 0.5 : 2,
+                    px: isMobile ? 1 : 2
                 }}
             >
-                <Box sx={{ position: 'sticky', top: 0, zIndex: 1, bg: 'background.paper', pt: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ 
+                    p: isMobile ? 0.5 : 1.5,
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    flexShrink: 0,
+                    borderBottom: '1px solid #eaeaea',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '4px 4px 0 0'
+                }}>
+                    <Box sx={{ 
+                        display: 'flex', 
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        mb: isMobile ? 0.75 : 1.5,
+                        gap: 1,
+                        flexWrap: 'wrap'
+                    }}>
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={saveAllDocumentation}
+                            disabled={isSaveAllLoading}
+                            size={isMobile ? "small" : "large"}
+                            sx={{ 
+                                minWidth: isMobile ? 100 : 150,
+                                height: isMobile ? 32 : 42,
+                                fontSize: isMobile ? '0.8rem' : '0.95rem',
+                                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                                fontWeight: 'bold',
+                                flex: isMobile ? '0 0 auto' : 'inherit',
+                                order: 0
+                            }}
+                            startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
+                        >
+                            {isSaveAllLoading ? 'Saving...' : 'Save All'}
+                        </Button>
+                        <Box sx={{ 
+                            display: 'flex', 
+                            gap: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            flexWrap: 'nowrap',
+                            justifyContent: 'flex-end',
+                            flex: isMobile ? '1 1 auto' : '0 0 auto'
+                        }}>
                             <Button
-                                variant="contained"
+                                variant="outlined"
                                 color="primary"
-                                onClick={saveAllDocumentation}
-                                disabled={isSaving}
+                                onClick={getSuggestions}
+                                disabled={isShowRecommendationsLoading}
+                                startIcon={isShowRecommendationsLoading ? <CircularProgress size={14} /> : null}
+                                size={isMobile ? "small" : "medium"}
+                                sx={{ 
+                                    height: isMobile ? 32 : 36,
+                                    fontSize: isMobile ? '0.7rem' : '0.8rem',
+                                    textTransform: 'none',
+                                    px: isMobile ? 1 : 2,
+                                    minWidth: isMobile ? 'auto' : 'inherit',
+                                    order: isMobile ? 2 : 1
+                                }}
                             >
-                                Save All Documentation
+                                {isShowRecommendationsLoading ? 'Loading...' : (isMobile ? 'Recommend' : 'Show Recommendations')}
                             </Button>
                             <Button
                                 variant="outlined"
                                 color="secondary"
-                                onClick={getSuggestions}
-                                disabled={isSuggestionsLoading || isSaving}
-                                startIcon={isSuggestionsLoading ? <CircularProgress size={20} /> : null}
+                                onClick={getSuggestedQuestions}
+                                disabled={isGenerateQuestionsLoading}
+                                startIcon={isGenerateQuestionsLoading ? <CircularProgress size={14} /> : null}
+                                size={isMobile ? "small" : "medium"}
+                                sx={{ 
+                                    height: isMobile ? 32 : 36,
+                                    fontSize: isMobile ? '0.7rem' : '0.8rem',
+                                    textTransform: 'none',
+                                    px: isMobile ? 1 : 2,
+                                    minWidth: isMobile ? 'auto' : 'inherit',
+                                    order: isMobile ? 1 : 2
+                                }}
                             >
-                                {isSuggestionsLoading ? 'Loading Suggestions...' : 'Show Suggestions'}
+                                {isGenerateQuestionsLoading ? 'Loading...' : (isMobile ? 'Questions' : 'Generate Questions')}
                             </Button>
                         </Box>
-                        {isSaving && (
-                            <Typography
-                                variant="body1"
-                                sx={{ ml: 2, display: 'flex', alignItems: 'center', color: 'primary.main' }}
-                            >
-                                <span className="loading-dots">Generating doctor's note</span>
-                            </Typography>
-                        )}
                     </Box>
                     <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
                 </Box>
-
-                <Box sx={{ flex: 1, overflowY: 'auto' }}>
+                <Box sx={{ 
+                    flex: 1,
+                    minHeight: isMobile ? '75vh' : '78vh',
+                    maxHeight: 'calc(100vh - 100px)',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRadius: '0 0 8px 8px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    bgcolor: 'white',
+                    '&::-webkit-scrollbar': {
+                        width: '8px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                        backgroundColor: '#f5f5f5',
+                        borderRadius: '0 0 8px 0',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: '#ddd',
+                        borderRadius: '4px',
+                        '&:hover': {
+                            backgroundColor: '#ccc',
+                        },
+                    },
+                }}>
                     {activeTab === 'transcript' && (
                         <TranscriptTab transcript={transcript} />
                     )}
@@ -574,9 +872,10 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                             onDataChange={(newData) => handleDataChange('patientProfile', newData)}
                             suggestion={suggestionData?.profile_data}
                             appliedSuggestions={appliedSuggestions.profile}
-                            onApplySuggestion={(field, value) => handleApplySuggestion('profile', { [field]: value })}
+                            onApplySuggestion={(field, value) => applySuggestion('profile_data', field, value)}
                             onSaveProfile={() => handleSubmit('patientProfile')}
                             isSaving={isSaving}
+                            isMobile={isMobile}
                         />
                     )}
                     {activeTab === 'healthGoals' && (
@@ -587,26 +886,34 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                             suggestion={suggestionData?.goal_data}
                             appliedSuggestions={appliedSuggestions.goals}
                             onDataChange={(newData) => handleDataChange('healthGoals', newData)}
-                            onApplySuggestion={(field, value) => handleApplySuggestion('goals', { [field]: value })}
+                            onApplySuggestion={(field, value) => applySuggestion('goal_data', field, value)}
                             onSaveGoals={() => handleSubmit('healthGoals')}
                             isSaving={isSaving}
+                            isMobile={isMobile}
                         />
                     )}
                     {activeTab === 'medicalReview' && (
                         <MedicalReviewTab
-                            key={JSON.stringify(editableData.review_data)} // Use a unique key to force re-render
+                            key={JSON.stringify(editableData.review_data)}
                             data={data.review_data}
                             editableData={editableData.review_data}
                             schema={data.review_data_schema}
                             onDataChange={(newData) => handleDataChange('medicalReview', newData)}
                             suggestion={suggestionData?.review_data}
                             appliedSuggestions={appliedSuggestions.review}
-                            onApplySuggestion={(field, value) => handleApplySuggestion('review', { [field]: value })}
+                            onApplySuggestion={(field, value) => applySuggestion('review_data', field, value)}
                             onGetSuggestion={getSuggestion}
                             onSaveReview={() => handleSubmit('medicalReview')}
                             isGeneratingSuggestion={isSaving}
                             isSavingReview={isSaving}
-                            hasChanges={hasChanges}
+                            isMobile={isMobile}
+                        />
+                    )}
+                    {activeTab === 'suggestedQuestions' && (
+                        <SuggestedQuestionsTab
+                            questions={suggestedQuestions}
+                            isLoading={isQuestionsLoading}
+                            isMobile={isMobile}
                         />
                     )}
                 </Box>

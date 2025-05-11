@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ChakraProvider, Box, Grid, Text, Button, Input, Spinner,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
   FormControl,
   FormLabel,
   Select,
@@ -22,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from './api';
 import { Search } from 'lucide-react';
 import { AlertTriangle } from 'lucide-react';
+import AddPatientModal from './AddPatientModal';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -374,181 +368,24 @@ const Dashboard = () => {
                   {patients.length === 0 ? "Add Your First Patient" : "Add New Patient"}
                 </Button>
               </Flex>
-     {/* Add New Patient Modal */}
-     <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalOverlay backdropFilter="blur(4px)" />
-      <ModalContent borderRadius="xl" boxShadow="xl" maxW={{ base: "90%", md: "500px" }}>
-        <Box bgGradient="linear(to-r, blue.500, cyan.400)" borderTopRadius="xl" p={1}>
-          <ModalHeader color="white" fontSize="xl">
-            Add New Patient
-          </ModalHeader>
-        </Box>
-        <ModalCloseButton color="white" />
-        <ModalBody pt={6} pb={8} px={{ base: 4, md: 6 }}>
-          <Text mb={6} color="gray.600" fontWeight="medium">
-            Adding a new patient helps grow your practice and expand your healthcare reach.
-          </Text>
-          
-          <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4}>
-            <FormControl isRequired>
-              <FormLabel fontWeight="medium" color="gray.700">First Name</FormLabel>
-              <Input 
-                type="text"
-                placeholder="Enter first name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                borderRadius="md"
-                focusBorderColor="blue.400"
-                _hover={{ borderColor: "blue.300" }}
-                size="lg"
+              <AddPatientModal
+                isOpen={isOpen}
+                onClose={onClose}
+                phoneNumber={phoneNumber}
+                setPhoneNumber={setPhoneNumber}
+                firstName={firstName}
+                setFirstName={setFirstName}
+                lastName={lastName}
+                setLastName={setLastName}
+                chronicConditions={chronicConditions}
+                setChronicConditions={setChronicConditions}
+                customCondition={customCondition}
+                setCustomCondition={setCustomCondition}
+                handleAddPatient={handleAddPatient}
+                buttonVisible={buttonVisible}
+                message={message}
+                commonChronicConditions={commonChronicConditions}
               />
-            </FormControl>
-            
-            <FormControl isRequired>
-              <FormLabel fontWeight="medium" color="gray.700">Last Name</FormLabel>
-              <Input 
-                type="text"
-                placeholder="Enter last name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                borderRadius="md"
-                focusBorderColor="blue.400"
-                _hover={{ borderColor: "blue.300" }}
-                size="lg"
-              />
-            </FormControl>
-          </Grid>
-          
-          <FormControl isRequired mt={4}>
-            <FormLabel fontWeight="medium" color="gray.700">Phone Number</FormLabel>
-            <Input 
-              type="tel"
-              placeholder="Enter phone number in international format (e.g., +1234567890)"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              borderRadius="md"
-              focusBorderColor="blue.400"
-              _hover={{ borderColor: "blue.300" }}
-              size="lg"
-            />
-          </FormControl>
-          
-          <FormControl mt={4}>
-            <FormLabel fontWeight="medium" color="gray.700">Chronic Conditions</FormLabel>
-            <Box border="1px" borderColor="gray.200" borderRadius="md" p={2}>
-              {/* Selected conditions tags */}
-              <Flex wrap="wrap" mb={chronicConditions.length > 0 ? 2 : 0} gap={2}>
-                {chronicConditions.map((condition, index) => (
-                  <Badge 
-                    key={index} 
-                    colorScheme="blue" 
-                    borderRadius="full" 
-                    px={2} 
-                    py={1}
-                    display="flex"
-                    alignItems="center"
-                  >
-                    {condition}
-                    <Box 
-                      as="span" 
-                      ml={1} 
-                      cursor="pointer" 
-                      onClick={() => {
-                        const updatedConditions = [...chronicConditions];
-                        updatedConditions.splice(index, 1);
-                        setChronicConditions(updatedConditions);
-                      }}
-                    >
-                      ✕
-                    </Box>
-                  </Badge>
-                ))}
-              </Flex>
-              
-              {/* Dropdown for common conditions */}
-              <Select 
-                placeholder="Select or type a chronic condition" 
-                onChange={(e) => {
-                  if (e.target.value && !chronicConditions.includes(e.target.value)) {
-                    setChronicConditions([...chronicConditions, e.target.value]);
-                    e.target.value = ""; // Reset select after selection
-                  }
-                }}
-                focusBorderColor="blue.400"
-                border="none"
-                _focus={{ boxShadow: "none" }}
-              >
-                {commonChronicConditions.map((condition) => (
-                  <option key={condition.value} value={condition.value} disabled={chronicConditions.includes(condition.value)}>
-                    {condition.label}
-                  </option>
-                ))}
-              </Select>
-              
-              {/* Custom condition input */}
-              <Flex mt={2}>
-                <Input 
-                  placeholder="Add a custom condition"
-                  value={customCondition}
-                  onChange={(e) => setCustomCondition(e.target.value)}
-                  mr={2}
-                  size="md"
-                />
-                <Button 
-                  colorScheme="blue" 
-                  size="md"
-                  isDisabled={!customCondition.trim()}
-                  onClick={() => {
-                    if (customCondition.trim() && !chronicConditions.includes(customCondition.trim())) {
-                      setChronicConditions([...chronicConditions, customCondition.trim()]);
-                      setCustomCondition("");
-                    }
-                  }}
-                >
-                  Add
-                </Button>
-              </Flex>
-            </Box>
-            <Text fontSize="sm" color="gray.500" mt={1}>
-              Select from common conditions or add custom ones
-            </Text>
-          </FormControl>
-          
-          {message && (
-            <Box 
-              mt={4} 
-              p={3} 
-              borderRadius="md" 
-              bg="red.50" 
-              color="red.500" 
-              borderLeft="4px" 
-              borderColor="red.500"
-            >
-              <Text fontWeight="medium">{message}</Text>
-            </Box>
-          )}
-        </ModalBody>
-        <ModalFooter bg="gray.50" borderBottomRadius="xl" p={4}>
-          <Button 
-            colorScheme="blue" 
-            mr={3} 
-            onClick={handleAddPatient} 
-            isLoading={buttonVisible}
-            loadingText="Adding..."
-            size="lg"
-            px={8}
-            bgGradient="linear(to-r, blue.500, cyan.400)"
-            _hover={{
-              bgGradient: "linear(to-r, blue.600, cyan.500)",
-            }}
-            borderRadius="md"
-          >
-            Add Patient
-          </Button>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
                 
                 {loading ? (
                   <Flex direction="column" align="center" justify="center" minH="50vh">

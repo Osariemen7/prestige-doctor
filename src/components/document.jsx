@@ -138,9 +138,14 @@ function TabPanel(props) {
       id={`patient-tabpanel-${index}`}
       aria-labelledby={`patient-tab-${index}`}
       {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: { xs: 1, sm: 2 } }}>
+    >      {value === index && (
+        <Box sx={{ 
+          p: { xs: 1, sm: 2 },
+          display: 'flex',
+          flexDirection: 'column',
+          flexGrow: 1,
+          height: '100%'
+        }}>
           {children}
         </Box>
       )}
@@ -554,10 +559,13 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
 
     const applySuggestedComments = () => {
       handleFieldChange(['goal_data', 'goal_data', 'comments'], suggestedGoalData.comments_suggestion);
-    };
-
-    return (
-      <Box>
+    };    return (
+      <Box sx={{ 
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: '65vh' /* Ensure this tab content has adequate height */
+      }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">Headache Symptom Reduction Plan</Typography>
           <Box>
@@ -710,7 +718,9 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
             <Typography variant="h6" color="primary" gutterBottom>
               Loading patient information...
             </Typography>
-            <CircularProgress color="primary" />
+            <Box display="flex" justifyContent="center" alignItems="center" mt={2}>
+              <CircularProgress color="primary" />
+            </Box>
           </Box>
         </Box>
       </ThemeProvider>
@@ -752,7 +762,13 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
         </AppBar>
 
         {/* Tab Panels */}
-        <Container maxWidth="lg" sx={{ py: 2 }}>
+        <Container maxWidth="lg" sx={{ 
+          py: 2, 
+          display: 'flex', 
+          flexDirection: 'column',
+          flexGrow: 1,
+          minHeight: '75vh', /* Ensure container takes at least 75% of viewport height */
+        }}>
           {/* AI Suggestion Toggle */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
             <FormControlLabel
@@ -766,92 +782,100 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
               }
               label="AI Suggestions"
             />
-          </Box>
-
-          {/* Transcript Tab */}
+          </Box>          {/* Transcript Tab */}
           <TabPanel value={tabValue} index={0}>
             <Typography variant="h6" gutterBottom>Transcript Content</Typography>
-            <Paper sx={{ p: 3 }}>
+            <Paper sx={{ 
+              p: 3, 
+              display: 'flex', 
+              flexDirection: 'column',
+              flexGrow: 1,
+              minHeight: '65vh', /* Take up most of the available space */
+              overflow: 'auto' /* Add scrolling if content is too long */
+            }}>
               <Typography variant="body1">{transcript || "No transcript available"}</Typography>
             </Paper>
-          </TabPanel>
-
-          {/* Patient Profile Tab */}
+          </TabPanel>          {/* Patient Profile Tab */}
           <TabPanel value={tabValue} index={1}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Patient Profile</Typography>
-              <IconButton
-                onClick={() => handleCopyToClipboard('profile')}
-                size="small"
-                sx={{ color: 'text.secondary' }}
-              >
-                <FileCopyIcon fontSize="small" />
-              </IconButton>
+            <Box sx={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              minHeight: '65vh' /* Ensure this tab content has adequate height */
+            }}>              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">Patient Profile</Typography>
+                <IconButton
+                  onClick={() => handleCopyToClipboard('profile')}
+                  size="small"
+                  sx={{ color: 'text.secondary' }}
+                >
+                  <FileCopyIcon fontSize="small" />
+                </IconButton>
+              </Box>              <Grid container spacing={3}>
+                {[
+                  { title: "Demographics", field: "demographics" },
+                  { title: "Genetic Proxies", field: "genetic_proxies" },
+                  { title: "Lifestyle & Biometrics", field: "lifestyle" },
+                  { title: "Environment", field: "environment" },
+                  { title: "Clinical Status", field: "clinical_status" },
+                ].map((section) => (
+                  <Grid item xs={12} md={6} key={section.field}>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                        }
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle1"
+                        color="primary"
+                        gutterBottom
+                        sx={{ fontWeight: 500 }}
+                      >
+                        {section.title}
+                      </Typography>
+                      {renderEditableObject(
+                        editableData?.profile_data?.profile_data?.[section.field],
+                        ['profile_data', 'profile_data', section.field]
+                      )}
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
             </Box>
-            <Grid container spacing={3}>
-              {[
-                { title: "Demographics", field: "demographics" },
-                { title: "Genetic Proxies", field: "genetic_proxies" },
-                { title: "Lifestyle & Biometrics", field: "lifestyle" },
-                { title: "Environment", field: "environment" },
-                { title: "Clinical Status", field: "clinical_status" },
-              ].map((section) => (
-                <Grid item xs={12} md={6} key={section.field}>
+          </TabPanel>          {/* Health Goals Tab */}
+          <TabPanel value={tabValue} index={2}>
+            {renderHealthGoalsTab()}
+          </TabPanel>{/* Medical Review Tab */}
+          <TabPanel value={tabValue} index={3}>
+            <Box sx={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%', 
+              minHeight: '65vh' /* Ensure this tab content has adequate height */
+            }}>              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">Medical Review</Typography>
+                <IconButton
+                  onClick={() => handleCopyToClipboard('review')}
+                  size="small"
+                  sx={{ color: 'text.secondary' }}
+                >
+                  <FileCopyIcon fontSize="small" />
+                </IconButton>
+              </Box>              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
                   <Paper
                     variant="outlined"
                     sx={{
                       p: 2,
+                      mb: 2,
                       borderRadius: 2,
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                      }
-                    }}
-                  >
-                    <Typography
-                      variant="subtitle1"
-                      color="primary"
-                      gutterBottom
-                      sx={{ fontWeight: 500 }}
-                    >
-                      {section.title}
-                    </Typography>
-                    {renderEditableObject(
-                      editableData?.profile_data?.profile_data?.[section.field],
-                      ['profile_data', 'profile_data', section.field]
-                    )}
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          </TabPanel>
-
-          {/* Health Goals Tab */}
-          <TabPanel value={tabValue} index={2}>
-            {renderHealthGoalsTab()}
-          </TabPanel>
-
-          {/* Medical Review Tab */}
-          <TabPanel value={tabValue} index={3}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Medical Review</Typography>
-              <IconButton
-                onClick={() => handleCopyToClipboard('review')}
-                size="small"
-                sx={{ color: 'text.secondary' }}
-              >
-                <FileCopyIcon fontSize="small" />
-              </IconButton>
-            </Box>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    mb: 2,
-                    borderRadius: 2,
-                    borderLeft: '3px solid #4caf50'
+                      borderLeft: '3px solid #4caf50'
                   }}
                 >
                   <Typography
@@ -1012,9 +1036,9 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
             >
               {renderEditableObject(
                 editableData?.review_data?.doctor_note_data?.summary,
-                ['review_data', 'doctor_note_data', 'summary']
-              )}
+                ['review_data', 'doctor_note_data', 'summary']              )}
             </Paper>
+            </Box>
           </TabPanel>
         </Container>
 

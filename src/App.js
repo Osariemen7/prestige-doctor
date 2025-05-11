@@ -1,6 +1,7 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { ReviewProvider } from './components/context'; // Assuming the context file is the same
+import { ParallaxProvider } from 'react-scroll-parallax';
 
 // Import your components
 import RegisterPage from './components/register';
@@ -26,43 +27,43 @@ import SearchBox from './components/ask';
 import PaymentForm from './components/payment';
 import PatientMessages from './components/PatientMessages';
 import ForgotPassword from './components/ForgotPassword'; // New import
-import LandingPage from './components/LandingPage'; // Import the new landing page
+import LandingPageNew from './components/LandingPageNew'; // Import the new landing page
 import PatientUpdate from './components/patientUpdate'; // New import
 
 
 const App = () => {
   return (
-    
-    <ReviewProvider>
-      <div className="app-container">
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/provider" element={<ProviderPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/detail" element={<DetailPage />} />
-          <Route path="/consult-ai" element={<ConsultAIPage />} />
-          <Route path="/organization" element={<Organization />} />
-          <Route path='/account' element={<Account />} />
-          <Route path='/appointment' element={<Voice />} />
-          <Route path='/doctor' element={<DocDash />} />
-          <Route path='/call' element={<Call />} />
-          <Route path='/show' element={<Document />} />
-          <Route path='/talk' element= {<Talk />} />
-          <Route path='/health' element={<HealthDashboard />} />
-          <Route path='/virtual' element={<Va />} />
-          <Route path='/available' element={<AvailabilitySelector />} />
-          <Route path='/setting' element={<SettingPage />} />
-          <Route path='/ask' element={<SearchBox />} />
-          <Route path='/payment' element={<PaymentForm />} />
-          <Route path="/patient-messages" element={<PatientMessages />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
-          <Route path="/patient-update" element={<PatientUpdate />} />
-        </Routes>
-      </div>
-    </ReviewProvider>
-  
+    <ParallaxProvider>
+      <ReviewProvider>
+        <div className="app-container">
+          <Routes>
+            <Route path="/" element={<LandingPageNew />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/provider" element={<ProviderPage />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/detail" element={<DetailPage />} />
+            <Route path="/consult-ai" element={<ConsultAIPage />} />
+            <Route path="/organization" element={<Organization />} />
+            <Route path='/account' element={<Account />} />
+            <Route path='/appointment' element={<Voice />} />
+            <Route path='/doctor' element={<DocDash />} />
+            <Route path='/call' element={<Call />} />
+            <Route path='/show' element={<Document />} />
+            <Route path='/talk' element= {<Talk />} />
+            <Route path='/health' element={<HealthDashboard />} />
+            <Route path='/virtual' element={<Va />} />
+            <Route path='/available' element={<AvailabilitySelector />} />
+            <Route path='/setting' element={<SettingPage />} />
+            <Route path='/ask' element={<SearchBox />} />
+            <Route path='/payment' element={<PaymentForm />} />
+            <Route path="/patient-messages" element={<PatientMessages />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
+            <Route path="/patient-update" element={<PatientUpdate />} />
+          </Routes>
+        </div>
+      </ReviewProvider>
+    </ParallaxProvider>
   );
 };
 

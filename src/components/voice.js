@@ -15,8 +15,6 @@ const Voice = () => {
     const [searchParams] = useSearchParams();
     const chanel = searchParams.get("channel");
 
-  
-
     const [vid, setVid] = useState(false)
     const [isJoined, setIsJoined] = useState(false);
     const [remoteAudioTracks, setRemoteAudioTracks] = useState([]);
@@ -37,6 +35,7 @@ const Voice = () => {
     const [transcript, setTranscript] = useState('');
     const [assemblyAiToken, setAssemblyAiToken] = useState('');
     const assemblyWsRef = useRef(null);
+    const wsClosingForResumeRef = useRef(false);
     let transcriptionInterval = null;
 
     const [isSaving, setIsSaving] = useState(false);
@@ -59,6 +58,7 @@ const Voice = () => {
     const client = createClient({ mode: 'rtc', codec: 'vp8' });
 
     const [connectionState, setConnectionState] = useState('DISCONNECTED');
+    const [isPaused, setIsPaused] = useState(false);
 
     const getSuggestion = async () => {
         if (isGettingSuggestion.current) return;
@@ -372,7 +372,36 @@ const Voice = () => {
         return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
-    // Add transcription WebSocket connection
+    const pauseTranscription = () => {
+        getSuggestion();
+        setIsPaused(true);
+        if (assemblyWsRef.current && assemblyWsRef.current.readyState === WebSocket.OPEN) {
+            const socketBeingPaused = assemblyWsRef.current;
+            socketBeingPaused.onclose = () => {
+                if (assemblyWsRef.current === socketBeingPaused) {
+                    assemblyWsRef.current = null;
+                }
+            };
+            socketBeingPaused.close(1000, "User paused transcription");
+        }
+    };
+
+    const resumeTranscription = () => {
+        setIsPaused(false);
+        if (assemblyWsRef.current) {
+            wsClosingForResumeRef.current = true;
+            assemblyWsRef.current.onclose = null;
+            assemblyWsRef.current.close(1000, "Closing old WebSocket before resume");
+            assemblyWsRef.current = null;
+            setTimeout(() => {
+                wsClosingForResumeRef.current = false;
+            }, 200);
+        }
+        setTimeout(() => {
+            connectWebSocket();
+        }, 300);
+    };
+
     const connectWebSocket = async () => {
 
         if (!assemblyAiToken) {
@@ -396,19 +425,39 @@ const Voice = () => {
             console.error('WebSocket error:', error);
         };
 
-        assemblyWsRef.current.onclose = () => {
-            console.log('WebSocket closed');
-            setIsRecording(false);
-            // Clear suggestion interval when WebSocket closes
-            if (timerId?.suggestionInterval) {
-                clearInterval(timerId.suggestionInterval);
+        assemblyWsRef.current.onclose = (event) => {
+            const currentWs = assemblyWsRef.current;
+            if (wsClosingForResumeRef.current) {
+                wsClosingForResumeRef.current = false;
+                if (currentWs === assemblyWsRef.current) {
+                    assemblyWsRef.current = null;
+                }
+                return;
+            }
+            if (isPaused) {
+                return;
+            } else {
+                stopTimer();
+                setIsRecording(false);
+            }
+            if (currentWs === assemblyWsRef.current) {
+                assemblyWsRef.current = null;
             }
         };
 
-        assemblyWsRef.current.onmessage = (message) => {
-
+        assemblyWsRef.current.onmessage = (event) => {
             try {
-                const data = JSON.parse(message.data);
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    if (data.error === "Session idle for too long") {
+                        setConnectionState('DISCONNECTED');
+                        setIsRecording(false);
+                        setTimeout(() => {
+                            connectWebSocket();
+                        }, 1000);
+                        return;
+                    }
+                }
                 if (data.message_type === 'FinalTranscript') {
                     console.log('Received transcript:', data.text);
                     setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
@@ -419,8 +468,6 @@ const Voice = () => {
         };
     };
 
-    // Add WebSocket connection and transcription function
-    
     // Cleanup on unmount
     useEffect(() => {
         return () => {

@@ -21,6 +21,19 @@ export const muiTheme = createTheme({
       secondary: '#4b5563',
     }
   },
+  components: {
+    MuiCircularProgress: {
+      styleOverrides: {
+        root: {
+          display: 'inline-block',
+          color: '#2563eb'
+        },
+        circle: {
+          strokeLinecap: 'round',
+        }
+      }
+    }
+  },
   globalStyles: {
     '@keyframes fadeIn': {
       from: { opacity: 0 },

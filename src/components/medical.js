@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Paper, Typography, Grid, TextField, Button, Box, IconButton, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Paper, Typography, Grid, TextField, Button, Box, IconButton, FormControl, InputLabel, Select, MenuItem, useMediaQuery } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import format from 'date-fns/format';
@@ -10,11 +10,35 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
-function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, appliedSuggestions, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges, onSaveReview /* new prop */ }) {
+// Helper function to safely format date strings
+const safeFormatDateString = (dateString, options = { year: 'numeric', month: 'long', day: 'numeric' }) => {
+    if (!dateString) {
+        return 'N/A';
+    }
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+        return dateString;
+    }
+    return date.toLocaleDateString(undefined, options);
+};
+
+// Helper function to safely format time strings
+const safeFormatTimeString = (dateString, options = { hour: '2-digit', minute: '2-digit' }) => {
+    if (!dateString) {
+        return 'N/A';
+    }
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+        return dateString;
+    }
+    return date.toLocaleTimeString(undefined, options);
+};
+
+function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, appliedSuggestions, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges, onSaveReview /* new prop */, assessmentRef, isMobile }) {
     // Initialize localData state - similar to HealthGoalsTab, initialize with editableData or data
     const [localData, setLocalData] = useState(() => {
         return editableData || data || {
-            subjective: { chief_complaint: '', history_of_present_illness: '' },
+            subjective: { chief_complaint: '', history_of_present_illness: '', review_of_systems: '' },
             objective: { examination_findings: '', investigations: '' },
             assessment: { primary_diagnosis: '', differential_diagnosis: '', diagnosis_reasoning: '', status: '' },
             plan: { management: '', lifestyle_advice: '', follow_up: '', patient_education: '', treatment_goal: '', plan_reasoning: '' },
@@ -25,6 +49,15 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
         };
     });
     const [isEditing, setIsEditing] = useState(false);
+
+    // Log suggestion data for debugging
+    useEffect(() => {
+        if (suggestion) {
+            console.log("MedicalReviewTab received suggestion data:", suggestion);
+            console.log("Prescription suggestions:", suggestion.prescription_suggestion);
+            console.log("Investigation suggestions:", suggestion.investigation_suggestion);
+        }
+    }, [suggestion]);
 
     // useEffect to synchronize localData with editableData and data based on isEditing state
     useEffect(() => {
@@ -153,6 +186,12 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                 updatedData.plan = {...updatedData.plan, [subField]: value};
             } else if (field === 'next_review') {
                 updatedData.next_review = value;
+            } else if (field === 'prescription_suggestion') {
+                // Handle prescription array suggestion
+                updatedData.prescription = Array.isArray(value) ? [...value] : updatedData.prescription;
+            } else if (field === 'investigation_suggestion') {
+                // Handle investigation array suggestion
+                updatedData.investigation = Array.isArray(value) ? [...value] : updatedData.investigation;
             }
             return updatedData;
         });
@@ -163,17 +202,18 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
     const handleCopyReview = () => {
         const reviewText = formatReviewForEMR(localData); // Use localData directly for formatting
         navigator.clipboard.writeText(reviewText).then(() => {
-            alert('Medical Review copied to clipboard!');
+            alert('Doctor Note copied to clipboard!');
         });
     };
 
     const formatReviewForEMR = (reviewData) => { // Now directly accepts reviewData which is localData
-        let emrText = "MEDICAL REVIEW:\n";
+        let emrText = "DOCTOR NOTE:\n";
 
         if (reviewData.subjective) {
             emrText += "\nSUBJECTIVE:\n";
             emrText += `  Chief Complaint: ${reviewData.subjective.chief_complaint || ''}\n`;
             emrText += `  History of Present Illness: ${reviewData.subjective.history_of_present_illness || ''}\n`;
+            emrText += `  Review of Systems: ${reviewData.subjective.review_of_systems || ''}\n`;
         }
 
         if (reviewData.objective) {
@@ -216,19 +256,163 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                 emrText += `  ${index + 1}. ${investigation.test_type || ''}\n`;
                 emrText += `     Reason: ${investigation.reason || ''}\n`;
                 emrText += `     Instructions: ${investigation.instructions || ''}\n`;
-                emrText += `     Schedule: ${investigation.schedule_time ? format(new Date(investigation.schedule_time), 'MM/dd/yyyy HH:mm') : ''}\n`;
+                emrText += `     Schedule: ${safeFormatDateString(investigation.schedule_time)} ${safeFormatTimeString(investigation.schedule_time)}\n`;
             });
         }
 
         if (reviewData.next_review) {
-            emrText += `\nNEXT REVIEW: ${reviewData.next_review ? format(new Date(reviewData.next_review), 'MM/dd/yyyy HH:mm') : ''}\n`;
+            emrText += `\nNEXT REVIEW: ${safeFormatDateString(reviewData.next_review)} ${safeFormatTimeString(reviewData.next_review)}\n`;
         }
 
         return emrText;
     };
 
+    // New function to render prescription suggestions
+    const renderPrescriptionSuggestions = () => {
+        if (!suggestion?.prescription_suggestion || 
+            !Array.isArray(suggestion.prescription_suggestion) || 
+            suggestion.prescription_suggestion.length === 0 ||
+            appliedSuggestions?.prescription_suggestion) {
+            return null;
+        }
+        
+        return (
+            <Box sx={{
+                border: '1px solid #f0f0b8',
+                borderRadius: 1,
+                p: 2,
+                mb: 4, // Increased bottom margin from 3 to 4
+                bgcolor: '#ffffd7'
+            }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#5c5c00' }}>
+                        AI Suggested Prescriptions ({suggestion.prescription_suggestion.length})
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        onClick={() => handleLocalApplySuggestion('prescription_suggestion', suggestion.prescription_suggestion)}
+                    >
+                        Apply All
+                    </Button>
+                </Box>
+                {suggestion.prescription_suggestion.map((prescriptionSuggestion, idx) => (
+                    <Box key={idx} sx={{ 
+                        mb: 3, // Increased from 2 to 3
+                        p: 2, // Increased from 1.5 to 2
+                        bgcolor: '#fffff0',
+                        borderRadius: 1,
+                        border: '1px dashed #d6d68c'
+                    }}>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" color="text.secondary">Medication Name</Typography>
+                                <Typography variant="body1">{prescriptionSuggestion.medication_name || ''}</Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" color="text.secondary">Dosage</Typography>
+                                <Typography variant="body1">{prescriptionSuggestion.dosage || ''}</Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" color="text.secondary">Route</Typography>
+                                <Typography variant="body1">{prescriptionSuggestion.route || ''}</Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" color="text.secondary">Interval</Typography>
+                                <Typography variant="body1">{prescriptionSuggestion.interval || ''} hours</Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" color="text.secondary">End Date</Typography>
+                                <Typography variant="body1">{prescriptionSuggestion.end_date || ''}</Typography>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
+                                <Typography variant="body1">{prescriptionSuggestion.instructions || ''}</Typography>
+                            </Grid>
+                        </Grid>
+                    </Box>
+                ))}
+            </Box>
+        );
+    };
+
+    // New function to render investigation suggestions
+    const renderInvestigationSuggestions = () => {
+        if (!suggestion?.investigation_suggestion || 
+            !Array.isArray(suggestion.investigation_suggestion) || 
+            suggestion.investigation_suggestion.length === 0 ||
+            appliedSuggestions?.investigation_suggestion) {
+            return null;
+        }
+        
+        return (
+            <Box sx={{
+                border: '1px solid #f0f0b8',
+                borderRadius: 1,
+                p: 2,
+                mb: 4, // Increased bottom margin from 3 to 4
+                bgcolor: '#ffffd7'
+            }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#5c5c00' }}>
+                        AI Suggested Investigations ({suggestion.investigation_suggestion.length})
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        onClick={() => handleLocalApplySuggestion('investigation_suggestion', suggestion.investigation_suggestion)}
+                    >
+                        Apply All
+                    </Button>
+                </Box>
+                {suggestion.investigation_suggestion.map((investigationSuggestion, idx) => (
+                    <Box key={idx} sx={{ 
+                        mb: 3, // Increased from 2 to 3
+                        p: 2, // Increased from 1.5 to 2
+                        bgcolor: '#fffff0',
+                        borderRadius: 1,
+                        border: '1px dashed #d6d68c'
+                    }}>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" color="text.secondary">Test Type</Typography>
+                                <Typography variant="body1">{investigationSuggestion.test_type || ''}</Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" color="text.secondary">Schedule Time</Typography>
+                                <Typography variant="body1">
+                                    {investigationSuggestion.schedule_time ? 
+                                     `${safeFormatDateString(investigationSuggestion.schedule_time)} ${safeFormatTimeString(investigationSuggestion.schedule_time)}` : ''}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Typography variant="subtitle2" color="text.secondary">Reason</Typography>
+                                <Typography variant="body1">{investigationSuggestion.reason || ''}</Typography>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
+                                <Typography variant="body1">{investigationSuggestion.instructions || ''}</Typography>
+                            </Grid>
+                        </Grid>
+                    </Box>
+                ))}
+            </Box>
+        );
+    };
+
     const renderSuggestionItem = (suggestionValue, currentValue, applySuggestionHandler, fieldName) => {
-        if (suggestionValue && suggestionValue !== currentValue && !appliedSuggestions[fieldName]) {
+        // Only show suggestion if:
+        // 1. suggestionValue exists and is not empty
+        // 2. suggestionValue is different from currentValue
+        // 3. This specific suggestion hasn't been applied yet
+        if (suggestionValue !== undefined && 
+            suggestionValue !== null && 
+            suggestionValue !== '' && 
+            suggestionValue !== currentValue && 
+            !appliedSuggestions?.[fieldName]) {
+            
             return (
                 <Box sx={{
                     mt: 1,
@@ -254,18 +438,34 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             );
         }
         return null;
-    };
-
-    return (
-        <Paper elevation={2} sx={{ padding: 3, mt: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h5" gutterBottom>Medical Review</Typography>
-                <Box>
+    };    return (
+        <Paper elevation={2} sx={{ 
+            padding: isMobile ? 2 : 3, 
+            mt: 2,
+            pb: isMobile ? 6 : 8 // Add extra bottom padding to avoid overlap with bottom tabs
+        }}>
+            <Box sx={{ 
+                display: 'flex', 
+                flexDirection: isMobile ? 'column' : 'row',
+                justifyContent: 'space-between', 
+                alignItems: isMobile ? 'flex-start' : 'center', 
+                mb: 2 
+            }}>
+                <Typography variant="h5" gutterBottom={isMobile ? false : true}>Doctor Note</Typography>
+                <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: isMobile ? 'column' : 'row',
+                    width: isMobile ? '100%' : 'auto',
+                    gap: isMobile ? 1 : 0,
+                    mt: isMobile ? 1 : 0
+                }}>
                     <Button
                         variant="outlined"
                         startIcon={<ContentCopyIcon />}
                         onClick={handleCopyReview}
-                        sx={{ mr: 1 }}
+                        sx={{ mr: isMobile ? 0 : 1 }}
+                        size={isMobile ? "small" : "medium"}
+                        fullWidth={isMobile}
                     >
                         Copy Note
                     </Button>
@@ -276,16 +476,25 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             onClick={startEditing}
                             startIcon={<EditIcon />}
                             disabled={isGeneratingSuggestion}
+                            size={isMobile ? "small" : "medium"}
+                            fullWidth={isMobile}
                         >
                             Edit Note
                         </Button>
                     ) : (
-                        <Box>
+                        <Box sx={{
+                            display: 'flex',
+                            flexDirection: isMobile ? 'column' : 'row',
+                            width: isMobile ? '100%' : 'auto',
+                            gap: isMobile ? 1 : 0
+                        }}>
                             <Button
                                 variant="outlined"
                                 startIcon={<VisibilityIcon />}
                                 onClick={cancelEditing}
-                                sx={{ mr: 1 }}
+                                sx={{ mr: isMobile ? 0 : 1 }}
+                                size={isMobile ? "small" : "medium"}
+                                fullWidth={isMobile}
                             >
                                 View Note
                             </Button>
@@ -293,6 +502,8 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 variant="contained"
                                 color="primary"
                                 onClick={saveChanges}
+                                size={isMobile ? "small" : "medium"}
+                                fullWidth={isMobile}
                                 startIcon={<SaveIcon />}
                                 disabled={isSavingReview}
                             >
@@ -300,13 +511,11 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             </Button>
                         </Box>
                     )}
-
                 </Box>
             </Box>
-
             {/* Subjective Section */}
-            <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>Subjective</Typography>
-            <Grid container spacing={2}>
+            <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1, fontSize: isMobile ? '1rem' : '1.25rem' }}>Subjective</Typography>
+            <Grid container spacing={isMobile ? 1 : 2}>
                 <Grid item xs={12}>
                     {!isEditing ? (
                         <>
@@ -343,11 +552,29 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         />
                     )}
                 </Grid>
+                <Grid item xs={12}>
+                    {!isEditing ? (
+                        <>
+                            <Typography variant="subtitle2" color="text.secondary">Review of Systems</Typography>
+                            <Typography variant="body1">{localData.subjective?.review_of_systems || ''}</Typography>
+                        </>
+                    ) : (
+                        <TextField
+                            label="Review of Systems"
+                            fullWidth
+                            margin="normal"
+                            multiline
+                            rows={3}
+                            value={localData.subjective?.review_of_systems || ''}
+                            onChange={(e) => handleNestedInputChange('subjective', 'review_of_systems', e.target.value)}
+                            variant="outlined"
+                        />
+                    )}
+                </Grid>
             </Grid>
-
             {/* Objective Section */}
-            <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>Objective</Typography>
-            <Grid container spacing={2}>
+            <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1, fontSize: isMobile ? '1rem' : '1.25rem' }}>Objective</Typography>
+            <Grid container spacing={isMobile ? 1 : 2}>
                 <Grid item xs={12} md={6}>
                     {!isEditing ? (
                         <>
@@ -387,16 +614,19 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     )}
                 </Grid>
             </Grid>
-
             {/* Assessment Section */}
-            <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>Assessment</Typography>
-            <Grid container spacing={2}>
+            <Typography
+                variant="h6"
+                sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1, fontSize: isMobile ? '1rem' : '1.25rem' }}
+                ref={assessmentRef}
+            >Assessment</Typography>
+            <Grid container spacing={isMobile ? 1 : 2}>
                 <Grid item xs={12} md={6}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Primary Diagnosis</Typography>
                             <Typography variant="body1">{localData.assessment?.primary_diagnosis || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.primary_diagnosis,
                                 localData.assessment?.primary_diagnosis,
                                 handleLocalApplySuggestion, // Use local handler
@@ -427,7 +657,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Differential Diagnosis</Typography>
                             <Typography variant="body1">{localData.assessment?.differential_diagnosis || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.differential_diagnosis,
                                 localData.assessment?.differential_diagnosis,
                                 handleLocalApplySuggestion, // Use local handler
@@ -444,7 +674,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 onChange={(e) => handleNestedInputChange('assessment', 'differential_diagnosis', e.target.value)}
                                 variant="outlined"
                             />
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.differential_diagnosis,
                                 localData.assessment?.differential_diagnosis,
                                 handleLocalApplySuggestion, // Use local handler
@@ -458,7 +688,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Diagnosis Reasoning</Typography>
                             <Typography variant="body1">{localData.assessment?.diagnosis_reasoning || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.diagnosis_reasoning,
                                 localData.assessment?.diagnosis_reasoning,
                                 handleLocalApplySuggestion, // Use local handler
@@ -476,8 +706,8 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 value={localData.assessment?.diagnosis_reasoning || ''}
                                 onChange={(e) => handleNestedInputChange('assessment', 'diagnosis_reasoning', e.target.value)}
                                 variant="outlined"
-                             />
-                             {renderSuggestionItem(
+                            />
+                            {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.diagnosis_reasoning,
                                 localData.assessment?.diagnosis_reasoning,
                                 handleLocalApplySuggestion, // Use local handler
@@ -491,7 +721,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Status</Typography>
                             <Typography variant="body1">{localData.assessment?.status || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.status,
                                 localData.assessment?.status,
                                 handleLocalApplySuggestion, // Use local handler
@@ -515,7 +745,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                     <MenuItem value="unknown">Unknown</MenuItem>
                                 </Select>
                             </FormControl>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.assessment_suggestion?.status,
                                 localData.assessment?.status,
                                 handleLocalApplySuggestion, // Use local handler
@@ -525,16 +755,15 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     )}
                 </Grid>
             </Grid>
-
             {/* Plan Section */}
-            <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1 }}>Plan</Typography>
-            <Grid container spacing={2}>
+            <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1, fontSize: isMobile ? '1rem' : '1.25rem' }}>Plan</Typography>
+            <Grid container spacing={isMobile ? 1 : 2}>
                 <Grid item xs={12}>
                     {!isEditing ? (
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Management</Typography>
                             <Typography variant="body1">{localData.plan?.management || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.management,
                                 localData.plan?.management,
                                 handleLocalApplySuggestion, // Use local handler
@@ -553,7 +782,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 onChange={(e) => handleNestedInputChange('plan', 'management', e.target.value)}
                                 variant="outlined"
                             />
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.management,
                                 localData.plan?.management,
                                 handleLocalApplySuggestion, // Use local handler
@@ -567,7 +796,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Lifestyle Advice</Typography>
                             <Typography variant="body1">{localData.plan?.lifestyle_advice || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.lifestyle_advice,
                                 localData.plan?.lifestyle_advice,
                                 handleLocalApplySuggestion, // Use local handler
@@ -585,8 +814,8 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 value={localData.plan?.lifestyle_advice || ''}
                                 onChange={(e) => handleNestedInputChange('plan', 'lifestyle_advice', e.target.value)}
                                 variant="outlined"
-                             />
-                             {renderSuggestionItem(
+                            />
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.lifestyle_advice,
                                 localData.plan?.lifestyle_advice,
                                 handleLocalApplySuggestion, // Use local handler
@@ -600,7 +829,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Follow Up</Typography>
                             <Typography variant="body1">{localData.plan?.follow_up || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.follow_up,
                                 localData.plan?.follow_up,
                                 handleLocalApplySuggestion, // Use local handler
@@ -617,7 +846,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 onChange={(e) => handleNestedInputChange('plan', 'follow_up', e.target.value)}
                                 variant="outlined"
                             />
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.follow_up,
                                 localData.plan?.follow_up,
                                 handleLocalApplySuggestion, // Use local handler
@@ -631,9 +860,9 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Next Review</Typography>
                             <Typography variant="body1">
-                                {localData.next_review ? format(new Date(localData.next_review), 'MMMM d, yyyy HH:mm') : ''}
+                                {localData.next_review ? `${safeFormatDateString(localData.next_review)} ${safeFormatTimeString(localData.next_review)}` : ''}
                             </Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.next_review_suggestion,
                                 localData.next_review,
                                 handleLocalApplySuggestion, // Use local handler
@@ -652,7 +881,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 InputLabelProps={{ shrink: true }}
                                 variant="outlined"
                             />
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.next_review_suggestion,
                                 localData.next_review,
                                 handleLocalApplySuggestion, // Use local handler
@@ -666,7 +895,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Patient Education</Typography>
                             <Typography variant="body1">{localData.plan?.patient_education || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.patient_education,
                                 localData.plan?.patient_education,
                                 handleLocalApplySuggestion, // Use local handler
@@ -685,7 +914,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 onChange={(e) => handleNestedInputChange('plan', 'patient_education', e.target.value)}
                                 variant="outlined"
                             />
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.patient_education,
                                 localData.plan?.patient_education,
                                 handleLocalApplySuggestion, // Use local handler
@@ -699,7 +928,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Treatment Goal</Typography>
                             <Typography variant="body1">{localData.plan?.treatment_goal || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.treatment_goal,
                                 localData.plan?.treatment_goal,
                                 handleLocalApplySuggestion, // Use local handler
@@ -716,7 +945,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 onChange={(e) => handleNestedInputChange('plan', 'treatment_goal', e.target.value)}
                                 variant="outlined"
                             />
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.treatment_goal,
                                 localData.plan?.treatment_goal,
                                 handleLocalApplySuggestion, // Use local handler
@@ -730,7 +959,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         <>
                             <Typography variant="subtitle2" color="text.secondary">Plan Reasoning</Typography>
                             <Typography variant="body1">{localData.plan?.plan_reasoning || ''}</Typography>
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.plan_reasoning,
                                 localData.plan?.plan_reasoning,
                                 handleLocalApplySuggestion, // Use local handler
@@ -749,7 +978,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 onChange={(e) => handleNestedInputChange('plan', 'plan_reasoning', e.target.value)}
                                 variant="outlined"
                             />
-                             {renderSuggestionItem(
+                            {renderSuggestionItem(
                                 suggestion?.plan_suggestion?.plan_reasoning,
                                 localData.plan?.plan_reasoning,
                                 handleLocalApplySuggestion, // Use local handler
@@ -759,29 +988,30 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     )}
                 </Grid>
             </Grid>
-
             {/* Prescriptions Section */}
             <Box sx={{ mt: 4, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6">Prescriptions</Typography>
+                <Typography variant="h6" sx={{ fontSize: isMobile ? '1rem' : '1.25rem' }}>Prescriptions</Typography>
                 {isEditing && (
                     <Button
                         startIcon={<AddCircleOutlineIcon />}
                         onClick={handleAddPrescription}
                         variant="outlined"
-                        size="small"
+                        size={isMobile ? "small" : "medium"}
                     >
                         Add Prescription
                     </Button>
                 )}
             </Box>
 
+            {/* Render prescription suggestions if available */}
+            {renderPrescriptionSuggestions()}
             {localData?.prescription && localData.prescription.length > 0 ? (
                 localData.prescription.map((prescription, index) => (
                     <Box key={index} sx={{
                         border: '1px solid #eee',
                         borderRadius: 1,
-                        p: 2,
-                        mb: 2,
+                        p: 2.5, // Increased from 2 to 2.5
+                        mb: 3, // Increased from 2 to 3
                         position: 'relative'
                     }}>
                         {isEditing && (
@@ -847,7 +1077,8 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 )}
                             </Grid>
                             <Grid item xs={12} md={6}>
-                                {  !isEditing ? (                                  <>
+                                {!isEditing ? (
+                                    <>
                                         <Typography variant="subtitle2" color="text.secondary">Frequency</Typography>
                                         <Typography variant="body1">{prescription?.frequency || ''}</Typography>
                                     </>
@@ -900,33 +1131,34 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     </Box>
                 ))
             ) : (
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 5 }}> {/* Increased from mb: 3 to mb: 5 */}
                     No prescriptions added.
                 </Typography>
             )}
-
             {/* Investigations Section */}
             <Box sx={{ mt: 4, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6">Investigations</Typography>
+                <Typography variant="h6" sx={{ fontSize: isMobile ? '1rem' : '1.25rem' }}>Investigations</Typography>
                 {isEditing && (
                     <Button
                         startIcon={<AddCircleOutlineIcon />}
                         onClick={handleAddInvestigation}
                         variant="outlined"
-                        size="small"
+                        size={isMobile ? "small" : "medium"}
                     >
                         Add Investigation
                     </Button>
                 )}
             </Box>
 
+            {/* Render investigation suggestions if available */}
+            {renderInvestigationSuggestions()}
             {localData?.investigation && localData.investigation.length > 0 ? (
                 localData.investigation.map((investigation, index) => (
                     <Box key={index} sx={{
                         border: '1px solid #eee',
                         borderRadius: 1,
-                        p: 2,
-                        mb: 2,
+                        p: 2.5, // Increased from 2 to 2.5
+                        mb: 3, // Increased from 2 to 3
                         position: 'relative'
                     }}>
                         {isEditing && (
@@ -962,7 +1194,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                     <>
                                         <Typography variant="subtitle2" color="text.secondary">Schedule Time</Typography>
                                         <Typography variant="body1">
-                                            {investigation.schedule_time ? format(new Date(investigation.schedule_time), 'MMMM d, yyyy HH:mm') : ''}
+                                            {investigation.schedule_time ? `${safeFormatDateString(investigation.schedule_time)} ${safeFormatTimeString(investigation.schedule_time)}` : ''}
                                         </Typography>
                                     </>
                                 ) : (
@@ -1018,7 +1250,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     </Box>
                 ))
             ) : (
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 5 }}> {/* Increased from mb: 3 to mb: 5 */}
                     No investigations added.
                 </Typography>
             )}

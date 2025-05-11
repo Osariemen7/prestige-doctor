@@ -28,7 +28,9 @@ import {
   FormControl,
   Select,
   ImageList,
-  ImageListItem
+  ImageListItem,
+  Modal,
+  Backdrop
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -37,10 +39,12 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import ImageIcon from '@mui/icons-material/Image'; // Import ImageIcon
+import ImageIcon from '@mui/icons-material/Image';
+import CancelIcon from '@mui/icons-material/Cancel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAccessToken } from './api';
+import './chatScreen.css'; // Import chat screen styles
 
 // Custom theme with better color palette
 const theme = createTheme({
@@ -160,30 +164,29 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
         border: '1px solid rgba(209, 213, 219, 0.5)',
         boxShadow: 'none',
       }}
-    >
-      <AccordionSummary
+    >      <AccordionSummary
         expandIcon={
-          <ExpandMoreIcon sx={{ color: theme.palette.primary.main, fontSize: '1.2rem' }} />
+          <ExpandMoreIcon sx={{ color: theme.palette.primary.main, fontSize: { xs: '1rem', sm: '1.2rem' } }} />
         }
         sx={{
-          padding: '0 8px',
-          minHeight: '36px',
+          padding: { xs: '0 6px', sm: '0 8px' },
+          minHeight: { xs: '32px', sm: '36px' },
           '& .MuiAccordionSummary-content': {
-            margin: '6px 0',
+            margin: { xs: '4px 0', sm: '6px 0' },
           }
         }}
       >
         <Typography
           variant="subtitle2"
           sx={{
-            fontSize: '0.75rem',
+            fontSize: { xs: '0.7rem', sm: '0.75rem' },
             color: theme.palette.text.secondary,
             display: 'flex',
             alignItems: 'center',
             gap: 0.5,
           }}
         >
-          <MenuBookIcon sx={{ fontSize: '1rem' }} />
+          <MenuBookIcon sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }} />
           {expanded ? 'Hide Reasoning Process' : 'Show Reasoning Process'}
         </Typography>
       </AccordionSummary>
@@ -215,6 +218,7 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
 // ----------------------------------------------------
 const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesToggle, isLatest }) => {
   const isUser = chat.role === 'user';
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Extract <think> block from the assistant's response, if any
   const extractThinkContent = (text) => {
@@ -225,22 +229,24 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
   };
 
   return (
-    <Fade in={true} timeout={300}>
-      <ListItem
+    <Fade in={true} timeout={300}>        <ListItem
         alignItems="flex-start"
         sx={{
           flexDirection: isUser ? 'row-reverse' : 'row',
-          gap: 1.5,
-          padding: '8px 0',
+          gap: { xs: 0.5, sm: 1 },
+          padding: { xs: '2px 0', sm: '8px 0' },
+          width: '100%',
+          position: 'relative', // Add relative positioning for containing content
         }}
       >
         {/* Avatar for sender */}
         <Avatar
           sx={{
-            width: 36,
-            height: 36,
+            width: { xs: 30, sm: 36 },
+            height: { xs: 30, sm: 36 },
             bgcolor: isUser ? 'primary.light' : 'secondary.light',
             mt: 0.5,
+            display: { xs: 'none', sm: 'flex' },
           }}
         >
           {isUser ? <PersonIcon /> : <SmartToyIcon />}
@@ -251,30 +257,35 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
           sx={{
             display: 'flex',
             flexDirection: 'column',
-             width: '100%',
+            width: { xs: '95%', sm: '100%' },
+            maxWidth: '100%',
+            position: 'relative', // Ensure proper nesting of recommendations
+            overflow: 'hidden', // Prevent content from overflowing
           }}
         >
-          {/* Message bubble */}
-          <Paper
-              elevation={0}
-    sx={{
-        p: 2,
-        borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-        backgroundColor: isUser ? 'primary.light' : 'grey.100',
-        color: isUser ? 'white' : 'text.primary',
-        position: 'relative',
-        wordBreak: 'break-word',
-        maxWidth: '100%',
-        minWidth: '50px' // Added minWidth to prevent layout issues with images
-    }}
+          {/* Message bubble */}          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 1.5, sm: 2 },
+              borderRadius: isUser 
+                ? { xs: '16px 16px 4px 16px', sm: '18px 18px 4px 18px' }
+                : { xs: '16px 16px 16px 4px', sm: '18px 18px 18px 4px' },
+              backgroundColor: isUser ? 'primary.light' : 'grey.100',
+              color: isUser ? 'white' : 'text.primary',
+              position: 'relative',
+              wordBreak: 'break-word',
+              maxWidth: { xs: '100%', sm: '95%' },
+              minWidth: '50px'
+            }}
+            className="chat-message-bubble"
           >
             {isResponseLoading && isLatest ? (
               <CircularProgress size={24} thickness={4} sx={{ color: isUser ? 'white' : 'primary.main' }} />
             ) : isUser ? (
               chat.isImage ? (
-                <Box sx={{ maxWidth: 300 }}> {/* Adjust maxWidth as needed */}
+                <Box sx={{ maxWidth: 300 }}>
                   <img
-                    src={chat.content} // Assuming chat.content is base64 or URL
+                    src={chat.content}
                     alt="Uploaded"
                     style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8 }}
                   />
@@ -439,7 +450,11 @@ const ChatScreen = ({
   chatMessages,
   setChatMessages,
   thread,
-  patient
+  patient,
+  hideInput, // ADDED
+  onlyInput, // ADDED
+  disableOuterScroll, // ADDED
+  setStatus
 }) => {
   // Local state
   const [message, setMessage] = useState('');
@@ -454,8 +469,13 @@ const ChatScreen = ({
   const [selectedImage, setSelectedImage] = useState(null); // State for selected image file
   const [selectedImagePreview, setSelectedImagePreview] = useState(null); // State for image preview URL
   const [isExpertLevelLocked, setIsExpertLevelLocked] = useState(false); // State to lock expert level
+  const [previewModalOpen, setPreviewModalOpen] = useState(false); // State for image preview modal
+  const [uploadedImageUrl, setUploadedImageUrl] = useState(null); // State for uploaded image URL
+  const [isUploadingImage, setIsUploadingImage] = useState(false); // State for image upload loading
   const isMobile = useMediaQuery('(max-width: 768px)');
   const fileInputRef = useRef(null); // Ref for hidden file input
+  const messagesEndRef = useRef(null); // For scrolling
+  const innerScrollerRef = useRef(null); // Ref for inner scroller
 
   // Initial example suggestions for the welcome screen
   const initialSuggestions = [
@@ -475,44 +495,130 @@ const ChatScreen = ({
   };
 
   // Use chatMessages directly (or merge with any additional messages as needed)
-  const combinedMessages = chatMessages;
+  const combinedMessages = chatMessages || [];
 
   const handleImageUploadClick = () => {
     fileInputRef.current.click(); // Programmatically click the hidden file input
-  };
-
-  const handleImageSelect = (event) => {
+  };  const handleImageSelect = async (event) => {
     const file = event.target.files[0];
     if (file) {
       setSelectedImage(file);
+      setUploadedImageUrl(null); // Reset previous upload
+      setIsUploadingImage(true);
 
+      // Create a resized preview image
       const reader = new FileReader();
       reader.onloadend = () => {
-        setSelectedImagePreview(reader.result); // Set image preview URL
+        // Create an image object to get dimensions
+        const img = new Image();
+        img.onload = () => {
+          // Create canvas for resizing
+          const canvas = document.createElement('canvas');
+          // Set max dimensions for preview (thumbnail size)
+          const MAX_WIDTH = 300;
+          const MAX_HEIGHT = 200;
+          
+          // Calculate new dimensions while maintaining aspect ratio
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round(height * (MAX_WIDTH / width));
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round(width * (MAX_HEIGHT / height));
+              height = MAX_HEIGHT;
+            }
+          }
+          
+          // Resize the image
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Get the resized image as Data URL and set as preview
+          const resizedImageUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setSelectedImagePreview(resizedImageUrl);
+        };
+        img.src = reader.result;
       };
       reader.readAsDataURL(file);
 
       setExpertLevel('high'); // Automatically set to high on image upload
       setIsExpertLevelLocked(true); // Lock the dropdown
+
+      // Upload image to server
+      try {
+        const token = await getAccessToken();
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await fetch('https://health.prestigedelta.com/research/upload-image/', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        
+        if (!response.ok) throw new Error('Image upload failed');
+        const data = await response.json();
+        setUploadedImageUrl(data.image_url);      } catch (error) {
+        console.error("Error uploading image:", error);
+        setUploadedImageUrl(null);
+        if (error.message.includes("Failed to fetch") || error.message.includes("Network")) {
+          setError("Network error while uploading image. Check your connection and try again.");
+        } else {
+          setError("Image upload failed. The server couldn't process this image. Please try a different image or format.");
+        }
+      } finally {
+        setIsUploadingImage(false);
+      }
     } else {
       setSelectedImage(null);
       setSelectedImagePreview(null);
+      setUploadedImageUrl(null);
       setIsExpertLevelLocked(false);
       setExpertLevel('low'); // Reset to default if image selection is cancelled
     }
   };
-
   const handleCancelImage = () => {
     setSelectedImage(null);
     setSelectedImagePreview(null);
+    setUploadedImageUrl(null);
     setIsExpertLevelLocked(false);
     setExpertLevel('low');
   };
 
+  const handleOpenPreviewModal = () => {
+    setPreviewModalOpen(true);
+  };
 
-  // Handle sending a message
+  const handleClosePreviewModal = () => {
+    setPreviewModalOpen(false);
+  };
+
+  useEffect(() => {
+    // Scroll to bottom of messages when new messages arrive or component updates,
+    // but only if messages are visible and not in 'onlyInput' mode.
+    if (!onlyInput && !disableOuterScroll && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, onlyInput, disableOuterScroll]);
+
+  useEffect(() => {
+    // Scroll to bottom of inner scroller when new messages arrive
+    if (combinedMessages.length > 0 && innerScrollerRef.current) {
+      innerScrollerRef.current.scrollTop = innerScrollerRef.current.scrollHeight;
+    }
+  }, [chatMessages, combinedMessages.length]);
   const handleSendMessage = useCallback(async () => {
-    if (!message.trim() && !selectedImage) return; // Don't send empty messages or without image
+    // Skip if no message and no image, or if in the process of uploading an image
+    if ((!message.trim() && !selectedImage && !uploadedImageUrl) || isUploadingImage) return;
+
+    // Require text if image is present
+    if ((selectedImage || uploadedImageUrl) && !message.trim()) return;
 
     const currentMessage = message;
     setMessage('');
@@ -525,32 +631,38 @@ const ChatScreen = ({
       const token = await getAccessToken();
       const apiUrl = "https://health.prestigedelta.com/research/";
 
-      const formData = new FormData();
-
+      let payload = {};
+      let formData = null;
+      let headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+      let requestBody = null;
+      
+      // Configure payload/headers based on whether we're sending an image
       if (threadId) {
-        formData.append('thread_id', threadId);
-      } else {
-        formData.append('thread_id', thread);
+        payload.thread_id = threadId;
+      } else if (thread) {
+        payload.thread_id = thread;
       }
-      formData.append('patient_number', `+234${phoneNumber.slice(1)}`);
+      
+      // Add patient info to payload
+      if (phoneNumber) {
+        payload.patient_number = `+234${phoneNumber.slice(1)}`;
+      }
+      
       if (selectedPatient) {
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
-          formData.append('patient_phone', selectedPatient.phone_number);
+          payload.patient_phone = selectedPatient.phone_number;
         } else {
-          formData.append('patient_id', selectedPatient.id);
+          payload.patient_id = selectedPatient.id;
         }
       }
-      formData.append('expertise_level', expertLevel); // Use current expertLevel, will be 'high' if image is uploaded
-      if (selectedImage) {
-        formData.append('image', selectedImage);
-        formData.append('caption', currentMessage.trim() ? currentMessage : "Analyze this image"); // Use caption if text is present
-      } else {
-        formData.append('query', currentMessage); // Send text query if no image
-      }
+      
+      payload.expertise_level = expertLevel; // Use current expertLevel, will be 'high' if image is uploaded
 
       if (transcript) {
         const currentTime = new Date().toISOString();
-        formData.append('transcript', JSON.stringify([
+        const transcriptData = JSON.stringify([
           {
             time: currentTime,
             speaker: "patient",
@@ -561,27 +673,52 @@ const ChatScreen = ({
             speaker: "doctor",
             content: transcript
           }
-        ]));
+        ]);
+        payload.transcript = JSON.parse(transcriptData);
+      }      // Handle uploads differently based on whether we have an uploaded URL or need to send the file directly
+      if (uploadedImageUrl) {
+        // Use the pre-uploaded image URL
+        payload.image = uploadedImageUrl;
+        payload.caption = currentMessage.trim() ? currentMessage : "Analyze this image";
+        headers['Content-Type'] = 'application/json';
+        requestBody = JSON.stringify(payload);
+      } else if (selectedImage) {
+        // If we have a selected image but no uploaded URL (upload may have failed),
+        // fall back to direct form upload
+        formData = new FormData();
+        
+        // Add all payload fields to formData
+        Object.keys(payload).forEach(key => {
+          formData.append(key, payload[key]);
+        });
+        
+        formData.append('image', selectedImage);
+        formData.append('caption', currentMessage.trim() ? currentMessage : "Analyze this image");
+      } else {
+        // Text-only query
+        payload.query = currentMessage;
+        headers['Content-Type'] = 'application/json';
+        requestBody = JSON.stringify(payload);
       }
 
-      // Append user's message
-      const userMessageContent = selectedImagePreview ? selectedImagePreview : currentMessage;
-      const userTextMessage = selectedImage ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
+      // Prepare user message for display
+      const userMessageContent = uploadedImageUrl ? uploadedImageUrl : selectedImagePreview ? selectedImagePreview : currentMessage;
+      const userTextMessage = (uploadedImageUrl || selectedImage) ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
 
       const userMessage = {
         role: "user",
         content: userMessageContent,
-        isImage: !!selectedImagePreview, // Flag as image message
+        isImage: !!(uploadedImageUrl || selectedImagePreview), // Flag as image message
         text: userTextMessage, // Store text content separately for image messages
+        id: `query-${Date.now()}` // Add unique ID to each message
       };
       setChatMessages((prev) => [...prev, userMessage]);
 
+      // Make the API request
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
+        headers: headers,
+        body: formData || requestBody,
       });
 
       if (!response.body) {
@@ -591,9 +728,8 @@ const ChatScreen = ({
       // Reset selected image and preview after sending
       setSelectedImage(null);
       setSelectedImagePreview(null);
-      setIsExpertLevelLocked(false); // Unlock dropdown after image sent and response started
-
-      // Append a placeholder for assistant response
+      setUploadedImageUrl(null);
+      setIsExpertLevelLocked(false); // Unlock dropdown after image sent and response started      // Append a placeholder for assistant response
       let assistantMessage = { role: "assistant", content: "", citations: [] };
       setChatMessages((prev) => [...prev, assistantMessage]);
       const reader = response.body.getReader();
@@ -601,16 +737,37 @@ const ChatScreen = ({
       let done = false;
       let buffer = "";
 
-      if (selectedImage) {
-        // Handle plain text response for image upload
+      if (uploadedImageUrl || formData) {
+        // Handle response for image upload (either with URL or direct upload)
         let accumulatedResponse = '';
-        while (!done) {
-          const { value, done: doneReading } = await reader.read();
-          done = doneReading;
-          const chunkText = decoder.decode(value);
-          accumulatedResponse += chunkText;
+        try {
+          while (!done) {
+            const { value, done: doneReading } = await reader.read();
+            done = doneReading;
+            const chunkText = decoder.decode(value);
+            accumulatedResponse += chunkText;
+          }
+          
+          // Try to parse as JSON if possible (might be structured response)
+          try {
+            const jsonResponse = JSON.parse(accumulatedResponse.trim());
+            if (jsonResponse.assistant_response) {
+              assistantMessage.content = jsonResponse.assistant_response;
+            } else {
+              assistantMessage.content = accumulatedResponse.trim();
+            }
+            if (jsonResponse.citations) {
+              assistantMessage.citations = jsonResponse.citations;
+            }
+          } catch (e) {
+            // Not JSON, use as plain text
+            assistantMessage.content = accumulatedResponse.trim();
+          }
+        } catch (error) {
+          console.error("Error processing image response:", error);
+          assistantMessage.content = "Sorry, I had trouble processing the image. Please try again.";
         }
-        assistantMessage.content = accumulatedResponse.trim();
+        
         setChatMessages((prev) => {
           const updated = [...prev];
           updated[updated.length - 1] = { ...assistantMessage };
@@ -663,7 +820,7 @@ const ChatScreen = ({
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript, selectedImage, isExpertLevelLocked, selectedImagePreview]);
+  }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript, selectedImage, isExpertLevelLocked, selectedImagePreview, uploadedImageUrl, isUploadingImage, thread]);
 
   const handleSuggestion = async () => {
     console.log('handleSuggestion called with patient:', patient);
@@ -746,7 +903,9 @@ const ChatScreen = ({
             px: 2
           }}
         >
-          <CircularProgress />
+          <Box display="flex" justifyContent="center" alignItems="center">
+            <CircularProgress />
+          </Box>
           <Typography sx={{ mt: 2 }} variant="body2" color="text.secondary">
             Loading suggestions...
           </Typography>
@@ -783,229 +942,415 @@ const ChatScreen = ({
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <Box
-  sx={{
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100vh',
-    overflow: 'hidden', // Prevent outer scrolling
-  }}
->
-        {/* Main content area with messages */}
-        <Box
-    sx={{
-      flexGrow: 1,
-      overflowY: 'auto',
-      px: { xs: 2, sm: 3 },
-      py: 2,
-      scrollbarWidth: 'thin', // Firefox
-      '&::-webkit-scrollbar': { width: '6px' }, // Webkit browsers
-      '&::-webkit-scrollbar-thumb': {
-        backgroundColor: theme.palette.primary.main,
-        borderRadius: '3px',
-      },
-    }}
-  >
-          {combinedMessages.length === 0 && (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-
-                mx: 'auto',
-        width: '100%',
-                textAlign: 'center',
-                px: 2,
-              }}
-            >
-              <Paper
-                elevation={0}
+    <ThemeProvider theme={theme}>      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%', // Changed from 100vh to 100% to better fit in container
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+        className="chat-container"
+      >
+        {!onlyInput && (
+          <Box
+            sx={{
+              flexGrow: 1,              overflowY: disableOuterScroll ? 'hidden' : 'auto',
+              px: { xs: 1, sm: 2 },
+              py: 1,
+              scrollbarWidth: 'thin',
+              '&::-webkit-scrollbar': { width: '4px' },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: theme.palette.primary.main,
+                borderRadius: '2px',
+              },
+              position: 'relative',
+              height: '100%', // Ensure full height
+              display: 'flex', // Add flex display
+              flexDirection: 'column', // Stack children vertically
+            }}
+            className="outer-scroller"
+          >
+            {combinedMessages.length === 0 && (
+              <Box
                 sx={{
-                  p: 4,
-                  borderRadius: 4,
-                  backgroundColor: 'background.paper',
-                  border: '1px dashed',
-                  borderColor: 'grey.300',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  mx: 'auto',
                   width: '100%',
+                  textAlign: 'center',
+                  px: 2,
                 }}
               >
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 4,
+                    borderRadius: 4,
+                    backgroundColor: 'background.paper',
+                    border: '1px dashed',
+                    borderColor: 'grey.300',
+                    width: '100%',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      backgroundColor: 'primary.light',
+                      width: 60,
+                      height: 60,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      mb: 2,
+                      mx: 'auto',
+                    }}
+                  >
+                    <SmartToyIcon sx={{ fontSize: 32, color: 'white' }} />
+                  </Box>
+                  <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+                    How can I help you today?
+                  </Typography>
+                  <Typography color="text.secondary" sx={{ mb: 3 }}>
+                    Ask any health-related question. I can provide research-backed
+                    information on medical conditions, treatments, nutrition, and more. You can also upload medical images for analysis.
+                  </Typography>
+                  <Divider sx={{ mb: 3 }} />
+                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 500 }}>
+                    Try asking about:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+                    {initialSuggestions.map((suggestionItem, index) => (
+                      <Chip
+                        key={`initial-suggestion-${index}`}
+                        label={suggestionItem}
+                        onClick={() => setMessage(suggestionItem)}
+                        sx={{
+                          bgcolor: 'grey.100',
+                          '&:hover': {
+                            bgcolor: 'primary.light',
+                            color: 'white',
+                          },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                  {suggestions && suggestions.length > 0 && renderSuggestions()}
+                </Paper>
+              </Box>
+            )}
+            {combinedMessages.length > 0 && (
+              <Box
+                sx={{
+                  maxWidth: { xs: '100%', sm: '900px' },
+                  mx: 'auto',
+                  width: '100%',
+                  height: '100%', // Ensure full height
+                  overflow: 'hidden',
+                  flexGrow: 1, // Add flex grow to take available space
+                  display: 'flex', // Add flex display
+                  flexDirection: 'column', // Stack children vertically
+                }}
+                className="inner-scroll-container"
+              >
                 <Box
-                  sx={{
-                    backgroundColor: 'primary.light',
-                    width: 60,
-                    height: 60,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    mb: 2,
-                    mx: 'auto',
-                  }}
-                >
-                  <SmartToyIcon sx={{ fontSize: 32, color: 'white' }} />
+                  ref={innerScrollerRef}
+                  sx={{                  height: '100%',
+                  overflowY: 'auto',
+                  scrollbarWidth: 'thin',
+                  '&::-webkit-scrollbar': { width: '4px' },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: theme.palette.primary.main,
+                    borderRadius: '2px',
+                  },
+                  pr: 1,
+                  flexGrow: 1, // Add flex grow to take available space
+                }}
+                className="inner-scroller chat-scroll-container"
+                >                  <List sx={{ pt: 0, px: { xs: 0.5, sm: 1 } }}>
+                    {combinedMessages.map((chat, index) => (
+                      <ChatMessage
+                        key={index}
+                        chat={chat}
+                        isResponseLoading={isResponseLoading && index === combinedMessages.length - 1}
+                        isSourcesVisible={isSourcesVisible}
+                        handleSourcesToggle={handleSourcesToggle}
+                        isLatest={index === combinedMessages.length - 1}
+                      />
+                    ))}
+                  </List>
+                  <div ref={messagesEndRef} />
                 </Box>
-                <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-                  How can I help you today?
-                </Typography>
-                <Typography color="text.secondary" sx={{ mb: 3 }}>
-                  Ask any health-related question. I can provide research-backed
-                  information on medical conditions, treatments, nutrition, and more. You can also upload medical images for analysis.
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 500 }}>
-                  Try asking about:
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                  {initialSuggestions.map((suggestionItem, index) => (
-                    <Chip
-                      key={`initial-suggestion-${index}`}
-                      label={suggestionItem}
-                      onClick={() => setMessage(suggestionItem)}
-                      sx={{
-                        bgcolor: 'grey.100',
-                        '&:hover': {
-                          bgcolor: 'primary.light',
-                          color: 'white',
-                        },
-                      }}
-                    />
-                  ))}
-                </Box>
-                {/* Replace suggestion with suggestions state variable */}
-                {suggestions && suggestions.length > 0 && renderSuggestions()}
-              </Paper>
-            </Box>
-          )}
-
-          {combinedMessages.length > 0 && (
-            <Box sx={{ maxWidth: '900px', mx: 'auto', width: '100%' }}>
-              <List>
-                {combinedMessages.map((chat, index) => (
-                  <ChatMessage
-                    key={index}
-                    chat={chat}
-                    isResponseLoading={isResponseLoading && index === combinedMessages.length - 1}
-                    isSourcesVisible={isSourcesVisible}
-                    handleSourcesToggle={handleSourcesToggle}
-                    isLatest={index === combinedMessages.length - 1}
-                  />
-                ))}
-              </List>
-            </Box>
-          )}
-        </Box>
-
-        {/* Footer: Input area styled as per provided snippet */}
-        <Box sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'grey.200', backgroundColor: 'background.paper' }}>
-    <Box sx={{ p: 2, width: '100%' }}>
-      {selectedImagePreview && (
-        <Paper elevation={1} sx={{ p: 1, mb: 1, borderRadius: 2, display: 'inline-block', maxWidth: '100%' }}>
-          <Box sx={{ position: 'relative', maxWidth: 50, maxHeight: 50, overflow: 'hidden' }}> {/* Reduced maxWidth and maxHeight */}
-            <img
-              src={selectedImagePreview}
-              alt="Image Preview"
-              style={{
-                display: 'block',
-                width: '50px',     // Fixed width
-                height: '50px',    // Fixed height
-                objectFit: 'cover' // Maintain aspect ratio and cover the container
-              }}
-            />
-             <IconButton
-              aria-label="cancel"
-              onClick={handleCancelImage}
-              sx={{
-                position: 'absolute',
-                top: -10,
-                right: -10,
-                color: 'error.main',
-                backgroundColor: 'background.paper',
-                '&:hover': {
-                  backgroundColor: 'grey.100',
-                },
-              }}
-            >
-              <Icon>cancel</Icon>
-            </IconButton>
-          </Box>
-        </Paper>
-      )}
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        <TextField
-          fullWidth
-          placeholder="Ask anything or upload image..."
-          variant="standard"
-          multiline
-          minRows={1}
-          maxRows={4}
-          InputProps={{ disableUnderline: true, style: { fontSize: '16px' } }}
-          value={message}
-          onChange={handleTyping}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          sx={{ marginBottom: '8px' }}
-        />
-         <IconButton color="secondary" onClick={handleImageUploadClick} aria-label="upload image" disabled={isResponseLoading}>
-            <ImageIcon />
-          </IconButton>
-          <input
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            ref={fileInputRef}
-            onChange={handleImageSelect}
-            disabled={isResponseLoading}
-          />
-        <IconButton color="primary" onClick={handleSendMessage} disabled={(!message.trim() && !selectedImage) || isResponseLoading}>
-          <SendIcon />
-        </IconButton>
-      </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: '10px' }}>
-              <FormControl variant="standard">
-                <Select
-                  value={expertLevel}
-                  onChange={(e) => setExpertLevel(e.target.value)}
-                  disabled={isExpertLevelLocked || isResponseLoading}
-                  sx={{
-                    fontSize: '14px',
-                    backgroundColor: '#F0F8FF',
-                    color: '#1E90FF',
-                    borderRadius: '4px',
-                    padding: '4px 12px',
-                    '& .MuiSelect-icon': { color: '#187bcd' },
-                    '&:hover': { backgroundColor: 'white' },
-                  }}
-                >
-                  <MenuItem value="low">
-                    <em>AI Level</em>
-                  </MenuItem>
-                  <MenuItem value="low" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.05</MenuItem>
-                  <MenuItem value="medium" disabled={isExpertLevelLocked || isResponseLoading}>Intermediate $0.15</MenuItem>
-                  <MenuItem value="high">Advanced $0.5</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            {expertLevel === 'high' && (
-              <Typography variant="caption" color="textSecondary" sx={{ marginTop: '8px' }}>
-                Advanced responses might take a few minutes.
-              </Typography>
+              </Box>
             )}
           </Box>
-        </Box>
+        )}
 
-        <Snackbar
+        {!hideInput && (          <Box 
+            sx={{ 
+              flexShrink: 0, // Prevent shrinking
+              position: 'relative', // Add positioning context
+              zIndex: 5, // Ensure it's above other content
+              mt: 'auto', // Push to bottom
+              borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+            }}
+          >            <Paper
+              elevation={2}
+              sx={{
+                p: { xs: 1, sm: 1.5 },
+                borderRadius: 0,
+                backgroundColor: 'rgba(248, 249, 250, 0.95)',
+              }}
+            >                {selectedImagePreview && (                <Box
+                  mb={1}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  sx={{
+                    padding: { xs: '4px 8px', sm: '6px 10px' },
+                    backgroundColor: 'rgba(0,0,0,0.03)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  }}
+                  className="chat-image-preview"
+                >
+                  <Box 
+                    display="flex" 
+                    alignItems="center" 
+                    overflow="hidden"
+                    onClick={handleOpenPreviewModal}
+                    sx={{ 
+                      cursor: 'pointer',
+                      '&:hover': { opacity: 0.85 }
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: { xs: '48px', sm: '60px' },
+                        height: { xs: '48px', sm: '60px' },
+                        marginRight: '10px',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        position: 'relative',
+                      }}
+                    >
+                      <img
+                        src={selectedImagePreview}
+                        alt="Preview"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                      {isUploadingImage && (
+                        <Box 
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: 'rgba(255,255,255,0.7)',
+                          }}
+                        >
+                          <CircularProgress size={24} thickness={5} />
+                        </Box>
+                      )}
+                    </Box>                    <Box>
+                      <Typography
+                        variant="body2"
+                        color="text.primary"
+                        noWrap
+                        sx={{ 
+                          maxWidth: '200px',
+                          fontWeight: 500,
+                          fontSize: { xs: '0.75rem', sm: '0.85rem' }
+                        }}
+                      >
+                        {selectedImage?.name || 'Attached Image'}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ 
+                          fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {isUploadingImage ? (
+                          <span>Uploading image...</span>
+                        ) : uploadedImageUrl ? (
+                          <span>✓ Ready to send</span>
+                        ) : (
+                          <>
+                            <span style={{ 
+                              display: 'inline-block', 
+                              width: '14px', 
+                              height: '14px', 
+                              backgroundColor: 'rgba(37, 99, 235, 0.1)', 
+                              borderRadius: '50%', 
+                              position: 'relative' 
+                            }}>
+                              <span style={{ 
+                                position: 'absolute', 
+                                left: '4px', 
+                                top: '4px', 
+                                width: '6px', 
+                                height: '6px', 
+                                backgroundColor: '#2563eb', 
+                                borderRadius: '50%' 
+                              }}></span>
+                            </span>
+                            Click to view full size
+                          </>
+                        )}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <IconButton 
+                    onClick={handleCancelImage} 
+                    size="small" 
+                    sx={{ 
+                      padding: { xs: '4px', sm: '6px' },
+                      backgroundColor: 'rgba(0,0,0,0.05)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(0,0,0,0.1)',
+                      }
+                    }}
+                  >
+                    <CancelIcon fontSize="small" />
+                  </IconButton>
+                </Box>)}
+                {/* Image Preview Modal */}
+                <Modal
+                  open={previewModalOpen}
+                  onClose={handleClosePreviewModal}
+                  closeAfterTransition
+                  BackdropComponent={Backdrop}
+                  BackdropProps={{
+                    timeout: 500,
+                  }}
+                >
+                  <Fade in={previewModalOpen}>
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        bgcolor: 'background.paper',
+                        boxShadow: 24,
+                        p: 2,
+                        borderRadius: 2,
+                        maxWidth: '90%',
+                        maxHeight: '90%',
+                        overflow: 'auto',
+                      }}
+                    >
+                      <img
+                        src={selectedImagePreview}
+                        alt="Full Preview"
+                        style={{
+                          width: '100%',
+                          height: 'auto',
+                          display: 'block',
+                          borderRadius: 8,
+                        }}
+                      />
+                    </Box>
+                  </Fade>
+                </Modal>
+                <Box 
+                display="flex" 
+                alignItems="center" 
+                flexDirection="row"
+                className="chat-input-container"
+                sx={{ gap: { xs: 0.5, sm: 1} }} // Add gap between items
+              >
+                {/* Hidden file input, triggered by IconButton */}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                />
+
+                {/* Attach Image Button - Now on the left */}
+                <Tooltip title="Attach Image">
+                  <IconButton 
+                    onClick={handleImageUploadClick} 
+                    color="primary"
+                    size={isMobile ? "small" : "medium"}
+                    sx={{ 
+                      p: { xs: '6px', sm: '8px' }, // Adjust padding for touch targets
+                      flexShrink: 0 // Prevent shrinking
+                    }}
+                  >
+                    <ImageIcon fontSize={isMobile ? "small" : "medium"} />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Message Input Field - In the middle */}                <TextField
+                  fullWidth
+                  variant="outlined"
+                  placeholder="Type your message..."
+                  value={message}
+                  onChange={handleTyping}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                  multiline
+                  maxRows={4}
+                  disabled={isResponseLoading || isUploadingImage}
+                  className="chat-input-field"
+                  sx={{
+                    flexGrow: 1,
+                    mx: { xs: 0.5, sm: 1 }, // Add margin on both sides to separate from buttons
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '20px', // Keep rounded corners
+                      fontSize: { xs: '0.875rem', sm: '1rem' },
+                      py: { xs: 0.8, sm: 1 }, // Vertical padding for the input itself
+                    },
+                  }}
+                />
+                
+                {/* Send Button - Now on the right */}                <Tooltip title="Send Message">
+                  <IconButton 
+                    color="primary" 
+                    onClick={handleSendMessage} 
+                    disabled={(!message.trim() && !selectedImage && !uploadedImageUrl) || isResponseLoading || isUploadingImage}
+                    size={isMobile ? "small" : "medium"}
+                    sx={{ 
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      '&:hover': {
+                        bgcolor: 'primary.dark',
+                      },
+                      p: { xs: '6px', sm: '8px' } // Adjust padding
+                    }}
+                  >
+                    <SendIcon fontSize={isMobile ? "small" : "medium"} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Paper>
+          </Box>
+        )}        <Snackbar
           open={Boolean(error)}
           autoHideDuration={6000}
           onClose={() => setError('')}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          TransitionProps={{ appear: false }}
         >
           <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
             {error}
