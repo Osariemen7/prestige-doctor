@@ -677,7 +677,7 @@ const PatientMessages = () => {
         </Box>
       )}
       {/* Controls row */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box sx={{ display: 'flex',  flexDirection:'row', alignItems: 'center', gap: 1.5 }}>
         {isNewConversation && (
           <FormControl
             variant="outlined"
