@@ -20,7 +20,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-const AvailabilitySelector = () => {
+export default function AvailabilitySelector() {
   const allDaysOfWeek = [
     'Sunday',
     'Monday',
@@ -368,6 +368,4 @@ const AvailabilitySelector = () => {
       </Paper>
     </Box>
   );
-};
-
-export default AvailabilitySelector;
+}

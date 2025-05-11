@@ -1,5 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { CssVarsProvider } from '@mui/material/styles';
+import { muiTheme } from '../theme/mui';
 import {
   Container,
   Paper,
@@ -32,101 +33,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import axios from 'axios';
 import { getAccessToken } from './api';
 
-// Updated theme with clean, modern aesthetics
-const theme = createTheme({
-  palette: {
-    primary: {
-      light: '#4f83cc',
-      main: '#1976d2',
-      dark: '#0d47a1',
-      contrastText: '#fff',
-    },
-    secondary: {
-      main: '#f4f6f8',
-    },
-    background: {
-      default: '#f8f9fa',
-      paper: '#ffffff',
-    },
-    text: {
-      primary: '#333333',
-      secondary: '#666666',
-    }
-  },
-  typography: {
-    fontSize: 14,
-    h5: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 500,
-    },
-  },
-  components: {
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        },
-      },
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          marginBottom: 12,
-        },
-      },
-    },
-    MuiAppBar: {
-      styleOverrides: {
-        root: {
-          boxShadow: 'none',
-          borderBottom: '1px solid #e0e0e0',
-        },
-      },
-    },
-    MuiTabs: {
-      styleOverrides: {
-        root: {
-          minHeight: 48,
-        },
-        indicator: {
-          height: 3,
-        },
-      },
-    },
-    MuiTab: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          minHeight: 48,
-          fontWeight: 500,
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          fontWeight: 500,
-        },
-        containedPrimary: {
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-          borderRadius: 8,
-        },
-      },
-    },
-  },
-});
-
 // Tab panel component
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -138,7 +44,8 @@ function TabPanel(props) {
       id={`patient-tabpanel-${index}`}
       aria-labelledby={`patient-tab-${index}`}
       {...other}
-    >      {value === index && (
+    >
+      {value === index && (
         <Box sx={{ 
           p: { xs: 1, sm: 2 },
           display: 'flex',
@@ -559,7 +466,9 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
 
     const applySuggestedComments = () => {
       handleFieldChange(['goal_data', 'goal_data', 'comments'], suggestedGoalData.comments_suggestion);
-    };    return (
+    };
+
+    return (
       <Box sx={{ 
         display: 'flex',
         flexDirection: 'column',
@@ -706,7 +615,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
   // Loading state
   if (loading) {
     return (
-      <ThemeProvider theme={theme}>
+      <CssVarsProvider theme={muiTheme}>
         <Box
           display="flex"
           justifyContent="center"
@@ -719,29 +628,29 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
               Loading patient information...
             </Typography>
             <Box display="flex" justifyContent="center" alignItems="center" mt={2}>
-              <CircularProgress color="primary" />
+              <CircularProgress />
             </Box>
           </Box>
         </Box>
-      </ThemeProvider>
+      </CssVarsProvider>
     );
   }
 
   return (
-    <ThemeProvider theme={theme}>
+    <CssVarsProvider theme={muiTheme}>
       <Box bgcolor="background.default" minHeight="100vh">
         {/* Top Save Button Bar */}
         <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #e0e0e0', backgroundColor: 'white' }}>
           <Button
             variant="contained"
             color="primary"
-            startIcon={<SaveIcon />}
+            startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
             onClick={handleSubmit}
             disabled={isSaving || !hasChanges}
             size="medium"
             sx={{ borderRadius: 2 }}
           >
-            Save All Documentation
+            {isSaving ? 'Saving...' : 'Save All Documentation'}
           </Button>
         </Box>
 
@@ -782,7 +691,9 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
               }
               label="AI Suggestions"
             />
-          </Box>          {/* Transcript Tab */}
+          </Box>
+
+          {/* Transcript Tab */}
           <TabPanel value={tabValue} index={0}>
             <Typography variant="h6" gutterBottom>Transcript Content</Typography>
             <Paper sx={{ 
@@ -795,14 +706,17 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
             }}>
               <Typography variant="body1">{transcript || "No transcript available"}</Typography>
             </Paper>
-          </TabPanel>          {/* Patient Profile Tab */}
+          </TabPanel>
+
+          {/* Patient Profile Tab */}
           <TabPanel value={tabValue} index={1}>
             <Box sx={{ 
               display: 'flex',
               flexDirection: 'column',
               height: '100%',
               minHeight: '65vh' /* Ensure this tab content has adequate height */
-            }}>              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6">Patient Profile</Typography>
                 <IconButton
                   onClick={() => handleCopyToClipboard('profile')}
@@ -811,7 +725,9 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
                 >
                   <FileCopyIcon fontSize="small" />
                 </IconButton>
-              </Box>              <Grid container spacing={3}>
+              </Box>
+
+              <Grid container spacing={3}>
                 {[
                   { title: "Demographics", field: "demographics" },
                   { title: "Genetic Proxies", field: "genetic_proxies" },
@@ -848,17 +764,22 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
                 ))}
               </Grid>
             </Box>
-          </TabPanel>          {/* Health Goals Tab */}
+          </TabPanel>
+
+          {/* Health Goals Tab */}
           <TabPanel value={tabValue} index={2}>
             {renderHealthGoalsTab()}
-          </TabPanel>{/* Medical Review Tab */}
+          </TabPanel>
+
+          {/* Medical Review Tab */}
           <TabPanel value={tabValue} index={3}>
             <Box sx={{ 
               display: 'flex',
               flexDirection: 'column',
               height: '100%', 
               minHeight: '65vh' /* Ensure this tab content has adequate height */
-            }}>              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6">Medical Review</Typography>
                 <IconButton
                   onClick={() => handleCopyToClipboard('review')}
@@ -867,7 +788,9 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
                 >
                   <FileCopyIcon fontSize="small" />
                 </IconButton>
-              </Box>              <Grid container spacing={3}>
+              </Box>
+
+              <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                   <Paper
                     variant="outlined"
@@ -876,168 +799,169 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
                       mb: 2,
                       borderRadius: 2,
                       borderLeft: '3px solid #4caf50'
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    color="primary"
-                    gutterBottom
-                    sx={{ fontWeight: 500 }}
+                    }}
                   >
-                    Subjective
-                  </Typography>
-                  {renderEditableObject(
-                    editableData?.review_data?.doctor_note_data?.subjective,
-                    ['review_data', 'doctor_note_data', 'subjective']
-                  )}
-                </Paper>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    borderRadius: 2,
-                    borderLeft: '3px solid #ff9800'
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    color="primary"
-                    gutterBottom
-                    sx={{ fontWeight: 500 }}
+                    <Typography
+                      variant="subtitle1"
+                      color="primary"
+                      gutterBottom
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Subjective
+                    </Typography>
+                    {renderEditableObject(
+                      editableData?.review_data?.doctor_note_data?.subjective,
+                      ['review_data', 'doctor_note_data', 'subjective']
+                    )}
+                  </Paper>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      borderLeft: '3px solid #ff9800'
+                    }}
                   >
-                    Objective
-                  </Typography>
-                  {renderEditableObject(
-                    editableData?.review_data?.doctor_note_data?.objective,
-                    ['review_data', 'doctor_note_data', 'objective']
-                  )}
-                </Paper>
+                    <Typography
+                      variant="subtitle1"
+                      color="primary"
+                      gutterBottom
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Objective
+                    </Typography>
+                    {renderEditableObject(
+                      editableData?.review_data?.doctor_note_data?.objective,
+                      ['review_data', 'doctor_note_data', 'objective']
+                    )}
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      mb: 2,
+                      borderRadius: 2,
+                      borderLeft: '3px solid #2196f3'
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle1"
+                      color="primary"
+                      gutterBottom
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Assessment
+                    </Typography>
+                    {renderEditableObject(
+                      editableData?.review_data?.doctor_note_data?.assessment,
+                      ['review_data', 'doctor_note_data', 'assessment']
+                    )}
+                  </Paper>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      borderLeft: '3px solid #9c27b0'
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle1"
+                      color="primary"
+                      gutterBottom
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Plan
+                    </Typography>
+                    {renderEditableObject(
+                      editableData?.review_data?.doctor_note_data?.plan,
+                      ['review_data', 'doctor_note_data', 'plan']
+                    )}
+                  </Paper>
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    mb: 2,
-                    borderRadius: 2,
-                    borderLeft: '3px solid #2196f3'
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    color="primary"
-                    gutterBottom
-                    sx={{ fontWeight: 500 }}
-                  >
-                    Assessment
-                  </Typography>
-                  {renderEditableObject(
-                    editableData?.review_data?.doctor_note_data?.assessment,
-                    ['review_data', 'doctor_note_data', 'assessment']
-                  )}
-                </Paper>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    borderRadius: 2,
-                    borderLeft: '3px solid #9c27b0'
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    color="primary"
-                    gutterBottom
-                    sx={{ fontWeight: 500 }}
-                  >
-                    Plan
-                  </Typography>
-                  {renderEditableObject(
-                    editableData?.review_data?.doctor_note_data?.plan,
-                    ['review_data', 'doctor_note_data', 'plan']
-                  )}
-                </Paper>
-              </Grid>
-            </Grid>
 
-            <Box mt={3} p={2} sx={{ backgroundColor: '#f5f9ff', borderRadius: 2 }}>
-              <Box display="flex" alignItems="center" gap={1} mb={1}>
-                <ScheduleIcon color="primary" />
-                <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 500 }}>
-                  Next Review
-                </Typography>
+              <Box mt={3} p={2} sx={{ backgroundColor: '#f5f9ff', borderRadius: 2 }}>
+                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <ScheduleIcon color="primary" />
+                  <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 500 }}>
+                    Next Review
+                  </Typography>
+                </Box>
+                {renderEditableField(
+                  editableData?.review_data?.doctor_note_data?.next_review || '',
+                  ['review_data', 'doctor_note_data', 'next_review']
+                )}
               </Box>
-              {renderEditableField(
-                editableData?.review_data?.doctor_note_data?.next_review || '',
-                ['review_data', 'doctor_note_data', 'next_review']
-              )}
-            </Box>
 
-            <Divider sx={{ my: 3 }} />
+              <Divider sx={{ my: 3 }} />
 
-            <Typography
-              variant="h6"
-              color="primary"
-              gutterBottom
-              sx={{ fontWeight: 500 }}
-            >
-              Prescriptions & Investigations
-            </Typography>
+              <Typography
+                variant="h6"
+                color="primary"
+                gutterBottom
+                sx={{ fontWeight: 500 }}
+              >
+                Prescriptions & Investigations
+              </Typography>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Paper
-                  variant="outlined"
-                  sx={{ p: 2, borderRadius: 2 }}
-                >
-                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                    Prescriptions
-                  </Typography>
-                  {renderEditableObject(
-                    editableData?.review_data?.doctor_note_data?.prescription,
-                    ['review_data', 'doctor_note_data', 'prescription']
-                  )}
-                </Paper>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2, borderRadius: 2 }}
+                  >
+                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                      Prescriptions
+                    </Typography>
+                    {renderEditableObject(
+                      editableData?.review_data?.doctor_note_data?.prescription,
+                      ['review_data', 'doctor_note_data', 'prescription']
+                    )}
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2, borderRadius: 2 }}
+                  >
+                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                      Investigations
+                    </Typography>
+                    {renderEditableObject(
+                      editableData?.review_data?.doctor_note_data?.investigation,
+                      ['review_data', 'doctor_note_data', 'investigation']
+                    )}
+                  </Paper>
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Paper
-                  variant="outlined"
-                  sx={{ p: 2, borderRadius: 2 }}
-                >
-                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                    Investigations
-                  </Typography>
-                  {renderEditableObject(
-                    editableData?.review_data?.doctor_note_data?.investigation,
-                    ['review_data', 'doctor_note_data', 'investigation']
-                  )}
-                </Paper>
-              </Grid>
-            </Grid>
 
-            <Divider sx={{ my: 3 }} />
+              <Divider sx={{ my: 3 }} />
 
-            <Typography
-              variant="h6"
-              color="primary"
-              gutterBottom
-              sx={{ fontWeight: 500 }}
-            >
-              Summary
-            </Typography>
+              <Typography
+                variant="h6"
+                color="primary"
+                gutterBottom
+                sx={{ fontWeight: 500 }}
+              >
+                Summary
+              </Typography>
 
-            <Paper
-              variant="outlined"
-              sx={{
-                p: 2,
-                borderRadius: 2,
-                backgroundColor: '#f8f9fa'
-              }}
-            >
-              {renderEditableObject(
-                editableData?.review_data?.doctor_note_data?.summary,
-                ['review_data', 'doctor_note_data', 'summary']              )}
-            </Paper>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  borderRadius: 2,
+                  backgroundColor: '#f8f9fa'
+                }}
+              >
+                {renderEditableObject(
+                  editableData?.review_data?.doctor_note_data?.summary,
+                  ['review_data', 'doctor_note_data', 'summary']
+                )}
+              </Paper>
             </Box>
           </TabPanel>
         </Container>
@@ -1058,7 +982,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
           </Alert>
         </Snackbar>
       </Box>
-    </ThemeProvider>
+    </CssVarsProvider>
   );
 });
 
