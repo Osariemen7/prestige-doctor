@@ -29,7 +29,6 @@
 
 .MuiBox-root {
     display: flex;
-    flex-direction: column;
 }
 
 /* Force tab panels to fill available vertical space */
