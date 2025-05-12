@@ -1465,7 +1465,7 @@ const SearchBox = () => {
                       </Box>
                     )}
                     {/* Top Row: Input and Send Button */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1.5, px: 1 }}>
                       {/* Attach file button */}
                       <IconButton
                         color="primary"
