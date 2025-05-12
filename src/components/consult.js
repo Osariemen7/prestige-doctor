@@ -71,7 +71,7 @@ const ConsultAIPage = () => {
   const [isMobileOriginal] = useMediaQuery('(max-width: 768px)');
   const isMobile = isMobileOriginal;
   const [activeScreen, setActiveScreen] = useState(isMobile ? "documentation" : "voice");
-  const [bottomTabIndex, setBottomTabIndex] = useState(isMobile ? 1 : 0); // Set to 1 for documentation tab on mobile
+  const [bottomTabIndex, setBottomTabIndex] = useState(isMobile ? 0 : 1); // Set to 0 for documentation tab on mobile (swapped order)
   const [countryCode, setCountryCode] = useState("+234");
   const [loading, setLoading] = useState(false);
   const [ite, setIte] = useState('');
@@ -920,9 +920,9 @@ const ConsultAIPage = () => {
 
   const handleBottomTabChange = (index) => {
     setBottomTabIndex(index);
-    if (index === 0) {
+    if (index === 1) {
       toggleActiveScreen('chat');
-    } else if (index === 1) {
+    } else if (index === 0) {
       toggleActiveScreen('document');
     }
   };
@@ -935,7 +935,7 @@ const ConsultAIPage = () => {
   useEffect(() => {
     // Ensure documentation tab is default when entering on mobile
     if (isMobile) {
-      setBottomTabIndex(1);
+      setBottomTabIndex(0);
       setActiveScreen('documentation');
     }
   }, [isMobile]);
@@ -948,7 +948,7 @@ const ConsultAIPage = () => {
         setIsBottomTabVisible(true);
         // only auto-switch to chat on desktop
         if (!isMobile) {
-          setBottomTabIndex(0);
+          setBottomTabIndex(1); // Changed to 1 for chat on desktop
         }
       } else {
         setIsBottomTabVisible(false);
@@ -1527,7 +1527,7 @@ const ConsultAIPage = () => {
                   <Box 
                     flex="1" 
                     p={2} // Reduced padding for mobile
-                    display={bottomTabIndex === 0 ? 'flex' : 'none'}
+                    display={bottomTabIndex === 1 ? 'flex' : 'none'}
                     flexDirection="column"
                     position="absolute"
                     top={0}
@@ -1554,7 +1554,7 @@ const ConsultAIPage = () => {
                     flex="1" 
                     px={1} // Reduced horizontal padding
                     py={2}
-                    display={bottomTabIndex === 1 ? 'flex' : 'none'}
+                    display={bottomTabIndex === 0 ? 'flex' : 'none'}
                     flexDirection="column"
                     position="absolute"
                     top={0}
@@ -1621,6 +1621,21 @@ const ConsultAIPage = () => {
                   'display': 'flex'
                 }}
               >
+                <Tab 
+                  flexDirection="column" 
+                  py={0} // No vertical padding
+                  px={1} // Minimal horizontal padding
+                  minWidth="45%" 
+                  maxWidth="45%"
+                  height="100%"
+                  _selected={{ color: 'blue.500', borderBottom: '2px solid', borderColor: 'blue.500' }}
+                  _focus={{ boxShadow: 'none' }}
+                >
+                  <Flex align="center" justify="center" width="100%" height="100%">
+                    <Icon as={MdNotes} w={3} h={3} mr={1}/>
+                    <Text fontSize="xs" fontWeight="medium">Documentation</Text>
+                  </Flex>
+                </Tab>
                 <Tab 
                   flexDirection="column" 
                   py={0} // No vertical padding

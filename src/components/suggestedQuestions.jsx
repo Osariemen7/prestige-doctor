@@ -51,10 +51,13 @@ const SuggestedQuestionsTab = ({ questions, isLoading, isMobile }) => {
           Click the "Generate Questions" button to help guide your consultation with AI-powered suggestions.
         </Typography>
       </Box>
-    );
-  }
+    );  }
   return (
-    <Box sx={{ p: isMobile ? 2 : 3 }}>
+    <Box sx={{ 
+      p: isMobile ? 2 : 3,
+      pb: isMobile ? '70px' : 3,  // Add extra bottom padding on mobile to prevent overlap with tabs
+      mb: isMobile ? 2 : 0  // Add bottom margin on mobile
+    }}>
       <Box sx={{ 
         display: 'flex', 
         alignItems: 'center', 

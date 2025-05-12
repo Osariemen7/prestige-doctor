@@ -823,17 +823,19 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                         </Box>
                     </Box>
                     <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
-                </Box>
-                <Box sx={{ 
+                </Box>                <Box sx={{ 
                     flex: 1,
                     minHeight: isMobile ? '75vh' : '78vh',
-                    maxHeight: 'calc(100vh - 100px)',
+                    maxHeight: isMobile ? 'calc(100vh - 140px)' : 'calc(100vh - 100px)', // Adjusted for mobile
                     overflowY: 'auto',
+                    overflowX: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
                     borderRadius: '0 0 8px 8px',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                     bgcolor: 'white',
+                    pb: isMobile ? '80px' : 0, // Add padding to bottom for mobile view
+                    position: 'relative', // Add position relative for better control
                     '&::-webkit-scrollbar': {
                         width: '8px',
                     },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Paper, 
   Typography, 
@@ -15,17 +15,48 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DoneIcon from '@mui/icons-material/Done';
+import CloseIcon from '@mui/icons-material/Close';
 
 function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
     const [editIndex, setEditIndex] = useState(null);
-    const [editContent, setEditContent] = useState('');
+    const [editContent, setEditContent] = useState('');        
+    const [localTranscript, setLocalTranscript] = useState(transcript);
+
+    useEffect(() => {
+        setLocalTranscript(transcript);
+    }, [transcript]);
+
+    // Add keyboard event listeners for Escape key
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && editIndex !== null) {
+                cancelEditing();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [editIndex]);
 
     const handleContentChange = (index, newContent) => {
-        const updatedTranscript = transcript.map((item, i) =>
-            i === index ? { ...item, content: newContent, speaker: "" } : item
-        );
+        // Create a deep copy of the transcript array to ensure React detects the change
+        const updatedTranscript = JSON.parse(JSON.stringify(localTranscript));
+        // Update the content of the specific entry
+        updatedTranscript[index] = {
+            ...updatedTranscript[index],
+            content: newContent
+        };
+        
+        console.log('Updated transcript:', updatedTranscript);
+        
+        // Update local state
+        setLocalTranscript(updatedTranscript);
         if (onTranscriptChange) {
             onTranscriptChange(updatedTranscript);
+            // Verify changes were applied
+            console.log('onTranscriptChange called with updated content');
         }
     };
 
@@ -34,8 +65,23 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
         setEditContent(content);
     };
 
+    const cancelEditing = () => {
+        setEditIndex(null);
+    };    
+
     const saveEdit = (index) => {
-        handleContentChange(index, editContent);
+        console.log('Saving edit for index:', index);
+        console.log('New content:', editContent);
+        console.log('Previous content:', localTranscript[index].content);
+        
+        // Only update if content has changed
+        if (editContent !== localTranscript[index].content) {
+            handleContentChange(index, editContent);
+            console.log('Content changed, update applied');
+        } else {
+            console.log('Content unchanged, no update needed');
+        }
+        
         setEditIndex(null);
     };
 
@@ -53,7 +99,7 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
         }
     };
 
-    if (!Array.isArray(transcript) || transcript.length === 0) {
+    if (!Array.isArray(localTranscript) || localTranscript.length === 0) {
         return (
             <Paper elevation={0} sx={{ 
                 padding: isMobile ? 2 : 3, 
@@ -73,8 +119,7 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
         );
     }
     
-    return (
-        <Paper 
+    return (        <Paper 
             elevation={0} 
             sx={{ 
                 padding: 0, 
@@ -83,7 +128,8 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                 flexDirection: 'column',
                 backgroundColor: '#fcfcfc',
                 borderRadius: '4px',
-                border: '1px solid #eaeaea'
+                border: '1px solid #eaeaea',
+                pb: isMobile ? '60px' : 0 // Add padding at the bottom for mobile view
             }}
         >
             <Box sx={{ 
@@ -103,17 +149,15 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                     }}
                 >
                     Consultation Transcript
-                </Typography>
-                <Chip 
-                    label={`${transcript.length} entries`} 
+                </Typography>                <Chip 
+                    label={`${localTranscript.length} entries`} 
                     size="small"
                     color="primary"
                     variant="outlined"
                     sx={{ fontSize: '0.75rem' }}
                 />
             </Box>
-            
-            <Table 
+              <Table 
                 stickyHeader 
                 size={isMobile ? "small" : "medium"} 
                 sx={{ 
@@ -144,7 +188,7 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {transcript.map((entry, index) => {
+                    {localTranscript.map((entry, index) => {
                         const isEditing = editIndex === index;
                         
                         return (
@@ -168,14 +212,20 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                                 <TableCell sx={{
                                     py: 1.5,
                                     verticalAlign: 'top'
-                                }}>
-                                    {isEditing ? (
-                                        <TextField
+                                }}>                                    {isEditing ? (                                        <TextField
                                             fullWidth
                                             multiline
                                             variant="outlined"
                                             value={editContent}
                                             onChange={(e) => setEditContent(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                // Save on Enter key
+                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                    e.preventDefault(); // Prevent newline
+                                                    saveEdit(index);
+                                                }
+                                                // Allow Shift+Enter for newlines
+                                            }}
                                             size="small"
                                             autoFocus
                                             sx={{
@@ -184,6 +234,7 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                                                     fontSize: '0.9rem'
                                                 }
                                             }}
+                                            placeholder="Press Enter to save, Shift+Enter for new line"
                                         />
                                     ) : (
                                         <Typography 
@@ -201,15 +252,25 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                                 </TableCell>
                                 <TableCell sx={{ textAlign: 'center', verticalAlign: 'top', pt: 1.5 }}>
                                     {isEditing ? (
-                                        <Tooltip title="Save">
-                                            <IconButton 
-                                                size="small" 
-                                                onClick={() => saveEdit(index)}
-                                                color="primary"
-                                            >
-                                                <DoneIcon fontSize="small" />
-                                            </IconButton>
-                                        </Tooltip>
+                                        <>                                            <Tooltip title="Save (Enter)">
+                                                <IconButton 
+                                                    size="small" 
+                                                    onClick={() => saveEdit(index)}
+                                                    color="primary"
+                                                >
+                                                    <DoneIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Cancel (Escape)">
+                                                <IconButton 
+                                                    size="small" 
+                                                    onClick={cancelEditing}
+                                                    color="secondary"
+                                                >
+                                                    <CloseIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </>
                                     ) : (
                                         <Tooltip title="Edit">
                                             <IconButton 
@@ -222,10 +283,8 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                                     )}
                                 </TableCell>
                             </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
+                        );                    })}
+                </TableBody>            </Table>
         </Paper>
     );
 }

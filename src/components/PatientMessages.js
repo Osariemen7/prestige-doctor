@@ -936,7 +936,9 @@ const PatientMessages = () => {
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
-      width: isMobile ? '100%' : 'auto'
+      width: isMobile ? '100%' : 'auto',
+      // Increase padding bottom for mobile to prevent content from being hidden behind fixed input
+      pb: isMobile ? '100px' : 0  // Increased from 76px to 100px
     }}>
       {selectedThread || isNewConversation ? (
         <>
@@ -982,7 +984,7 @@ const PatientMessages = () => {
               flex: 1,
               overflowY: 'auto',
               p: { xs: 2, lg: 4 },
-              mb: 0, // Remove artificial margin-bottom
+              mb: isMobile ? 2 : 0,  // Add some bottom margin in mobile view
               scrollBehavior: 'smooth',
               display: 'flex',
               flexDirection: 'column',
@@ -1029,17 +1031,22 @@ const PatientMessages = () => {
               </Box>
             )}
           </Box>
-          {/* Fixed input box at bottom */}
+          {/* Fixed input box at bottom - use fixed position for mobile */}
           <Box sx={{
-            position: 'absolute',
+            position: isMobile ? 'fixed' : 'absolute',
             bottom: 0,
-            left: 0,
+            left: isMobile ? 0 : 0,
             right: 0,
+            width: isMobile ? '100%' : 'auto',
             bgcolor: 'background.paper',
             borderTop: '1px solid rgba(0,0,0,0.12)',
             p: 2,
             maxHeight: '170px',
-            zIndex: 1,
+            zIndex: 10,
+            boxShadow: isMobile ? '0 -2px 10px rgba(0,0,0,0.1)' : 'none',
+            display: 'flex',
+            justifyContent: 'center', // Center the input box horizontally
+            alignItems: 'center'      // Center vertically
           }}>
             {renderInputBox()}
           </Box>
@@ -1080,7 +1087,16 @@ const PatientMessages = () => {
               <>
                 {/* On Mobile, add a button to open the bottom sheet conversation list */}
                 <Box sx={{ mb: 2, textAlign: 'center' }}>
-                  <Button variant="contained" onClick={() => setBottomSheetOpen(true)}>
+                  <Button 
+                    variant="contained" 
+                    onClick={() => setBottomSheetOpen(true)}
+                    sx={{ 
+                      height: '48px',  // Make button taller
+                      fontSize: '16px',
+                      fontWeight: 500,
+                      px: 3
+                    }}
+                  >
                     Show Conversations
                   </Button>
                 </Box>

@@ -598,13 +598,12 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                 </p>
             </div>
         );
-    }
-
-    return (
+    }    return (
         <Paper elevation={2} sx={{ 
             padding: isMobile ? 2 : 3, 
             mt: 2,
-            pb: isMobile ? 6 : 8
+            pb: isMobile ? '70px' : 8, // Add more padding at the bottom for mobile to prevent overlap with bottom tabs
+            mb: isMobile ? 2 : 0 // Add margin bottom for mobile
         }}>
             <Box sx={{ 
                 display: 'flex', 
@@ -672,9 +671,9 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 Save Note
                             </Button>
                         </Box>
-                    )}
-                </Box>
+                    )}                </Box>
             </Box>
+            
             {/* Subjective Section */}
             <Typography variant="h6" sx={{ mt: 3, mb: 2, borderBottom: '1px solid #eee', pb: 1, fontSize: isMobile ? '1rem' : '1.25rem' }}>Subjective</Typography>
             <Grid container spacing={isMobile ? 1 : 2}>
@@ -1408,11 +1407,9 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         </Grid>
                     </Box>
                 ))
-            ) : (
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 5 }}>
+            ) : (                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 5 }}>
                     No investigations added.
-                </Typography>
-            )}
+                </Typography>            )}
             {renderInvestigationSuggestions()}
         </Paper>
     );

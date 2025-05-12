@@ -6,6 +6,26 @@
   padding: 4px 0; /* Add some vertical padding to the container */
 }
 
+/* Improve scroll display and behavior */
+.chat-scroll-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 200px;
+  height: 100%;
+  padding-top: 10px; /* Add space at the top to ensure first messages are visible */
+}
+
+.inner-scroll-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 200px;
+  height: 100%;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   /* Make content area taller */
@@ -15,9 +35,13 @@
     height: calc(100vh - 110px);
   }
 
+  /* Add padding at bottom to prevent content being hidden by tabs on mobile */
+  .inner-scroller {
+    padding-bottom: 65px !important; /* Important to override any inline styles */
+  }
+
   .chat-input-field .MuiOutlinedInput-root {
     font-size: 0.875rem;
-    /* padding-right is no longer needed here as buttons are outside */
   }
 
   .chat-input-field .MuiInputBase-input {
@@ -60,7 +84,11 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 200px;
+  height: 100%;
+  padding-top: 10px; /* Add space at the top to ensure first messages are visible */
 }
 
 /* Improve button styling - general, not just hover */

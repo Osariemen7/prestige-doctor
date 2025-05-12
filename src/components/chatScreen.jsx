@@ -603,6 +603,14 @@ const ChatScreen = ({
   const handleClosePreviewModal = () => {
     setPreviewModalOpen(false);
   };
+  useEffect(() => {
+    // When the component mounts and there are existing messages,
+    // make sure the inner scroller is at the beginning to show earlier messages
+    if (combinedMessages.length > 0 && innerScrollerRef.current) {
+      // This will show the top of the messages first
+      innerScrollerRef.current.scrollTop = 0;
+    }
+  }, []); // Empty dependency array means this only runs once on mount
 
   useEffect(() => {
     // Scroll to bottom of messages when new messages arrive or component updates,
@@ -615,7 +623,10 @@ const ChatScreen = ({
   useEffect(() => {
     // Scroll to bottom of inner scroller when new messages arrive
     if (combinedMessages.length > 0 && innerScrollerRef.current) {
-      innerScrollerRef.current.scrollTop = innerScrollerRef.current.scrollHeight;
+      // Set timeout to ensure rendering completes before scrolling
+      setTimeout(() => {
+        innerScrollerRef.current.scrollTop = innerScrollerRef.current.scrollHeight;
+      }, 100);
     }
   }, [chatMessages, combinedMessages.length]);
 
@@ -970,11 +981,10 @@ const ChatScreen = ({
         }}
         className="chat-container"
       >
-        {!onlyInput && (
-          <Box
+        {!onlyInput && (          <Box
             sx={{
               flexGrow: 1,
-              overflowY: 'scroll',
+              overflowY: disableOuterScroll ? 'hidden' : 'auto',
               px: { xs: 1, sm: 2 },
               py: 1,
               scrollbarWidth: 'thin',
@@ -987,6 +997,7 @@ const ChatScreen = ({
               height: '100%', // Ensure full height
               display: 'flex', // Add flex display
               flexDirection: 'column', // Stack children vertically
+              justifyContent: 'flex-start', // Start from the top
             }}
             className="outer-scroller"
           >
@@ -1061,8 +1072,7 @@ const ChatScreen = ({
               </Box>
             )}
             {combinedMessages.length > 0 && (
-              <Box
-                sx={{
+              <Box                sx={{
                   maxWidth: { xs: '100%', sm: '900px' },
                   mx: 'auto',
                   width: '100%',
@@ -1071,10 +1081,10 @@ const ChatScreen = ({
                   flexGrow: 1, // Add flex grow to take available space
                   display: 'flex', // Add flex display
                   flexDirection: 'column', // Stack children vertically
+                  justifyContent: 'flex-start', // Make sure content starts at the top
                 }}
                 className="inner-scroll-container"
-              >
-                <Box
+              >                <Box
                   ref={innerScrollerRef}
                   sx={{
                     height: '100%',
@@ -1087,10 +1097,21 @@ const ChatScreen = ({
                     },
                     pr: 1,
                     flexGrow: 1, // Add flex grow to take available space
+                    display: 'flex', // Add flex display
+                    flexDirection: 'column', // Stack vertically
+                    paddingTop: '10px', // Add padding at the top to ensure first messages are fully visible
+                    paddingBottom: '20px' // Add padding at the bottom for mobile view
                   }}
                   className="inner-scroller chat-scroll-container"
-                >
-                  <List sx={{ pt: 0, px: { xs: 0.5, sm: 1 } }}>
+              >                  <List sx={{ 
+                    pt: 0, 
+                    px: { xs: 0.5, sm: 1 }, 
+                    width: '100%', 
+                    mb: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flexGrow: 1
+                  }}>
                     {combinedMessages.map((chat, index) => (
                       <ChatMessage
                         key={index}
@@ -1102,7 +1123,7 @@ const ChatScreen = ({
                       />
                     ))}
                   </List>
-                  <div ref={messagesEndRef} />
+                  <div ref={messagesEndRef} style={{ paddingTop: '20px' }} />
                 </Box>
               </Box>
             )}
