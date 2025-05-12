@@ -1,38 +1,31 @@
-.loading-dots::after {
+.write-documentation-page .loading-dots::after {
     content: '...';
     animation: dots 1.5s steps(3, end) infinite;
 }
 
 @keyframes dots {
-    0% {
-        content: '';
-    }
-    33% {
-        content: '.';
-    }
-    66% {
-        content: '..';
-    }
-    100% {
-        content: '...';
-    }
+    0% { content: ''; }
+    33% { content: '.'; }
+    66% { content: '..'; }
+    100% { content: '...'; }
 }
 
-/* Add styles to make tab content fill available space */
-.MuiContainer-root {
+/* Tab content styles */
+.write-documentation-page .MuiContainer-root {
     display: flex;
+    flex-direction: column;
     min-height: 100vh; 
     height: auto; 
     max-width: none !important;
     padding: 0 !important;
 }
 
-.MuiBox-root {
+.write-documentation-page .MuiBox-root {
     display: flex;
+    flex-direction: column;
 }
 
-/* Force tab panels to fill available vertical space */
-[role="tabpanel"] {
+.write-documentation-page [role="tabpanel"] {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
@@ -40,8 +33,7 @@
     height: auto;
 }
 
-/* Make Paper components expand to use available space within tabs */
-[role="tabpanel"] .MuiPaper-root {
+.write-documentation-page [role="tabpanel"] .MuiPaper-root {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -49,60 +41,53 @@
     overflow: hidden;
 }
 
-/* Ensure grid containers in tab panels utilize the vertical space */
-[role="tabpanel"] .MuiGrid-container {
+.write-documentation-page [role="tabpanel"] .MuiGrid-container {
     flex-grow: 1;
     align-content: start;
     height: 100%;
 }
 
-/* Ensure form elements inside tabs stretch properly */
-form {
+.write-documentation-page form {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
 }
 
-/* Mobile-specific adjustments for better use of vertical space */
+/* Mobile-specific adjustments */
 @media (max-width: 768px) {
-  html, body, #root {
-    height: 100%;
-    max-height: 100%;
-    overflow: hidden;
-  }
+    .write-documentation-page {
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
+    }
   
-  /* Make content area taller by minimizing other UI elements */
-  .chakra-tabs__tabpanel {
-    height: calc(100vh - 80px);
-    min-height: 85vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-  }
+    .write-documentation-page .chakra-tabs__tabpanel {
+        height: calc(100vh - 80px);
+        min-height: 85vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
   
-  /* Ensure form elements stretch */
-  .MuiContainer-root,
-  .MuiBox-root,
-  .MuiPaper-root {
-    max-height: none !important;
-    height: auto !important;
-  }
+    .write-documentation-page .MuiContainer-root,
+    .write-documentation-page .MuiBox-root,
+    .write-documentation-page .MuiPaper-root {
+        max-height: none !important;
+        height: auto !important;
+    }
   
-  /* Adjust padding for better space utilization */
-  [role="tabpanel"] .MuiPaper-root {
-    padding: 12px !important;
-  }
+    .write-documentation-page [role="tabpanel"] .MuiPaper-root {
+        padding: 12px !important;
+    }
   
-  /* Minimize tab height */
-  .MuiTab-root {
-    min-height: 36px !important;
-    padding-top: 6px !important;
-    padding-bottom: 6px !important;
-  }
+    .write-documentation-page .MuiTab-root {
+        min-height: 36px !important;
+        padding-top: 6px !important;
+        padding-bottom: 6px !important;
+    }
   
-  /* Adjust button sizes */
-  .MuiButton-root {
-    padding: 4px 10px !important;
-    font-size: 0.8rem !important;
-  }
+    .write-documentation-page .MuiButton-root {
+        padding: 4px 10px !important;
+        font-size: 0.8rem !important;
+    }
 }

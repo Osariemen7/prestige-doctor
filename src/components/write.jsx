@@ -727,199 +727,201 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
     }
 
     return (
-        <ThemeProvider theme={muiTheme}>
-            <Container 
-                maxWidth="xl" 
-                sx={{
-                    height: '100vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    pb: 2,
-                    pt: isMobile ? 0.5 : 2,
-                    px: isMobile ? 1 : 2
-                }}
-            >
-                <Box sx={{ 
-                    p: isMobile ? 0.5 : 1.5,
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    flexShrink: 0,
-                    borderBottom: '1px solid #eaeaea',
-                    backgroundColor: '#f8fafc',
-                    borderRadius: '4px 4px 0 0'
-                }}>
+        <div className="write-documentation-page">
+            <ThemeProvider theme={muiTheme}>
+                <Container 
+                    maxWidth="xl" 
+                    sx={{
+                        height: '100vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        pb: 2,
+                        pt: isMobile ? 0.5 : 2,
+                        px: isMobile ? 1 : 2
+                    }}
+                >
                     <Box sx={{ 
+                        p: isMobile ? 0.5 : 1.5,
                         display: 'flex', 
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        mb: isMobile ? 0.75 : 1.5,
-                        gap: 1,
-                        flexWrap: 'wrap'
+                        flexDirection: 'column',
+                        flexShrink: 0,
+                        borderBottom: '1px solid #eaeaea',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: '4px 4px 0 0'
                     }}>
-                        {!hideSaveAllButton && (
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                onClick={saveAllDocumentation}
-                                disabled={isSaveAllLoading}
-                                size={isMobile ? "small" : "large"}
-                                sx={{ 
-                                    minWidth: isMobile ? 100 : 150,
-                                    height: isMobile ? 32 : 42,
-                                    fontSize: isMobile ? '0.8rem' : '0.95rem',
-                                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-                                    fontWeight: 'bold',
-                                    flex: isMobile ? '0 0 auto' : 'inherit',
-                                    order: 0
-                                }}
-                                startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
-                            >
-                                {isSaveAllLoading ? 'Saving...' : 'Save All'}
-                            </Button>
-                        )}
                         <Box sx={{ 
                             display: 'flex', 
-                            gap: 1,
                             flexDirection: 'row',
                             alignItems: 'center',
-                            flexWrap: 'nowrap',
-                            justifyContent: 'flex-end',
-                            flex: isMobile ? '1 1 auto' : '0 0 auto'
+                            justifyContent: 'space-between',
+                            mb: isMobile ? 0.75 : 1.5,
+                            gap: 1,
+                            flexWrap: 'wrap'
                         }}>
-                            <Button
-                                variant="outlined"
-                                color="primary"
-                                onClick={getSuggestions}
-                                disabled={isShowRecommendationsLoading}
-                                startIcon={isShowRecommendationsLoading ? <CircularProgress size={14} /> : null}
-                                size={isMobile ? "small" : "medium"}
-                                sx={{ 
-                                    height: isMobile ? 32 : 36,
-                                    fontSize: isMobile ? '0.7rem' : '0.8rem',
-                                    textTransform: 'none',
-                                    px: isMobile ? 1 : 2,
-                                    minWidth: isMobile ? 'auto' : 'inherit',
-                                    order: isMobile ? 2 : 1
-                                }}
-                            >
-                                {isShowRecommendationsLoading ? 'Loading...' : (isMobile ? 'Recommend' : 'Show Recommendations')}
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                color="secondary"
-                                onClick={getSuggestedQuestions}
-                                disabled={isGenerateQuestionsLoading}
-                                startIcon={isGenerateQuestionsLoading ? <CircularProgress size={14} /> : null}
-                                size={isMobile ? "small" : "medium"}
-                                sx={{ 
-                                    height: isMobile ? 32 : 36,
-                                    fontSize: isMobile ? '0.7rem' : '0.8rem',
-                                    textTransform: 'none',
-                                    px: isMobile ? 1 : 2,
-                                    minWidth: isMobile ? 'auto' : 'inherit',
-                                    order: isMobile ? 1 : 2
-                                }}
-                            >
-                                {isGenerateQuestionsLoading ? 'Loading...' : (isMobile ? 'Questions' : 'Generate Questions')}
-                            </Button>
+                            {!hideSaveAllButton && (
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    onClick={saveAllDocumentation}
+                                    disabled={isSaveAllLoading}
+                                    size={isMobile ? "small" : "large"}
+                                    sx={{ 
+                                        minWidth: isMobile ? 100 : 150,
+                                        height: isMobile ? 32 : 42,
+                                        fontSize: isMobile ? '0.8rem' : '0.95rem',
+                                        boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                                        fontWeight: 'bold',
+                                        flex: isMobile ? '0 0 auto' : 'inherit',
+                                        order: 0
+                                    }}
+                                    startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
+                                >
+                                    {isSaveAllLoading ? 'Saving...' : 'Save All'}
+                                </Button>
+                            )}
+                            <Box sx={{ 
+                                display: 'flex', 
+                                gap: 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                flexWrap: 'nowrap',
+                                justifyContent: 'flex-end',
+                                flex: isMobile ? '1 1 auto' : '0 0 auto'
+                            }}>
+                                <Button
+                                    variant="outlined"
+                                    color="primary"
+                                    onClick={getSuggestions}
+                                    disabled={isShowRecommendationsLoading}
+                                    startIcon={isShowRecommendationsLoading ? <CircularProgress size={14} /> : null}
+                                    size={isMobile ? "small" : "medium"}
+                                    sx={{ 
+                                        height: isMobile ? 32 : 36,
+                                        fontSize: isMobile ? '0.7rem' : '0.8rem',
+                                        textTransform: 'none',
+                                        px: isMobile ? 1 : 2,
+                                        minWidth: isMobile ? 'auto' : 'inherit',
+                                        order: isMobile ? 2 : 1
+                                    }}
+                                >
+                                    {isShowRecommendationsLoading ? 'Loading...' : (isMobile ? 'Recommend' : 'Show Recommendations')}
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    color="secondary"
+                                    onClick={getSuggestedQuestions}
+                                    disabled={isGenerateQuestionsLoading}
+                                    startIcon={isGenerateQuestionsLoading ? <CircularProgress size={14} /> : null}
+                                    size={isMobile ? "small" : "medium"}
+                                    sx={{ 
+                                        height: isMobile ? 32 : 36,
+                                        fontSize: isMobile ? '0.7rem' : '0.8rem',
+                                        textTransform: 'none',
+                                        px: isMobile ? 1 : 2,
+                                        minWidth: isMobile ? 'auto' : 'inherit',
+                                        order: isMobile ? 1 : 2
+                                    }}
+                                >
+                                    {isGenerateQuestionsLoading ? 'Loading...' : (isMobile ? 'Questions' : 'Generate Questions')}
+                                </Button>
+                            </Box>
                         </Box>
-                    </Box>
-                    <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
-                </Box>                <Box sx={{ 
-                    flex: 1,
-                    minHeight: isMobile ? '75vh' : '78vh',
-                    maxHeight: isMobile ? 'calc(100vh - 140px)' : 'calc(100vh - 100px)', // Adjusted for mobile
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    borderRadius: '0 0 8px 8px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                    bgcolor: 'white',
-                    pb: isMobile ? '80px' : 0, // Add padding to bottom for mobile view
-                    position: 'relative', // Add position relative for better control
-                    '&::-webkit-scrollbar': {
-                        width: '8px',
-                    },
-                    '&::-webkit-scrollbar-track': {
-                        backgroundColor: '#f5f5f5',
-                        borderRadius: '0 0 8px 0',
-                    },
-                    '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: '#ddd',
-                        borderRadius: '4px',
-                        '&:hover': {
-                            backgroundColor: '#ccc',
+                        <NavigationBar activeTab={activeTab} onTabChange={handleTabChange} />
+                    </Box>                <Box sx={{ 
+                        flex: 1,
+                        minHeight: isMobile ? '75vh' : '78vh',
+                        maxHeight: isMobile ? 'calc(100vh - 140px)' : 'calc(100vh - 100px)', // Adjusted for mobile
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        borderRadius: '0 0 8px 8px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                        bgcolor: 'white',
+                        pb: isMobile ? '80px' : 0, // Add padding to bottom for mobile view
+                        position: 'relative', // Add position relative for better control
+                        '&::-webkit-scrollbar': {
+                            width: '8px',
                         },
-                    },
-                }}>
-                    {activeTab === 'transcript' && (
-                        <TranscriptTab transcript={transcript} />
-                    )}
-                    {activeTab === 'patientProfile' && (
-                        <PatientProfileTab
-                            data={data.profile_data}
-                            editableData={editableData.profile_data}
-                            schema={data.profile_data_schema}
-                            onDataChange={(newData) => handleDataChange('patientProfile', newData)}
-                            suggestion={suggestionData?.profile_data}
-                            appliedSuggestions={appliedSuggestions.profile}
-                            onApplySuggestion={(field, value) => applySuggestion('profile_data', field, value)}
-                            onSaveProfile={() => handleSubmit('patientProfile')}
-                            isSaving={isSaving}
-                            isMobile={isMobile}
-                        />
-                    )}
-                    {activeTab === 'healthGoals' && (
-                        <HealthGoalsTab
-                            data={data.goal_data}
-                            editableData={editableData.goal_data}
-                            schema={data.goal_data_schema}
-                            suggestion={suggestionData?.goal_data}
-                            appliedSuggestions={appliedSuggestions.goals}
-                            onDataChange={(newData) => handleDataChange('healthGoals', newData)}
-                            onApplySuggestion={(field, value) => applySuggestion('goal_data', field, value)}
-                            onSaveGoals={() => handleSubmit('healthGoals')}
-                            isSaving={isSaving}
-                            isMobile={isMobile}
-                        />
-                    )}
-                    {activeTab === 'medicalReview' && (
-                        <MedicalReviewTab
-                            key={JSON.stringify(editableData.review_data)}
-                            data={data.review_data}
-                            editableData={editableData.review_data}
-                            schema={data.review_data_schema}
-                            onDataChange={(newData) => handleDataChange('medicalReview', newData)}
-                            suggestion={suggestionData?.review_data}
-                            appliedSuggestions={appliedSuggestions.review}
-                            onApplySuggestion={(field, value) => applySuggestion('review_data', field, value)}
-                            onGetSuggestion={getSuggestion}
-                            onSaveReview={() => handleSubmit('medicalReview')}
-                            isDocumenting={isSaving}
-                            isSavingReview={isSaving}
-                            isMobile={isMobile}
-                        />
-                    )}
-                    {activeTab === 'suggestedQuestions' && (
-                        <SuggestedQuestionsTab
-                            questions={suggestedQuestions}
-                            isLoading={isQuestionsLoading}
-                            isMobile={isMobile}
-                        />
-                    )}
-                </Box>
+                        '&::-webkit-scrollbar-track': {
+                            backgroundColor: '#f5f5f5',
+                            borderRadius: '0 0 8px 0',
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                            backgroundColor: '#ddd',
+                            borderRadius: '4px',
+                            '&:hover': {
+                                backgroundColor: '#ccc',
+                            },
+                        },
+                    }}>
+                        {activeTab === 'transcript' && (
+                            <TranscriptTab transcript={transcript} />
+                        )}
+                        {activeTab === 'patientProfile' && (
+                            <PatientProfileTab
+                                data={data.profile_data}
+                                editableData={editableData.profile_data}
+                                schema={data.profile_data_schema}
+                                onDataChange={(newData) => handleDataChange('patientProfile', newData)}
+                                suggestion={suggestionData?.profile_data}
+                                appliedSuggestions={appliedSuggestions.profile}
+                                onApplySuggestion={(field, value) => applySuggestion('profile_data', field, value)}
+                                onSaveProfile={() => handleSubmit('patientProfile')}
+                                isSaving={isSaving}
+                                isMobile={isMobile}
+                            />
+                        )}
+                        {activeTab === 'healthGoals' && (
+                            <HealthGoalsTab
+                                data={data.goal_data}
+                                editableData={editableData.goal_data}
+                                schema={data.goal_data_schema}
+                                suggestion={suggestionData?.goal_data}
+                                appliedSuggestions={appliedSuggestions.goals}
+                                onDataChange={(newData) => handleDataChange('healthGoals', newData)}
+                                onApplySuggestion={(field, value) => applySuggestion('goal_data', field, value)}
+                                onSaveGoals={() => handleSubmit('healthGoals')}
+                                isSaving={isSaving}
+                                isMobile={isMobile}
+                            />
+                        )}
+                        {activeTab === 'medicalReview' && (
+                            <MedicalReviewTab
+                                key={JSON.stringify(editableData.review_data)}
+                                data={data.review_data}
+                                editableData={editableData.review_data}
+                                schema={data.review_data_schema}
+                                onDataChange={(newData) => handleDataChange('medicalReview', newData)}
+                                suggestion={suggestionData?.review_data}
+                                appliedSuggestions={appliedSuggestions.review}
+                                onApplySuggestion={(field, value) => applySuggestion('review_data', field, value)}
+                                onGetSuggestion={getSuggestion}
+                                onSaveReview={() => handleSubmit('medicalReview')}
+                                isDocumenting={isSaving}
+                                isSavingReview={isSaving}
+                                isMobile={isMobile}
+                            />
+                        )}
+                        {activeTab === 'suggestedQuestions' && (
+                            <SuggestedQuestionsTab
+                                questions={suggestedQuestions}
+                                isLoading={isQuestionsLoading}
+                                isMobile={isMobile}
+                            />
+                        )}
+                    </Box>
 
-                <SnackbarComponent
-                    open={snackbarOpen}
-                    message={snackbarMessage}
-                    severity={snackbarSeverity}
-                    onClose={handleSnackbarClose}
-                />
-                <SuggestionsDialog />
-            </Container>
-        </ThemeProvider>
+                    <SnackbarComponent
+                        open={snackbarOpen}
+                        message={snackbarMessage}
+                        severity={snackbarSeverity}
+                        onClose={handleSnackbarClose}
+                    />
+                    <SuggestionsDialog />
+                </Container>
+            </ThemeProvider>
+        </div>
     );
 });
 
