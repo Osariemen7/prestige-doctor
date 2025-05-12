@@ -34,6 +34,28 @@ const safeFormatTimeString = (dateString, options = { hour: '2-digit', minute: '
     return date.toLocaleTimeString(undefined, options);
 };
 
+// Helper function to safely get ISO string
+const getValidISOString = (dateValue) => {
+    // Return null for falsy values
+    if (!dateValue) return null;
+    
+    try {
+        // If it's already a Date object, use it; otherwise create one
+        const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+        
+        // Check if the resulting date is valid
+        if (!isNaN(date.getTime())) {
+            return date.toISOString();
+        }
+        
+        // Return null for invalid dates
+        return null;
+    } catch (error) {
+        console.warn("Invalid date value:", dateValue);
+        return null;
+    }
+};
+
 // Changed prop name from isPaused to isDocumenting
 function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion, appliedSuggestions, onApplySuggestion, onGetSuggestion, isGeneratingSuggestion, isSavingReview, hasChanges, onSaveReview, assessmentRef, isMobile, isDocumenting }) {
     const [localData, setLocalData] = useState(() => {
@@ -130,7 +152,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             test_type: '',
             reason: '',
             instructions: '',
-            schedule_time: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+            schedule_time: getValidISOString(new Date())
         };
 
         setLocalData(prevData => ({
@@ -1037,7 +1059,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                 fullWidth
                                 margin="normal"
                                 type="datetime-local"
-                                value={localData.next_review ? new Date(localData.next_review).toISOString().slice(0, 16) : ''}
+                                value={getValidISOString(localData.next_review) ? new Date(localData.next_review).toISOString().slice(0, 16) : ''}
                                 onChange={(e) => handleInputChange('next_review', e.target.value)}
                                 InputLabelProps={{ shrink: true }}
                                 variant="outlined"
@@ -1361,7 +1383,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                         type="datetime-local"
                                         fullWidth
                                         margin="normal"
-                                        value={investigation.schedule_time ? new Date(investigation.schedule_time).toISOString().slice(0, 16) : ''}
+                                        value={getValidISOString(investigation.schedule_time) ? new Date(investigation.schedule_time).toISOString().slice(0, 16) : ''}
                                         onChange={(e) => handleInvestigationChange(index, 'schedule_time', e.target.value)}
                                         InputLabelProps={{ shrink: true }}
                                         variant="outlined"

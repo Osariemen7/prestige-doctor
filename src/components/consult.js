@@ -99,6 +99,8 @@ const ConsultAIPage = () => {
   const [addPatientLoading, setAddPatientLoading] = useState(false);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [splitSizes, setSplitSizes] = useState([35, 65]); // default split
+  const [isEndingConsultation, setIsEndingConsultation] = useState(false);
+  const [isSavingAll, setIsSavingAll] = useState(false);
 
   const animationMessages = [
     "Warming up the microphone...",
@@ -187,40 +189,72 @@ const ConsultAIPage = () => {
 
   const handleBilling = async () => {
     try {
-      if (!ite?.appointment.patient_phone_number || !ite?.appointment.id) {
-        console.warn("Billing information missing (patient phone or appointment ID). Billing skipped.");
-        return;
+      // Check if patient data exists before proceeding
+      if (!patientInfo || !patientInfo.patient_phone_number) {
+        console.warn("Patient information is missing or incomplete");
+        
+        // Look up the patient using selectedPatientId
+        const selectedPatient = dataList.find(patient => patient.id.toString() === selectedPatientId);
+        
+        // Fall back to using the phoneNumber state variable if available
+        const phoneNumberToUse = phoneNumber || (selectedPatient?.phone_number || "");
+        
+        if (!phoneNumberToUse) {
+          throw new Error("Cannot process billing: No patient phone number available");
+        }
+        
+        // Make the API call with the fallback phone number
+        const response = await fetch('/api/billing', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            patient_phone_number: phoneNumberToUse,
+            review_id: reviewId,
+            thread: thread
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Billing API returned status: ${response.status}`);
+        }
+        
+        return await response.json();
       }
-
-      const phone = ite.appointment.patient_phone_number;
-      const formattedPhoneNumber = formatPhoneNumber(phone, countryCode);
-      const token = await getAccessToken();
-      const item = {
-        cost_bearer: 'doctor',
-        appointment_id: ite.appointment.id,
-        expertise: 'trainee',
-        seconds_used: 900 - timeLeft,
-      };
-
-      const response = await fetch('https://health.prestigedelta.com/billing/', {
+      
+      // Otherwise, proceed with the original logic using patientInfo
+      const response = await fetch('/api/billing', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          accept: 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(item),
+        body: JSON.stringify({
+          patient_phone_number: patientInfo.patient_phone_number,
+          review_id: reviewId,
+          thread: thread
+        }),
       });
-
-      const result = await response.json();
+      
       if (!response.ok) {
-        console.error('Billing error:', result.message || 'An error occurred during billing', result);
-      } else {
-        console.log('Billing successful:', result.message || 'Billing processed successfully');
+        throw new Error(`Billing API returned status: ${response.status}`);
       }
+      
+      return await response.json();
     } catch (error) {
-      console.error('Error during billing process:', error);
-    } finally {
+      console.error("Error during billing process:", error);
+      
+      // Show error toast but don't block the process
+      toast({
+        title: "Billing Notice",
+        description: "There was an issue processing the billing. The consultation has ended.",
+        status: "warning",
+        duration: 5000,
+        isClosable: true,
+      });
+      
+      // Return a mock response to allow the process to continue
+      return { success: false, error: error.message };
     }
   };
 
@@ -706,13 +740,16 @@ const ConsultAIPage = () => {
         setPendingEndConsult(true);
         return;
       }
-      if (!isDocumentationSaved) {
-        setIsEndConsultModalOpen(true);
-        return;
-      } else {
-        stopRealtimeTranscription();
-        await handleBilling();
-        performEndConsultation();
+
+      setIsEndingConsultation(true);
+
+      if (!isPaused && isTranscribing) {
+        pauseTranscription();
+      }
+
+      if (isMobile && bottomTabIndex !== 0) {
+        setBottomTabIndex(0);
+        setActiveScreen('documentation');
       }
     } else {
       stopRealtimeTranscription();
@@ -932,6 +969,14 @@ const ConsultAIPage = () => {
     setIsTranscriptionPanelOpen(!isTranscriptionPanelOpen);
   };
 
+  const toggleTranscription = () => {
+    if (isPaused) {
+      resumeTranscription();
+    } else {
+      pauseTranscription();
+    }
+  };
+
   useEffect(() => {
     // Ensure documentation tab is default when entering on mobile
     if (isMobile) {
@@ -1101,15 +1146,43 @@ const ConsultAIPage = () => {
     }
   };
 
-  const isRecordButtonVisible = !isConsultationStarted && wsStatus !== 'Connected' && !isTranscribing;
-  const isPausePlayButtonVisible = isConsultationStarted && isTranscribing;
-  const animation = `${pulseAnimation} 2s linear infinite`;
+  const handleSaveAllAndExit = async () => {
+    setIsSavingAll(true);
+    try {
+      if (patientProfileRef.current && patientProfileRef.current.saveAllDocumentation) {
+        await patientProfileRef.current.saveAllDocumentation();
+        setIsDocumentationSaved(true);
+        setHasUnsavedChanges(false);
+        await handleBilling();
+        performEndConsultation();
+        navigate('/dashboard');
+      } else {
+        toast({
+          title: 'Save Error',
+          description: 'Could not access documentation save function',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Save Error',
+        description: 'Failed to save documentation',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
 
-  const toggleTranscription = () => {
-    if (isPaused) {
+  const cancelEndingConsultation = () => {
+    setIsEndingConsultation(false);
+
+    if (wsStatus === 'Paused') {
       resumeTranscription();
-    } else {
-      pauseTranscription();
     }
   };
 
@@ -1218,41 +1291,66 @@ const ConsultAIPage = () => {
           borderColor="gray.200"
         >
           <Flex align="center">
-            <Button
-              onClick={isConsultationStarted ? endConsultation : startConsultationSessionFlow}
-              isDisabled={loading || (!selectedPatientId && !isConsultationStarted)}
-              colorScheme={isConsultationStarted ? "red" : "blue"}
-              mr={3}
-              size="md"
-            >
-              {loading ? <Spinner size="sm" /> : isConsultationStarted ? 'End Consultation' : 'Start Consultation'}
-            </Button>
-            {isConsultationStarted && (
+            {!isEndingConsultation ? (
               <>
-                <Tooltip label={isPaused ? "Resume Recording" : "Pause Recording"} placement="bottom">
-                  <IconButton
-                    icon={isPaused ? <MdPlayArrow /> : <MdPause />}
-                    aria-label={isPaused ? "Resume Recording" : "Pause Recording"}
-                    variant="solid"
-                    colorScheme={isPaused ? "green" : "orange"}
-                    size="md"
-                    onClick={toggleTranscription}
-                    isRound={true}
-                    mr={3}
-                    boxShadow="md"
-                  />
-                </Tooltip>
-                <Tooltip label={isTranscriptionPanelOpen ? "Hide Transcription" : "Show Transcription"} placement="bottom">
-                  <IconButton
-                    icon={<MdTextFields />}
-                    aria-label="Toggle Transcription"
-                    variant="ghost"
-                    onClick={toggleTranscriptionPanel}
-                    isRound={true}
-                    size="md"
-                    isDisabled={!isTranscribing && wsStatus !== 'Connected'}
-                  />
-                </Tooltip>
+                <Button
+                  onClick={isConsultationStarted ? endConsultation : startConsultationSessionFlow}
+                  isDisabled={loading || (!selectedPatientId && !isConsultationStarted)}
+                  colorScheme={isConsultationStarted ? "red" : "blue"}
+                  mr={3}
+                  size="md"
+                >
+                  {loading ? <Spinner size="sm" /> : isConsultationStarted ? 'End Consultation' : 'Start Consultation'}
+                </Button>
+                {isConsultationStarted && (
+                  <>
+                    <Tooltip label={isPaused ? "Resume Recording" : "Pause Recording"} placement="bottom">
+                      <IconButton
+                        icon={isPaused ? <MdPlayArrow /> : <MdPause />}
+                        aria-label={isPaused ? "Resume Recording" : "Pause Recording"}
+                        variant="solid"
+                        colorScheme={isPaused ? "green" : "orange"}
+                        size="md"
+                        onClick={toggleTranscription}
+                        isRound={true}
+                        mr={3}
+                        boxShadow="md"
+                      />
+                    </Tooltip>
+                    <Tooltip label={isTranscriptionPanelOpen ? "Hide Transcription" : "Show Transcription"} placement="bottom">
+                      <IconButton
+                        icon={<MdTextFields />}
+                        aria-label="Toggle Transcription"
+                        variant="ghost"
+                        onClick={toggleTranscriptionPanel}
+                        isRound={true}
+                        size="md"
+                        isDisabled={!isTranscribing && wsStatus !== 'Connected'}
+                      />
+                    </Tooltip>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={handleSaveAllAndExit}
+                  isLoading={isSavingAll}
+                  loadingText="Saving..."
+                  colorScheme="green"
+                  mr={3}
+                  size="md"
+                >
+                  Save All & Exit
+                </Button>
+                <Button
+                  onClick={cancelEndingConsultation}
+                  variant="outline"
+                  mr={3}
+                  size="md"
+                >
+                  Cancel
+                </Button>
               </>
             )}
           </Flex>
@@ -1506,6 +1604,7 @@ const ConsultAIPage = () => {
                           onDocumentationChange={handleDocumentationChange}
                           onDocumentationSaved={handleDocumentationSaved}
                           isPaused={isPaused}
+                          hideSaveAllButton={isEndingConsultation} // Pass this new prop
                         />
                       </Box>
                     </Box>
@@ -1579,6 +1678,7 @@ const ConsultAIPage = () => {
                       onDocumentationSaved={handleDocumentationSaved}
                       isMobile={isMobile} // Pass isMobile flag to PatientProfile
                       isPaused={isPaused}
+                      hideSaveAllButton={isEndingConsultation} // Pass this new prop
                     />
                   </Box>
                 </Box>

@@ -13,7 +13,7 @@ import axios from 'axios';
 import { getAccessToken } from './api';
 import './write.css';
 
-const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, transcript, resetKey, onDocumentationChange, onDocumentationSaved, isMobile }, ref) => {
+const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, transcript, resetKey, onDocumentationChange, onDocumentationSaved, isMobile, hideSaveAllButton }, ref) => {
     const [activeTab, setActiveTab] = useState('medicalReview');
     const [data, setData] = useState(null);
     const [editableData, setEditableData] = useState(null);
@@ -529,7 +529,8 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
         handleSubmitFromParent: handleSubmit,
         getSuggestions,
         getSuggestedQuestions,
-        dataLoaded: !loading
+        dataLoaded: !loading,
+        saveAllDocumentation: saveAllDocumentation // Expose this method
     }));
 
     const SuggestionsDialog = () => {
@@ -756,25 +757,27 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                         gap: 1,
                         flexWrap: 'wrap'
                     }}>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={saveAllDocumentation}
-                            disabled={isSaveAllLoading}
-                            size={isMobile ? "small" : "large"}
-                            sx={{ 
-                                minWidth: isMobile ? 100 : 150,
-                                height: isMobile ? 32 : 42,
-                                fontSize: isMobile ? '0.8rem' : '0.95rem',
-                                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-                                fontWeight: 'bold',
-                                flex: isMobile ? '0 0 auto' : 'inherit',
-                                order: 0
-                            }}
-                            startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
-                        >
-                            {isSaveAllLoading ? 'Saving...' : 'Save All'}
-                        </Button>
+                        {!hideSaveAllButton && (
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={saveAllDocumentation}
+                                disabled={isSaveAllLoading}
+                                size={isMobile ? "small" : "large"}
+                                sx={{ 
+                                    minWidth: isMobile ? 100 : 150,
+                                    height: isMobile ? 32 : 42,
+                                    fontSize: isMobile ? '0.8rem' : '0.95rem',
+                                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                                    fontWeight: 'bold',
+                                    flex: isMobile ? '0 0 auto' : 'inherit',
+                                    order: 0
+                                }}
+                                startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
+                            >
+                                {isSaveAllLoading ? 'Saving...' : 'Save All'}
+                            </Button>
+                        )}
                         <Box sx={{ 
                             display: 'flex', 
                             gap: 1,
