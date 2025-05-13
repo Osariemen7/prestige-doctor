@@ -401,7 +401,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                             borderRadius: 1,
                             border: '1px dashed #d6d68c'
                         }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                                 <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 'bold' }}>
                                     Suggested Prescription {originalIndex + 1}
                                 </Typography>
@@ -480,7 +480,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                 mb: 4,
                 bgcolor: '#ffffd7'
             }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#5c5c00' }}>
                         AI Suggested Investigations ({unappliedSuggestions.length})
                     </Typography>
