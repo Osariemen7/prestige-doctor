@@ -442,18 +442,7 @@ const DocDash = () => {
                     : "N/A"}
                 </Typography>
               </Box>
-              <Button
-               onClick={handleSubmit}
-               disabled={buttonVisible}
-                variant="contained"
-                sx={{
-                  bgcolor: "#2196F3",
-                  "&:hover": { bgcolor: "#1976D2" },
-                  whiteSpace: "nowrap",
-                }}
-              >
-              
-              </Button>
+
             </Box>
             <Typography>Subscription is on a monthly basis</Typography>
           </CardContent>
