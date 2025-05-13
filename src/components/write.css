@@ -22,7 +22,6 @@
 
 .write-documentation-page .MuiBox-root {
     display: flex;
-    flex-direction: column;
 }
 
 .write-documentation-page [role="tabpanel"] {
