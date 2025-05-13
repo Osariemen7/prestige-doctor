@@ -101,7 +101,8 @@ const ConsultAIPage = () => {
   const [isEndingConsultation, setIsEndingConsultation] = useState(false);
   const [isEndingConsultationLoading, setIsEndingConsultationLoading] = useState(false); // NEW
   const [isSavingAll, setIsSavingAll] = useState(false);
-  
+  const [billingProcessedForAppointmentId, setBillingProcessedForAppointmentId] = useState(null); // New state
+
   const location = useLocation();
 
   const animationMessages = [
@@ -140,6 +141,7 @@ const ConsultAIPage = () => {
       setReviewId('');
       setThread('');
       setPageResetKey(Date.now()); // Force child components to reset
+      setBillingProcessedForAppointmentId(null); // Reset billing status
       
       // Remove the reset flag from location state to prevent multiple resets
       window.history.replaceState({}, document.title);
@@ -227,13 +229,21 @@ const ConsultAIPage = () => {
 
 
   const handleBilling = async () => {
+    // Guard: Ensure consultation is active and appointment info is available
+    if (!isConsultationStarted || !ite || !ite.appointment || !ite.appointment.id) {
+      console.warn("Billing skipped: No active consultation, missing appointment info, or consultation not started.");
+      return;
+    }
+
+    const appointment_id = ite.appointment.id;
+
+    // Guard: Check if billing has already been processed for this specific appointment
+    if (billingProcessedForAppointmentId === appointment_id) {
+      console.log(`Billing already processed for appointment ID: ${appointment_id}. Skipping.`);
+      return;
+    }
+
     try {
-      // Ensure appointment info is available
-      if (!ite || !ite.appointment || !ite.appointment.id) {
-        console.warn("No appointment info for billing");
-        return;
-      }
-      const appointment_id = ite.appointment.id;
       // Calculate seconds used (900 - timeLeft)
       const seconds_used = 900 - timeLeft;
       const token = await getAccessToken();
@@ -261,6 +271,7 @@ const ConsultAIPage = () => {
         });
       } else {
         console.log('Billing successful:', result.message || result);
+        setBillingProcessedForAppointmentId(appointment_id); // Mark billing as processed for this appointment
       }
     } catch (error) {
       console.error('Error during billing:', error);
