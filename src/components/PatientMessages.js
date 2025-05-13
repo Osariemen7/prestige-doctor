@@ -620,13 +620,12 @@ const PatientMessages = () => {
       </Box>
     </Paper>
   );
-
   const renderInputBox = () => (
     <Box
       sx={{
         width: '100%',
         maxWidth: '700px',
-        borderRadius: '999px',
+        borderRadius: isMobile ? '24px' : '999px',
         boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
         background: 'linear-gradient(90deg, #f8fafc 80%, #e3f2fd 100%)',
         px: 2,
@@ -677,8 +676,9 @@ const PatientMessages = () => {
         </Box>
       )}
       {/* Controls row */}
-      <Box sx={{ display: 'flex',  flexDirection:'row', alignItems: 'center', gap: 1.5 }}>
-        {isNewConversation && (
+      <Box sx={{ display: 'flex', flexDirection:'row', alignItems: 'center', gap: 1.5 }}>
+        {/* Patient dropdown only visible on desktop, not mobile */}
+        {isNewConversation && !isMobile && (
           <FormControl
             variant="outlined"
             sx={{
@@ -818,6 +818,68 @@ const PatientMessages = () => {
           {isSending ? <CircularProgress size={22} sx={{ color: 'white' }} /> : <SendIcon sx={{ fontSize: 20 }} />}
         </IconButton>
       </Box>
+      
+      {/* Patient dropdown for mobile only - displayed below input field */}
+      {isNewConversation && isMobile && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1.5, mb: 0.5 }}>
+          <FormControl
+            variant="outlined"
+            sx={{
+              width: '100%',
+              '.MuiOutlinedInput-root': {
+                borderRadius: '999px',
+                background: '#f0f4f8',
+                height: 38,
+                pl: 0.5,
+                pr: 1,
+                fontSize: 13,
+                boxShadow: 'none',
+              },
+            }}
+            size="small"
+          >
+            <Select
+              value={selectedPatient || ""}
+              onChange={(e) => setSelectedPatient(e.target.value)}
+              displayEmpty
+              startAdornment={<PersonIcon sx={{ color: '#1976d2', fontSize: 18, mr: 0.5 }} />}
+              renderValue={(selected) =>
+                selected
+                  ? (datalist.find((p) => p.id === selected)?.full_name?.split(' ')[0] || `Patient`)
+                  : 'Select Patient'
+              }
+              sx={{
+                borderRadius: '999px',
+                fontSize: 13,
+                color: '#1976d2',
+                fontWeight: 500,
+                height: 38,
+                pl: 0,
+                pr: 0,
+                background: '#f0f4f8',
+                boxShadow: 'none',
+                '.MuiSelect-icon': { color: '#1976d2', fontSize: 18 },
+              }}
+              MenuProps={{
+                PaperProps: {
+                  style: { zIndex: 1302 },
+                },
+              }}
+            >
+              <MenuItem value="">
+                <em>Choose Patient</em>
+              </MenuItem>
+              {datalist.map((patient) => (
+                <MenuItem key={patient.id} value={patient.id}>
+                  {patient.full_name
+                    ? `${patient.full_name} (${patient.id})`
+                    : `Patient (${patient.id})`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
     </Box>
   );
 
@@ -980,11 +1042,10 @@ const PatientMessages = () => {
           {/* Scrollable content area with ref */}
           <Box 
             ref={messageContainerRef}
-            sx={{ 
-              flex: 1,
+            sx={{              flex: 1,
               overflowY: 'auto',
               p: { xs: 2, lg: 4 },
-              mb: isMobile ? 2 : 0,  // Add some bottom margin in mobile view
+              mb: isMobile ? (isNewConversation ? 14 : 10) : 0, // Increase bottom margin for mobile + dropdown
               scrollBehavior: 'smooth',
               display: 'flex',
               flexDirection: 'column',
@@ -1030,8 +1091,7 @@ const PatientMessages = () => {
                 )}
               </Box>
             )}
-          </Box>
-          {/* Fixed input box at bottom - use fixed position for mobile */}
+          </Box>          {/* Fixed input box at bottom - use fixed position for mobile */}
           <Box sx={{
             position: isMobile ? 'fixed' : 'absolute',
             bottom: 0,
@@ -1041,12 +1101,13 @@ const PatientMessages = () => {
             bgcolor: 'background.paper',
             borderTop: '1px solid rgba(0,0,0,0.12)',
             p: 2,
-            maxHeight: '170px',
+            maxHeight: isMobile && isNewConversation ? '230px' : '170px', // Increased height for mobile with dropdown
             zIndex: 10,
             boxShadow: isMobile ? '0 -2px 10px rgba(0,0,0,0.1)' : 'none',
             display: 'flex',
             justifyContent: 'center', // Center the input box horizontally
-            alignItems: 'center'      // Center vertically
+            alignItems: 'center',      // Center vertically
+            pb: isMobile && isNewConversation ? 3 : 2  // Extra padding at bottom for mobile with dropdown
           }}>
             {renderInputBox()}
           </Box>

@@ -542,19 +542,28 @@ const LandingPageNew = () => {
               </Parallax>
             </Grid>
           </Grid>
-        </Container>
-        <Box
+        </Container>        <Box
           sx={{
             position: 'absolute',
-            bottom: { xs: 30, md: 80 }, // raised on desktop
-            left: 0,
-            right: 0,
-            mx: 'auto',
+            bottom: { xs: 30, md: 40 },
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1,
             animation: `${pulseAnimation} 1.5s infinite`,
           }}
           onClick={() => scrollToSection('stats')}
         >
-          <IconButton sx={{ color: '#2C75FB' }}>
+          <IconButton 
+            sx={{ 
+              color: '#2C75FB',
+              backgroundColor: 'rgba(10, 25, 47, 0.3)',
+              '&:hover': {
+                backgroundColor: 'rgba(10, 25, 47, 0.5)',
+              }
+            }}
+          >
             <ChevronDown size={40} />
           </IconButton>
         </Box>
@@ -606,10 +615,18 @@ const LandingPageNew = () => {
         </Grid>
       </Section>
 
-      {/* Features Section */}
-      <Section id="features" sx={{ backgroundColor: '#050816' }}>
+      {/* Features Section */}      <Section id="features" sx={{ backgroundColor: '#050816' }}>
         <Box textAlign="center" mb={10}>
-          <Typography variant="h2" component="h2" sx={{ fontWeight: 700, color: 'white', mb: 2, textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <Typography variant="h2" component="h2" sx={{ 
+            fontWeight: 700, 
+            color: 'white', 
+            mb: 2, 
+            textTransform: 'uppercase', 
+            letterSpacing: '1px',
+            fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+            wordBreak: 'break-word',
+            px: { xs: 2, sm: 0 }
+          }}>
             Designed for <span style={{ color: '#2C75FB' }}>Modern</span> Healthcare Providers
           </Typography>
           <Typography variant="h5" component="p" sx={{ color: '#B0C4DE', maxWidth: '800px', mx: 'auto', lineHeight: 1.7 }}>
@@ -758,10 +775,18 @@ const LandingPageNew = () => {
         </Grid>
       </Section>
 
-      {/* Pricing Section */}
-      <Section id="pricing" sx={{ backgroundColor: '#050816' }}>
+      {/* Pricing Section */}      <Section id="pricing" sx={{ backgroundColor: '#050816' }}>
         <Box textAlign="center" mb={10}>
-          <Typography variant="h2" component="h2" sx={{ fontWeight: 700, color: 'white', mb: 2, textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <Typography variant="h2" component="h2" sx={{ 
+            fontWeight: 700, 
+            color: 'white', 
+            mb: 2, 
+            textTransform: 'uppercase', 
+            letterSpacing: '1px',
+            fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+            wordBreak: 'break-word',
+            px: { xs: 2, sm: 0 }
+          }}>
             Transparent <span style={{ color: '#2C75FB' }}>Pricing</span>
           </Typography>
           <Typography variant="h5" component="p" sx={{ color: '#B0C4DE', maxWidth: '800px', mx: 'auto', lineHeight: 1.7 }}>

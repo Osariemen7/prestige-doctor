@@ -45,7 +45,7 @@ import { MdNotes, MdClose, MdMic, MdStop, MdTextFields, MdPause, MdPlayArrow, Md
 import { AddIcon, CloseIcon } from '@chakra-ui/icons';
 import Split from 'react-split';
 import ChatScreen from './chatScreen';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import { getAccessToken } from './api';
 import PatientProfileDisplay from './document';
@@ -96,12 +96,13 @@ const ConsultAIPage = () => {
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingEndConsult, setPendingEndConsult] = useState(false);
   const [isAddPatientOpen, setIsAddPatientOpen] = useState(false);
-  const [addPatientLoading, setAddPatientLoading] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [addPatientLoading, setAddPatientLoading] = useState(false);  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [splitSizes, setSplitSizes] = useState([35, 65]); // default split
   const [isEndingConsultation, setIsEndingConsultation] = useState(false);
   const [isEndingConsultationLoading, setIsEndingConsultationLoading] = useState(false); // NEW
   const [isSavingAll, setIsSavingAll] = useState(false);
+  
+  const location = useLocation();
 
   const animationMessages = [
     "Warming up the microphone...",
@@ -117,6 +118,43 @@ const ConsultAIPage = () => {
   const processorRef = useRef(null);
   const [assemblyAiToken, setAssemblyAiToken] = useState('');
   const [isAudioProcessingActive, setIsAudioProcessingActive] = useState(false);
+  
+  // Reset component state when navigating to this page with reset flag
+  useEffect(() => {
+    if (location.state?.reset) {
+      // Reset all relevant states to their initial values
+      setIsEndingConsultation(false);
+      setIsEndingConsultationLoading(false);
+      setIsSavingAll(false);
+      setIsConsultationStarted(false);
+      setChatMessages([]);
+      setTranscript([]);
+      setWsStatus('Disconnected');
+      setActiveScreen(isMobile ? "documentation" : "voice");
+      setBottomTabIndex(isMobile ? 0 : 1);
+      setIsBottomTabVisible(false);
+      setTimeLeft(900);
+      setHasUnsavedChanges(false);
+      setPendingEndConsult(false);
+      setPhoneNumber('');
+      setReviewId('');
+      setThread('');
+      setPageResetKey(Date.now()); // Force child components to reset
+      
+      // Remove the reset flag from location state to prevent multiple resets
+      window.history.replaceState({}, document.title);
+      
+      // Toast to confirm reset
+      toast({
+        title: "Consultation Complete",
+        description: "Ready to start a new consultation",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [location, isMobile, toast]);
+  
   const formatPhoneNumber = (phoneNumber, countryCode) => {
     return `${countryCode}${phoneNumber}`;
   };
@@ -961,14 +999,14 @@ const ConsultAIPage = () => {
       pauseTranscription();
     }
   };
-
   useEffect(() => {
-    // Ensure documentation tab is default when entering on mobile
+    // Ensure documentation tab is default when entering on mobile,
+    // but only on initial component mount, not on viewport changes
     if (isMobile) {
       setBottomTabIndex(0);
       setActiveScreen('documentation');
     }
-  }, [isMobile]);
+  }, []); // Remove isMobile dependency to prevent resets on viewport changes
 
   useEffect(() => {
     // Only update isBottomTabVisible based on wsStatus if not paused
@@ -1129,9 +1167,7 @@ const ConsultAIPage = () => {
     } finally {
       setAddPatientLoading(false);
     }
-  };
-
-  const handleSaveAllAndExit = async () => {
+  };  const handleSaveAllAndExit = async () => {
     setIsSavingAll(true);
     try {
       if (patientProfileRef.current && patientProfileRef.current.saveAllDocumentation) {
@@ -1140,7 +1176,8 @@ const ConsultAIPage = () => {
         setHasUnsavedChanges(false);
         await handleBilling();
         performEndConsultation();
-        navigate('/dashboard');
+        // Navigate to a fresh consult page with reset flag
+        navigate('/consult-ai', { state: { reset: true } });
       } else {
         toast({
           title: 'Save Error',
@@ -1319,9 +1356,7 @@ const ConsultAIPage = () => {
                   </>
                 )}
               </>
-            ) : (
-              <>
-                <Button
+            ) : (              <>                <Button
                   onClick={handleSaveAllAndExit}
                   isLoading={isSavingAll}
                   loadingText="Saving..."
