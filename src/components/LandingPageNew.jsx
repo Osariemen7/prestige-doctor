@@ -57,7 +57,8 @@ import {
   Lightbulb,
   Heart,
   Smile,
-  ThumbsUp
+  ThumbsUp,
+  Building // Added Building icon for hospital section
 } from 'lucide-react';
 import { Parallax } from 'react-scroll-parallax';
 
@@ -143,6 +144,7 @@ const navItems = [
   { label: 'Features', sectionId: 'features' },
   { label: 'How It Works', sectionId: 'how-it-works' },
   { label: 'Pricing', sectionId: 'pricing' },
+  { label: 'For Hospitals', sectionId: 'for-hospitals' }, // Added For Hospitals
   { label: 'Success Stories', sectionId: 'testimonials' },
 ];
 
@@ -948,6 +950,51 @@ const LandingPageNew = () => {
             </Card>
           </Grid>
         </Grid>
+      </Section>
+
+      {/* For Hospitals Section */}
+      <Section id="for-hospitals" sx={{ backgroundColor: '#0a192f', py: { xs: 8, md: 12 } }}>
+        <Box textAlign="center" mb={10}>
+          <Typography variant="h2" component="h2" sx={{ 
+            fontWeight: 700, 
+            color: 'white', 
+            mb: 2, 
+            textTransform: 'uppercase', 
+            letterSpacing: '1px',
+            fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+            wordBreak: 'break-word',
+            px: { xs: 2, sm: 0 }
+          }}>
+            Partner with <span style={{ color: '#2C75FB' }}>PrestigeHealth</span>
+          </Typography>
+          <Typography variant="h5" component="p" sx={{ color: '#B0C4DE', maxWidth: '800px', mx: 'auto', lineHeight: 1.7, mb: 5 }}>
+            Empower your hospital network with our AI-driven platform. Streamline administrative tasks, enhance patient engagement, and improve operational efficiency. Let's discuss how PrestigeHealth can integrate with your existing systems and elevate your healthcare services.
+          </Typography>
+          <Button
+            variant="contained"
+            size="large"
+            href="mailto:sales@prestigehealth.app"
+            startIcon={<Building size={22} />}
+            sx={{
+              padding: theme.spacing(1.8) + ' ' + theme.spacing(5),
+              borderRadius: '30px',
+              backgroundColor: '#2C75FB',
+              color: '#FFFFFF',
+              fontSize: '1.1rem',
+              fontWeight: 700,
+              textTransform: 'none',
+              boxShadow: '0 0 20px rgba(44, 117, 251, 0.5)',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                backgroundColor: '#1A5FDE',
+                transform: 'translateY(-3px) scale(1.02)',
+                boxShadow: '0 0 30px rgba(44, 117, 251, 0.7)',
+              },
+            }}
+          >
+            Speak to Sales
+          </Button>
+        </Box>
       </Section>
 
       {/* Testimonials Section */}
