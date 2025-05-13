@@ -100,6 +100,7 @@ const ConsultAIPage = () => {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [splitSizes, setSplitSizes] = useState([35, 65]); // default split
   const [isEndingConsultation, setIsEndingConsultation] = useState(false);
+  const [isEndingConsultationLoading, setIsEndingConsultationLoading] = useState(false); // NEW
   const [isSavingAll, setIsSavingAll] = useState(false);
 
   const animationMessages = [
@@ -189,72 +190,49 @@ const ConsultAIPage = () => {
 
   const handleBilling = async () => {
     try {
-      // Check if patient data exists before proceeding
-      if (!patientInfo || !patientInfo.patient_phone_number) {
-        console.warn("Patient information is missing or incomplete");
-        
-        // Look up the patient using selectedPatientId
-        const selectedPatient = dataList.find(patient => patient.id.toString() === selectedPatientId);
-        
-        // Fall back to using the phoneNumber state variable if available
-        const phoneNumberToUse = phoneNumber || (selectedPatient?.phone_number || "");
-        
-        if (!phoneNumberToUse) {
-          throw new Error("Cannot process billing: No patient phone number available");
-        }
-        
-        // Make the API call with the fallback phone number
-        const response = await fetch('/api/billing', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            patient_phone_number: phoneNumberToUse,
-            review_id: reviewId,
-            thread: thread
-          }),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Billing API returned status: ${response.status}`);
-        }
-        
-        return await response.json();
+      // Ensure appointment info is available
+      if (!ite || !ite.appointment || !ite.appointment.id) {
+        console.warn("No appointment info for billing");
+        return;
       }
-      
-      // Otherwise, proceed with the original logic using patientInfo
-      const response = await fetch('/api/billing', {
+      const appointment_id = ite.appointment.id;
+      // Calculate seconds used (900 - timeLeft)
+      const seconds_used = 900 - timeLeft;
+      const token = await getAccessToken();
+      const billingData = {
+        appointment_id,
+        seconds_used: Math.max(0, seconds_used),
+      };
+      const response = await fetch('https://health.prestigedelta.com/billing/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          patient_phone_number: patientInfo.patient_phone_number,
-          review_id: reviewId,
-          thread: thread
-        }),
+        body: JSON.stringify(billingData),
       });
-      
+      const result = await response.json();
       if (!response.ok) {
-        throw new Error(`Billing API returned status: ${response.status}`);
+        console.error('Billing error:', result.message || result);
+        toast({
+          title: 'Billing Error',
+          description: result.message || 'Failed to process billing.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        console.log('Billing successful:', result.message || result);
       }
-      
-      return await response.json();
     } catch (error) {
-      console.error("Error during billing process:", error);
-      
-      // Show error toast but don't block the process
+      console.error('Error during billing:', error);
       toast({
-        title: "Billing Notice",
-        description: "There was an issue processing the billing. The consultation has ended.",
-        status: "warning",
+        title: 'Billing Error',
+        description: error.message || 'Failed to process billing.',
+        status: 'error',
         duration: 5000,
         isClosable: true,
       });
-      
-      // Return a mock response to allow the process to continue
-      return { success: false, error: error.message };
     }
   };
 
@@ -740,13 +718,20 @@ const ConsultAIPage = () => {
         setPendingEndConsult(true);
         return;
       }
-
-      setIsEndingConsultation(true);
-
+      setIsEndingConsultationLoading(true); // Start loading
+      // If documentation needs to be generated, trigger it here and await
+      if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
+        try {
+          await patientProfileRef.current.getSuggestion();
+        } catch (e) {
+          // Optionally handle error
+        }
+      }
+      setIsEndingConsultation(true); // Only after generation is done
+      setIsEndingConsultationLoading(false); // Stop loading
       if (!isPaused && isTranscribing) {
         pauseTranscription();
       }
-
       if (isMobile && bottomTabIndex !== 0) {
         setBottomTabIndex(0);
         setActiveScreen('documentation');
@@ -1295,12 +1280,14 @@ const ConsultAIPage = () => {
               <>
                 <Button
                   onClick={isConsultationStarted ? endConsultation : startConsultationSessionFlow}
-                  isDisabled={loading || (!selectedPatientId && !isConsultationStarted)}
+                  isDisabled={loading || (!selectedPatientId && !isConsultationStarted) || isEndingConsultationLoading}
                   colorScheme={isConsultationStarted ? "red" : "blue"}
                   mr={3}
                   size="md"
+                  isLoading={isEndingConsultationLoading}
+                  loadingText="Ending..."
                 >
-                  {loading ? <Spinner size="sm" /> : isConsultationStarted ? 'End Consultation' : 'Start Consultation'}
+                  {(loading || isEndingConsultationLoading) ? <Spinner size="sm" /> : isConsultationStarted ? 'End Consultation' : 'Start Consultation'}
                 </Button>
                 {isConsultationStarted && (
                   <>
@@ -1315,6 +1302,7 @@ const ConsultAIPage = () => {
                         isRound={true}
                         mr={3}
                         boxShadow="md"
+                        isDisabled={isEndingConsultation}
                       />
                     </Tooltip>
                     <Tooltip label={isTranscriptionPanelOpen ? "Hide Transcription" : "Show Transcription"} placement="bottom">
@@ -1325,7 +1313,7 @@ const ConsultAIPage = () => {
                         onClick={toggleTranscriptionPanel}
                         isRound={true}
                         size="md"
-                        isDisabled={!isTranscribing && wsStatus !== 'Connected'}
+                        isDisabled={!isTranscribing && wsStatus !== 'Connected' || isEndingConsultation}
                       />
                     </Tooltip>
                   </>
@@ -1340,6 +1328,7 @@ const ConsultAIPage = () => {
                   colorScheme="green"
                   mr={3}
                   size="md"
+                  isDisabled={isSavingAll}
                 >
                   Save All & Exit
                 </Button>
@@ -1348,6 +1337,7 @@ const ConsultAIPage = () => {
                   variant="outline"
                   mr={3}
                   size="md"
+                  isDisabled={isSavingAll}
                 >
                   Cancel
                 </Button>

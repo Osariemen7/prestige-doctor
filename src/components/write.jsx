@@ -762,8 +762,8 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                                 <Button
                                     variant="contained"
                                     color="primary"
-                                    onClick={saveAllDocumentation}
-                                    disabled={isSaveAllLoading}
+                                    onClick={getSuggestion}
+                                    disabled={isSaving}
                                     size={isMobile ? "small" : "large"}
                                     sx={{ 
                                         minWidth: isMobile ? 100 : 150,
@@ -774,9 +774,9 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                                         flex: isMobile ? '0 0 auto' : 'inherit',
                                         order: 0
                                     }}
-                                    startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
+                                    startIcon={isSaving ? <CircularProgress size={16} /> : null}
                                 >
-                                    {isSaveAllLoading ? 'Saving...' : 'Save All'}
+                                    {isSaving ? 'Generating...' : 'Generate Note'}
                                 </Button>
                             )}
                             <Box sx={{ 
@@ -833,6 +833,7 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                         maxHeight: isMobile ? 'calc(100vh - 140px)' : 'calc(100vh - 100px)', // Adjusted for mobile
                         overflowY: 'auto',
                         overflowX: 'hidden',
+                        WebkitOverflowScrolling: 'touch',
                         display: 'flex',
                         flexDirection: 'column',
                         borderRadius: '0 0 8px 8px',

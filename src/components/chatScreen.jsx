@@ -500,6 +500,21 @@ const ChatScreen = ({
   // Use chatMessages directly (or merge with any additional messages as needed)
   const combinedMessages = chatMessages || [];
 
+  // Scroll to bottom effect - improved for better scroll handling
+  useEffect(() => {
+    if (messagesEndRef.current && innerScrollerRef.current) {
+      const scrollToBottom = () => {
+        const scrollContainer = messagesEndRef.current.closest('.chat-scroll-container');
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+      };
+      
+      // Use a slight delay to ensure all content is rendered
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [chatMessages, combinedMessages.length]);
+
   const handleImageUploadClick = () => {
     fileInputRef.current.click(); // Programmatically click the hidden file input
   };

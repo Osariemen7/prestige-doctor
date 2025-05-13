@@ -6,37 +6,64 @@
   padding: 4px 0; /* Add some vertical padding to the container */
 }
 
-/* Improve scroll display and behavior */
+/* Improve scroll display and behavior - UPDATED FOR SINGLE SCROLLER */
 .chat-scroll-container {
+  /* Redefining to ensure these styles take precedence */
   display: flex;
   flex-direction: column;
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto !important;
   overflow-x: hidden;
   min-height: 200px;
   height: 100%;
   padding-top: 10px; /* Add space at the top to ensure first messages are visible */
+  padding-bottom: 20px; /* Add space at the bottom for better UX */
+  position: relative; /* Add position relative for proper stacking context */
+  scrollbar-width: thin; /* For Firefox */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
+.chat-scroll-container::-webkit-scrollbar {
+  width: 6px; /* For Chrome, Safari, and Opera */
+}
+
+.chat-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.chat-scroll-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.chat-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Make the inner container non-scrollable to prevent nested scrollbars */
 .inner-scroll-container {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-height: 200px;
-  height: 100%;
+  height: auto !important; /* Changed from 100% to auto to prevent nested scrolling */
+  overflow: visible !important; /* Prevent inner container from scrolling */
 }
 
 /* Mobile optimizations */
 @media (max-width: 768px) {
   /* Make content area taller */
-  .outer-scroller, 
-  .inner-scroller {
+  .outer-scroller {
     max-height: calc(100vh - 110px); /* Adjusted to give a bit more space for input */
     height: calc(100vh - 110px);
+    overflow-y: auto; /* Ensure the outer container has scroll */
   }
 
-  /* Add padding at bottom to prevent content being hidden by tabs on mobile */
+  /* Inner scroller should not scroll independently on mobile */
   .inner-scroller {
+    overflow: visible !important; /* Force no scrolling on inner container */
+    height: auto !important; /* Auto height to accommodate content */
+    max-height: none !important; /* Remove max-height restriction */
     padding-bottom: 65px !important; /* Important to override any inline styles */
   }
 
@@ -77,18 +104,6 @@
 /* Make the input area more compact */
 .chat-container .MuiPaper-root {
   margin-bottom: 0;
-}
-
-/* Ensure the chat content area expands properly */
-.chat-scroll-container {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 200px;
-  height: 100%;
-  padding-top: 10px; /* Add space at the top to ensure first messages are visible */
 }
 
 /* Improve button styling - general, not just hover */
