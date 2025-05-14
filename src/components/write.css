@@ -3,6 +3,12 @@
     animation: dots 1.5s steps(3, end) infinite;
 }
 
+.write-documentation-page .medical-review-tab,
+.write-documentation-page .medical-review-tab .MuiBox-root {
+    display: flex !important;
+    flex-direction: column !important;
+} 
+
 @keyframes dots {
     0% { content: ''; }
     33% { content: '.'; }
@@ -20,7 +26,7 @@
     padding: 0 !important;
 }
 
-.write-documentation-page .MuiBox-root:not(.medical-item-box) {
+.write-documentation-page .MuiBox-root:not(.medical-review-tab) {
     display: flex;
 }
 
