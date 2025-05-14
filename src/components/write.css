@@ -3,10 +3,17 @@
     animation: dots 1.5s steps(3, end) infinite;
 }
 
+/* Global fix for suggestion and question containers */
 .write-documentation-page .medical-review-tab,
-.write-documentation-page .medical-review-tab .MuiBox-root {
-    display: flex !important;
+.write-documentation-page .medical-review-tab .MuiBox-root,
+.write-documentation-page .suggestion-box,
+.write-documentation-page .suggestion-item-box,
+.write-documentation-page .question-box,
+.write-documentation-page .question-container {
+    display: block !important;
     flex-direction: column !important;
+    max-width: none !important;
+    width: 100% !important;
 } 
 
 @keyframes dots {
@@ -28,6 +35,23 @@
 
 .write-documentation-page .MuiBox-root:not(.medical-item-box):not(.suggestion-box):not(.suggestion-item-box):not(.question-box):not(.question-header-box):not(.question-content-box):not(.question-container) {
     display: flex;
+}
+
+/* Comprehensive overrides for suggestion and question components */
+.write-documentation-page .suggestion-box {
+    display: block !important;
+    width: 100% !important;
+    flex-direction: column !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+}
+
+.write-documentation-page .suggestion-item-box {
+    display: block !important;
+    width: 100% !important;
+    flex-direction: column !important;
+    position: relative !important;
+    box-sizing: border-box !important;
 }
 
 .write-documentation-page [role="tabpanel"] {
@@ -132,34 +156,74 @@
     }
 }
 
-/* Reset and specific component styles */
-.medical-item-box {
+/* Production-specific overrides */
+.production-suggestion-box,
+.production-suggestion-item {
     display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    position: static !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
 }
 
-.medical-item-box .MuiGrid-container {
+.production-suggestion-header,
+.production-suggestion-item-header {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    position: static !important;
+    box-sizing: border-box !important;
+}
+
+.production-suggestion-grid.MuiGrid-container,
+.production-suggestion-grid {
     display: grid !important;
+    width: 100% !important;
+    max-width: 100% !important;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
-}
-
-@media (max-width: 768px) {
-    .medical-item-box .MuiGrid-container {
-        display: flex !important;
-        flex-direction: column !important;
-    }
+    flex: none !important;
+    flex-direction: unset !important;
+    flex-wrap: unset !important;
+    box-sizing: border-box !important;
 }
 .suggestion-box,
 .question-box {
     display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+    float: none !important;
+    position: relative !important;
+    box-sizing: border-box !important;
 }
 
 .suggestion-item-box,
 .question-content-box {
     display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+    float: none !important;
+    position: relative !important;
+    box-sizing: border-box !important;
 }
 
 .suggestion-header-box {
     display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 .suggestion-header-box > .MuiButton-root {
@@ -172,20 +236,32 @@
     justify-content: space-between !important;
     align-items: center !important;
     width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 .suggestion-item-grid {
     display: grid !important;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+    float: none !important;
+    position: relative !important;
+    box-sizing: border-box !important;
 }
 
-.question-header-box {
-    display: flex !important;
-    flex-direction: row !important;
+.suggestion-item-grid.MuiGrid-container {
+    display: grid !important;
+    flex-direction: unset !important;
+    flex-wrap: unset !important;
+    width: 100% !important;
 }
 
 /* Reset for Grid items inside suggestion boxes */
 .suggestion-item-grid .MuiGrid-item {
     width: 100% !important;
     max-width: 100% !important;
+    flex-basis: auto !important;
+    box-sizing: border-box !important;
 }

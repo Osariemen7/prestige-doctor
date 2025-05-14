@@ -50,15 +50,17 @@ const SuggestedQuestionsTab = ({ questions, isLoading, isMobile }) => {
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '80%' }}>
           Click the "Generate Questions" button to help guide your consultation with AI-powered suggestions.
         </Typography>
-      </Box>
-    );  }  return (
+      </Box>    );  }  return (
     <Box sx={{ 
       p: isMobile ? 2 : 3,
       pb: isMobile ? '70px' : 3,  // Add extra bottom padding on mobile to prevent overlap with tabs
-      mb: isMobile ? 2 : 0  // Add bottom margin on mobile
-    }} className="question-container">
+      mb: isMobile ? 2 : 0,  // Add bottom margin on mobile
+      display: 'block',
+      width: '100%',
+      maxWidth: '100%'
+    }} className="question-container production-question-container">
       <Box sx={{ 
-        display: 'flex', 
+        display: 'flex',
         alignItems: 'center', 
         mb: 2.5,
         pb: 1.5,
@@ -87,12 +89,13 @@ const SuggestedQuestionsTab = ({ questions, isLoading, isMobile }) => {
           </Typography>
         </Box>
       </Box>
-      
-      <Box sx={{ 
+        <Box sx={{ 
         display: 'grid', 
         gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(450px, 1fr))', 
-        gap: 2.5
-      }} className="question-box">
+        gap: 2.5,
+        width: '100%',
+        maxWidth: '100%'
+      }} className="question-box production-question-box">
         {questions.map((item, index) => {
           const isPriority = index < 3;
           return (

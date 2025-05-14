@@ -364,16 +364,24 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             !(localData.prescription || []).some(p => p.medication_name === prescription.medication_name)
         );
         // If no suggestions left to apply, hide the suggestions box
-        if (unappliedSuggestions.length === 0) return null;
-          return (
+        if (unappliedSuggestions.length === 0) return null;        return (
             <Box sx={{
                 border: '1px solid #f0f0b8',
                 borderRadius: 1,
                 p: 2,
                 mb: 4,
-                bgcolor: '#ffffd7'
-            }} className="suggestion-box">
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }} className="suggestion-header-box">
+                bgcolor: '#ffffd7',
+                width: '100%',
+                maxWidth: '100%',
+                display: 'block'
+            }} className="suggestion-box production-suggestion-box">
+                <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    mb: 2,
+                    width: '100%'
+                }} className="suggestion-header-box production-suggestion-header">
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#5c5c00' }}>
                         AI Suggested Prescriptions ({unappliedSuggestions.length})
                     </Typography>
@@ -390,16 +398,25 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     // Find the original index in the full suggestion array
                     const originalIndex = suggestion.prescription_suggestion.findIndex(
                         item => JSON.stringify(item) === JSON.stringify(prescriptionSuggestion)
-                    );
-                      return (
+                    );                      return (
                         <Box key={originalIndex} sx={{ 
                             mb: 3,
                             p: 2,
                             bgcolor: '#fffff0',
                             borderRadius: 1,
-                            border: '1px dashed #d6d68c'
-                        }} className="suggestion-item-box">
-                            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', mb: 1 }} className="suggestion-item-header-box">
+                            border: '1px dashed #d6d68c',
+                            width: '100%',
+                            maxWidth: '100%',
+                            display: 'block'
+                        }} className="suggestion-item-box production-suggestion-item">
+                            <Box sx={{ 
+                                display: 'flex', 
+                                flexDirection: 'row', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center', 
+                                mb: 1,
+                                width: '100%'
+                            }} className="suggestion-item-header-box production-suggestion-item-header">
                                 <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 'bold' }}>
                                     Suggested Prescription {originalIndex + 1}
                                 </Typography>
@@ -412,7 +429,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                     Apply
                                 </Button>
                             </Box>
-                            <Grid container spacing={2} className="suggestion-item-grid">
+                            <Grid container spacing={2} sx={{ display: 'grid', width: '100%' }} className="suggestion-item-grid production-suggestion-grid">
                                 <Grid item xs={12} md={6}>
                                     <Typography variant="subtitle2" color="text.secondary">Medication Name</Typography>
                                     <Typography variant="body1">{prescriptionSuggestion.medication_name || ''}</Typography>
@@ -468,15 +485,23 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
             !(localData.investigation || []).some(i => i.test_type === investigation.test_type)
         );
         // If no suggestions left to apply, hide the suggestions box
-        if (unappliedSuggestions.length === 0) return null;
-          return (            <Box sx={{
+        if (unappliedSuggestions.length === 0) return null;          return (            <Box sx={{
                 border: '1px solid #f0f0b8',
                 borderRadius: 1,
                 p: 2,
                 mb: 4,
-                bgcolor: '#ffffd7'
-            }} className="suggestion-box">
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }} className="suggestion-header-box">
+                bgcolor: '#ffffd7',
+                width: '100%',
+                maxWidth: '100%',
+                display: 'block'
+            }} className="suggestion-box production-suggestion-box">
+                <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    mb: 2,
+                    width: '100%'
+                }} className="suggestion-header-box production-suggestion-header">
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#5c5c00' }}>
                         AI Suggested Investigations ({unappliedSuggestions.length})
                     </Typography>
@@ -493,16 +518,25 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     // Find the original index in the full suggestion array
                     const originalIndex = suggestion.investigation_suggestion.findIndex(
                         item => JSON.stringify(item) === JSON.stringify(investigationSuggestion)
-                    );
-                    
+                    );                    
                     return (                        <Box key={originalIndex} sx={{
                             mb: 3,
                             p: 2,
                             bgcolor: '#fffff0',
                             borderRadius: 1,
-                            border: '1px dashed #d6d68c'
-                        }} className="suggestion-item-box">
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }} className="suggestion-item-header-box">
+                            border: '1px dashed #d6d68c',
+                            width: '100%',
+                            maxWidth: '100%',
+                            display: 'block'
+                        }} className="suggestion-item-box production-suggestion-item">
+                            <Box sx={{ 
+                                display: 'flex', 
+                                flexDirection: 'row', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center', 
+                                mb: 1,
+                                width: '100%'
+                            }} className="suggestion-item-header-box production-suggestion-item-header">
                                 <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 'bold' }}>
                                     Suggested Investigation {originalIndex + 1}
                                 </Typography>
@@ -511,11 +545,10 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                     color="primary"
                                     size="small"
                                     onClick={() => handleLocalApplySuggestion(`investigation_suggestion[${originalIndex}]`, investigationSuggestion)}
-                                >
-                                    Apply
+                                >                                    Apply
                                 </Button>
                             </Box>
-                            <Grid container spacing={2} className="suggestion-item-grid">
+                            <Grid container spacing={2} sx={{ display: 'grid', width: '100%' }} className="suggestion-item-grid production-suggestion-grid">
                                 <Grid item xs={12} md={6}>
                                     <Typography variant="subtitle2" color="text.secondary">Test Type</Typography>
                                     <Typography variant="body1">{investigationSuggestion.test_type || ''}</Typography>
