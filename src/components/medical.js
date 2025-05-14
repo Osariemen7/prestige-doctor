@@ -365,16 +365,15 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
         );
         // If no suggestions left to apply, hide the suggestions box
         if (unappliedSuggestions.length === 0) return null;
-        
-        return (
+          return (
             <Box sx={{
                 border: '1px solid #f0f0b8',
                 borderRadius: 1,
                 p: 2,
                 mb: 4,
                 bgcolor: '#ffffd7'
-            }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            }} className="suggestion-box">
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }} className="suggestion-header-box">
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#5c5c00' }}>
                         AI Suggested Prescriptions ({unappliedSuggestions.length})
                     </Typography>
@@ -392,16 +391,15 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                     const originalIndex = suggestion.prescription_suggestion.findIndex(
                         item => JSON.stringify(item) === JSON.stringify(prescriptionSuggestion)
                     );
-                    
-                    return (
+                      return (
                         <Box key={originalIndex} sx={{ 
                             mb: 3,
                             p: 2,
                             bgcolor: '#fffff0',
                             borderRadius: 1,
                             border: '1px dashed #d6d68c'
-                        }}>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        }} className="suggestion-item-box">
+                            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', mb: 1 }} className="suggestion-item-header-box">
                                 <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 'bold' }}>
                                     Suggested Prescription {originalIndex + 1}
                                 </Typography>
@@ -414,7 +412,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                     Apply
                                 </Button>
                             </Box>
-                            <Grid container spacing={2}>
+                            <Grid container spacing={2} className="suggestion-item-grid">
                                 <Grid item xs={12} md={6}>
                                     <Typography variant="subtitle2" color="text.secondary">Medication Name</Typography>
                                     <Typography variant="body1">{prescriptionSuggestion.medication_name || ''}</Typography>
@@ -471,16 +469,14 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
         );
         // If no suggestions left to apply, hide the suggestions box
         if (unappliedSuggestions.length === 0) return null;
-        
-        return (
-            <Box sx={{
+          return (            <Box sx={{
                 border: '1px solid #f0f0b8',
                 borderRadius: 1,
                 p: 2,
                 mb: 4,
                 bgcolor: '#ffffd7'
-            }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            }} className="suggestion-box">
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }} className="suggestion-header-box">
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#5c5c00' }}>
                         AI Suggested Investigations ({unappliedSuggestions.length})
                     </Typography>
@@ -499,15 +495,14 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         item => JSON.stringify(item) === JSON.stringify(investigationSuggestion)
                     );
                     
-                    return (
-                        <Box key={originalIndex} sx={{ 
+                    return (                        <Box key={originalIndex} sx={{
                             mb: 3,
                             p: 2,
                             bgcolor: '#fffff0',
                             borderRadius: 1,
                             border: '1px dashed #d6d68c'
-                        }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        }} className="suggestion-item-box">
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }} className="suggestion-item-header-box">
                                 <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 'bold' }}>
                                     Suggested Investigation {originalIndex + 1}
                                 </Typography>
@@ -520,7 +515,7 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                                     Apply
                                 </Button>
                             </Box>
-                            <Grid container spacing={2}>
+                            <Grid container spacing={2} className="suggestion-item-grid">
                                 <Grid item xs={12} md={6}>
                                     <Typography variant="subtitle2" color="text.secondary">Test Type</Typography>
                                     <Typography variant="body1">{investigationSuggestion.test_type || ''}</Typography>

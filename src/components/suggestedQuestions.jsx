@@ -51,22 +51,21 @@ const SuggestedQuestionsTab = ({ questions, isLoading, isMobile }) => {
           Click the "Generate Questions" button to help guide your consultation with AI-powered suggestions.
         </Typography>
       </Box>
-    );  }
-  return (
+    );  }  return (
     <Box sx={{ 
       p: isMobile ? 2 : 3,
       pb: isMobile ? '70px' : 3,  // Add extra bottom padding on mobile to prevent overlap with tabs
       mb: isMobile ? 2 : 0  // Add bottom margin on mobile
-    }}>
+    }} className="question-container">
       <Box sx={{ 
         display: 'flex', 
         alignItems: 'center', 
         mb: 2.5,
         pb: 1.5,
         borderBottom: '1px solid #f0f0f0'
-      }}>
+      }} className="question-header-box">
         <LightbulbOutlinedIcon sx={{ mr: 1.5, color: 'primary.main' }} />
-        <Box>
+        <Box className="question-content-box">
           <Typography 
             variant="h6" 
             gutterBottom 
@@ -93,7 +92,7 @@ const SuggestedQuestionsTab = ({ questions, isLoading, isMobile }) => {
         display: 'grid', 
         gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(450px, 1fr))', 
         gap: 2.5
-      }}>
+      }} className="question-box">
         {questions.map((item, index) => {
           const isPriority = index < 3;
           return (

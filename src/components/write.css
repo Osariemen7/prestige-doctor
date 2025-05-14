@@ -20,7 +20,7 @@
     padding: 0 !important;
 }
 
-.write-documentation-page .MuiBox-root:not(.medical-item-box) {
+.write-documentation-page .MuiBox-root:not(.medical-item-box):not(.suggestion-box):not(.suggestion-item-box):not(.question-box):not(.question-header-box):not(.question-content-box):not(.question-container) {
     display: flex;
 }
 
@@ -52,6 +52,13 @@
     flex-grow: 1;
     align-content: start;
     height: 100%;
+}
+
+/* Added specific rules for suggestion containers and question containers */
+.write-documentation-page .suggestion-container .MuiGrid-container,
+.write-documentation-page .question-container .MuiGrid-container {
+    display: flex;
+    flex-direction: column;
 }
 
 .write-documentation-page form {
@@ -96,4 +103,83 @@
         padding: 4px 10px !important;
         font-size: 0.8rem !important;
     }
+    
+    /* Mobile-specific overrides for suggestions and questions */
+    .suggestion-item-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .suggestion-item-header-box,
+    .suggestion-header-box {
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+    
+    .suggestion-header-box > .MuiButton-root {
+        margin-left: 0 !important;
+        margin-top: 8px !important;
+    }
+    
+    .question-header-box {
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+}
+
+/* Reset and specific component styles */
+.medical-item-box {
+    display: block !important;
+}
+
+.medical-item-box .MuiGrid-container {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+}
+
+@media (max-width: 768px) {
+    .medical-item-box .MuiGrid-container {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+}
+.suggestion-box,
+.question-box {
+    display: block !important;
+}
+
+.suggestion-item-box,
+.question-content-box {
+    display: block !important;
+}
+
+.suggestion-header-box {
+    display: flex !important;
+}
+
+.suggestion-header-box > .MuiButton-root {
+    margin-left: auto !important;
+}
+
+.suggestion-item-header-box {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+.suggestion-item-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+}
+
+.question-header-box {
+    display: flex !important;
+    flex-direction: row !important;
+}
+
+/* Reset for Grid items inside suggestion boxes */
+.suggestion-item-grid .MuiGrid-item {
+    width: 100% !important;
+    max-width: 100% !important;
 }
