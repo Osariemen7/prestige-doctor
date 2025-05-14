@@ -20,7 +20,7 @@
     padding: 0 !important;
 }
 
-.write-documentation-page .MuiBox-root {
+.write-documentation-page .MuiBox-root:not(.medical-item-box) {
     display: flex;
 }
 

@@ -1188,13 +1188,19 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
 
             {localData?.prescription && localData.prescription.length > 0 ? (
                 localData.prescription.map((prescription, index) => (
-                    <Box key={index} sx={{
-                        border: '1px solid #eee',
-                        borderRadius: 1,
-                        p: 2.5,
-                        mb: 3,
-                        position: 'relative'
-                    }}>
+                    <Box 
+                        key={index} 
+                        className="medical-item-box"
+                        sx={{
+                            border: '1px solid #eee',
+                            borderRadius: 1,
+                            p: 2.5,
+                            mb: 3,
+                            position: 'relative',
+                            display: 'flex !important',
+                            flexDirection: 'column !important'
+                        }}
+                    >
                         {isEditing && (
                             <IconButton
                                 aria-label="delete prescription"
@@ -1334,13 +1340,19 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
 
             {localData?.investigation && localData.investigation.length > 0 ? (
                 localData.investigation.map((investigation, index) => (
-                    <Box key={index} sx={{
-                        border: '1px solid #eee',
-                        borderRadius: 1,
-                        p: 2.5,
-                        mb: 3,
-                        position: 'relative'
-                    }}>
+                    <Box 
+                        key={index} 
+                        className="medical-item-box"
+                        sx={{
+                            border: '1px solid #eee',
+                            borderRadius: 1,
+                            p: 2.5,
+                            mb: 3,
+                            position: 'relative',
+                            display: 'flex !important',
+                            flexDirection: 'column !important'
+                        }}
+                    >
                         {isEditing && (
                             <IconButton
                                 aria-label="delete investigation"
