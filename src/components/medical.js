@@ -1179,21 +1179,16 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         Add Prescription
                     </Button>
                 )}
-            </Box>
-
-            {localData?.prescription && localData.prescription.length > 0 ? (
-                localData.prescription.map((prescription, index) => (
+            </Box>            {localData?.prescription && localData.prescription.length > 0 ? (                localData.prescription.map((prescription, index) => (
                     <Box 
                         key={index} 
-                        className="medical-item-box"
+                        className="medical-review-tab"
                         sx={{
                             border: '1px solid #eee',
                             borderRadius: 1,
                             p: 2.5,
                             mb: 3,
-                            position: 'relative',
-                            display: 'flex !important',
-                            flexDirection: 'column !important'
+                            position: 'relative'
                         }}
                     >
                         {isEditing && (
@@ -1331,21 +1326,16 @@ function MedicalReviewTab({ data, editableData, schema, onDataChange, suggestion
                         Add Investigation
                     </Button>
                 )}
-            </Box>
-
-            {localData?.investigation && localData.investigation.length > 0 ? (
-                localData.investigation.map((investigation, index) => (
+            </Box>            {localData?.investigation && localData.investigation.length > 0 ? (                localData.investigation.map((investigation, index) => (
                     <Box 
                         key={index} 
-                        className="medical-item-box"
+                        className="medical-review-tab"
                         sx={{
                             border: '1px solid #eee',
                             borderRadius: 1,
                             p: 2.5,
                             mb: 3,
-                            position: 'relative',
-                            display: 'flex !important',
-                            flexDirection: 'column !important'
+                            position: 'relative'
                         }}
                     >
                         {isEditing && (

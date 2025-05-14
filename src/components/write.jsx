@@ -762,8 +762,8 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                                 <Button
                                     variant="contained"
                                     color="primary"
-                                    onClick={getSuggestion}
-                                    disabled={isSaving}
+                                    onClick={saveAllDocumentation}
+                                    disabled={isSaveAllLoading}
                                     size={isMobile ? "small" : "large"}
                                     sx={{ 
                                         minWidth: isMobile ? 100 : 150,
@@ -774,9 +774,9 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                                         flex: isMobile ? '0 0 auto' : 'inherit',
                                         order: 0
                                     }}
-                                    startIcon={isSaving ? <CircularProgress size={16} /> : null}
+                                    startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
                                 >
-                                    {isSaving ? 'Generating...' : 'Generate Note'}
+                                    {isSaveAllLoading ? 'Saving...' : 'Save All'}
                                 </Button>
                             )}
                             <Box sx={{ 
@@ -833,7 +833,6 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                         maxHeight: isMobile ? 'calc(100vh - 140px)' : 'calc(100vh - 100px)', // Adjusted for mobile
                         overflowY: 'auto',
                         overflowX: 'hidden',
-                        WebkitOverflowScrolling: 'touch',
                         display: 'flex',
                         flexDirection: 'column',
                         borderRadius: '0 0 8px 8px',
@@ -889,6 +888,7 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                         )}
                         {activeTab === 'medicalReview' && (
                             <MedicalReviewTab
+                               className="medical-review-tab"
                                 key={JSON.stringify(editableData.review_data)}
                                 data={data.review_data}
                                 editableData={editableData.review_data}
