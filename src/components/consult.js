@@ -859,9 +859,14 @@ const ConsultAIPage = () => {
         setActiveScreen('documentation');
       }
     } else {
-      stopRealtimeTranscription();
-      await handleBilling();
-      performEndConsultation();
+      // Instead of immediately ending session when disconnected, show save & exit UI
+      setIsEndingConsultationLoading(false);
+      setIsEndingConsultation(true);
+      // Switch to documentation tab to present save options
+      if (isMobile && bottomTabIndex !== 0) {
+        setBottomTabIndex(0);
+        setActiveScreen('documentation');
+      }
     }
   };
 
@@ -1271,85 +1276,43 @@ const ConsultAIPage = () => {
       setAddPatientLoading(false);
     }
   };  const handleSaveAllAndExit = async () => {
-    setIsSavingAll(true);
-    try {
-      // Check if note generation is in progress
-      if (patientProfileRef.current && patientProfileRef.current.isGeneratingNote && patientProfileRef.current.isGeneratingNote()) {
-        toast({
-          title: "Please wait",
-          description: "Note generation is in progress. Please wait for it to complete before saving.",
-          status: "info",
-          duration: 3000,
-          isClosable: true,
-        });
-        setIsSavingAll(false);
-        return;
-      }
-      
-      // Check if a note needs to be generated first
-      if (patientProfileRef.current && 
-          patientProfileRef.current.hasNoteBeenGenerated && 
-          !patientProfileRef.current.hasNoteBeenGenerated()) {
-        toast({
-          title: "Generating note",
-          description: "We need to generate a clinical note before saving. Please wait...",
-          status: "info",
-          duration: 3000,
-          isClosable: true,
-        });
-        
-        try {
-          await patientProfileRef.current.getSuggestion();
-          // Now proceed with saving
-        } catch (error) {
-          toast({
-            title: "Error generating note",
-            description: "Failed to generate clinical note. Please try again.",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-          });
-          setIsSavingAll(false);
-          return;
-        }
-      }
-      
-      if (patientProfileRef.current && patientProfileRef.current.saveAllDocumentation) {
-        await patientProfileRef.current.saveAllDocumentation();
-        setIsDocumentationSaved(true);
-        setHasUnsavedChanges(false);
-        await handleBilling();
-        toast({
-          title: "Documentation saved successfully",
-          description: "All documentation has been saved. Ending consultation...",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-        performEndConsultation();
-        // Navigate to a fresh consult page with reset flag
-        navigate('/consult-ai', { state: { reset: true } });
-      } else {
-        toast({
-          title: 'Save Error',
-          description: 'Could not access documentation save function',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
+  setIsSavingAll(true);
+  try {
+    if (patientProfileRef.current && patientProfileRef.current.saveAllDocumentation) {
+      await patientProfileRef.current.saveAllDocumentation();
+      setIsDocumentationSaved(true);
+      setHasUnsavedChanges(false);
+      await handleBilling();
+      toast({
+        title: "Documentation saved successfully",
+        description: "All documentation has been saved. Ending consultation...",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      performEndConsultation();
+      navigate('/consult-ai', { state: { reset: true } });
+    } else {
       toast({
         title: 'Save Error',
-        description: 'Failed to save documentation',
+        description: 'Could not access documentation save function',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
-    } finally {
-      setIsSavingAll(false);
     }
-  };
+  } catch (error) {
+    toast({
+      title: 'Save Error',
+      description: 'Failed to save documentation',
+      status: 'error',
+      duration: 5000,
+      isClosable: true,
+    });
+  } finally {
+    setIsSavingAll(false);
+  }
+};
   const cancelEndingConsultation = () => {
     // Use our reset function to ensure consistent state clearing
     resetConsultationState();
