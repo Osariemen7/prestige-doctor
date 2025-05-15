@@ -30,10 +30,10 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
     const [hasChanges, setHasChanges] = useState(false);
     const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
     const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
-    const [suggestionLoading, setSuggestionLoading] = useState({});
-    const [isShowRecommendationsLoading, setIsShowRecommendationsLoading] = useState(false);
-    const [isSaveAllLoading, setIsSaveAllLoading] = useState(false);
-    const [isGenerateQuestionsLoading, setIsGenerateQuestionsLoading] = useState(false);
+    const [suggestionLoading, setSuggestionLoading] = useState({});    const [isShowRecommendationsLoading, setIsShowRecommendationsLoading] = useState(false);
+    const [isSaveAllLoading, setIsSaveAllLoading] = useState(false);    const [isGenerateQuestionsLoading, setIsGenerateQuestionsLoading] = useState(false);
+    const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+    const [noteHasBeenGenerated, setNoteHasBeenGenerated] = useState(false);
     
     // Added state for suggested questions
     const [suggestedQuestions, setSuggestedQuestions] = useState([]);
@@ -95,18 +95,26 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
         }
     };
 
-    const isGettingSuggestion = useRef(false);
-
-    const getSuggestion = async () => {
+    const isGettingSuggestion = useRef(false);    const getSuggestion = async () => {        
         if (isGettingSuggestion.current) {
             console.warn("getSuggestion: Call ignored, an AI process (getSuggestion or getSuggestions) is already running.");
             setSnackbarSeverity('info');
-            setSnackbarMessage('An AI process is already running. Please wait for it to complete.');
+            setSnackbarMessage('Note generation already in progress. Please wait for it to complete.');
             setSnackbarOpen(true);
-            return;
+            return false;
         }
+        
+        // If a note has already been generated, don't generate a new one
+        if (noteHasBeenGenerated) {
+            console.log("Note has already been generated, skipping generation");
+            setSnackbarSeverity('info');
+            setSnackbarMessage('Clinical note has already been generated.');
+            setSnackbarOpen(true);
+            return true;
+        }
+        
         isGettingSuggestion.current = true;
-    
+        setIsGeneratingNote(true);
         setIsSaving(true);
         try {
             let suggestionPayload = {
@@ -177,29 +185,29 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                 });
                 return updatedEditableData;
             });
-            
-            setSuggestionData(result);            setAppliedSuggestions({
+              setSuggestionData(result);            setAppliedSuggestions({
                 review: {}
-            });
-    
-            setSnackbarSeverity('success');
-            setSnackbarMessage('Documentation generated successfully!');
+            });            setSnackbarSeverity('success');
+            setSnackbarMessage('Clinical note generated successfully!');
             setSnackbarOpen(true);
-            return true;
-        } catch (error) {
-            console.error("Error getting suggestion:", error);
-            setSnackbarSeverity('error');
-            setSnackbarMessage('Failed to generate suggestion.');
+            setNoteHasBeenGenerated(true);
+            return true;} catch (error) {
+            console.error("Error generating note:", error);            setSnackbarSeverity('error');
+            setSnackbarMessage('Failed to generate clinical note.');
             setSnackbarOpen(true);
             return false;
         } finally {
             setIsSaving(false);
+            setIsGeneratingNote(false);
             isGettingSuggestion.current = false;
         }
-    };
-
-    const getSuggestions = async () => {
-        if (isGettingSuggestion.current) return;
+    };    const getSuggestions = async () => {
+        if (isGettingSuggestion.current) {
+            setSnackbarSeverity('info');
+            setSnackbarMessage('Note generation already in progress. Please wait for it to complete.');
+            setSnackbarOpen(true);
+            return false;
+        }
         isGettingSuggestion.current = true;
         setIsShowRecommendationsLoading(true);
         setSuggestionLoading(prev => ({ ...prev, [activeTab]: true }));
@@ -395,11 +403,21 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
 
     const handleTabChange = (tabName) => {
         setActiveTab(tabName);
-    };
-
-    const saveAllDocumentation = async () => {
+    };    const saveAllDocumentation = async () => {
         setIsSaveAllLoading(true);
         try {
+            // Generate a note first if one hasn't been generated yet
+            if (!noteHasBeenGenerated && !isGettingSuggestion.current) {
+                setSnackbarSeverity('info');
+                setSnackbarMessage('Generating clinical note before saving...');
+                setSnackbarOpen(true);
+                
+                const noteGenerated = await getSuggestion();
+                if (!noteGenerated) {
+                    throw new Error("Failed to generate clinical note");
+                }
+            }
+            
             const success = await handleSubmit('all');
 
             if (success) {
@@ -520,17 +538,24 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
         }
     }, [reviewid, resetKey]);
 
+    // Reset note generation state on component mount or reset
+    useEffect(() => {
+        setNoteHasBeenGenerated(false);
+        isGettingSuggestion.current = false;
+        setIsGeneratingNote(false);
+    }, [resetKey]);
+
     useEffect(() => {
         console.log("useEffect in PatientProfile.js (data fetch) - suggestionData changed:", suggestionData);
-    }, [suggestionData]);
-    
-    useImperativeHandle(ref, () => ({
+    }, [suggestionData]);      useImperativeHandle(ref, () => ({
         getSuggestion: getSuggestion,
         handleSubmitFromParent: handleSubmit,
         getSuggestions,
         getSuggestedQuestions,
         dataLoaded: !loading,
-        saveAllDocumentation: saveAllDocumentation // Expose this method
+        saveAllDocumentation: saveAllDocumentation, // Expose this method
+        isGeneratingNote: () => isGeneratingNote || isGettingSuggestion.current, // Expose loading state
+        hasNoteBeenGenerated: () => noteHasBeenGenerated, // Expose whether a note has been generated
     }));
 
     const SuggestionsDialog = () => {
@@ -758,12 +783,11 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                             gap: 1,
                             flexWrap: 'wrap'
                         }}>
-                            {!hideSaveAllButton && (
-                                <Button
+                            {!hideSaveAllButton && (                                <Button
                                     variant="contained"
                                     color="primary"
-                                    onClick={saveAllDocumentation}
-                                    disabled={isSaveAllLoading}
+                                    onClick={getSuggestion}
+                                    disabled={isSaving || isGettingSuggestion.current}
                                     size={isMobile ? "small" : "large"}
                                     sx={{ 
                                         minWidth: isMobile ? 100 : 150,
@@ -773,10 +797,9 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                                         fontWeight: 'bold',
                                         flex: isMobile ? '0 0 auto' : 'inherit',
                                         order: 0
-                                    }}
-                                    startIcon={isSaveAllLoading ? <CircularProgress size={16} /> : null}
+                                    }}                                    startIcon={isSaving ? <CircularProgress size={16} /> : null}
                                 >
-                                    {isSaveAllLoading ? 'Saving...' : 'Save All'}
+                                    {isSaving ? 'Generating note...' : 'Generate Note'}
                                 </Button>
                             )}
                             <Box sx={{ 

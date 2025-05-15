@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import './ConsultAIPage.css';
 import {
   Box,
   ChakraProvider,
@@ -92,6 +93,8 @@ const ConsultAIPage = () => {
   const [pageResetKey, setPageResetKey] = useState('initial');
   const [isSessionPrimed, setIsSessionPrimed] = useState(false);
   const wsClosingForResumeRef = useRef(false);
+  const isResumeRef = useRef(false);
+
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingEndConsult, setPendingEndConsult] = useState(false);
@@ -585,13 +588,18 @@ const ConsultAIPage = () => {
     isPausedRef.current = false;
     setWsStatus('Disconnected');
     console.log("Realtime transcription stopped by user.");
-  };
-
-  const pauseTranscription = () => {
+  };  const pauseTranscription = () => {
     console.log("pauseTranscription called.");
     // Call getSuggestion on pause if available
-    if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
-      patientProfileRef.current.getSuggestion();
+    if (patientProfileRef.current && patientProfileRef.current.getSuggestion && !patientProfileRef.current.hasNoteBeenGenerated?.()) {
+      try {
+        // Only generate a note if one hasn't been generated already
+        patientProfileRef.current.getSuggestion().catch(err => {
+          console.error("Error generating note during pause:", err);
+        });
+      } catch (e) {
+        console.error("Error calling getSuggestion:", e);
+      }
     }
     setIsPaused(true);
     isPausedRef.current = true; // Directly update the ref to ensure it's set before onclose can fire
@@ -619,7 +627,12 @@ const ConsultAIPage = () => {
 
   const resumeTranscription = async () => {
     console.log("resumeTranscription called.");
+    // Skip auto tab-switch in wsStatus effect after resume
+    isResumeRef.current = true;
     setIsPaused(false);
+    
+    // Reset ending consultation states when resuming recording
+    resetConsultationState();
 
     if (wsRef.current) {
       console.warn("resumeTranscription: Found an existing WebSocket. Closing it before proceeding.");
@@ -758,8 +771,6 @@ const ConsultAIPage = () => {
       console.log("Audio context fully closed.");
     }
   };
-
-
   const endConsultation = async () => {
     if (wsStatus === 'Connected') {
       if (hasUnsavedChanges) {
@@ -767,13 +778,75 @@ const ConsultAIPage = () => {
         setPendingEndConsult(true);
         return;
       }
+      
       setIsEndingConsultationLoading(true); // Start loading
-      // If documentation needs to be generated, trigger it here and await
+      
+      // Check if a note has already been generated
+      if (patientProfileRef.current && patientProfileRef.current.hasNoteBeenGenerated && patientProfileRef.current.hasNoteBeenGenerated()) {
+        // toast({
+        //   title: "Note already generated",
+        //   description: "A clinical note has already been generated. Proceeding to save and exit.",
+        //   status: "info",
+        //   duration: 3000,
+        //   isClosable: true,
+        // });
+        
+        // Instead of generating a new note, go straight to saving and exiting
+        setIsEndingConsultationLoading(false);
+        setIsEndingConsultation(true);
+        
+        if (!isPaused && isTranscribing) {
+          pauseTranscription();
+        }
+        
+        if (isMobile && bottomTabIndex !== 0) {
+          setBottomTabIndex(0);
+          setActiveScreen('documentation');
+        }
+        
+        return;
+      }
+      
+      // If no note has been generated yet, proceed with normal note generation
       if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
         try {
+          // Check if already generating
+          if (patientProfileRef.current.isGeneratingNote && patientProfileRef.current.isGeneratingNote()) {
+            toast({
+              title: "Note generation in progress",
+              description: "A clinical note is already being generated. Please wait.",
+              status: "info",
+              duration: 3000,
+              isClosable: true,
+            });
+            setIsEndingConsultationLoading(false);
+            setIsEndingConsultation(true);
+            return;
+          }
+          
+          toast({
+            title: "Generating clinical note...",
+            description: "Please wait while we generate your documentation.",
+            status: "info",
+            duration: 3000,
+            isClosable: true,
+          });
           await patientProfileRef.current.getSuggestion();
+          toast({
+            title: "Note generated",
+            description: "Clinical note has been generated. You can review and save now.",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+          });
         } catch (e) {
-          // Optionally handle error
+          toast({
+            title: "Error generating note",
+            description: "There was an error generating the clinical note.",
+            status: "error",
+            duration: 3000,
+            isClosable: true,
+          });
         }
       }
       setIsEndingConsultation(true); // Only after generation is done
@@ -1001,25 +1074,44 @@ const ConsultAIPage = () => {
 
   const toggleTranscriptionPanel = () => {
     setIsTranscriptionPanelOpen(!isTranscriptionPanelOpen);
+  };  const resetConsultationState = () => {
+    // Reset primary consultation ending states
+    setPendingEndConsult(false);
+    setIsEndingConsultation(false);
+    setIsEndingConsultationLoading(false);
+    
+    // Reset any save states if they're in progress
+    setIsSavingAll(false);
+    
+    // Don't reset hasUnsavedChanges as it should persist while editing
+    // Don't reset documentation or transcript as we want to preserve them
   };
 
   const toggleTranscription = () => {
     if (isPaused) {
+      resetConsultationState(); // Reset any ending state when resuming
       resumeTranscription();
     } else {
       pauseTranscription();
     }
-  };
-  useEffect(() => {
+  };  useEffect(() => {
     // Ensure documentation tab is default when entering on mobile,
     // but only on initial component mount, not on viewport changes
     if (isMobile) {
       setBottomTabIndex(0);
       setActiveScreen('documentation');
     }
+    
+    // Reset any consultation end states on component mount
+    resetConsultationState();
   }, []); // Remove isMobile dependency to prevent resets on viewport changes
 
   useEffect(() => {
+    // Skip automatic tab switch right after manual resume
+    if (isResumeRef.current) {
+      isResumeRef.current = false;
+      return;
+    }
     // Only update isBottomTabVisible based on wsStatus if not paused
     if (!isPaused) {
       setActiveScreen(wsStatus === 'Connected' ? 'chat' : 'voice');
@@ -1181,11 +1273,59 @@ const ConsultAIPage = () => {
   };  const handleSaveAllAndExit = async () => {
     setIsSavingAll(true);
     try {
+      // Check if note generation is in progress
+      if (patientProfileRef.current && patientProfileRef.current.isGeneratingNote && patientProfileRef.current.isGeneratingNote()) {
+        toast({
+          title: "Please wait",
+          description: "Note generation is in progress. Please wait for it to complete before saving.",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+        setIsSavingAll(false);
+        return;
+      }
+      
+      // Check if a note needs to be generated first
+      if (patientProfileRef.current && 
+          patientProfileRef.current.hasNoteBeenGenerated && 
+          !patientProfileRef.current.hasNoteBeenGenerated()) {
+        toast({
+          title: "Generating note",
+          description: "We need to generate a clinical note before saving. Please wait...",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+        
+        try {
+          await patientProfileRef.current.getSuggestion();
+          // Now proceed with saving
+        } catch (error) {
+          toast({
+            title: "Error generating note",
+            description: "Failed to generate clinical note. Please try again.",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+          setIsSavingAll(false);
+          return;
+        }
+      }
+      
       if (patientProfileRef.current && patientProfileRef.current.saveAllDocumentation) {
         await patientProfileRef.current.saveAllDocumentation();
         setIsDocumentationSaved(true);
         setHasUnsavedChanges(false);
         await handleBilling();
+        toast({
+          title: "Documentation saved successfully",
+          description: "All documentation has been saved. Ending consultation...",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
         performEndConsultation();
         // Navigate to a fresh consult page with reset flag
         navigate('/consult-ai', { state: { reset: true } });
@@ -1210,9 +1350,9 @@ const ConsultAIPage = () => {
       setIsSavingAll(false);
     }
   };
-
   const cancelEndingConsultation = () => {
-    setIsEndingConsultation(false);
+    // Use our reset function to ensure consistent state clearing
+    resetConsultationState();
 
     if (wsStatus === 'Paused') {
       resumeTranscription();
@@ -1222,7 +1362,10 @@ const ConsultAIPage = () => {
   return (
     <ChakraProvider>
       <Flex key={pageResetKey} direction="column" height="100vh" bg="gray.100">
-        <Modal isOpen={isEndConsultModalOpen} onClose={() => setIsEndConsultModalOpen(false)} isCentered>
+        <Modal isOpen={isEndConsultModalOpen} onClose={() => {
+          setIsEndConsultModalOpen(false);
+          resetConsultationState();
+        }} isCentered>
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>End Consultation Without Saving?</ModalHeader>
@@ -1237,7 +1380,10 @@ const ConsultAIPage = () => {
               <Button colorScheme="blue" mr={3} onClick={handleSaveAndEnd}>
                 Save and End
               </Button>
-              <Button variant="ghost" onClick={() => setIsEndConsultModalOpen(false)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => {
+                setIsEndConsultModalOpen(false);
+                resetConsultationState();
+              }}>Cancel</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
@@ -1257,9 +1403,10 @@ const ConsultAIPage = () => {
               <Button variant='ghost' onClick={onSaveModalClose}>Cancel</Button>
             </ModalFooter>
           </ModalContent>
-        </Modal>
-
-        <Modal isOpen={showUnsavedModal} onClose={() => setShowUnsavedModal(false)} isCentered>
+        </Modal>        <Modal isOpen={showUnsavedModal} onClose={() => {
+          setShowUnsavedModal(false);
+          resetConsultationState();
+        }} isCentered>
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>Unsaved Changes</ModalHeader>
@@ -1270,11 +1417,12 @@ const ConsultAIPage = () => {
             <ModalFooter>
               <Button colorScheme="blue" mr={3} onClick={handleSaveAndEndWithBilling}>
                 Save and End
-              </Button>
-              <Button colorScheme="red" mr={3} onClick={handleDiscardAndEndWithBilling}>
+              </Button>              <Button colorScheme="red" mr={3} onClick={handleDiscardAndEndWithBilling}>
                 Discard and End
-              </Button>
-              <Button variant="ghost" onClick={() => setShowUnsavedModal(false)}>Cancel</Button>
+              </Button>              <Button variant="ghost" onClick={() => {
+                setShowUnsavedModal(false);
+                resetConsultationState();
+              }}>Cancel</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
@@ -1328,14 +1476,20 @@ const ConsultAIPage = () => {
               <>
                 <Button
                   onClick={isConsultationStarted ? endConsultation : startConsultationSessionFlow}
-                  isDisabled={loading || (!selectedPatientId && !isConsultationStarted) || isEndingConsultationLoading}
-                  colorScheme={isConsultationStarted ? "red" : "blue"}
+                  isDisabled={loading || (!selectedPatientId && !isConsultationStarted) || isEndingConsultationLoading}                  colorScheme={isConsultationStarted ? "red" : "blue"}
                   mr={3}
                   size="md"
                   isLoading={isEndingConsultationLoading}
-                  loadingText="Ending..."
+                  loadingText="Generating note..."
+                  className={isEndingConsultationLoading ? "documentation-generating" : ""}
+                  sx={isEndingConsultationLoading ? { opacity: 0.8 } : {}}
                 >
-                  {(loading || isEndingConsultationLoading) ? <Spinner size="sm" /> : isConsultationStarted ? 'End Consultation' : 'Start Consultation'}
+                  {(loading || isEndingConsultationLoading) ? 
+                    <Flex align="center">
+                      <Spinner size="sm" mr={2} /> 
+                      {isEndingConsultationLoading ? "Generating note..." : "Processing..."}
+                    </Flex> 
+                    : isConsultationStarted ? 'End Consultation' : 'Start Consultation'}
                 </Button>
                 {isConsultationStarted && (
                   <>
@@ -1366,24 +1520,29 @@ const ConsultAIPage = () => {
                     </Tooltip>
                   </>
                 )}
-              </>
-            ) : (              <>                <Button
+              </>            ) : (
+              <>
+                <Button
                   onClick={handleSaveAllAndExit}
                   isLoading={isSavingAll}
                   loadingText="Saving..."
                   colorScheme="green"
                   mr={3}
-                  size="md"
-                  isDisabled={isSavingAll}
+                  size="md"                  isDisabled={isSavingAll}
                 >
-                  Save All & Exit
+                  {isSavingAll ? 
+                    <Flex align="center">
+                      <Spinner size="sm" mr={2} /> 
+                      Saving documentation...
+                    </Flex> 
+                    : 'Save & Complete Consultation'}
                 </Button>
                 <Button
                   onClick={cancelEndingConsultation}
-                  variant="outline"
-                  mr={3}
+                  variant="outline"                  mr={3}
                   size="md"
                   isDisabled={isSavingAll}
+                  className="save-exit-button end-consultation-transition"
                 >
                   Cancel
                 </Button>
