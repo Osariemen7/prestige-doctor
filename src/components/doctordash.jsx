@@ -420,31 +420,6 @@ const DocDash = () => {
                 </Box>
               </Grid>
             </Grid>
-
-            <Box
-              sx={{
-                mt: 3,
-                pt: 2,
-                borderTop: "1px solid #e0e0e0",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: "bold", mb: 1 }}>
-                  Subscription Status
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Expires:{" "}
-                  {doctorData[0].subscription_expires
-                    ? new Date(doctorData[0].subscription_expires).toLocaleDateString('en-GB')
-                    : "N/A"}
-                </Typography>
-              </Box>
-
-            </Box>
-            <Typography>Subscription is on a monthly basis</Typography>
           </CardContent>
         </Card>
       {/* Stats Grid */}
@@ -459,7 +434,7 @@ const DocDash = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Current Earnings"
-            value={`₦${data?.current_earnings || 0}`}
+            value={`$${data?.current_earnings || 0}`}
             icon={MdAttachMoney}
           />
         </Grid>
