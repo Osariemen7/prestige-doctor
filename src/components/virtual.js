@@ -83,7 +83,8 @@ const Va = () => {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
-
+  const [showCalendar, setShowCalendar] = useState(false);
+ console.log(availableSlots)
   const handlePatientSelect = (value) => {
     if (value === 'manual') {
       setIsManualInput(true);
@@ -395,8 +396,7 @@ console.log(link)
     localStorage.removeItem('user-info');
     navigate('/');
   };
-  
-  const fetchAvailableSlots = async (selectedDate) => {
+    const fetchAvailableSlots = async (selectedDate) => {
     setIsLoadingSlots(true);
     try {
       const token = await getAccessToken();
@@ -408,9 +408,17 @@ console.log(link)
           },
         }
       );
-      setAvailableSlots(response.data);
-      if (response.data.length > 0) {
-        setStartTime(response.data[0].start_time);
+      
+      // Validate and process the slots
+      const validSlots = response.data.filter(slot => {
+        const startDate = new Date(slot.start_time);
+        const endDate = new Date(slot.end_time);
+        return !isNaN(startDate.getTime()) && !isNaN(endDate.getTime());
+      });
+
+      setAvailableSlots(validSlots);
+      if (validSlots.length > 0) {
+        setStartTime(validSlots[0].start_time);
       }
     } catch (error) {
       console.error("Error fetching slots:", error);
@@ -424,19 +432,22 @@ console.log(link)
     } finally {
       setIsLoadingSlots(false);
     }
-  };
-
-  // Group slots by hour
+  };  // Group slots by hour
   const groupSlotsByHour = (slots) => {
     const grouped = {};
     slots.forEach(slot => {
-      const hour = new Date(slot.start_time).getHours();
+      const date = new Date(slot.start_time);
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', slot.start_time);
+        return;
+      }
+      const hour = date.getHours().toString().padStart(2, '0'); // Format hour as "09", "10", etc.
       if (!grouped[hour]) {
         grouped[hour] = [];
       }
       grouped[hour].push(slot);
     });
-    return grouped;
+    return Object.entries(grouped).sort((a, b) => Number(a[0]) - Number(b[0]));
   };
 
   const formatTime = (timeString) => {
@@ -449,6 +460,14 @@ console.log(link)
     setDate(date.toISOString().split('T')[0]);
   };
 
+  const formatTimeSlot = (timeString) => {
+    const date = new Date(timeString);
+    return date.toLocaleTimeString([], { 
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
  
   return (
     <div className="dashboard-container">
@@ -521,8 +540,157 @@ console.log(link)
                         <StatNumber>{info.length - bookedItems.length}</StatNumber>
                       </Stat>
                     </CardBody>
-                  </Card>
-                </SimpleGrid>
+                  </Card>                </SimpleGrid>
+
+                <Box mb={6}>
+                  <Flex justify="space-between" align="center" mb={4}>
+                    <Heading size="md">Check Schedule</Heading>
+                    <Button
+                      leftIcon={<FiCalendar />}
+                      colorScheme="blue"
+                      variant="outline"
+                      onClick={() => setShowCalendar(!showCalendar)}
+                    >
+                      {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
+                    </Button>
+                  </Flex>
+                  
+                  {showCalendar && (
+                    <Card p={6} mb={6}>
+                      <Flex direction={{ base: "column", md: "row" }} gap={6}>
+                        <Box flex="1">
+                          <FormControl>
+                            <FormLabel>Select Date</FormLabel>
+                            <Box 
+                              borderWidth="1px" 
+                              borderRadius="lg" 
+                              p={2}
+                              bg="white"
+                              shadow="sm"
+                            >
+                              <DatePicker
+                                selected={selectedDate}
+                                onChange={handleDateChange}
+                                inline
+                                minDate={new Date()}
+                                calendarClassName="custom-calendar"
+                                dayClassName={date => {
+                                  const dateString = date.toISOString().split('T')[0];
+                                  const hasSlots = availableSlots.some(slot => 
+                                    slot.start_time.startsWith(dateString) && 
+                                    slot.status === "AVAILABLE"
+                                  );
+                                  return hasSlots ? "has-slots" : undefined;
+                                }}
+                                renderDayContents={(day, date) => (
+                                  <Tooltip 
+                                    label={
+                                      availableSlots.some(slot => 
+                                        slot.start_time.startsWith(date.toISOString().split('T')[0]) && 
+                                        slot.status === "AVAILABLE"
+                                      ) 
+                                        ? "Available slots" 
+                                        : "No available slots"
+                                    }
+                                    placement="top"
+                                  >
+                                    <div>{day}</div>
+                                  </Tooltip>
+                                )}
+                              />
+                            </Box>
+                          </FormControl>
+                        </Box>
+
+                        <Box flex="1">
+                          {isLoadingSlots ? (
+                            <VStack spacing={4} align="stretch">
+                              <Skeleton height="24px" width="150px" />
+                              <Grid templateColumns="repeat(3, 1fr)" gap={2}>
+                                {[...Array(9)].map((_, i) => (
+                                  <Skeleton key={i} height="36px" />
+                                ))}
+                              </Grid>
+                            </VStack>
+                          ) : date && availableSlots.length > 0 ? (
+                            <Box>
+                              <Text mb={4} fontWeight="bold">Available Time Slots</Text>                              <Grid templateColumns="repeat(3, 1fr)" gap={3} maxH="400px" overflowY="auto">
+                                {Object.entries(groupSlotsByHour(availableSlots)).map(([hour, slots]) => (
+                                  <React.Fragment key={hour}>
+                                    <GridItem colSpan={3} bg="gray.50" p={2} borderRadius="md">
+                                      <Text fontWeight="bold">
+                                        {new Date(slots[0].start_time).toLocaleTimeString([], { 
+                                          hour: 'numeric',
+                                          hour12: true
+                                        })}
+                                      </Text>
+                                    </GridItem>
+                                    {slots.map((slot) => (
+                                      <GridItem key={slot.start_time}>
+                                        <Tooltip 
+                                          label={`${new Date(slot.start_time).toLocaleTimeString([], { 
+                                            hour: 'numeric', 
+                                            minute: '2-digit',
+                                            hour12: true 
+                                          })} - ${new Date(slot.end_time).toLocaleTimeString([], { 
+                                            hour: 'numeric', 
+                                            minute: '2-digit',
+                                            hour12: true 
+                                          })}`}
+                                          placement="top"
+                                        >
+                                          <Button
+                                            size="sm"
+                                            width="100%"
+                                            colorScheme="green"
+                                            variant="solid"
+                                            onClick={() => {
+                                              setStartTime(slot.start_time);
+                                              setSelectedSlot(slot);
+                                              modal1.onOpen();
+                                            }}
+                                          >
+                                            {new Date(slot.start_time).toLocaleTimeString([], { 
+                                              hour: 'numeric', 
+                                              minute: '2-digit',
+                                              hour12: true 
+                                            })}
+                                          </Button>
+                                        </Tooltip>
+                                      </GridItem>
+                                    ))}
+                                  </React.Fragment>
+                                ))}
+                              </Grid>
+                            </Box>
+                          ) : date ? (
+                            <Flex 
+                              direction="column" 
+                              align="center" 
+                              justify="center" 
+                              p={6} 
+                              bg="gray.50" 
+                              borderRadius="lg"
+                            >
+                              <Text color="gray.500" fontSize="lg">No available slots for selected date</Text>
+                            </Flex>
+                          ) : (
+                            <Flex 
+                              direction="column" 
+                              align="center" 
+                              justify="center" 
+                              p={6} 
+                              bg="gray.50" 
+                              borderRadius="lg"
+                            >
+                              <Text color="gray.500" fontSize="lg">Please select a date to view available slots</Text>
+                            </Flex>
+                          )}
+                        </Box>
+                      </Flex>
+                    </Card>
+                  )}
+                </Box>
 
                 <Box>
                   <Heading size="md" mb={4}>Upcoming Appointments</Heading>
@@ -683,11 +851,27 @@ console.log(link)
                             minDate={new Date()}
                             calendarClassName="custom-calendar"
                             dayClassName={date => {
+                              // Convert date to YYYY-MM-DD format
                               const dateString = date.toISOString().split('T')[0];
-                              return availableSlots.some(slot => 
+                              // Check if there are any available slots for this date
+                              const hasAvailableSlots = availableSlots.some(slot => 
                                 slot.start_time.startsWith(dateString) && 
                                 slot.status === "AVAILABLE"
-                              ) ? "has-slots" : undefined;
+                              );
+                              return hasAvailableSlots ? "has-slots" : undefined;
+                            }}
+                            renderDayContents={(day, date) => {
+                              return (
+                                <Tooltip 
+                                  label={availableSlots.some(slot => 
+                                    slot.start_time.startsWith(date.toISOString().split('T')[0]) && 
+                                    slot.status === "AVAILABLE"
+                                  ) ? "Available slots" : "No available slots"}
+                                  placement="top"
+                                >
+                                  <div>{day}</div>
+                                </Tooltip>
+                              );
                             }}
                           />
                         </Box>
@@ -716,15 +900,13 @@ console.log(link)
                                 {slots.map((slot) => (
                                   <GridItem key={slot.start_time}>
                                     <Tooltip 
-                                      label={slot.status === "AVAILABLE" ? "Click to select this time slot" : "This slot is already booked"}
+                                      label={`${formatTimeSlot(slot.start_time)} - ${formatTimeSlot(slot.end_time)}`}
                                       placement="top"
                                     >
                                       <Button
                                         size="sm"
                                         width="100%"
-                                        colorScheme={slot.status === "AVAILABLE" ? 
-                                          (startTime === slot.start_time ? "blue" : "gray") : 
-                                          "red"}
+                                        colorScheme={startTime === slot.start_time ? "blue" : "gray"}
                                         onClick={() => {
                                           if (slot.status === "AVAILABLE") {
                                             setStartTime(slot.start_time);
@@ -733,17 +915,11 @@ console.log(link)
                                         }}
                                         isDisabled={slot.status !== "AVAILABLE"}
                                         _hover={
-                                          slot.status === "AVAILABLE" && startTime !== slot.start_time
-                                            ? { bg: "gray.200" }
-                                            : undefined
+                                          slot.status === "AVAILABLE" ? { bg: "gray.200" } : undefined
                                         }
                                         transition="all 0.2s"
                                       >
-                                        {new Date(slot.start_time).toLocaleTimeString([], { 
-                                          hour: '2-digit', 
-                                          minute: '2-digit',
-                                          hour12: true
-                                        })}
+                                        {formatTimeSlot(slot.start_time)}
                                       </Button>
                                     </Tooltip>
                                   </GridItem>
