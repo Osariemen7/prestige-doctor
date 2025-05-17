@@ -21,7 +21,7 @@ import {
   CircularProgress,
   Paper,
   Icon,
-  Tooltip,
+  Tooltip, // Added Tooltip
   Menu,
   Table,
   TableBody,
@@ -36,12 +36,18 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ShareIcon from '@mui/icons-material/Share'; // Added ShareIcon
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'; // Added WhatsAppIcon
+import TwitterIcon from '@mui/icons-material/Twitter'; // Added TwitterIcon (for X)
+import LinkedInIcon from '@mui/icons-material/LinkedIn'; // Added LinkedInIcon
+import RedditIcon from '@mui/icons-material/Reddit'; // Added RedditIcon
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'; // Added ContentCopyIcon
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Skeleton from '@mui/material/Skeleton';
 import Sidebar from './sidebar';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getAccessToken } from './api';
+import { getAccessToken, balanceCheck, isAuthenticated } from './api';
 import PatientProfileDisplay from './document';
 import ImageIcon from '@mui/icons-material/Image';
 import SwipeableDrawer from '@mui/material/SwipeableDrawer';
@@ -59,13 +65,18 @@ import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import MobileMessageInput from './ask/MobileMessageInput';
 import SuggestionPanel from './ask/SuggestionPanel';
-import ThreadPanel from './ask/ThreadPanel';
-import ThoughtAccordion from './ask/ThoughtAccordion';
-import CitationLink from './ask/CitationLink';
 import FollowUpQuestionsPanel from './ask/FollowUpQuestionsPanel';
+import ThoughtAccordion from './ask/ThoughtAccordion';
+import ThreadPanel from './ask/ThreadPanel';
+import CitationLink from './ask/CitationLink';
+import BuyCreditsModal from './BuyCreditsModal';
 import PersonIcon from '@mui/icons-material/Person';
 import DownloadIcon from '@mui/icons-material/Download';
-
+import CloseIcon from '@mui/icons-material/Close';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import InfoIcon from '@mui/icons-material/Info';
+import WarningIcon from '@mui/icons-material/Warning';
 // ----------------------------------------------------
 // Utility: preprocess citations in markdown
 // ----------------------------------------------------
@@ -250,14 +261,140 @@ const SearchBox = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState([]);
 
+  // State for share menu
+  const [shareMenuAnchorEl, setShareMenuAnchorEl] = useState(null);
+  const openShareMenu = Boolean(shareMenuAnchorEl);
+
+  // Share menu handler functions
+  const handleShareMenuOpen = (event) => {
+    setShareMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleShareMenuClose = () => {
+    setShareMenuAnchorEl(null);
+  };
+  const handleCopyLink = () => {
+    // Get the current URL for sharing
+    const shareUrl = window.location.href;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => {
+        showSnackbar('Link copied to clipboard!', 'success');
+        handleShareMenuClose();
+      })
+      .catch(err => {
+        console.error('Failed to copy link: ', err);
+        showSnackbar('Failed to copy link', 'error');
+      });
+  };
+
+  // Social media share functions
+  const handleShareToWhatsApp = () => {
+    const shareUrl = encodeURIComponent(window.location.href);
+    window.open(`https://wa.me/?text=${shareUrl}`, '_blank');
+    handleShareMenuClose();
+  };
+
+  const handleShareToTwitter = () => {
+    const shareUrl = encodeURIComponent(window.location.href);
+    const text = encodeURIComponent('Check out this interesting conversation on Dr. House AI:');
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${shareUrl}`, '_blank');
+    handleShareMenuClose();
+  };
+
+  const handleShareToLinkedIn = () => {
+    const shareUrl = encodeURIComponent(window.location.href);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`, '_blank');
+    handleShareMenuClose();
+  };
+  const handleShareToReddit = () => {
+    const shareUrl = encodeURIComponent(window.location.href);
+    const title = encodeURIComponent('Interesting conversation on Dr. House AI');
+    window.open(`https://www.reddit.com/submit?url=${shareUrl}&title=${title}`, '_blank');
+    handleShareMenuClose();
+  };
+
+  // Track if the user is authenticated
+  const [isUserAuthenticated, setIsUserAuthenticated] = useState(false);
+  // Track if this is a public thread
+  const [isPublicThread, setIsPublicThread] = useState(false);
+  // Store all messages (user + assistant) to send in requests for unauthenticated users
+  const [threadMessages, setThreadMessages] = useState([]);  // Add useEffect to check authentication status on component mount and path changes
+  useEffect(() => {
+    // Use our improved authentication checking function
+    const checkAuthStatus = async () => {
+      // Determine authentication status via token
+      let authStatus = false;
+      try {
+        const token = await getAccessToken();
+        authStatus = !!token;
+      } catch (e) {
+        console.error("Error fetching access token:", e);
+      }
+      const previousStatus = isUserAuthenticated;
+      setIsUserAuthenticated(authStatus);
+      if (previousStatus !== authStatus) {
+        console.log("Authentication status changed:", authStatus ? "Authenticated" : "Not authenticated");
+      }
+      // Determine thread type
+      const pathParts = location.pathname.split('/');
+      const currentPath = pathParts[1];
+      const hasThreadId = pathParts.length > 2 && !!pathParts[2];
+      const isPublic = (currentPath === 'public-research') || (!authStatus && hasThreadId);
+      setIsPublicThread(isPublic);
+    };
+    checkAuthStatus();
+    const handleStorageChange = (e) => {
+      if (e.key === 'user-info' || e.key === 'access-token') checkAuthStatus();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [location.pathname, isUserAuthenticated]);
+
+  // Track if the user is authenticated and whether this is a public thread
+  useEffect(() => {
+    const checkAuth = async () => {
+      let token = null;
+      try {
+        token = await getAccessToken();
+      } catch (e) {
+        console.error('Error fetching access token:', e);
+      }
+      const authStatus = !!token;
+      setIsUserAuthenticated(authStatus);
+      // Determine public thread status
+      const pathParts = location.pathname.split('/');
+      const currentPath = pathParts[1]; // 'ask' or 'public-research'
+      const hasThreadId = pathParts.length > 2 && !!pathParts[2];
+      const isPublic = (currentPath === 'public-research') || (!authStatus && hasThreadId);
+      setIsPublicThread(isPublic);
+      console.log('Auth status:', authStatus, 'Public thread:', isPublic);
+    };
+    checkAuth();
+    // Listen for changes in other tabs
+    const handleStorage = (e) => {
+      if (e.key === 'access-token' || e.key === 'user-info') {
+        checkAuth();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [location.pathname]);
+
   // New state for follow-up questions
   const [followUpQuestions, setFollowUpQuestions] = useState([]);
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [isLoadingFollowUp, setIsLoadingFollowUp] = useState(false);
 
   // Add state for uploaded image URL and loading
-  const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
+  const [uploadedImageUrl, setUploadedImage] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  // New state for buy credits modal
+  const [buyCreditsModalOpen, setBuyCreditsModalOpen] = useState(false);
+  const [buyCreditsBalance, setBuyCreditsBalance] = useState(null);
+  const [buyCreditsRequiredAmount, setBuyCreditsRequiredAmount] = useState(null);
 
   // Initialize expandedCategories with the first two categories when suggestions are loaded
   useEffect(() => {
@@ -288,7 +425,7 @@ const SearchBox = () => {
     const file = event.target.files[0];
     if (file) {
       setSelectedImage(file);
-      setUploadedImageUrl(null); // Reset previous upload
+      setUploadedImage(null); // Reset previous upload
       setIsUploadingImage(true);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -309,9 +446,9 @@ const SearchBox = () => {
         });
         if (!response.ok) throw new Error('Image upload failed');
         const data = await response.json();
-        setUploadedImageUrl(data.image_url);
+        setUploadedImage(data.image_url);
       } catch (e) {
-        setUploadedImageUrl(null);
+        setUploadedImage(null);
         showSnackbar('Image upload failed. Please try again.', 'error');
       } finally {
         setIsUploadingImage(false);
@@ -319,7 +456,7 @@ const SearchBox = () => {
     } else {
       setSelectedImage(null);
       setSelectedImagePreview(null);
-      setUploadedImageUrl(null);
+      setUploadedImage(null);
       setIsExpertLevelLocked(false);
       setExpertLevel('basic');
     }
@@ -328,11 +465,12 @@ const SearchBox = () => {
   const handleCancelImage = () => {
     setSelectedImage(null);
     setSelectedImagePreview(null);
-    setUploadedImageUrl(null);
+    setUploadedImage(null);
     setIsExpertLevelLocked(false);
     setExpertLevel('basic');
   };
 
+  // In refreshThreads, set threadId and selectedThread using public_id
   const refreshThreads = useCallback(async () => {
     try {
       const token = await getAccessToken();
@@ -343,39 +481,24 @@ const SearchBox = () => {
       });
       if (!response.ok) throw new Error('Failed to fetch threads');
       const data = await response.json();
-      
-      // Log the current thread ID before updates
-      console.log("Current threadId before refresh:", threadId);
-      
-      // Update threads with fresh data
       setThreads(data);
-      
-      // If we have a current thread ID, find and update it
       if (threadId) {
-        // First try to find exact match
-        const currentThreadFromServer = data.find(t => String(t.id) === String(threadId));
-        
+        // Find by public_id if available, fallback to id
+        const currentThreadFromServer = data.find(t => String(t.public_id || t.id) === String(threadId));
         if (currentThreadFromServer) {
-          console.log("Found matching thread in refresh:", currentThreadFromServer.id);
           setSelectedThread(currentThreadFromServer);
-        }
-        // If current thread is temporary or not found, check for newest thread
-        else if (String(threadId).startsWith('temp-') || !currentThreadFromServer) {
+        } else if (String(threadId).startsWith('temp-') || !currentThreadFromServer) {
           if (data.length > 0) {
-            console.log("Using newest thread instead:", data[0].id);
             const newestThread = data[0];
-            setThreadId(newestThread.id); 
+            setThreadId(newestThread.public_id || newestThread.id);
             setSelectedThread(newestThread);
           }
         }
       }
-      
-      console.log("Threads refreshed, current threadId:", threadId);
     } catch (error) {
       console.error('Error refreshing threads:', error);
     }
   }, [threadId]);
-
   const handleSendMessage = useCallback(async () => {
     // Require text if image is present
     if ((selectedImage || uploadedImageUrl) && !message.trim()) return;
@@ -392,11 +515,12 @@ const SearchBox = () => {
     // Track if this is a new conversation with a temporary ID
     const isTemporaryThread = currentThreadId && String(currentThreadId).startsWith('temp-');
 
-    // Modified: Always assign a temporary thread id if none exists
-    if (!currentThreadId) {
+    // Only create a temporary thread if authenticated and no thread ID exists
+    if (isUserAuthenticated && !currentThreadId) {
       const tempId = `temp-${Date.now()}`; // new temporary id
       const tempThread = {
         id: tempId,
+        public_id: tempId,
         created_at: new Date().toISOString(),
         messages: [{
           role: 'user',
@@ -406,67 +530,106 @@ const SearchBox = () => {
       setThreadId(tempId); // <-- new: update threadId state
       setThreads(prev => [tempThread, ...prev]);
       setSelectedThread(tempThread);
-    }
-
-    try {
-      const token = await getAccessToken();
-      console.log("Access Token:", token);
-
-      const apiUrl = "https://health.prestigedelta.com/research/";
-
+    }    try {
+      // Define API URL based on authentication status and thread type
+      let apiUrl;
+      let headers = {};
       let payload = { expertise_level: expertLevel === 'basic' ? 'medium' : 'high' };
-      if (window.location.search.includes('retry=true')) {
-        payload.retry = true;
+      
+      if (isUserAuthenticated) {
+        // Authenticated user flow
+        const token = await getAccessToken();
+        headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        };
+        
+        apiUrl = "https://health.prestigedelta.com/research/";
+        
+        // Use perplexityThread if available from navigation state
+        if (location.state?.perplexityThread) {
+          payload.public_id = location.state.perplexityThread;
+        } else if (currentThreadId && !isTemporaryThread) {
+          payload.public_id = currentThreadId;
+        } else if (selectedThread && selectedThread.public_id) {
+          payload.public_id = selectedThread.public_id;
+        } else if (selectedPatient) {
+          // Only include patient_id if there's no real thread_id
+          payload.patient_id = selectedPatient.id;
+        }
+        
+        if (window.location.search.includes('retry=true')) {
+          payload.retry = true;
+        }
+      } else {
+        // Unauthenticated user flow
+        headers = {
+          'Content-Type': 'application/json'
+        };        // For unauthenticated users with a public thread ID
+        if (isPublicThread && currentThreadId) {
+          // This is the API endpoint for public threads
+          // The API endpoint is /public-research/ regardless of the URL path
+          apiUrl = `https://health.prestigedelta.com/public-research/${currentThreadId}/continue/`;
+          
+          console.log("Using public research API endpoint:", apiUrl);
+          
+          // For follow-up messages, include all previous messages
+          if (threadMessages.length > 0) {
+            payload.messages = threadMessages.map(msg => ({
+              role: msg.role,
+              content: msg.content, 
+              created_at: msg.created_at || new Date().toISOString()
+            }));
+          }
+        } else {
+          // Should not happen, but handle gracefully
+          console.error("Unauthenticated user without public thread ID");
+          showSnackbar('Cannot send message - please log in or use a shared link', 'error');
+          setIsResponseLoading(false);
+          return;
+        }
       }
+      
       let requestBody;
-      let headers;
-
-      // Use perplexityThread if available from navigation state
-      if (location.state?.perplexityThread) {
-        payload.thread_id = location.state.perplexityThread;
-      } else if (currentThreadId && !isTemporaryThread) {
-        // Only send thread_id if it's a real ID (not temporary)
-        payload.thread_id = currentThreadId;
-        console.log("Using thread_id in request:", currentThreadId);
-      } else if (selectedPatient) {
-        // Only include patient_id if there's no real thread_id
-        payload.patient_id = selectedPatient.id;
-      }
 
       const userMessageContent = uploadedImageUrl ? uploadedImageUrl : selectedImagePreview ? selectedImagePreview : currentMessage;
-      const userTextMessage = uploadedImageUrl || selectedImage ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
-
-      const userMessage = {
+      const userTextMessage = uploadedImageUrl || selectedImage ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;      const userMessage = {
         role: "user",
         content: userMessageContent,
         isImage: !!(uploadedImageUrl || selectedImagePreview), // Flag as image message
         text: userTextMessage, // Store text content separately for image messages
-        id: `query-${Date.now()}` // Add unique id to each user message
+        id: `query-${Date.now()}`, // Add unique id to each user message
+        created_at: new Date().toISOString() // Add timestamp for unauthenticated requests
       };
+      
+      // Update chat messages UI
       setChatMessages((prev) => [...prev, userMessage]);
-
-      if (uploadedImageUrl) {
+      
+      // For unauthenticated users, we need to track all messages for future requests
+      if (!isUserAuthenticated) {
+        setThreadMessages((prev) => [...prev, userMessage]);
+      }if (uploadedImageUrl) {
+        // Image uploads only supported for authenticated users
+        if (!isUserAuthenticated) {
+          showSnackbar('Image uploads require login', 'error');
+          setIsResponseLoading(false);
+          return;
+        }
+        
         // Send JSON body with image URL and caption
         payload.image = uploadedImageUrl;
         payload.caption = currentMessage;
         if (selectedPatient) payload.patient_id = selectedPatient.id;
         requestBody = JSON.stringify(payload);
-        headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        };
       } else if (selectedImage) {
         // Should not happen, but fallback
         showSnackbar('Image not uploaded yet.', 'error');
         setIsResponseLoading(false);
         return;
       } else {
+        // Both authenticated and unauthenticated users can send text queries
         payload.query = currentMessage;
         requestBody = JSON.stringify(payload);
-        headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        };
       }
 
       const response = await fetch(apiUrl, {
@@ -482,14 +645,13 @@ const SearchBox = () => {
       // Reset selected image and preview after sending
       setSelectedImage(null);
       setSelectedImagePreview(null);
-      setUploadedImageUrl(null);
-      setIsExpertLevelLocked(false);
-
-      let assistantMessage = { 
+      setUploadedImage(null);
+      setIsExpertLevelLocked(false);      let assistantMessage = { 
         role: "assistant", 
         content: "", 
         citations: [], 
-        queryId: userMessage.id // Link to the parent query
+        queryId: userMessage.id, // Link to the parent query
+        created_at: new Date().toISOString() // Add timestamp for unauthenticated requests
       };
       setChatMessages((prev) => [...prev, assistantMessage]);
 
@@ -506,8 +668,7 @@ const SearchBox = () => {
           const chunkText = decoder.decode(value);
           accumulatedResponse += chunkText;
         }
-        
-        try {
+          try {
           // Check if the response starts with a JSON object containing thread_id
           let jsonHeader = null;
           let cleanedResponse = accumulatedResponse;
@@ -550,9 +711,7 @@ const SearchBox = () => {
             
             // Update threads list - replace temp thread with real one
             setThreads(prev => prev.map(t => 
-              (t.id === currentThreadId) 
-                ? { ...t, id: newThreadId } 
-                : t
+              (t.id === currentThreadId) ? { ...t, id: newThreadId } : t
             ));
             
             // Update selected thread
@@ -565,19 +724,44 @@ const SearchBox = () => {
           
           // Use the cleaned response for display
           assistantMessage.content = cleanedResponse.trim();
-          
-          // Force an update of chat messages with the latest content
+            // Force an update of chat messages with the latest content
           setChatMessages(prev => {
             const updated = [...prev];
             updated[updated.length - 1] = { ...assistantMessage };
             return updated;
           });
           
+          // For unauthenticated users, track messages for future requests
+          if (!isUserAuthenticated) {
+            setThreadMessages(prev => {
+              const updated = [...prev];
+              // Replace the last message which should be the assistant's message
+              if (updated.length > 0 && updated[updated.length - 1].role === 'assistant') {
+                updated[updated.length - 1] = { ...assistantMessage };
+              } else {
+                updated.push({ ...assistantMessage });
+              }
+              return updated;
+            });
+          }
           // If we received a new thread ID, ensure it's properly saved
           if (newThreadId) {
             console.log("Thread ID after image processing:", newThreadId);
-            // Explicitly trigger a refresh to ensure state consistency
-            setTimeout(() => refreshThreads(), 500);
+            // For authenticated users, update threads list & URL path
+            if (isUserAuthenticated) {
+              // Explicitly trigger a refresh to ensure state consistency
+              setTimeout(() => refreshThreads(), 500);
+              // Update the browser URL to /ask/{public_id}
+              if (newThreadId !== location.pathname.split('/').pop()) {
+                navigate(`/ask/${newThreadId}`, { replace: true });
+              }
+            } else if (isPublicThread) {
+              // For unauthenticated users, update the URL to public path
+              if (newThreadId !== location.pathname.split('/').pop()) {
+                // App.js confirms /public-research/:public_id is the correct URL path for public threads
+                navigate(`/public-research/${newThreadId}`, { replace: true });
+              }
+            }
           }
         } catch(e) {
           console.error("Error processing image response:", e);
@@ -608,17 +792,14 @@ const SearchBox = () => {
                 if (parsed.thread_id) {
                   newThreadId = parsed.thread_id;
                   console.log("Received thread_id from text response:", newThreadId);
-                  
-                  // Only update thread references if this was a new conversation or had a temporary ID
+                    // Only update thread references if this was a new conversation or had a temporary ID
                   if (!currentThreadId || isTemporaryThread) {
                     // Critical: Update thread ID state immediately
                     setThreadId(newThreadId);
                     
                     // Update threads list
                     setThreads(prev => prev.map(t => 
-                      (t.id === currentThreadId) 
-                        ? { ...t, id: newThreadId } 
-                        : t
+                      (t.id === currentThreadId) ? { ...t, id: newThreadId } : t
                     ));
                     
                     // Update selected thread
@@ -636,6 +817,20 @@ const SearchBox = () => {
                     updated[updated.length - 1] = { ...assistantMessage };
                     return updated;
                   });
+                  
+                  // For unauthenticated users, track messages for future requests
+                  if (!isUserAuthenticated) {
+                    setThreadMessages(prev => {
+                      const updated = [...prev];
+                      // Replace the last message which should be the assistant's message
+                      if (updated.length > 0 && updated[updated.length - 1].role === 'assistant') {
+                        updated[updated.length - 1] = { ...assistantMessage };
+                      } else {
+                        updated.push({ ...assistantMessage });
+                      }
+                      return updated;
+                    });
+                  }
                 }
               } catch (error) {
                 console.error("Error parsing JSON chunk:", error);
@@ -643,12 +838,25 @@ const SearchBox = () => {
             }
           }
         }
-        
-        // After processing all chunks, log the final thread ID and refresh
+          // After processing all chunks, log the final thread ID and refresh
         if (newThreadId) {
           console.log("Final thread ID after text response:", newThreadId);
-          // Explicitly trigger a refresh after small delay to ensure state consistency
-          setTimeout(() => refreshThreads(), 500);
+          
+          // For authenticated users, update threads list & URL path
+          if (isUserAuthenticated) {
+            // Explicitly trigger a refresh after small delay to ensure state consistency
+            setTimeout(() => refreshThreads(), 500);
+            // Update the browser URL to /ask/{public_id}
+            if (newThreadId !== location.pathname.split('/').pop()) {
+              navigate(`/ask/${newThreadId}`, { replace: true });
+            }
+          }          // For unauthenticated users, update the URL to public path
+          else if (isPublicThread) {
+            if (newThreadId !== location.pathname.split('/').pop()) {
+              // App.js confirms this is the correct public URL path
+              navigate(`/public-research/${newThreadId}`, { replace: true });
+            }
+          }
         }
       }
     } catch (error) {
@@ -666,10 +874,22 @@ const SearchBox = () => {
           content: errorMessage,
         },
       ]);
+      // Balance check on error
+      try {
+        const expertiseLevel = expertLevel === 'basic' ? 'medium' : 'high';
+        const balanceResult = await balanceCheck(expertiseLevel);
+        if (balanceResult && balanceResult.sufficient_funds === false) {
+          setBuyCreditsBalance(balanceResult);
+          setBuyCreditsRequiredAmount(balanceResult.required_amount);
+          setBuyCreditsModalOpen(true);
+        }
+      } catch (balanceError) {
+        console.error('Error checking balance:', balanceError);
+      }
     } finally {
       setIsResponseLoading(false);
     }
-  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, selectedImage, selectedImagePreview, uploadedImageUrl, isExpertLevelLocked, location.state, refreshThreads, selectedThread]);
+  }, [message, threadId, selectedPatient, expertLevel, showSnackbar, selectedImage, selectedImagePreview, uploadedImageUrl, isExpertLevelLocked, location.state, refreshThreads, selectedThread, isUserAuthenticated, isPublicThread, threadMessages, navigate]);
 
   const handleSourcesToggle = () => {
     setIsSourcesVisible((prev) => !prev);
@@ -705,6 +925,7 @@ const SearchBox = () => {
 
     fetchData();
   }, [navigate, showSnackbar]);
+
 
   // Add useEffect to handle initial query and patient selection
   useEffect(() => {
@@ -761,24 +982,18 @@ const SearchBox = () => {
     }
   }, [showSnackbar]);
 
+  // In handleSelectThread, set threadId to thread.public_id
   const handleSelectThread = useCallback((thread) => {
-    // Prevent selecting a thread that no longer exists
-    const stillExists = threads.find(t => t.id === thread.id);
+    const stillExists = threads.find(t => (t.public_id || t.id) === (thread.public_id || thread.id));
     if (!stillExists) return;
     setSelectedThread(thread);
-    setThreadId(thread.id);
-    // Auto-select patient if present and not null
+    setThreadId(thread.public_id || thread.id);
     if (thread.patient) {
-      // patient may be an id or object; try to find in datalist
       const patientObj = datalist.find(p => p.id === thread.patient || p.id === thread.patient?.id);
-      if (patientObj) {
-        setSelectedPatient(patientObj);
-      }
+      if (patientObj) setSelectedPatient(patientObj);
     }
-    fetchThreadMessages(thread.id);
-    if (isMobile) {
-      setIsThreadPanelOpen(false);
-    }
+    fetchThreadMessages(thread.public_id || thread.id);
+    if (isMobile) setIsThreadPanelOpen(false);
   }, [isMobile, fetchThreadMessages, datalist, threads]);
 
   const handleDeleteThread = useCallback(async (threadId) => {
@@ -886,15 +1101,13 @@ const SearchBox = () => {
           </Collapse>
         </Box>
       );
-    }
-    return null;
-  }, [isSourcesVisible, handleSourcesToggle]);
-
-  // Fetch suggested questions
+    }    return null;
+  }, [handleSourcesToggle, isSourcesVisible]);
+  
+  // Function to fetch suggested questions
   const fetchSuggestions = useCallback(async () => {
     try {
       const token = await getAccessToken();
-      if (!token) return;
       
       const payload = {
         user_type: "doctor"
@@ -922,6 +1135,17 @@ const SearchBox = () => {
       setSuggestions(data);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
+      // Balance check on error
+      try {
+        const balanceResult = await balanceCheck('expert');
+        if (balanceResult && balanceResult.sufficient_funds === false) {
+          setBuyCreditsBalance(balanceResult);
+          setBuyCreditsRequiredAmount(balanceResult.required_amount);
+          setBuyCreditsModalOpen(true);
+        }
+      } catch (balanceError) {
+        console.error('Error checking balance:', balanceError);
+      }
     }
   }, [selectedPatient]);
 
@@ -1018,6 +1242,39 @@ const SearchBox = () => {
       setFollowUpQuestions([]);
     }
   }, [chatMessages, isResponseLoading, fetchFollowUpQuestions]);
+  
+  // Add useEffect to extract public_id from URL and load the thread
+  useEffect(() => {
+    // Check if the current path matches /ask/{public_id}
+    const pathParts = location.pathname.split('/');
+    const urlPublicId = pathParts[2]; // Extract public_id from the URL
+    
+    if (urlPublicId && urlPublicId !== threadId) {
+      console.log("Loading thread from URL:", urlPublicId);
+      setThreadId(urlPublicId);
+      
+      // Check if the thread is already loaded in the threads list
+      const found = threads.find(t => t.public_id === urlPublicId || t.id === urlPublicId);
+      if (found) {
+        // Select the thread if found
+        setSelectedThread(found);
+        fetchThreadMessages(urlPublicId);
+      } else if (threads.length > 0) {
+        // If thread not found but threads are loaded, refresh threads to try to find it
+        refreshThreads().then(() => {
+          // After refreshing, check again for the thread
+          const refreshedThread = threads.find(t => t.public_id === urlPublicId || t.id === urlPublicId);
+          if (refreshedThread) {
+            setSelectedThread(refreshedThread);
+            fetchThreadMessages(urlPublicId);
+          }
+        });
+      } else {
+        // If threads aren't loaded yet, wait for them and then try to find the thread
+        fetchThreadMessages(urlPublicId);
+      }
+    }
+  }, [location.pathname, threadId, threads, fetchThreadMessages, refreshThreads, setThreadId, setSelectedThread]);
 
   // Scroll to bottom effect
   useEffect(() => {
@@ -1040,23 +1297,26 @@ const SearchBox = () => {
     th: ({ children }) => <TableCell sx={{ fontWeight: 700, background: '#e3f2fd', color: '#1976d2' }}>{children}</TableCell>,
     td: ({ children }) => <TableCell>{children}</TableCell>,
   };
-
   return (
     <div className="dashboard-container" style={{ margin: isMobile ? 0 : undefined, padding: isMobile ? 0 : undefined }}>
-      <Sidebar
-        onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
-        onNavigate={(path) => navigate(path)}
-        onLogout={handleLogout}
-      />
+      {/* Only show sidebar for authenticated users */}
+      {isUserAuthenticated && (
+        <Sidebar
+          onToggleSidebar={(minimized) => setIsSidebarMinimized(minimized)}
+          onNavigate={(path) => navigate(path)}
+          onLogout={handleLogout}
+        />
+      )}
       
-      {/* Main content area - Adjust margin based on sidebar AND thread panel state */}
-      <div 
+      {/* Main content area - Adjust margin based on sidebar AND thread panel state */}      <div 
         className={`flex-1 transition-all duration-300`} 
         style={{
-          marginLeft: isMobile ? 0 : 
-            (isSidebarMinimized ? 
-              (isDesktopThreadPanelOpen ? `calc(4rem + 320px)` : `4rem`) : // Sidebar minimized: add space for thread panel
-              (isDesktopThreadPanelOpen ? `calc(16rem + 320px)` : `16rem`) // Sidebar expanded
+          marginLeft: !isUserAuthenticated ? 0 : // No margin if unauthenticated
+            (isMobile ? 0 : 
+              (isSidebarMinimized ? 
+                (isDesktopThreadPanelOpen ? `calc(4rem + 320px)` : `4rem`) : // Sidebar minimized: add space for thread panel
+                (isDesktopThreadPanelOpen ? `calc(16rem + 320px)` : `16rem`) // Sidebar expanded
+              )
             ),
           transition: theme.transitions.create('margin-left', {
             easing: theme.transitions.easing.sharp,
@@ -1076,9 +1336,8 @@ const SearchBox = () => {
                 padding: 0
               }
             }}
-          >
-            {/* Desktop Thread Panel - Render outside the main content flow for animation */}
-            {!isMobile && (
+          >            {/* Desktop Thread Panel - Render outside the main content flow for animation, only for authenticated users */}
+            {!isMobile && isUserAuthenticated && (
               <>
                 <Box sx={{ 
                   position: 'fixed',
@@ -1143,9 +1402,8 @@ const SearchBox = () => {
                 width: '100%', // Ensure it tries to take full width initially
                 // No padding here, handled within the content box
               }}
-            >
-              {/* Mobile Thread Panel Button & Drawer */}
-              {isMobile && (
+            >              {/* Mobile Thread Panel Button & Drawer - only for authenticated users */}
+              {isMobile && isUserAuthenticated && (
                 <IconButton
                   onClick={() => setIsThreadPanelOpen((prev) => !prev)}
                   sx={{ 
@@ -1157,30 +1415,33 @@ const SearchBox = () => {
                     '&:hover': { backgroundColor: '#f5f5f5' }
                   }}
                 >
-                  <ChatIcon />
-                </IconButton>
+                  <ChatIcon />                </IconButton>
               )}
-              <SwipeableDrawer
-                anchor="left"
-                open={isThreadPanelOpen}
-                onClose={() => setIsThreadPanelOpen(false)}
-                onOpen={() => setIsThreadPanelOpen(true)}
-              >
-                <ThreadPanel
-                  threads={threads}
-                  selectedThread={selectedThread}
-                  onSelectThread={(thread) => {
-                    handleSelectThread(thread);
-                    setIsThreadPanelOpen(false); // Close drawer on selection
-                  }}
-                  onDeleteThread={handleDeleteThread}
-                  onNewChat={() => {
-                    handleNewChat();
-                    setIsThreadPanelOpen(false); // Close drawer on new chat
-                  }}
-                  isMobile={true}
-                />
-              </SwipeableDrawer>
+              
+              {/* SwipeableDrawer for thread panel - only for authenticated users */}
+              {isUserAuthenticated && (
+                <SwipeableDrawer
+                  anchor="left"
+                  open={isThreadPanelOpen}
+                  onClose={() => setIsThreadPanelOpen(false)}
+                  onOpen={() => setIsThreadPanelOpen(true)}
+                >
+                  <ThreadPanel
+                    threads={threads}
+                    selectedThread={selectedThread}
+                    onSelectThread={(thread) => {
+                      handleSelectThread(thread);
+                      setIsThreadPanelOpen(false); // Close drawer on selection
+                    }}
+                    onDeleteThread={handleDeleteThread}
+                    onNewChat={() => {
+                      handleNewChat();
+                      setIsThreadPanelOpen(false); // Close drawer on new chat
+                    }}
+                    isMobile={true}
+                  />
+                </SwipeableDrawer>
+              )}
 
               {/* Chat Content Area */}
               <Box
@@ -1195,26 +1456,156 @@ const SearchBox = () => {
                   justifyContent: (chatMessages.length > 0 || showSuggestions) ? 'flex-start' : 'center', 
                 }}
               >
-                {/* ... rest of the chat content ... */}
-                <Typography
-                  variant="h5"
-                  align="center"
-                  mb={2}
-                  sx={{
-                    fontWeight: 700, // Bolder
-                    color: 'transparent', // Make text transparent
-                    background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)', // Blue gradient
-                    backgroundClip: 'text', // Clip background to text
-                    WebkitBackgroundClip: 'text', // For Safari
-                    letterSpacing: 0.5, // Slightly more spacing
-                    marginTop: (chatMessages.length > 0 || showSuggestions) ? '20px' : '0',
-                    py: 1, // Adjust vertical padding if needed
-                    width: 'fit-content', // Fit to content width
-                    px: 3, // Add horizontal padding for effect
-                  }}
-                >
-                  Ask Dr House AI
-                </Typography>
+                {/* ... rest of the chat content ... */}                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '840px' }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'row', 
+                    alignItems: 'center',
+                    justifyContent: 'center', /* Center the header content */
+                    position: 'relative', /* For absolute positioning of icons */
+                    width: '100%',
+                    mb: 2,
+                    mt: (chatMessages.length > 0 || showSuggestions) ? 3 : 0, /* Consistent margin top */
+                    px: isMobile ? 6 : 2 /* Add padding on mobile to avoid menu button overlap */
+                  }}>
+                    {/* Left placeholder for mobile to balance the layout */}
+                    {isMobile && isUserAuthenticated && (
+                      <Box sx={{ width: 40 }} /> /* Width matches the menu IconButton */
+                    )}
+                    
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        fontWeight: 700, // Bolder
+                        color: 'transparent', // Make text transparent
+                        background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)', // Blue gradient
+                        backgroundClip: 'text', // Clip background to text
+                        WebkitBackgroundClip: 'text', // For Safari
+                        letterSpacing: 0.5, // Slightly more spacing
+                        py: 1, // Adjust vertical padding if needed
+                        textAlign: 'center', // Ensure text is centered
+                      }}
+                    >
+                      Ask Dr House AI
+                    </Typography>
+                    
+                    {/* Share Button - Only show when there are messages */}
+                    {chatMessages.length > 0 && (
+                      <Tooltip title="Share this conversation">
+                        <IconButton 
+                          onClick={handleShareMenuOpen}
+                          sx={{ 
+                            color: 'primary.main', 
+                            bgcolor: 'rgba(25, 118, 210, 0.08)',
+                            '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.15)' },
+                            position: isMobile ? 'absolute' : 'relative',
+                            right: isMobile ? 0 : 'auto',
+                          }}
+                          aria-label="share conversation"
+                          aria-controls={openShareMenu ? 'share-menu' : undefined}
+                          aria-haspopup="true"
+                          aria-expanded={openShareMenu ? 'true' : undefined}
+                        >
+                          <ShareIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    
+                    {/* Share Menu */}
+                    <Menu
+                      id="share-menu"
+                      anchorEl={shareMenuAnchorEl}
+                      open={openShareMenu}
+                      onClose={handleShareMenuClose}
+                      MenuListProps={{
+                        'aria-labelledby': 'share-button',
+                      }}
+                      anchorOrigin={{
+                        vertical: 'bottom',
+                        horizontal: 'right',
+                      }}
+                      transformOrigin={{
+                        vertical: 'top',
+                        horizontal: 'right',
+                      }}
+                    >
+                      <MenuItem onClick={handleCopyLink} dense>
+                        <ContentCopyIcon fontSize="small" sx={{ mr: 1.5 }} />
+                        Copy link
+                      </MenuItem>
+                      <MenuItem onClick={handleShareToWhatsApp} dense>
+                        <WhatsAppIcon fontSize="small" sx={{ mr: 1.5, color: '#25D366' }} />
+                        Share on WhatsApp
+                      </MenuItem>
+                      <MenuItem onClick={handleShareToTwitter} dense>
+                        <TwitterIcon fontSize="small" sx={{ mr: 1.5, color: '#1DA1F2' }} />
+                        Share on X (Twitter)
+                      </MenuItem>
+                      <MenuItem onClick={handleShareToLinkedIn} dense>
+                        <LinkedInIcon fontSize="small" sx={{ mr: 1.5, color: '#0A66C2' }} />
+                        Share on LinkedIn
+                      </MenuItem>
+                      <MenuItem onClick={handleShareToReddit} dense>
+                        <RedditIcon fontSize="small" sx={{ mr: 1.5, color: '#FF4500' }} />
+                        Share on Reddit
+                      </MenuItem>
+                    </Menu>
+                  </Box>
+                  {/* Show login prompt for unauthenticated users */}
+                  {!isUserAuthenticated && isPublicThread && (
+                    <Paper 
+                      elevation={3} 
+                      sx={{ 
+                        p: 2.5, // Increased padding
+                        mb: 2, 
+                        borderRadius: 2, // Consistent border radius
+                        bgcolor: 'background.paper', // Use theme background
+                        maxWidth: { xs: '95%', sm: '500px' }, // Responsive max width
+                        width: '100%',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', // Softer shadow
+                        textAlign: 'center' // Center align content
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', mb: 1 }}>
+                        Join the Conversation
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                        To ask your own questions, save chat history, and access all features, please log in or create an account.
+                      </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                        <Button 
+                          variant="contained"
+                          size="medium" // Slightly larger button
+                          onClick={() => {
+                            navigate('/login', { 
+                              state: { 
+                                returnUrl: location.pathname,
+                                message: "Log in to continue and access all features." 
+                              }
+                            });
+                          }}
+                          sx={{ borderRadius: '999px', textTransform: 'none', px: 3 }} // Pill shape
+                        >
+                          Log In
+                        </Button>
+                        <Button 
+                          variant="outlined" // Outlined for secondary action
+                          size="medium"
+                          onClick={() => {
+                            navigate('/register', { // Navigate to registration page
+                              state: { 
+                                returnUrl: location.pathname 
+                              }
+                            });
+                          }}
+                          sx={{ borderRadius: '999px', textTransform: 'none', px: 3 }}
+                        >
+                          Sign Up
+                        </Button>
+                      </Box>
+                    </Paper>
+                  )}
+                </Box>
 
                 {/* Suggestion Panel */} 
                 {showSuggestions && (
@@ -1490,7 +1881,7 @@ const SearchBox = () => {
                         maxRows={4}
                         InputProps={{
                           disableUnderline: true,
-                          style: { fontSize: '15px', background: 'none', borderRadius: '999px', paddingLeft: 10, paddingRight: 10 },
+                          style: { fontSize: '15px', background: 'none', borderRadius: '999px', paddingLeft: 10, paddingRight:  10 },
                         }}
                         sx={{
                           background: 'none', borderRadius: '999px', boxShadow: 'none', mx: 0.5, my: 0, minHeight: 38, '& textarea': { padding: 0, lineHeight: 1.6 },
@@ -1517,10 +1908,9 @@ const SearchBox = () => {
                       >
                         {isResponseLoading ? <CircularProgress size={22} sx={{ color: 'white' }} /> : <SendIcon sx={{ fontSize: 20 }} />}
                       </IconButton>
-                    </Box>
-                    {/* Bottom Row: Selects and Suggestions Toggle */}
+                    </Box>                    {/* Bottom Row: Selects and Suggestions Toggle */}
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 1, alignItems: 'center', pl: 1, pb: 0.5 }}>
-                       {/* Suggestions toggle button */}
+                       {/* Suggestions toggle button - available for all users */}
                        <IconButton
                         color={(showSuggestions || (showFollowUp && !isResponseLoading)) ? "primary" : "default"} // Only primary if follow-ups are actually shown
                         onClick={() => {
@@ -1537,38 +1927,42 @@ const SearchBox = () => {
                       >
                         <LightbulbIcon fontSize="small" />
                       </IconButton>
-                      {/* Patient Select */}
-                      <FormControl variant="standard" sx={{ minWidth: 90, mr: 0.5, '.MuiOutlinedInput-root': { borderRadius: '999px', background: '#f0f4f8', height: 32, pl: 0.5, pr: 1, fontSize: 13, boxShadow: 'none' } }} size="small">
-                        <Select
-                          value={selectedPatient ? selectedPatient.id : ''}
-                          onChange={(e) => {
-                            const patientId = e.target.value;
-                            const patient = datalist.find((p) => p.id === patientId);
-                            setSelectedPatient(patient || null);
-                          }}
-                          displayEmpty
-                          startAdornment={<PersonIcon sx={{ color: '#1976d2', fontSize: 16, mr: 0.5, ml: 1 }} />} // Icon inside
-                          renderValue={(selected) =>
-                            selected
-                              ? (datalist.find((p) => p.id === selected)?.full_name?.split(' ')[0] || `Patient`)
-                              : 'Patient'
-                          }
-                          sx={{
-                            borderRadius: '999px', fontSize: 13, color: '#1976d2', fontWeight: 500, minWidth: 70, height: 32, pl: 0, pr: 0, background: '#f0f4f8', boxShadow: 'none', '.MuiSelect-icon': { color: '#1976d2', fontSize: 18 },
-                          }}
-                          MenuProps={{ PaperProps: { style: { zIndex: 1302 } } }} // Ensure dropdown is above other elements
-                        >
-                          <MenuItem value=""><em>Choose Patient</em></MenuItem>
-                          {datalist.map((patient) => (
-                            <MenuItem key={patient.id} value={patient.id}>
-                              {patient.full_name ? `${patient.full_name} (${patient.id})` : `Patient (${patient.id})`}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                      {/* Expertise Select */}
+                      
+                      {/* Patient Select - Only for authenticated users */}
+                      {isUserAuthenticated && (
+                        <FormControl variant="standard" sx={{ minWidth: 90, mr: 0.5, '.MuiOutlinedInput-root': { borderRadius: '999px', background: '#f0f4f8', height: 32, pl: 0.5, pr: 1, fontSize: 13, boxShadow: 'none' } }} size="small">
+                          <Select
+                            value={selectedPatient ? selectedPatient.id : ''}
+                            onChange={(e) => {
+                              const patientId = e.target.value;
+                              const patient = datalist.find((p) => p.id === patientId);
+                              setSelectedPatient(patient || null);
+                            }}
+                            displayEmpty
+                            startAdornment={<PersonIcon sx={{ color: '#1976d2', fontSize: 16, mr: 0.5, ml: 1 }} />} // Icon inside
+                            renderValue={(selected) =>
+                              selected
+                                ? (datalist.find((p) => p.id === selected)?.full_name?.split(' ')[0] || `Patient`)
+                                : 'Patient'
+                            }
+                            sx={{
+                              borderRadius: '999px', fontSize: 13, color: '#1976d2', fontWeight: 500, minWidth: 70, height: 32, pl: 0, pr: 0, background: '#f0f4f8', boxShadow: 'none', '.MuiSelect-icon': { color: '#1976d2', fontSize: 18 },
+                            }}
+                            MenuProps={{ PaperProps: { style: { zIndex: 1302 } } }} // Ensure dropdown is above other elements
+                          >
+                            <MenuItem value=""><em>Choose Patient</em></MenuItem>
+                            {datalist.map((patient) => (
+                              <MenuItem key={patient.id} value={patient.id}>
+                                {patient.full_name ? `${patient.full_name} (${patient.id})` : `Patient (${patient.id})`}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      )}
+                      
+                      {/* Expertise Select - Available for all users */}
                       <FormControl variant="standard" sx={{ minWidth: 90, '.MuiOutlinedInput-root': { borderRadius: '999px', background: '#f0f4f8', height: 32, pl: 0.5, pr: 1, fontSize: 13, boxShadow: 'none' } }} size="small">
-                        <Select
+                                               <Select
                           value={expertLevel}
                           onChange={(e) => setExpertLevel(e.target.value)}
                           disabled={isExpertLevelLocked || isResponseLoading}
@@ -1583,10 +1977,35 @@ const SearchBox = () => {
                           }}
                           MenuProps={{ PaperProps: { style: { zIndex: 1302 } } }} // Ensure dropdown is above other elements
                         >
-                          <MenuItem value="basic" disabled={isExpertLevelLocked || isResponseLoading}>Basic $0.1</MenuItem>
-                          <MenuItem value="advanced">Advanced $0.5</MenuItem>
+                          <MenuItem value="basic" disabled={isExpertLevelLocked || isResponseLoading}>Basic</MenuItem>
+                          <MenuItem value="advanced">Advanced</MenuItem>
                         </Select>
                       </FormControl>
+                        {/* Login Button for Unauthenticated Users */}
+                      {!isUserAuthenticated && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => navigate('/login', { 
+                            state: { 
+                              returnUrl: location.pathname,
+                              message: "Log in to use all features or continue as guest" 
+                            } 
+                          })}
+                          sx={{
+                            borderRadius: '999px',
+                            ml: 'auto',
+                            textTransform: 'none',
+                            height: 32,
+                            fontSize: 13,
+                            backgroundColor: '#1976d2',
+                            '&:hover': { backgroundColor: '#125ea2' }
+                          }}
+                          startIcon={<PersonIcon />}
+                        >
+                          Login for full access
+                        </Button>
+                      )}
                     </Box>
                     {expertLevel === 'advanced' && (
                       <Typography variant="caption" color="textSecondary" sx={{ pl: 1.5, pt: 0.5 }}>
@@ -1626,6 +2045,14 @@ const SearchBox = () => {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+      {isUserAuthenticated && (
+        <BuyCreditsModal
+          open={buyCreditsModalOpen}
+          onClose={() => setBuyCreditsModalOpen(false)}
+          balance={buyCreditsBalance}
+          requiredAmount={buyCreditsRequiredAmount}
+        />
+      )}
     </div>
   );
 };

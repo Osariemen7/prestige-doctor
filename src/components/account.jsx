@@ -37,6 +37,7 @@ import { useTheme } from '@mui/material/styles';
 import Sidebar from './sidebar';
 import { getAccessToken } from './api';
 import { getUser } from './api';
+import BuyCreditsModal from './BuyCreditsModal';
 
 // Custom hook to replace useDisclosure
 const useDisclosure = (defaultIsOpen = false) => {
@@ -99,93 +100,20 @@ const useToast = () => {
     };
 };
 
-const Account = () => {
-    const [balance, setBal] = useState(null);
+const Account = () => {    const [balance, setBal] = useState(null);
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const { toast, showToast, handleClose } = useToast();
     const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
     const { isOpen, onOpen, onClose } = useDisclosure();
-    const [buyCreditsAmountNgn, setBuyCreditsAmountNgn] = useState('');
-    const [usdCredits, setUsdCredits] = useState(0);
-    const [isBuyingCredits, setIsBuyingCredits] = useState(false);
-    const [isBuyCreditsAmountValid, setIsBuyCreditsAmountValid] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
-    const [minNgnToBuy, setMinNgnToBuy] = useState(5000); // Default fallback
     const theme = useTheme();    
     const userInfo = localStorage.getItem('user-info');
     const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
     const bvnStatus = parsedUserInfo ? parsedUserInfo.user.bvn_verified : "NOT_VERIFIED";
     const userName = parsedUserInfo ? parsedUserInfo.user.name : "User";
     const userEmail = parsedUserInfo ? parsedUserInfo.user.email : "user@example.com";
-
-    const url = 'https://health.prestigedelta.com/paystack/';
-    const callback_url = 'https://prestige-health.vercel.app/components/callback';
-
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-    // Update minNgnToBuy when balance.ngn_rate changes
-    useEffect(() => {
-        if (balance && balance.ngn_rate) {
-            setMinNgnToBuy(Math.ceil(10 * balance.ngn_rate));
-        }
-    }, [balance]);
-
-    const handleBuyCreditsOpen = () => {
-        setBuyCreditsAmountNgn('');
-        setIsBuyCreditsAmountValid(false);
-        setUsdCredits(0);
-        onOpen();
-    };
-
-    useEffect(() => {
-        const rate = balance && balance.ngn_rate ? balance.ngn_rate : 1500;
-        const amount = parseInt(buyCreditsAmountNgn, 10) || 0;
-        setUsdCredits(rate ? amount / rate : 0);
-        setIsBuyCreditsAmountValid(amount >= minNgnToBuy);
-    }, [buyCreditsAmountNgn, balance, minNgnToBuy]);
-
-    const handleBuyCredits = async () => {
-        const users = await getUser();
-        const phone_number = users.phone_number;
-        const email = users.email;
-        let amount = buyCreditsAmountNgn;
-        const item = { email, phone_number, amount, callback_url };
-
-        let result = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                accept: 'application/json',
-            },
-            body: JSON.stringify(item),
-        });
-
-        if (result.status !== 200) {
-            const errorResult = await result.json();
-            showToast({
-                title: 'Credits Purchase Unsuccessful',
-                description: `${errorResult}`,
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        } else {
-            const responseData = await result.json();
-
-            if (responseData.data && responseData.data.authorization_url) {
-                window.location.href = responseData.data.authorization_url;
-            } else {
-                showToast({
-                    title: 'Credits Purchase Unsuccessful',
-                    description: `Failed to retrieve Paystack authorization url`,
-                    status: 'error',
-                    duration: 5000,
-                    isClosable: true,
-                });
-            }
-        }
-    };
 
     const withDraw = async () => {
         if (bvnStatus === "NOT_VERIFIED") {
@@ -311,7 +239,7 @@ const Account = () => {
         if (!accessToken) return;
         setLoading(true);
         try {
-            let response = await fetch("https://health.prestigedelta.com/balance/", {
+            let response = await fetch("https://health.prestigedelta.com/credits/balance/", {
                 method: "GET",
                 headers: { 'Authorization': `Bearer ${accessToken}` },
             });
@@ -435,7 +363,7 @@ const Account = () => {
                                         color="success"
                                         size="large"
                                         startIcon={<FiShoppingCart />}
-                                        onClick={handleBuyCreditsOpen}
+                                        onClick={onOpen}
                                         fullWidth={isMobile}
                                         sx={{ 
                                             py: 1.5, 
@@ -572,220 +500,16 @@ const Account = () => {
                                         )}
                                     </Stack>
                                 </Paper>
-                            </Stack>
-                            {isMobile ? (
-                                <Drawer
-                                    anchor="bottom"
-                                    open={isOpen}
-                                    onClose={onClose}
-                                    PaperProps={{
-                                        sx: { 
-                                            borderTopLeftRadius: 20,
-                                            borderTopRightRadius: 20,
-                                            boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
-                                        }
-                                    }}
-                                >
-                                    <Box sx={{ p: 1, textAlign: 'right' }}>
-                                        <IconButton onClick={onClose} size="medium">
-                                            <CloseIcon />
-                                        </IconButton>
-                                    </Box>
-                                    <Box sx={{ px: 3, pb: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                                        <Typography variant="h6" fontWeight="bold" color="primary.main" textAlign="center">
-                                            Buy Credits
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ p: { xs: 2.5, sm: 3 } }}>
-                                        <Stack spacing={3}>
-                                            <FormControl error={!isBuyCreditsAmountValid && buyCreditsAmountNgn !== ''} fullWidth>
-                                                <FormLabel sx={{ fontWeight: 600, color: 'text.secondary', mb: 1 }}>
-                                                    Enter Amount in NGN
-                                                </FormLabel>
-                                                <TextField
-                                                    value={buyCreditsAmountNgn}
-                                                    onChange={(e) => setBuyCreditsAmountNgn(e.target.value)}
-                                                    placeholder={`Minimum NGN ${minNgnToBuy.toLocaleString()}`}
-                                                    type="number"
-                                                    inputProps={{ 
-                                                        min: minNgnToBuy,
-                                                        style: { padding: '14px 14px', fontSize: '1rem' }
-                                                    }}
-                                                    fullWidth
-                                                    variant="outlined"
-                                                    size="medium"
-                                                    sx={{ borderRadius: 2 }}
-                                                />
-                                                {!isBuyCreditsAmountValid && buyCreditsAmountNgn !== '' && (
-                                                    <FormHelperText error>
-                                                        {`Minimum amount to buy credits is NGN ${minNgnToBuy.toLocaleString()}.`}
-                                                    </FormHelperText>
-                                                )}
-                                            </FormControl>
-                                            <Paper 
-                                                elevation={0} 
-                                                sx={(theme) => ({ 
-                                                    textAlign: 'center', 
-                                                    p: 2.5,
-                                                    bgcolor: theme.palette.primary.lighter, 
-                                                    borderRadius: 2,
-                                                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                                                })}
-                                            >
-                                                <Typography variant="body1" color="text.secondary" sx={{ mb: 0.5 }}>
-                                                    You will receive approximately:
-                                                </Typography>
-                                                <Typography variant="h4" fontWeight="bold" color="primary.main" sx={{ my: 0.5 }}>
-                                                    ${usdCredits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {balance && balance.ngn_rate ? `Rate: ${balance.ngn_rate.toLocaleString()} NGN = 1 USD` : '(Rate: 1,500 NGN = 1 USD)'}
-                                                </Typography>
-                                            </Paper>
-                                        </Stack>
-                                    </Box>
-                                    <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                                        <Stack direction="row" spacing={1.5} width="100%">
-                                            <Button 
-                                                variant="outlined" 
-                                                onClick={onClose} 
-                                                fullWidth
-                                                size="large"
-                                                sx={{ py: 1.25, borderRadius: '10px', flex: 1 }}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                variant="contained"
-                                                color="success"
-                                                onClick={handleBuyCredits}
-                                                disabled={!isBuyCreditsAmountValid || isBuyingCredits}
-                                                fullWidth
-                                                size="large"
-                                                sx={{ py: 1.25, borderRadius: '10px', flex: 1 }}
-                                            >
-                                                {isBuyingCredits ? 'Processing...' : 'Buy Credits'}
-                                            </Button>
-                                        </Stack>
-                                    </Box>
-                                </Drawer>
-                            ) : (
-                                <Dialog 
-                                    open={isOpen} 
-                                    onClose={onClose}
-                                    maxWidth="sm"
-                                    fullWidth
-                                    PaperProps={{
-                                        sx: { borderRadius: 2 }
-                                    }}
-                                >
-                                    <DialogTitle sx={{ 
-                                        textAlign: 'center', 
-                                        fontWeight: 'bold',
-                                        borderBottom: '1px solid',
-                                        borderColor: 'divider',
-                                        py: 2.5
-                                    }}>
-                                        Buy Credits
-                                        <IconButton
-                                            aria-label="close"
-                                            onClick={onClose}
-                                            sx={{
-                                                position: 'absolute',
-                                                right: 8,
-                                                top: 8
-                                            }}
-                                        >
-                                            <CloseIcon />
-                                        </IconButton>
-                                    </DialogTitle>
-                                    <DialogContent sx={{ py: 4, px: 5 }}>
-                                        <Stack spacing={3}>
-                                            <FormControl error={!isBuyCreditsAmountValid && buyCreditsAmountNgn !== ''}>
-                                                <FormLabel sx={{ fontWeight: 600, mb: 1, color: 'text.secondary', fontSize: '1.1rem' }}>
-                                                    Enter Amount in NGN
-                                                </FormLabel>
-                                                <TextField
-                                                    value={buyCreditsAmountNgn}
-                                                    onChange={(e) => setBuyCreditsAmountNgn(e.target.value)}
-                                                    placeholder={`Minimum NGN ${minNgnToBuy.toLocaleString()}`}
-                                                    type="number"
-                                                    inputProps={{ 
-                                                        min: minNgnToBuy,
-                                                        style: { padding: '16px 14px', fontSize: '1.1rem' }
-                                                    }}
-                                                    fullWidth
-                                                    variant="outlined"
-                                                    size="medium"
-                                                />
-                                                {!isBuyCreditsAmountValid && buyCreditsAmountNgn !== '' && (
-                                                    <FormHelperText sx={{ fontSize: '0.9rem' }}>
-                                                        {`Minimum amount to buy credits is NGN ${minNgnToBuy.toLocaleString()}.`}
-                                                    </FormHelperText>
-                                                )}
-                                            </FormControl>
-                                            <Paper 
-                                                elevation={0} 
-                                                sx={(theme) => ({ 
-                                                    textAlign: 'center', 
-                                                    p: 3, 
-                                                    bgcolor: theme.palette.primary.lighter, 
-                                                    borderRadius: 2,
-                                                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                                                })}
-                                            >
-                                                <Typography variant="body1" color="text.secondary">
-                                                    You will receive approximately:
-                                                </Typography>
-                                                <Typography 
-                                                    variant="h3" 
-                                                    fontWeight="bold" 
-                                                    color="primary.main"
-                                                    sx={{ my: 0.5 }}
-                                                >
-                                                    ${usdCredits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </Typography>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    {balance && balance.ngn_rate ? `Conversion rate: ${balance.ngn_rate.toLocaleString()} NGN = 1 USD` : '(Conversion rate: 1,500 NGN = 1 USD)'}
-                                                </Typography>
-                                            </Paper>
-                                        </Stack>
-                                    </DialogContent>
-                                    <DialogActions sx={{ 
-                                        borderTop: '1px solid', 
-                                        borderColor: 'divider',
-                                        py: 2.5,
-                                        px: 5
-                                    }}>
-                                        <Stack direction="row" spacing={2} width="100%">
-                                            <Button 
-                                                variant="outlined" 
-                                                onClick={onClose} 
-                                                fullWidth
-                                                size="large"
-                                                sx={{ py: 1.5 }}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                variant="contained"
-                                                color="success"
-                                                onClick={handleBuyCredits}
-                                                disabled={!isBuyCreditsAmountValid || isBuyingCredits}
-                                                fullWidth
-                                                size="large"
-                                                sx={{ py: 1.5 }}
-                                            >
-                                                {isBuyingCredits ? 'Processing...' : 'Buy Credits'}
-                                            </Button>
-                                        </Stack>
-                                    </DialogActions>
-                                </Dialog>
-                            )}
+                            </Stack>                            {/* We're using the BuyCreditsModal component instead of inline dialogs/drawers */}
                         </Box>
                     </Box>
                 </Box>
             </Box>
+            <BuyCreditsModal
+                open={isOpen}
+                onClose={onClose}
+                balance={balance}
+            />
         </>
     );
 };

@@ -56,6 +56,8 @@ const App = () => {
             <Route path='/available' element={<AvailabilitySelector />} />
             <Route path='/setting' element={<SettingPage />} />
             <Route path='/ask' element={<SearchBox />} />
+            <Route path='/ask/:public_id' element={<SearchBox />} />
+            <Route path='/public-research/:public_id' element={<SearchBox />} />
             <Route path='/payment' element={<PaymentForm />} />
             <Route path="/patient-messages" element={<PatientMessages />} />
             <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}

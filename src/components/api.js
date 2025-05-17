@@ -1,6 +1,11 @@
 import { useNavigate } from "react-router-dom";
 
 
+// Check if user is authenticated
+export const isAuthenticated = () => {
+  return !!localStorage.getItem('user-info');
+};
+
 // For token storage
 export const getRefreshToken = async () => {
   try {
@@ -157,5 +162,36 @@ export const submitEdits = async (data, editableFields) => {
   } catch (error) {
     console.error('Submission failed:', error);
     alert('Failed to submit edits');
+  }
+};
+
+// Function to check balance for a given expertise level
+export const balanceCheck = async (expertise_level) => {
+  try {
+    const token = await getAccessToken();
+    if (!token) throw new Error('No access token available.');
+    const url = `https://health.prestigedelta.com/credits/check-funds/?expertise_level=${encodeURIComponent(expertise_level)}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      // Attach status for error handling
+      throw { status: response.status, ...data };
+    }
+    return data;
+  } catch (error) {
+    // error may be a thrown object or Error instance
+    return {
+      sufficient_funds: false,
+      required_amount: null,
+      available_balance: null,
+      error: error.error || error.message || 'Unknown error',
+      status: error.status || 400
+    };
   }
 };

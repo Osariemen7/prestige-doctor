@@ -10,7 +10,8 @@ import SuggestedQuestionsTab from './suggestedQuestions';
 import { Container, Box, Button, Typography, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import SnackbarComponent from './snackbar';
 import axios from 'axios';
-import { getAccessToken } from './api';
+import { getAccessToken, balanceCheck } from './api';
+import BuyCreditsModal from './BuyCreditsModal';
 import './write.css';
 
 const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, transcript, resetKey, onDocumentationChange, onDocumentationSaved, isMobile, hideSaveAllButton }, ref) => {
@@ -34,6 +35,11 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
     const [isSaveAllLoading, setIsSaveAllLoading] = useState(false);    const [isGenerateQuestionsLoading, setIsGenerateQuestionsLoading] = useState(false);
     const [isGeneratingNote, setIsGeneratingNote] = useState(false);
     const [noteHasBeenGenerated, setNoteHasBeenGenerated] = useState(false);
+    
+    // Buy credits modal states
+    const [buyCreditsModalOpen, setBuyCreditsModalOpen] = useState(false);
+    const [buyCreditsBalance, setBuyCreditsBalance] = useState(null);
+    const [buyCreditsRequiredAmount, setBuyCreditsRequiredAmount] = useState(null);
     
     // Added state for suggested questions
     const [suggestedQuestions, setSuggestedQuestions] = useState([]);
@@ -191,10 +197,22 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             setSnackbarMessage('Clinical note generated successfully!');
             setSnackbarOpen(true);
             setNoteHasBeenGenerated(true);
-            return true;} catch (error) {
+            return true;
+        } catch (error) {
             console.error("Error generating note:", error);            setSnackbarSeverity('error');
             setSnackbarMessage('Failed to generate clinical note.');
             setSnackbarOpen(true);
+            // balance check
+            try {
+                const balanceResult = await balanceCheck("low");
+                if (balanceResult && balanceResult.sufficient_funds === false) {
+                    setBuyCreditsBalance(balanceResult);
+                    setBuyCreditsRequiredAmount(balanceResult.required_amount);
+                    setBuyCreditsModalOpen(true);
+                }
+            } catch (balanceError) {
+                console.error("Error checking balance:", balanceError);
+            }
             return false;
         } finally {
             setIsSaving(false);
@@ -256,6 +274,17 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             setSnackbarSeverity('error');
             setSnackbarMessage('Failed to generate suggestions.');
             setSnackbarOpen(true);
+            // balance check
+            try {
+                const balanceResult = await balanceCheck("low");
+                if (balanceResult && balanceResult.sufficient_funds === false) {
+                    setBuyCreditsBalance(balanceResult);
+                    setBuyCreditsRequiredAmount(balanceResult.required_amount);
+                    setBuyCreditsModalOpen(true);
+                }
+            } catch (balanceError) {
+                console.error("Error checking balance:", balanceError);
+            }
             return false;
         } finally {
             setSuggestionLoading(prev => ({ ...prev, [activeTab]: false }));
@@ -335,6 +364,17 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             setSnackbarSeverity('error');
             setSnackbarMessage('Failed to generate questions.');
             setSnackbarOpen(true);
+            // balance check
+            try {
+                const balanceResult = await balanceCheck("low");
+                if (balanceResult && balanceResult.sufficient_funds === false) {
+                    setBuyCreditsBalance(balanceResult);
+                    setBuyCreditsRequiredAmount(balanceResult.required_amount);
+                    setBuyCreditsModalOpen(true);
+                }
+            } catch (balanceError) {
+                console.error("Error checking balance:", balanceError);
+            }
             return false;
         } finally {
             setIsGenerateQuestionsLoading(false);
@@ -513,9 +553,7 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             };
             console.log("Updated appliedSuggestions:", JSON.stringify(newAppliedSuggestions, null, 2));
             return newAppliedSuggestions;
-        });
-
-        setSnackbarSeverity('success');
+        });        setSnackbarSeverity('success');
         setSnackbarMessage(`Suggestion for '${fieldPath.split('.').pop()}' in '${sectionKey.replace('_data', '')}' applied!`);
         setSnackbarOpen(true);
     };
@@ -943,6 +981,12 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
                         onClose={handleSnackbarClose}
                     />
                     <SuggestionsDialog />
+                    <BuyCreditsModal
+                        open={buyCreditsModalOpen}
+                        onClose={() => setBuyCreditsModalOpen(false)}
+                        balance={buyCreditsBalance}
+                        requiredAmount={buyCreditsRequiredAmount}
+                    />
                 </Container>
             </ThemeProvider>
         </div>

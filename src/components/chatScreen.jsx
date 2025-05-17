@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider, createTheme, useTheme } from '@mui/material/styles';
 import {
   Box,
   Typography,
@@ -43,8 +43,9 @@ import ImageIcon from '@mui/icons-material/Image';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getAccessToken } from './api';
+import { getAccessToken, balanceCheck } from './api';
 import './chatScreen.css'; // Import chat screen styles
+import BuyCreditsModal from './BuyCreditsModal';
 
 // Custom theme with better color palette
 const theme = createTheme({
@@ -475,10 +476,15 @@ const ChatScreen = ({
   const [previewModalOpen, setPreviewModalOpen] = useState(false); // State for image preview modal
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null); // State for uploaded image URL
   const [isUploadingImage, setIsUploadingImage] = useState(false); // State for image upload loading
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [buyCreditsModalOpen, setBuyCreditsModalOpen] = useState(false);
+  const [buyCreditsBalance, setBuyCreditsBalance] = useState(null);
+  const [buyCreditsRequiredAmount, setBuyCreditsRequiredAmount] = useState(null);
   const fileInputRef = useRef(null); // Ref for hidden file input
   const messagesEndRef = useRef(null); // For scrolling
   const innerScrollerRef = useRef(null); // Ref for inner scroller
+  const buyCreditsModalListenerRef = useRef();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md')); // Add isMobile using useMediaQuery
 
   // Initial example suggestions for the welcome screen
   const initialSuggestions = [
@@ -852,6 +858,17 @@ const ChatScreen = ({
 
     } catch (error) {
       console.error("Error sending message:", error);
+      // Background balance check if message send fails
+      try {
+        const balanceResult = await balanceCheck(expertLevel);
+        if (balanceResult && balanceResult.sufficient_funds === false) {
+          setBuyCreditsBalance(balanceResult.available_balance); // Use available_balance from API
+          setBuyCreditsRequiredAmount(balanceResult.required_amount);
+          setBuyCreditsModalOpen(true);
+        }
+      } catch (balanceError) {
+        console.error('Balance check failed:', balanceError);
+      }
       setChatMessages((prev) => [
         ...prev,
         {
@@ -990,7 +1007,7 @@ const ChatScreen = ({
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          height: '100%', // Changed from 100vh to 100% to better fit in container
+          height: '100%',
           overflow: 'hidden',
           position: 'relative',
         }}
@@ -1423,6 +1440,12 @@ const ChatScreen = ({
             {error}
           </Alert>
         </Snackbar>
+        <BuyCreditsModal
+          open={buyCreditsModalOpen}
+          onClose={() => setBuyCreditsModalOpen(false)}
+          balance={buyCreditsBalance}
+          requiredAmount={buyCreditsRequiredAmount}
+        />
       </Box>
     </ThemeProvider>
   );
