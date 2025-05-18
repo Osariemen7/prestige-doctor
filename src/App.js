@@ -29,6 +29,8 @@ import PatientMessages from './components/PatientMessages';
 import ForgotPassword from './components/ForgotPassword'; // New import
 import LandingPageNew from './components/LandingPageNew'; // Import the new landing page
 import PatientUpdate from './components/patientUpdate'; // New import
+import MyConsults from './components/MyConsults'; // Import the new component
+import ConsultDetailPage from './components/consultDetail/ConsultDetailPage'; // Import our new consultation detail page
 
 
 const App = () => {
@@ -61,7 +63,8 @@ const App = () => {
             <Route path='/payment' element={<PaymentForm />} />
             <Route path="/patient-messages" element={<PatientMessages />} />
             <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
-            <Route path="/patient-update" element={<PatientUpdate />} />
+            <Route path="/patient-update" element={<PatientUpdate />} />            <Route path="/my-consults" element={<MyConsults />} /> {/* Add route for My Consults */}
+            <Route path="/consult-details/:publicId" element={<ConsultDetailPage />} /> {/* Use our new ConsultDetailPage component */}
           </Routes>
         </div>
       </ReviewProvider>

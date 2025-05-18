@@ -110,14 +110,14 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             return false;
         }
         
-        // If a note has already been generated, don't generate a new one
-        if (noteHasBeenGenerated) {
-            console.log("Note has already been generated, skipping generation");
-            setSnackbarSeverity('info');
-            setSnackbarMessage('Clinical note has already been generated.');
-            setSnackbarOpen(true);
-            return true;
-        }
+        // // If a note has already been generated, don't generate a new one
+        // if (noteHasBeenGenerated) {
+        //     console.log("Note has already been generated, skipping generation");
+        //     setSnackbarSeverity('info');
+        //     setSnackbarMessage('Clinical note has already been generated.');
+        //     setSnackbarOpen(true);
+        //     return true;
+        // }
         
         isGettingSuggestion.current = true;
         setIsGeneratingNote(true);

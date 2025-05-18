@@ -95,52 +95,65 @@ const Dashboard = () => {
       (searchTermLower && fullName.includes(searchTermLower))
     );
   });
-
-  const handleAddPatient = async () => {
+  const handleAddPatient = async (requestBody, resetFormCallback) => {
     setButtonVisible(true);
     setMessage('');
-
-    if (!phoneNumber || !firstName || !lastName) {
-        setMessage('Please fill in all required fields');
-        setButtonVisible(false);
-        return;
-    }
-
-    if (!isValidPhoneNumber(phoneNumber)) {
-        setMessage('Please enter a valid international phone number');
-        setButtonVisible(false);
-        return;
+    
+    console.log('Dashboard handleAddPatient called with:', { requestBody });
+    
+    // If requestBody is provided, use those values instead of state
+    const patientData = requestBody || {
+      phone_number: phoneNumber,
+      first_name: firstName,
+      last_name: lastName,
+      chronic_conditions: chronicConditions
+    };
+    
+    // Validate if using local state (not from requestBody)
+    if (!requestBody) {
+      if (!phoneNumber || !firstName || !lastName) {
+          setMessage('Please fill in all required fields');
+          setButtonVisible(false);
+          return;
+      }
+  
+      if (!isValidPhoneNumber(phoneNumber)) {
+          setMessage('Please enter a valid international phone number');
+          setButtonVisible(false);
+          return;
+      }
     }
 
     try {
-        const token = await getAccessToken();
-        const response = await fetch('https://health.prestigedelta.com/appointments/create-patient/', {
+        const token = await getAccessToken();        const response = await fetch('https://health.prestigedelta.com/appointments/create-patient/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({
-                phone_number: phoneNumber,
-                first_name: firstName,
-                last_name: lastName,
-                chronic_conditions: chronicConditions
-            }),
+            body: JSON.stringify(patientData),
         });
       
         if (response.ok) {
-            // Reset form fields
-            setPhoneNumber('');
-            setFirstName('');
-            setLastName('');
-            setChronicConditions([]);
-            setCustomCondition('');
+            // Reset form fields            // Use the reset callback if provided, otherwise reset state directly
+            if (typeof resetFormCallback === 'function') {
+                console.log('Calling resetFormCallback from dashboard');
+                resetFormCallback();
+            } else {
+                setPhoneNumber('');
+                setFirstName('');
+                setLastName('');
+                setChronicConditions([]);
+                setCustomCondition('');
+            }
             
             // Close the modal
             onClose(); 
             
             // Set search box to new patient's name
-            setSearchTerm(`${firstName} ${lastName}`);
+            const patientFirstName = requestBody?.first_name || firstName;
+            const patientLastName = requestBody?.last_name || lastName;
+            setSearchTerm(`${patientFirstName} ${patientLastName}`);
             
             // Show success toast with enhanced styling
             toast({
@@ -367,24 +380,11 @@ const Dashboard = () => {
                 >
                   {patients.length === 0 ? "Add Your First Patient" : "Add New Patient"}
                 </Button>
-              </Flex>
-              <AddPatientModal
+              </Flex>              <AddPatientModal
                 isOpen={isOpen}
                 onClose={onClose}
-                phoneNumber={phoneNumber}
-                setPhoneNumber={setPhoneNumber}
-                firstName={firstName}
-                setFirstName={setFirstName}
-                lastName={lastName}
-                setLastName={setLastName}
-                chronicConditions={chronicConditions}
-                setChronicConditions={setChronicConditions}
-                customCondition={customCondition}
-                setCustomCondition={setCustomCondition}
                 handleAddPatient={handleAddPatient}
-                buttonVisible={buttonVisible}
-                message={message}
-                commonChronicConditions={commonChronicConditions}
+                isLoading={loading}
               />
                 
                 {loading ? (

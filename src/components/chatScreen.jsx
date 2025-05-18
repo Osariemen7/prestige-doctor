@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ThemeProvider, createTheme, useTheme } from '@mui/material/styles';
+import { useTheme, ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Box,
   Typography,
   TextField,
-  Icon,
+  Icon, // Note: Icon component is imported but not explicitly used. Material UI icons are used directly.
   IconButton,
   Link,
   Collapse,
@@ -18,17 +18,17 @@ import {
   Paper,
   useMediaQuery,
   Button,
-  MenuItem,
+  MenuItem, // Note: MenuItem component is imported but not explicitly used.
   Alert,
   Avatar,
   Chip,
   Tooltip,
   Divider,
   Fade,
-  FormControl,
-  Select,
-  ImageList,
-  ImageListItem,
+  FormControl, // Note: FormControl component is imported but not explicitly used.
+  Select,      // Note: Select component is imported but not explicitly used for expertLevel.
+  ImageList,   // Note: ImageList component is imported but not explicitly used.
+  ImageListItem, // Note: ImageListItem component is imported but not explicitly used.
   Modal,
   Backdrop
 } from '@mui/material';
@@ -44,66 +44,8 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAccessToken, balanceCheck } from './api';
-import './chatScreen.css'; // Import chat screen styles
 import BuyCreditsModal from './BuyCreditsModal';
-
-// Custom theme with better color palette
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#2563eb',
-      light: '#3b82f6',
-      dark: '#1d4ed8',
-    },
-    secondary: {
-      main: '#059669',
-      light: '#10b981',
-      dark: '#047857',
-    },
-    background: {
-      default: '#f9fafb',
-      paper: '#ffffff',
-    },
-    text: {
-      primary: '#1f2937',
-      secondary: '#4b5563',
-    },
-    grey: {
-      100: '#f3f4f6',
-      200: '#e5e7eb',
-      300: '#d1d5db',
-    },
-  },
-  typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-    button: {
-      textTransform: 'none',
-      fontWeight: 500,
-    },
-  },
-  shape: {
-    borderRadius: 8,
-  },
-  components: {
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          boxShadow:
-            '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
-        },
-      },
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 20,
-          },
-        },
-      },
-    },
-  },
-});
+import './chatScreen.css'; // Import chat screen styles
 
 // ----------------------------------------------------
 // 1. CustomText: Converts citation markers like [1], [2], etc. into clickable links.
@@ -125,7 +67,7 @@ const CustomText = ({ children, citations }) => {
                   target="_blank"
                   rel="noopener noreferrer"
                   sx={{
-                    color: theme.palette.primary.main,
+                    color: 'primary.main',
                     textDecoration: 'none',
                     backgroundColor: 'rgba(37, 99, 235, 0.1)',
                     padding: '0 4px',
@@ -168,7 +110,7 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
     >
       <AccordionSummary
         expandIcon={
-          <ExpandMoreIcon sx={{ color: theme.palette.primary.main, fontSize: { xs: '1rem', sm: '1.2rem' } }} />
+          <ExpandMoreIcon sx={{ color: 'primary.main', fontSize: { xs: '1rem', sm: '1.2rem' } }} />
         }
         sx={{
           padding: { xs: '0 6px', sm: '0 8px' },
@@ -182,7 +124,7 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
           variant="subtitle2"
           sx={{
             fontSize: { xs: '0.7rem', sm: '0.75rem' },
-            color: theme.palette.text.secondary,
+            color: 'text.secondary',
             display: 'flex',
             alignItems: 'center',
             gap: 0.5,
@@ -195,7 +137,7 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
       <AccordionDetails
         sx={{
           fontSize: '0.8rem',
-          color: theme.palette.text.secondary,
+          color: 'text.secondary',
           padding: '0 12px 12px 12px',
           backgroundColor: 'rgba(245, 247, 250, 0.9)',
         }}
@@ -203,7 +145,15 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            text: ({ node, children }) => (
+            // The 'text' prop for ReactMarkdown components was incorrectly named 'text'.
+            // It should be 'p' for paragraphs, or use a custom renderer for inline text if needed.
+            // However, CustomText is designed to parse citation markers *within* text blocks.
+            // A more common approach for custom text rendering is to use the `children` prop of `ReactMarkdown`
+            // or to customize specific element renderers like `p`, `a`, etc.
+            // For now, assuming `text` was intended to target generic text nodes for citation parsing.
+            // If this is meant to replace paragraph rendering, it should be `p`.
+            // If it's for *all* text, this structure is okay, but `CustomText` will be called for every text segment.
+            text: ({ node, children }) => ( // Keep as 'text' if specifically targeting raw text nodes for this citation logic
               <CustomText citations={citations} children={children} />
             ),
           }}
@@ -220,9 +170,9 @@ const ThoughtAccordion = ({ thinkContent, citations }) => {
 // ----------------------------------------------------
 const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesToggle, isLatest }) => {
   const isUser = chat.role === 'user';
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const theme = useTheme();
+  const isMobile = useMediaQuery('(max-width:900px)'); // Responsive check without theme.breakpoints
 
-  // Extract <think> block from the assistant's response, if any
   const extractThinkContent = (text) => {
     const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
     const thinkContent = thinkMatch ? thinkMatch[1].trim() : null;
@@ -239,10 +189,9 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
           gap: { xs: 0.5, sm: 1 },
           padding: { xs: '2px 0', sm: '8px 0' },
           width: '100%',
-          position: 'relative', // Add relative positioning for containing content
+          position: 'relative', 
         }}
       >
-        {/* Avatar for sender */}
         <Avatar
           sx={{
             width: { xs: 30, sm: 36 },
@@ -255,18 +204,16 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
           {isUser ? <PersonIcon /> : <SmartToyIcon />}
         </Avatar>
 
-        {/* Message content */}
         <Box
           sx={{
             display: 'flex',
             flexDirection: 'column',
             width: { xs: '95%', sm: '100%' },
             maxWidth: '100%',
-            position: 'relative', // Ensure proper nesting of recommendations
-            overflow: 'hidden', // Prevent content from overflowing
+            position: 'relative', 
+            overflow: 'hidden',
           }}
         >
-          {/* Message bubble */}
           <Paper
             elevation={0}
             sx={{
@@ -319,7 +266,6 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
               );
             })()}
 
-            {/* Timestamp (optional) */}
             <Typography
               variant="caption"
               sx={{
@@ -335,7 +281,6 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
             </Typography>
           </Paper>
 
-          {/* Citations section */}
           {!isUser && chat.citations && chat.citations.length > 0 && !isResponseLoading && (
             <Box sx={{ mt: 1.5, ml: isUser ? 'auto' : 0 }}>
               <Button
@@ -449,44 +394,44 @@ const ChatMessage = ({ chat, isResponseLoading, isSourcesVisible, handleSourcesT
 // ----------------------------------------------------
 const ChatScreen = ({
   phoneNumber,
-  transcript, // WebSocket reference (passed in from parent)
-  wsStatus,
+  transcript,
+  wsStatus, // Note: wsStatus is passed but not used in this component
   chatMessages,
   setChatMessages,
   thread,
   patient,
-  hideInput, // ADDED
-  onlyInput, // ADDED
-  disableOuterScroll, // ADDED
-  setStatus
+  hideInput,
+  onlyInput,
+  disableOuterScroll,
+  setStatus // Note: setStatus is passed but not used in this component
 }) => {
-  // Local state
   const [message, setMessage] = useState('');
   const [threadId, setThreadId] = useState(null);
   const [isSourcesVisible, setIsSourcesVisible] = useState(false);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [error, setError] = useState('');
   const [expertLevel, setExpertLevel] = useState('low');
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState(null); // Note: selectedPatient is set but not used. Assuming it's for future use or handled elsewhere.
   const [suggestions, setSuggestion] = useState([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null); // State for selected image file
-  const [selectedImagePreview, setSelectedImagePreview] = useState(null); // State for image preview URL
-  const [isExpertLevelLocked, setIsExpertLevelLocked] = useState(false); // State to lock expert level
-  const [previewModalOpen, setPreviewModalOpen] = useState(false); // State for image preview modal
-  const [uploadedImageUrl, setUploadedImageUrl] = useState(null); // State for uploaded image URL
-  const [isUploadingImage, setIsUploadingImage] = useState(false); // State for image upload loading
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImagePreview, setSelectedImagePreview] = useState(null);
+  const [isExpertLevelLocked, setIsExpertLevelLocked] = useState(false);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [buyCreditsModalOpen, setBuyCreditsModalOpen] = useState(false);
   const [buyCreditsBalance, setBuyCreditsBalance] = useState(null);
   const [buyCreditsRequiredAmount, setBuyCreditsRequiredAmount] = useState(null);
-  const fileInputRef = useRef(null); // Ref for hidden file input
-  const messagesEndRef = useRef(null); // For scrolling
-  const innerScrollerRef = useRef(null); // Ref for inner scroller
-  const buyCreditsModalListenerRef = useRef();
+  
+  const fileInputRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const innerScrollerRef = useRef(null);
+  // const buyCreditsModalListenerRef = useRef(); // Removed: This ref was not used.
+  
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md')); // Add isMobile using useMediaQuery
+  const isMobile = useMediaQuery('(max-width:900px)');
 
-  // Initial example suggestions for the welcome screen
   const initialSuggestions = [
     "What are the symptoms of hypertension?",
     "How to manage diabetes?",
@@ -494,7 +439,6 @@ const ChatScreen = ({
     "Best practices for preventive care"
   ];
 
-  // Handle input changes
   const handleTyping = (e) => {
     setMessage(e.target.value);
   };
@@ -503,47 +447,48 @@ const ChatScreen = ({
     setIsSourcesVisible((prev) => !prev);
   };
 
-  // Use chatMessages directly (or merge with any additional messages as needed)
   const combinedMessages = chatMessages || [];
 
-  // Scroll to bottom effect - improved for better scroll handling
+  // Scroll to top on mount if messages exist
   useEffect(() => {
-    if (messagesEndRef.current && innerScrollerRef.current) {
-      const scrollToBottom = () => {
-        const scrollContainer = messagesEndRef.current.closest('.chat-scroll-container');
-        if (scrollContainer) {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight;
-        }
-      };
-      
-      // Use a slight delay to ensure all content is rendered
-      setTimeout(scrollToBottom, 100);
+    if (combinedMessages.length > 0 && innerScrollerRef.current) {
+      innerScrollerRef.current.scrollTop = 0;
     }
-  }, [chatMessages, combinedMessages.length]);
+  }, []); // Runs once on mount
+
+  // Scroll to bottom of messages when new messages arrive
+  useEffect(() => {
+    if (!onlyInput && !disableOuterScroll && messagesEndRef.current && combinedMessages.length > 0) {
+      const timer = setTimeout(() => {
+        if (messagesEndRef.current) { // Check again in case component unmounted
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100); // Delay to allow rendering, especially for markdown
+      return () => clearTimeout(timer);
+    }
+  }, [chatMessages, onlyInput, disableOuterScroll, combinedMessages.length]);
+
 
   const handleImageUploadClick = () => {
-    fileInputRef.current.click(); // Programmatically click the hidden file input
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
+
   const handleImageSelect = async (event) => {
     const file = event.target.files[0];
     if (file) {
       setSelectedImage(file);
-      setUploadedImageUrl(null); // Reset previous upload
+      setUploadedImageUrl(null); 
       setIsUploadingImage(true);
 
-      // Create a resized preview image
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Create an image object to get dimensions
         const img = new Image();
         img.onload = () => {
-          // Create canvas for resizing
           const canvas = document.createElement('canvas');
-          // Set max dimensions for preview (thumbnail size)
           const MAX_WIDTH = 300;
           const MAX_HEIGHT = 200;
-          
-          // Calculate new dimensions while maintaining aspect ratio
           let width = img.width;
           let height = img.height;
           
@@ -559,13 +504,11 @@ const ChatScreen = ({
             }
           }
           
-          // Resize the image
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Get the resized image as Data URL and set as preview
           const resizedImageUrl = canvas.toDataURL('image/jpeg', 0.85);
           setSelectedImagePreview(resizedImageUrl);
         };
@@ -573,10 +516,9 @@ const ChatScreen = ({
       };
       reader.readAsDataURL(file);
 
-      setExpertLevel('high'); // Automatically set to high on image upload
-      setIsExpertLevelLocked(true); // Lock the dropdown
+      setExpertLevel('high'); 
+      setIsExpertLevelLocked(true); 
 
-      // Upload image to server
       try {
         const token = await getAccessToken();
         const formData = new FormData();
@@ -606,7 +548,7 @@ const ChatScreen = ({
       setSelectedImagePreview(null);
       setUploadedImageUrl(null);
       setIsExpertLevelLocked(false);
-      setExpertLevel('low'); // Reset to default if image selection is cancelled
+      setExpertLevel('low'); 
     }
   };
   const handleCancelImage = () => {
@@ -615,6 +557,9 @@ const ChatScreen = ({
     setUploadedImageUrl(null);
     setIsExpertLevelLocked(false);
     setExpertLevel('low');
+    if (fileInputRef.current) { // Reset file input value
+        fileInputRef.current.value = "";
+    }
   };
 
   const handleOpenPreviewModal = () => {
@@ -624,52 +569,27 @@ const ChatScreen = ({
   const handleClosePreviewModal = () => {
     setPreviewModalOpen(false);
   };
-  useEffect(() => {
-    // When the component mounts and there are existing messages,
-    // make sure the inner scroller is at the beginning to show earlier messages
-    if (combinedMessages.length > 0 && innerScrollerRef.current) {
-      // This will show the top of the messages first
-      innerScrollerRef.current.scrollTop = 0;
-    }
-  }, []); // Empty dependency array means this only runs once on mount
-
-  useEffect(() => {
-    // Scroll to bottom of messages when new messages arrive or component updates,
-    // but only if messages are visible and not in 'onlyInput' mode.
-    if (!onlyInput && !disableOuterScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [chatMessages, onlyInput, disableOuterScroll]);
-
-  useEffect(() => {
-    // Scroll to bottom of inner scroller when new messages arrive
-    if (combinedMessages.length > 0 && innerScrollerRef.current) {
-      // Set timeout to ensure rendering completes before scrolling
-      setTimeout(() => {
-        innerScrollerRef.current.scrollTop = innerScrollerRef.current.scrollHeight;
-      }, 100);
-    }
-  }, [chatMessages, combinedMessages.length]);
-
-  // Helper to strip leading JSON prefix from AI messages
+  
   const stripJsonPrefix = (text) => {
     if (typeof text !== 'string') return text;
     return text.replace(/^\s*\{[^}]*\}\s*/, '');
   };
 
   const handleSendMessage = useCallback(async () => {
-    // Skip if no message and no image, or if in the process of uploading an image
     if ((!message.trim() && !selectedImage && !uploadedImageUrl) || isUploadingImage) return;
-
-    // Require text if image is present
-    if ((selectedImage || uploadedImageUrl) && !message.trim()) return;
+    if ((selectedImage || uploadedImageUrl) && !message.trim()) {
+        // Optionally, set an error or prompt user to add text
+        // setError("Please add a caption or question for the image.");
+        return;
+    }
 
     const currentMessage = message;
     setMessage('');
     setIsResponseLoading(true);
-    setIsSourcesVisible(false); // Reset sources visibility on new message
-    setError(''); // Clear any previous errors
-    setSelectedImagePreview(null); // Clear image preview after sending
+    setIsSourcesVisible(false); 
+    setError(''); 
+    // Keep selectedImagePreview until response starts or is confirmed, then clear
+    // setSelectedImagePreview(null); // Clearing this too early removes UI feedback
 
     try {
       const token = await getAccessToken();
@@ -682,19 +602,20 @@ const ChatScreen = ({
       };
       let requestBody = null;
       
-      // Configure payload/headers based on whether we're sending an image
       if (threadId) {
         payload.thread_id = threadId;
       } else if (thread) {
         payload.thread_id = thread;
       }
       
-      // Add patient info to payload
       if (phoneNumber) {
         payload.patient_number = `+234${phoneNumber.slice(1)}`;
       }
       
-      if (selectedPatient) {
+      // Assuming selectedPatient state is managed elsewhere if this component doesn't set it.
+      // If selectedPatient is meant to be used from props (e.g. `patient` prop), it should be used here.
+      // For now, using the local `selectedPatient` state.
+      if (selectedPatient) { 
         if (selectedPatient.phone_number && selectedPatient.phone_number.trim() !== "") {
           payload.patient_phone = selectedPatient.phone_number;
         } else {
@@ -702,64 +623,51 @@ const ChatScreen = ({
         }
       }
       
-      payload.expertise_level = expertLevel; // Use current expertLevel, will be 'high' if image is uploaded
+      payload.expertise_level = expertLevel;
 
       if (transcript) {
         const currentTime = new Date().toISOString();
         const transcriptData = JSON.stringify([
-          {
-            time: currentTime,
-            speaker: "patient",
-            content: ""
-          },
-          {
-            time: currentTime,
-            speaker: "doctor",
-            content: transcript
-          }
+          { time: currentTime, speaker: "patient", content: "" },
+          { time: currentTime, speaker: "doctor", content: transcript }
         ]);
         payload.transcript = JSON.parse(transcriptData);
       }
-      // Handle uploads differently based on whether we have an uploaded URL or need to send the file directly
+
+      const userMessageText = currentMessage.trim() || (uploadedImageUrl || selectedImage ? "Uploaded Image" : "");
+      const userMessageDisplayContent = uploadedImageUrl || selectedImagePreview || currentMessage;
+      
+      const userMessage = {
+        role: "user",
+        content: userMessageDisplayContent,
+        isImage: !!(uploadedImageUrl || selectedImagePreview),
+        text: userMessageText,
+        id: `query-${Date.now()}`
+      };
+      setChatMessages((prev) => [...prev, userMessage]);
+      
+      // Clear preview *after* adding user message to UI
+      if (selectedImagePreview) setSelectedImagePreview(null);
+
+
       if (uploadedImageUrl) {
-        // Use the pre-uploaded image URL
         payload.image = uploadedImageUrl;
         payload.caption = currentMessage.trim() ? currentMessage : "Analyze this image";
         headers['Content-Type'] = 'application/json';
         requestBody = JSON.stringify(payload);
       } else if (selectedImage) {
-        // If we have a selected image but no uploaded URL (upload may have failed),
-        // fall back to direct form upload
         formData = new FormData();
-        
-        // Add all payload fields to formData
         Object.keys(payload).forEach(key => {
           formData.append(key, payload[key]);
         });
-        
         formData.append('image', selectedImage);
         formData.append('caption', currentMessage.trim() ? currentMessage : "Analyze this image");
       } else {
-        // Text-only query
         payload.query = currentMessage;
         headers['Content-Type'] = 'application/json';
         requestBody = JSON.stringify(payload);
       }
 
-      // Prepare user message for display
-      const userMessageContent = uploadedImageUrl ? uploadedImageUrl : selectedImagePreview ? selectedImagePreview : currentMessage;
-      const userTextMessage = (uploadedImageUrl || selectedImage) ? (currentMessage.trim() ? currentMessage : "Uploaded Image") : currentMessage;
-
-      const userMessage = {
-        role: "user",
-        content: userMessageContent,
-        isImage: !!(uploadedImageUrl || selectedImagePreview), // Flag as image message
-        text: userTextMessage, // Store text content separately for image messages
-        id: `query-${Date.now()}` // Add unique ID to each message
-      };
-      setChatMessages((prev) => [...prev, userMessage]);
-
-      // Make the API request
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: headers,
@@ -769,14 +677,14 @@ const ChatScreen = ({
       if (!response.body) {
         throw new Error("No response body");
       }
-
-      // Reset selected image and preview after sending
+      
+      // Reset image related states after successful submission initiation
       setSelectedImage(null);
-      setSelectedImagePreview(null);
+      // setSelectedImagePreview(null); // Already cleared above
       setUploadedImageUrl(null);
-      setIsExpertLevelLocked(false); // Unlock dropdown after image sent and response started
-      // Append a placeholder for assistant response
-      let assistantMessage = { role: "assistant", content: "", citations: [] };
+      setIsExpertLevelLocked(false);
+
+      let assistantMessage = { role: "assistant", content: "", citations: [], id: `response-${Date.now()}` };
       setChatMessages((prev) => [...prev, assistantMessage]);
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -784,7 +692,6 @@ const ChatScreen = ({
       let buffer = "";
 
       if (uploadedImageUrl || formData) {
-        // Handle response for image upload (either with URL or direct upload)
         let accumulatedResponse = '';
         try {
           while (!done) {
@@ -794,19 +701,11 @@ const ChatScreen = ({
             accumulatedResponse += chunkText;
           }
           
-          // Try to parse as JSON if possible (might be structured response)
           try {
             const jsonResponse = JSON.parse(accumulatedResponse.trim());
-            if (jsonResponse.assistant_response) {
-              assistantMessage.content = jsonResponse.assistant_response;
-            } else {
-              assistantMessage.content = accumulatedResponse.trim();
-            }
-            if (jsonResponse.citations) {
-              assistantMessage.citations = jsonResponse.citations;
-            }
+            assistantMessage.content = jsonResponse.assistant_response || accumulatedResponse.trim();
+            assistantMessage.citations = jsonResponse.citations || [];
           } catch (e) {
-            // Not JSON, use as plain text
             assistantMessage.content = accumulatedResponse.trim();
           }
         } catch (error) {
@@ -814,23 +713,16 @@ const ChatScreen = ({
           assistantMessage.content = "Sorry, I had trouble processing the image. Please try again.";
         }
         
-        // Strip out any leading JSON prefix
         assistantMessage.content = stripJsonPrefix(assistantMessage.content);
-
-        setChatMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { ...assistantMessage };
-          return updated;
-        });
+        setChatMessages((prev) => prev.map(msg => msg.id === assistantMessage.id ? { ...assistantMessage } : msg));
 
       } else {
-        // Handle JSON stream for text messages
         while (!done) {
           const { value, done: doneReading } = await reader.read();
           done = doneReading;
           buffer += decoder.decode(value, { stream: true });
           const parts = buffer.split("\n");
-          buffer = parts.pop();
+          buffer = parts.pop() || ""; // Ensure buffer is always a string
           parts.forEach((part) => {
             if (part.trim()) {
               try {
@@ -838,31 +730,24 @@ const ChatScreen = ({
                 if (parsed.thread_id) {
                   setThreadId(parsed.thread_id);
                 }
-                if (parsed.assistant_response_chunk) {
-                  assistantMessage.content = parsed.accumulated_response;
-                  assistantMessage.citations = parsed.citations;
-                  setChatMessages((prev) => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = { ...assistantMessage };
-                    return updated;
-                  });
+                if (parsed.assistant_response_chunk || parsed.accumulated_response) { // Check for both
+                  assistantMessage.content = parsed.accumulated_response || assistantMessage.content + parsed.assistant_response_chunk;
+                  assistantMessage.citations = parsed.citations || assistantMessage.citations;
+                  setChatMessages((prev) => prev.map(msg => msg.id === assistantMessage.id ? { ...assistantMessage } : msg));
                 }
               } catch (error) {
-                console.error("Error parsing JSON chunk:", error);
+                console.error("Error parsing JSON chunk:", error, "Chunk:", part);
               }
             }
           });
         }
       }
-
-
     } catch (error) {
       console.error("Error sending message:", error);
-      // Background balance check if message send fails
       try {
         const balanceResult = await balanceCheck(expertLevel);
         if (balanceResult && balanceResult.sufficient_funds === false) {
-          setBuyCreditsBalance(balanceResult.available_balance); // Use available_balance from API
+          setBuyCreditsBalance(balanceResult.available_balance);
           setBuyCreditsRequiredAmount(balanceResult.required_amount);
           setBuyCreditsModalOpen(true);
         }
@@ -874,21 +759,35 @@ const ChatScreen = ({
         {
           role: "assistant",
           content: "Sorry, I encountered an error. Please try again later.",
+          id: `error-${Date.now()}`
         },
       ]);
       setError("Sorry, I encountered an error. Please try again later.");
     } finally {
       setIsResponseLoading(false);
+      // Ensure image states are reset if not done already (e.g. early exit or error before API call)
+      setSelectedImage(null);
+      setSelectedImagePreview(null); 
+      setUploadedImageUrl(null);
+      setIsExpertLevelLocked(false);
+      if (fileInputRef.current) { // Reset file input for next selection
+          fileInputRef.current.value = "";
+      }
     }
-  }, [message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript, selectedImage, isExpertLevelLocked, selectedImagePreview, uploadedImageUrl, isUploadingImage, thread]);
+  }, [
+    message, threadId, selectedPatient, expertLevel, setChatMessages, phoneNumber, transcript, 
+    selectedImage, selectedImagePreview, uploadedImageUrl, isUploadingImage, thread, // Removed isExpertLevelLocked as it's set within
+    setError, setThreadId, setIsResponseLoading, setIsSourcesVisible, 
+    setBuyCreditsBalance, setBuyCreditsRequiredAmount, setBuyCreditsModalOpen,
+    // Add other state setters if they are used from closure and cause lint warnings
+  ]);
 
-  const handleSuggestion = async () => {
-    console.log('handleSuggestion called with patient:', patient);
+  const handleSuggestion = useCallback(async () => {
+    console.log('handleSuggestion called with patient prop:', patient);
     
-    // Validate patient ID is a non-empty string or number
-    const patientId = String(patient).trim();
+    const patientId = patient ? String(patient).trim() : null; // Use patient prop
     if (!patientId) {
-      console.log('No valid patient ID available');
+      console.log('No valid patient ID available from prop');
       setSuggestion([]);
       setIsLoadingSuggestions(false);
       return;
@@ -917,524 +816,511 @@ const ChatScreen = ({
       const result = await response.json();
       console.log('Suggestions API response:', result);
       
-      if (response.status !== 200) {
-        throw new Error("Failed to load suggestions");
+      if (!response.ok) { // Check response.ok instead of response.status !== 200 for more general success check
+        throw new Error(result.detail || "Failed to load suggestions");
       }
 
-      // Ensure result is an array and not empty
-      const suggestions = Array.isArray(result) ? result : [];
-      console.log('Setting suggestions:', suggestions);
-      setSuggestion(suggestions);
+      const suggestionsData = Array.isArray(result) ? result : [];
+      console.log('Setting suggestions:', suggestionsData);
+      setSuggestion(suggestionsData);
       
     } catch (error) {
       console.error('Error fetching suggestions:', error);
-      setError("Failed to load suggestions.");
+      setError(error.message || "Failed to load suggestions.");
       setSuggestion([]);
     } finally {
       setIsLoadingSuggestions(false);
     }
-  };
+  }, [patient, setError, setSuggestion, setIsLoadingSuggestions]); // Dependencies for useCallback
 
   useEffect(() => {
-    console.log('useEffect triggered with patient:', patient);
-    const patientId = String(patient).trim();
+    console.log('useEffect triggered with patient prop:', patient);
+    const patientId = patient ? String(patient).trim() : null;
     
     if (patientId) {
-      console.log('Valid patient ID detected, fetching suggestions...');
+      console.log('Valid patient ID detected from prop, fetching suggestions...');
       handleSuggestion();
     } else {
-      console.log('No valid patient ID, resetting suggestions');
+      console.log('No valid patient ID from prop, resetting suggestions');
       setSuggestion([]);
-      setIsLoadingSuggestions(false);
+      setIsLoadingSuggestions(false); // Ensure loading is false if no patient
     }
-  }, [patient]); // Only depend on patient ID changes
+  }, [patient, handleSuggestion]); // Correct dependencies for useEffect
 
   if (isLoadingSuggestions) {
     return (
-      <ThemeProvider theme={theme}>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100vh',
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'background.default',
-            px: 2
-          }}
-        >
-          <Box display="flex" justifyContent="center" alignItems="center">
-            <CircularProgress />
-          </Box>
-          <Typography sx={{ mt: 2 }} variant="body2" color="text.secondary">
-            Loading suggestions...
-          </Typography>
-        </Box>
-      </ThemeProvider>
-    );
-  }
-
-  const renderSuggestions = () => {
-    if (!suggestions || suggestions.length === 0) return null;
-
-    return (
-      <Box sx={{ mt: 2 }}>
-        {suggestions.map((category, index) => (
-          <Box key={`category-${index}`} sx={{ mb: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1 }}>
-              {category.category_name}
-            </Typography>
-            <Box sx={{ pl: 2 }}>
-              {category.sample_questions.map((question, qIndex) => (
-                <Typography 
-                  key={`question-${index}-${qIndex}`} 
-                  variant="body2" 
-                  sx={{ mb: 1 }}
-                >
-                  • {question}
-                </Typography>
-              ))}
-            </Box>
-          </Box>
-        ))}
-      </Box>
-    );
-  };
-
-  return (
-    <ThemeProvider theme={theme}>
       <Box
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          height: '100%',
-          overflow: 'hidden',
-          position: 'relative',
+          height: '100vh', // Consider '100%' if it's part of a larger layout
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'background.default',
+          px: 2
         }}
-        className="chat-container"
       >
-        {!onlyInput && (          <Box
-            sx={{
-              flexGrow: 1,
-              overflowY: disableOuterScroll ? 'hidden' : 'auto',
-              px: { xs: 1, sm: 2 },
-              py: 1,
-              scrollbarWidth: 'thin',
-              '&::-webkit-scrollbar': { width: '4px' },
-              '&::-webkit-scrollbar-thumb': {
-                backgroundColor: theme.palette.primary.main,
-                borderRadius: '2px',
-              },
-              position: 'relative',
-              height: '100%', // Ensure full height
-              display: 'flex', // Add flex display
-              flexDirection: 'column', // Stack children vertically
-              justifyContent: 'flex-start', // Start from the top
-            }}
-            className="outer-scroller"
-          >
-            {combinedMessages.length === 0 && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  mx: 'auto',
-                  width: '100%',
-                  textAlign: 'center',
-                  px: 2,
-                }}
-              >
-                <Paper
-                  elevation={0}
+        <CircularProgress />
+        <Typography sx={{ mt: 2 }} variant="body2" color="text.secondary">
+          Loading suggestions...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // renderSuggestions function was defined but not called. 
+  // If it's meant to be used, ensure it's called in the JSX.
+  // For now, I'll assume the initial suggestions are the primary ones displayed on empty chat.
+  /*
+  const renderSuggestions = () => {
+    if (!suggestions || suggestions.length === 0) return null;
+    // ... implementation
+  };
+  */
+
+  const localTheme = createTheme();
+  
+  return (
+    <ThemeProvider theme={localTheme}>
+      <> {/* Using Fragment shorthand */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+          className="chat-container"
+        >
+          {!onlyInput && (
+            <Box
+              sx={{
+                flexGrow: 1,
+                overflowY: disableOuterScroll ? 'hidden' : 'auto',
+                px: { xs: 1, sm: 2 },
+                py: 1,
+                scrollbarWidth: 'thin',
+                '&::-webkit-scrollbar': { width: '4px' },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: 'primary.main',
+                  borderRadius: '2px',
+                },
+                position: 'relative',
+                height: '100%', 
+                display: 'flex', 
+                flexDirection: 'column',
+                justifyContent: 'flex-start',
+              }}
+              className="outer-scroller" // This classname seems unused for scrolling logic now
+            >
+              {combinedMessages.length === 0 && (
+                <Box
                   sx={{
-                    p: 4,
-                    borderRadius: 4,
-                    backgroundColor: 'background.paper',
-                    border: '1px dashed',
-                    borderColor: 'grey.300',
-                    width: '100%',
-                  }}
-                >
-                  <Box
-                    sx={{
-                      backgroundColor: 'primary.light',
-                      width: 60,
-                      height: 60,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      mb: 2,
-                      mx: 'auto',
-                    }}
-                  >
-                    <SmartToyIcon sx={{ fontSize: 32, color: 'white' }} />
-                  </Box>
-                  <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-                    How can I help you today?
-                  </Typography>
-                  <Typography color="text.secondary" sx={{ mb: 3 }}>
-                    Ask any health-related question. I can provide research-backed
-                    information on medical conditions, treatments, nutrition, and more. You can also upload medical images for analysis.
-                  </Typography>
-                  <Divider sx={{ mb: 3 }} />
-                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 500 }}>
-                    Try asking about:
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                    {initialSuggestions.map((suggestionItem, index) => (
-                      <Chip
-                        key={`initial-suggestion-${index}`}
-                        label={suggestionItem}
-                        onClick={() => setMessage(suggestionItem)}
-                        sx={{
-                          bgcolor: 'grey.100',
-                          '&:hover': {
-                            bgcolor: 'primary.light',
-                            color: 'white',
-                          },
-                        }}
-                      />
-                    ))}
-                  </Box>
-                </Paper>
-              </Box>
-            )}
-            {combinedMessages.length > 0 && (
-              <Box                sx={{
-                  maxWidth: { xs: '100%', sm: '900px' },
-                  mx: 'auto',
-                  width: '100%',
-                  height: '100%', // Ensure full height
-                  overflow: 'hidden',
-                  flexGrow: 1, // Add flex grow to take available space
-                  display: 'flex', // Add flex display
-                  flexDirection: 'column', // Stack children vertically
-                  justifyContent: 'flex-start', // Make sure content starts at the top
-                }}
-                className="inner-scroll-container"
-              >                <Box
-                  ref={innerScrollerRef}
-                  sx={{
-                    height: '100%',
-                    overflowY: 'auto',
-                    scrollbarWidth: 'thin',
-                    '&::-webkit-scrollbar': { width: '4px' },
-                    '&::-webkit-scrollbar-thumb': {
-                      backgroundColor: theme.palette.primary.main,
-                      borderRadius: '2px',
-                    },
-                    pr: 1,
-                    flexGrow: 1, // Add flex grow to take available space
-                    display: 'flex', // Add flex display
-                    flexDirection: 'column', // Stack vertically
-                    paddingTop: '10px', // Add padding at the top to ensure first messages are fully visible
-                    paddingBottom: '20px' // Add padding at the bottom for mobile view
-                  }}
-                  className="inner-scroller chat-scroll-container"
-              >                  <List sx={{ 
-                    pt: 0, 
-                    px: { xs: 0.5, sm: 1 }, 
-                    width: '100%', 
-                    mb: 2,
                     display: 'flex',
                     flexDirection: 'column',
-                    flexGrow: 1
-                  }}>
-                    {combinedMessages.map((chat, index) => (
-                      <ChatMessage
-                        key={index}
-                        chat={chat}
-                        isResponseLoading={isResponseLoading && index === combinedMessages.length - 1}
-                        isSourcesVisible={isSourcesVisible}
-                        handleSourcesToggle={handleSourcesToggle}
-                        isLatest={index === combinedMessages.length - 1}
-                      />
-                    ))}
-                  </List>
-                  <div ref={messagesEndRef} style={{ paddingTop: '20px' }} />
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    mx: 'auto',
+                    width: '100%',
+                    textAlign: 'center',
+                    px: 2,
+                  }}
+                >
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 4,
+                      borderRadius: 4,
+                      backgroundColor: 'background.paper',
+                      border: '1px dashed',
+                      borderColor: 'grey.300',
+                      width: '100%',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        backgroundColor: 'primary.light',
+                        width: 60,
+                        height: 60,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mb: 2,
+                        mx: 'auto',
+                      }}
+                    >
+                      <SmartToyIcon sx={{ fontSize: 32, color: 'white' }} />
+                    </Box>
+                    <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+                      How can I help you today?
+                    </Typography>
+                    <Typography color="text.secondary" sx={{ mb: 3 }}>
+                      Ask any health-related question. I can provide research-backed
+                      information on medical conditions, treatments, nutrition, and more. You can also upload medical images for analysis.
+                    </Typography>
+                    <Divider sx={{ mb: 3 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 500 }}>
+                      Try asking about:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+                      {initialSuggestions.map((suggestionItem, index) => (
+                        <Chip
+                          key={`initial-suggestion-${index}`}
+                          label={suggestionItem}
+                          onClick={() => setMessage(suggestionItem)}
+                          sx={{
+                            bgcolor: 'grey.100',
+                            '&:hover': {
+                              bgcolor: 'primary.light',
+                              color: 'white',
+                            },
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  </Paper>
                 </Box>
-              </Box>
-            )}
-          </Box>
-        )}
-
-        {!hideInput && (
-          <Box 
-            sx={{ 
-              flexShrink: 0, // Prevent shrinking
-              position: 'relative', // Add positioning context
-              zIndex: 5, // Ensure it's above other content
-              mt: 'auto', // Push to bottom
-              borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-            }}
-          >
-            <Paper
-              elevation={2}
-              sx={{
-                p: { xs: 1, sm: 1.5 },
-                borderRadius: 0,
-                backgroundColor: 'rgba(248, 249, 250, 0.95)',
+              )}
+              {combinedMessages.length > 0 && (
+                <Box
+                  sx={{
+                    maxWidth: { xs: '100%', sm: '900px' },
+                    mx: 'auto',
+                    width: '100%',
+                    height: '100%',
+                    overflow: 'hidden', // Let inner scroller handle scroll
+                    flexGrow: 1, 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    justifyContent: 'flex-start', 
+                  }}
+                  className="inner-scroll-container" // This classname seems unused for scrolling logic
+                >
+                  <Box
+                    ref={innerScrollerRef}
+                    sx={{
+                      height: '100%',
+                      overflowY: 'auto',
+                      scrollbarWidth: 'thin',
+                      '&::-webkit-scrollbar': { width: '4px' },
+                      '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: 'primary.main',
+                        borderRadius: '2px',
+                      },
+                      pr: 1,
+                      flexGrow: 1, 
+                      display: 'flex',
+                      flexDirection: 'column', 
+                      paddingTop: '10px', 
+                      paddingBottom: '20px' 
+                    }}
+                    className="inner-scroller chat-scroll-container" // This class is used by messagesEndRef.closest
+                  >
+                    <List sx={{ 
+                      pt: 0, 
+                      px: { xs: 0.5, sm: 1 }, 
+                      width: '100%', 
+                      // mb: 2, // Margin might push messagesEndRef too far if list is short
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flexGrow: 1 // Allow list to grow and push messagesEndRef down
+                    }}>
+                      {combinedMessages.map((chat, index) => (
+                        <ChatMessage
+                          key={chat.id || index} // Prefer unique ID if available
+                          chat={chat}
+                          isResponseLoading={isResponseLoading && index === combinedMessages.length - 1 && chat.role === 'assistant'}
+                          isSourcesVisible={isSourcesVisible}
+                          handleSourcesToggle={handleSourcesToggle}
+                          isLatest={index === combinedMessages.length - 1}
+                        />
+                      ))}
+                    </List>
+                    <div ref={messagesEndRef} style={{ height: '1px', paddingTop: '20px' }} /> {/* paddingTop to ensure space for scrollIntoView */}
+                  </Box>
+                </Box>
+              )}
+            </Box> 
+          )}
+          {!hideInput && (
+            <Box 
+              sx={{ 
+                flexShrink: 0, 
+                position: 'relative', 
+                zIndex: 5, 
+                // mt: 'auto', // Removed, as parent flexbox structure should handle positioning
+                borderTop: (theme) => `1px solid ${theme.palette.divider}`,
               }}
             >
-              {selectedImagePreview && (
-                <Box
-                  mb={1}
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  sx={{
-                    padding: { xs: '4px 8px', sm: '6px 10px' },
-                    backgroundColor: 'rgba(0,0,0,0.03)',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  }}
-                  className="chat-image-preview"
-                >
-                  <Box 
-                    display="flex" 
-                    alignItems="center" 
-                    overflow="hidden"
-                    onClick={handleOpenPreviewModal}
-                    sx={{ 
-                      cursor: 'pointer',
-                      '&:hover': { opacity: 0.85 }
+              <Paper
+                elevation={2}
+                sx={{
+                  p: { xs: 1, sm: 1.5 },
+                  borderRadius: 0,
+                  backgroundColor: 'rgba(248, 249, 250, 0.95)', // Slightly transparent background
+                }}
+              >
+                {selectedImagePreview && (
+                  <Box
+                    mb={1}
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{
+                      padding: { xs: '4px 8px', sm: '6px 10px' },
+                      backgroundColor: 'rgba(0,0,0,0.03)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     }}
+                    className="chat-image-preview"
                   >
-                    <Box
-                      sx={{
-                        width: { xs: '48px', sm: '60px' },
-                        height: { xs: '48px', sm: '60px' },
-                        marginRight: '10px',
-                        borderRadius: '4px',
-                        overflow: 'hidden',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        position: 'relative',
+                    <Box 
+                      display="flex" 
+                      alignItems="center" 
+                      overflow="hidden"
+                      onClick={handleOpenPreviewModal}
+                      sx={{ 
+                        cursor: 'pointer',
+                        '&:hover': { opacity: 0.85 }
                       }}
                     >
-                      <img
-                        src={selectedImagePreview}
-                        alt="Preview"
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
+                      <Box
+                        sx={{
+                          width: { xs: '48px', sm: '60px' },
+                          height: { xs: '48px', sm: '60px' },
+                          marginRight: '10px',
+                          borderRadius: '4px',
+                          overflow: 'hidden',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          position: 'relative',
                         }}
-                      />
-                      {isUploadingImage && (
-                        <Box 
-                          sx={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
+                      >
+                        <img
+                          src={selectedImagePreview}
+                          alt="Preview"
+                          style={{
                             width: '100%',
                             height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: 'rgba(255,255,255,0.7)',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        {isUploadingImage && (
+                          <Box 
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'rgba(255,255,255,0.7)',
+                            }}
+                          >
+                            <CircularProgress size={24} thickness={5} />
+                          </Box>
+                        )}
+                      </Box>
+                      <Box>
+                        <Typography
+                          variant="body2"
+                          color="text.primary"
+                          noWrap
+                          sx={{ 
+                            maxWidth: '200px',
+                            fontWeight: 500,
+                            fontSize: { xs: '0.75rem', sm: '0.85rem' }
                           }}
                         >
-                          <CircularProgress size={24} thickness={5} />
-                        </Box>
-                      )}
-                    </Box>
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        color="text.primary"
-                        noWrap
-                        sx={{ 
-                          maxWidth: '200px',
-                          fontWeight: 500,
-                          fontSize: { xs: '0.75rem', sm: '0.85rem' }
-                        }}
-                      >
-                        {selectedImage?.name || 'Attached Image'}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ 
-                          fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        {isUploadingImage ? (
-                          <span>Uploading image...</span>
-                        ) : uploadedImageUrl ? (
-                          <span>✓ Ready to send</span>
-                        ) : (
-                          <>
-                            <span style={{ 
-                              display: 'inline-block', 
-                              width: '14px', 
-                              height: '14px', 
-                              backgroundColor: 'rgba(37, 99, 235, 0.1)', 
-                              borderRadius: '50%', 
-                              position: 'relative' 
-                            }}>
+                          {selectedImage?.name || 'Attached Image'}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ 
+                            fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {isUploadingImage ? (
+                            <span>Uploading image...</span>
+                          ) : uploadedImageUrl ? (
+                            <span>✓ Ready to send</span>
+                          ) : (
+                            <>
                               <span style={{ 
-                                position: 'absolute', 
-                                left: '4px', 
-                                top: '4px', 
-                                width: '6px', 
-                                height: '6px', 
-                                backgroundColor: '#2563eb', 
-                                borderRadius: '50%' 
-                              }}></span>
-                            </span>
-                            Click to view full size
-                          </>
-                        )}
-                      </Typography>
+                                display: 'inline-block', 
+                                width: '14px', 
+                                height: '14px', 
+                                backgroundColor: 'rgba(37, 99, 235, 0.1)', 
+                                borderRadius: '50%', 
+                                position: 'relative' 
+                              }}>
+                                <span style={{ 
+                                  position: 'absolute', 
+                                  left: '4px', 
+                                  top: '4px', 
+                                  width: '6px', 
+                                  height: '6px', 
+                                  backgroundColor: '#2563eb', 
+                                  borderRadius: '50%' 
+                                }}></span>
+                              </span>
+                              Click to view full size
+                            </>
+                          )}
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
-                  <IconButton 
-                    onClick={handleCancelImage} 
-                    size="small" 
-                    sx={{ 
-                      padding: { xs: '4px', sm: '6px' },
-                      backgroundColor: 'rgba(0,0,0,0.05)',
-                      '&:hover': {
-                        backgroundColor: 'rgba(0,0,0,0.1)',
-                      }
-                    }}
-                  >
-                    <CancelIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              )}
-              {/* Image Preview Modal */}
-              {previewModalOpen && (
-                <Modal
-                  open={previewModalOpen}
-                  onClose={handleClosePreviewModal}
-                  closeAfterTransition
-                  BackdropComponent={Backdrop}
-                  BackdropProps={{
-                    timeout: 500,
-                  }}
-                >
-                  <Fade in={previewModalOpen}>
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        bgcolor: 'background.paper',
-                        boxShadow: 24,
-                        p: 2,
-                        borderRadius: 2,
-                        maxWidth: '90%',
-                        maxHeight: '90%',
-                        overflow: 'auto',
+                    <IconButton 
+                      onClick={handleCancelImage} 
+                      size="small" 
+                      sx={{ 
+                        padding: { xs: '4px', sm: '6px' },
+                        backgroundColor: 'rgba(0,0,0,0.05)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(0,0,0,0.1)',
+                        }
                       }}
                     >
-                      <img
-                        src={selectedImagePreview}
-                        alt="Full Preview"
-                        style={{
-                          width: '100%',
-                          height: 'auto',
-                          display: 'block',
-                          borderRadius: 8,
-                        }}
-                      />
-                    </Box>
-                  </Fade>
-                </Modal>
-              )}
-              <Box 
-                display="flex" 
-                alignItems="center" 
-                flexDirection="row"
-                className="chat-input-container"
-                sx={{ gap: { xs: 0.5, sm: 1} }} // Add gap between items
-              >
-                {/* Hidden file input, triggered by IconButton */}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                />
-
-                {/* Attach Image Button - Now on the left */}
-                <Tooltip title="Attach Image">
-                  <IconButton 
-                    onClick={handleImageUploadClick} 
-                    color="primary"
-                    size={isMobile ? "small" : "medium"}
-                    sx={{ 
-                      p: { xs: '6px', sm: '8px' }, // Adjust padding for touch targets
-                      flexShrink: 0 // Prevent shrinking
-                    }}
-                  >
-                    <ImageIcon fontSize={isMobile ? "small" : "medium"} />
-                  </IconButton>
-                </Tooltip>
-
-                {/* Message Input Field - In the middle */}
-                <TextField
-                  fullWidth
-                  variant="outlined"
-                  placeholder="Type your message..."
-                  value={message}
-                  onChange={handleTyping}
-                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                  multiline
-                  maxRows={4}
-                  disabled={isResponseLoading || isUploadingImage}
-                  className="chat-input-field"
-                  sx={{
-                    flexGrow: 1,
-                    mx: { xs: 0.5, sm: 1 }, // Add margin on both sides to separate from buttons
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '20px', // Keep rounded corners
-                      fontSize: { xs: '0.875rem', sm: '1rem' },
-                      py: { xs: 0.8, sm: 1 }, // Vertical padding for the input itself
-                    },
-                  }}
-                />
-                
-                {/* Send Button - Now on the right */}
-                <Tooltip title="Send Message">
-                  <IconButton 
-                    color="primary" 
-                    onClick={handleSendMessage} 
-                    disabled={!message.trim() || isResponseLoading || isUploadingImage}
-                    size={isMobile ? "small" : "medium"}
-                    sx={{ 
-                      bgcolor: 'primary.main',
-                      color: 'white',
-                      '&:hover': {
-                        bgcolor: 'primary.dark',
+                      <CancelIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
+                {previewModalOpen && (
+                  <Modal
+                    open={previewModalOpen}
+                    onClose={handleClosePreviewModal}
+                    closeAfterTransition
+                    slots={{ backdrop: Backdrop }} // Updated for MUI v5
+                    slotProps={{ // Updated for MUI v5
+                      backdrop: {
+                        timeout: 500,
                       },
-                      p: { xs: '6px', sm: '8px' } // Adjust padding
                     }}
                   >
-                    <SendIcon fontSize={isMobile ? "small" : "medium"} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Paper>
-          </Box>
-        )}
+                    <Fade in={previewModalOpen}>
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          bgcolor: 'background.paper',
+                          boxShadow: 24,
+                          p: 2,
+                          borderRadius: 2,
+                          maxWidth: '90%',
+                          maxHeight: '90%',
+                          overflow: 'auto', // Ensure modal content is scrollable if too large
+                        }}
+                      >
+                        <img
+                          src={selectedImagePreview} // This should be the original image URL if possible for full preview
+                          alt="Full Preview"
+                          style={{
+                            width: '100%', // Or use maxWidth/maxHeight for better control
+                            height: 'auto',
+                            display: 'block',
+                            borderRadius: 8,
+                          }}
+                        />
+                      </Box>
+                    </Fade>
+                  </Modal>
+                )}
+                <Box 
+                  display="flex" 
+                  alignItems="center" 
+                  flexDirection="row"
+                  className="chat-input-container"
+                  sx={{ gap: { xs: 0.5, sm: 1} }}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                  />
+                  <Tooltip title="Attach Image">
+                    <IconButton 
+                      onClick={handleImageUploadClick} 
+                      color="primary"
+                      size={isMobile ? "small" : "medium"}
+                      sx={{ 
+                        p: { xs: '6px', sm: '8px' }, 
+                        flexShrink: 0 
+                      }}
+                      disabled={isUploadingImage || isResponseLoading} // Disable while uploading/responding
+                    >
+                      <ImageIcon fontSize={isMobile ? "small" : "medium"} />
+                    </IconButton>
+                  </Tooltip>
+                  <TextField
+                    fullWidth
+                    variant="outlined"
+                    placeholder="Type your message..."
+                    value={message}
+                    onChange={handleTyping}
+                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && (handleSendMessage(), e.preventDefault())} // Prevent default to avoid newline on enter
+                    multiline
+                    maxRows={4}
+                    disabled={isResponseLoading || isUploadingImage}
+                    className="chat-input-field"
+                    sx={{
+                      flexGrow: 1,
+                      mx: { xs: 0.5, sm: 1 }, 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '20px', 
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        py: { xs: 0.8, sm: 1 }, 
+                        pr: { xs: 1, sm: 1.5 }, // Padding right for inner content
+                        pl: { xs: 1.5, sm: 2 }, // Padding left for inner content
+                      },
+                    }}
+                  />
+                  <Tooltip title="Send Message">
+                    <span> {/* Tooltip needs a DOM element child when button is disabled */}
+                    <IconButton 
+                      color="primary" 
+                      onClick={handleSendMessage} 
+                      disabled={(!message.trim() && !selectedImage && !uploadedImageUrl) || isResponseLoading || isUploadingImage}
+                      size={isMobile ? "small" : "medium"}
+                      sx={{ 
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        '&:hover': {
+                          bgcolor: 'primary.dark',
+                        },
+                        p: { xs: '6px', sm: '8px' },
+                        '&.Mui-disabled': { // Style for disabled state
+                            bgcolor: 'grey.300',
+                        }
+                      }}
+                    >
+                      <SendIcon fontSize={isMobile ? "small" : "medium"} />
+                    </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+              </Paper>
+            </Box>
+          )}
+        </Box>
         <Snackbar
           open={Boolean(error)}
           autoHideDuration={6000}
           onClose={() => setError('')}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-          TransitionProps={{ appear: false }}
+          // TransitionProps={{ appear: false }} // appear is not a standard prop for TransitionProps here
         >
           <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
             {error}
@@ -1446,7 +1332,7 @@ const ChatScreen = ({
           balance={buyCreditsBalance}
           requiredAmount={buyCreditsRequiredAmount}
         />
-      </Box>
+      </>
     </ThemeProvider>
   );
 };

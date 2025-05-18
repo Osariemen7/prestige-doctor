@@ -9,23 +9,25 @@ import {
   Search,
   LogOut,
   Menu,
-  MessageSquare
+  MessageSquare,
+  BarChart2
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
-const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
+const Sidebar = ({ onNavigate, onLogout, onToggleSidebar = () => {} }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
   
   const menuItems = [
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
-    { icon: <MessageSquare size={20} />, text: 'Patient Messages', path: '/patient-messages' }, // moved and icon updated
+    //{ icon: <FileText size={20} />, text: 'My Consults', path: '/my-consults' },
+    { icon: <MessageSquare size={20} />, text: 'Patient Messages', path: '/patient-messages' },
     { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
     { icon: <Activity size={20} />, text: 'Virtual Consultation', path: '/virtual' },
     { icon: <Search size={20} />, text: 'Dr House AI', path: '/ask' },
     { icon: <DollarSign size={20} />, text: 'Earnings', path: '/account' },
-    { icon: <FileText size={20} />, text: 'Dashboard', path: '/doctor' },
+    { icon: <BarChart2 size={20} />, text: 'Dashboard', path: '/doctor' },
     { icon: <Settings size={20} />, text: 'Settings', path: '/setting' },
   ];
 

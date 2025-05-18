@@ -288,18 +288,16 @@ const ConsultAIPage = () => {
       setShowDocumentDialog(false);
     }, 500);
   };
-
   // Toggle the Patient Profile display (Document panel) using isProfileOpen
-  const toggleProfile = async() => {
-    // Optionally, you could send 
-    await sendOobRequest();
-    // a documentation request here before toggling.
+  const toggleProfile = () => {
+    // Don't send an out-of-band request when toggling profile view
+    // as it was causing the consultation to end when switching views
     setIsProfileOpen((prev) => !prev);
   };
-
   const closeProfile = () => {
+    // Just close the profile without sending an out-of-band request
+    // which was causing the consultation to end when switching views
     setIsProfileOpen(false);
-    sendOobRequest();
   };
 console.log(reviewId)
   return (

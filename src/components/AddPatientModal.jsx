@@ -108,7 +108,7 @@ const isValidPhoneNumber = (phoneNumber) => {
   return phoneRegex.test(phoneNumber.replace(/[\s-]/g, ''));
 };
 
-const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
+const AddPatientModal = ({ isOpen, onClose, onAddPatient, handleAddPatient, isLoading }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -116,6 +116,9 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
   const [customCondition, setCustomCondition] = useState('');
   const [message, setMessage] = useState('');
   const [activeTab, setActiveTab] = useState(0);
+  
+  // Use handleAddPatient as fallback if onAddPatient is not provided
+  const addPatientHandler = onAddPatient || handleAddPatient;
   
   // Health Goal States
   const [healthGoal, setHealthGoal] = useState({
@@ -135,12 +138,11 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
     interval: 24, // Daily by default
     target_value: ''
   });
-  
-  const [newAction, setNewAction] = useState({
+    const [newAction, setNewAction] = useState({
     name: '',
     description: '',
     interval: 24, // Daily by default
-    action_end_date: ''
+    action_end_date: '' // Will be set to health goal's target date when adding
   });
   
   const [withHealthGoal, setWithHealthGoal] = useState(false);
@@ -178,19 +180,47 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
     });
     setWithHealthGoal(false);
   };
-    // Handle form submission
+  // Handle form submission
   const handleSubmit = () => {
+    console.log('Submit button clicked');
     setMessage('');
+    
+    // Log the current state for debugging
+    console.log('Current state:', {
+      withHealthGoal,
+      firstName,
+      lastName,
+      phoneNumber,
+      healthGoal: {
+        hasMetrics: healthGoal.metrics.length > 0,
+        hasActions: healthGoal.actions.length > 0,
+        goalName: healthGoal.goal_name,
+        hasTargetDate: !!healthGoal.target_date
+      },
+      hasAddPatientHandler: typeof addPatientHandler === 'function'
+    });
+    
+    // Scroll to top of modal to show any error messages
+    const scrollToTop = () => {
+      const modalBody = document.querySelector('.chakra-modal__body, .chakra-modal__content');
+      if (modalBody) {
+        modalBody.scrollTop = 0;
+      }
+    };
 
     // Validate required fields (phone is no longer required)
     if (!firstName || !lastName) {
       setMessage('Please fill in all required fields');
+      setActiveTab(0); // Switch to basic info tab
+      scrollToTop();
       return;
     }
 
     // Validate phone number if provided
     if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
       setMessage('Please enter a valid international phone number or leave it blank');
+      setActiveTab(0); // Switch to basic info tab
+      scrollToTop();
       return;
     }
     
@@ -207,33 +237,50 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
       // Validate health goal if it's enabled
       if (!healthGoal.goal_name) {
         setMessage('Please provide a goal name');
-        setActiveTab(1);
+        setActiveTab(1); // Switch to health goal tab
+        scrollToTop();
         return;
       }
       if (!healthGoal.target_date) {
         setMessage('Please provide a target date');
-        setActiveTab(1);
+        setActiveTab(1); // Switch to health goal tab
+        scrollToTop();
         return;
       }
       if (!healthGoal.metrics || healthGoal.metrics.length === 0) {
         setMessage('Please add at least one health metric to track.');
-        setActiveTab(1);
+        setActiveTab(1); // Switch to health goal tab
+        scrollToTop();
         return;
       }
       if (!healthGoal.actions || healthGoal.actions.length === 0) {
         setMessage('Please add at least one recommended action for the patient.');
-        setActiveTab(1);
+        setActiveTab(1); // Switch to health goal tab
+        scrollToTop();
+        return;
+      }      // Verify that all actions have an end date
+      const actionsMissingEndDate = healthGoal.actions.filter(a => !a.action_end_date);
+      if (actionsMissingEndDate.length > 0) {
+        setMessage('One or more actions are missing an end date. Please set end dates for all actions.');
+        setActiveTab(1); // Switch to health goal tab
+        scrollToTop();
         return;
       }
+      
       // Convert all interval fields to integer hours
       const metrics = healthGoal.metrics.map(m => ({
         ...m,
         interval: Number(m.interval)
       }));
+      
+      // Process actions: ensure all have an end date and convert intervals to numbers
       const actions = healthGoal.actions.map(a => ({
         ...a,
-        interval: Number(a.interval)
+        interval: Number(a.interval),
+        // Use health goal's target date as fallback for any action missing an end date
+        action_end_date: a.action_end_date || healthGoal.target_date
       }));
+      
       requestBody.health_goal = {
         ...healthGoal,
         checkin_interval: Number(healthGoal.checkin_interval),
@@ -243,7 +290,42 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
     }
     
     // Call the parent component's function to handle the API request
-    onAddPatient(requestBody, resetForm);
+    if (typeof addPatientHandler === 'function') {
+      try {
+        console.log('Calling addPatientHandler with:', { requestBody });
+        
+        // Call the handler and store any returned promise
+        const result = addPatientHandler(requestBody, resetForm);
+        
+        // Add a visual indication that submission was successful
+        const button = document.querySelector('.chakra-modal__footer button');
+        if (button) {
+          button.classList.add('success-pulse');
+          setTimeout(() => button.classList.remove('success-pulse'), 1000);
+        }
+        
+        // If the handler returns a promise, handle it appropriately
+        if (result && typeof result.then === 'function') {
+          console.log('Handler returned a promise, waiting for resolution');
+          result.catch(promiseError => {
+            console.error('Promise rejection in addPatientHandler:', promiseError);
+            setMessage('Failed to add patient. Please try again.');
+          });
+        }
+      } catch (error) {
+        console.error('Error in addPatientHandler:', error);
+        setMessage('An error occurred while adding the patient. Please try again.');
+      }
+    } else {
+      console.error('No valid handler function (onAddPatient or handleAddPatient) was provided to AddPatientModal');
+      setMessage('Something went wrong. Please try again.');
+      
+      // Focus on the error message
+      setTimeout(() => {
+        const errorBox = document.querySelector('[data-error-message]');
+        if (errorBox) errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
   };
   
   // Handle adding a chronic condition
@@ -280,13 +362,19 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
       metrics: updatedMetrics
     });
   };
-  
-  // Handle adding a new action
+    // Handle adding a new action
   const addAction = () => {
     if (newAction.name && newAction.description) {
+      // Ensure the action_end_date is set
+      const actionToAdd = { 
+        ...newAction,
+        // If action_end_date is empty, use the health goal's target date
+        action_end_date: newAction.action_end_date || healthGoal.target_date
+      };
+      
       setHealthGoal({
         ...healthGoal,
-        actions: [...healthGoal.actions, { ...newAction }]
+        actions: [...healthGoal.actions, actionToAdd]
       });
       
       // Reset new action form
@@ -361,11 +449,16 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
           <Text mb={6} color="gray.600" fontWeight="medium">
             Adding a new patient helps grow your practice and expand your healthcare reach.
           </Text>
-          
-          <Tabs colorScheme="blue" index={activeTab} onChange={setActiveTab} isFitted>
+            <Tabs colorScheme="blue" index={activeTab} onChange={setActiveTab} isFitted id="patient-tabs">
             <TabList mb={4}>
               <Tab fontWeight="medium">Basic Info</Tab>
-              <Tab fontWeight="medium" isDisabled={!withHealthGoal}>Health Goal</Tab>
+              <Tab fontWeight="medium" isDisabled={!withHealthGoal} _disabled={{ opacity: 0.6, cursor: "not-allowed" }}>
+                Health Goal {withHealthGoal && (
+                  healthGoal.metrics.length === 0 || healthGoal.actions.length === 0 ? 
+                  <Box as="span" ml={2} color="orange.500">⚠️</Box> : 
+                  <Box as="span" ml={2} color="green.500">✓</Box>
+                )}
+              </Tab>
             </TabList>
             
             <TabPanels>
@@ -505,21 +598,27 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
                 <FormControl display='flex' alignItems='center' mt={6}>
                   <FormLabel htmlFor='health-goal-switch' mb='0'>
                     Add a Health Goal for this patient
-                  </FormLabel>
-                  <Switch 
+                  </FormLabel>                  <Switch 
                     id='health-goal-switch' 
                     colorScheme='blue'
                     isChecked={withHealthGoal}
                     onChange={() => {
                       setWithHealthGoal(!withHealthGoal);
-                      if (!withHealthGoal && healthGoal.target_date === '') {
-                        // Set default target date to 3 months from now
-                        const targetDate = new Date();
-                        targetDate.setMonth(targetDate.getMonth() + 3);
-                        setHealthGoal({
-                          ...healthGoal,
-                          target_date: targetDate.toISOString().split('T')[0]
-                        });
+                      
+                      // When enabling health goal
+                      if (!withHealthGoal) {
+                        // Set default target date to 3 months from now if not set
+                        if (healthGoal.target_date === '') {
+                          const targetDate = new Date();
+                          targetDate.setMonth(targetDate.getMonth() + 3);
+                          setHealthGoal({
+                            ...healthGoal,
+                            target_date: targetDate.toISOString().split('T')[0]
+                          });
+                        }
+                        
+                        // Switch to health goal tab
+                        setTimeout(() => setActiveTab(1), 100);
                       }
                     }}
                   />
@@ -824,14 +923,22 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
                             <option value={720}>Monthly</option>
                           </Select>
                         </FormControl>
-                        
-                        <FormControl>
+                          <FormControl>
                           <FormLabel fontSize="sm">End Date</FormLabel>
                           <Input
                             type="date"
                             value={newAction.action_end_date || healthGoal.target_date}
                             onChange={(e) => setNewAction({...newAction, action_end_date: e.target.value})}
+                            onBlur={() => {
+                              if (!newAction.action_end_date) {
+                                // If left empty after focus, set to health goal target date
+                                setNewAction({...newAction, action_end_date: healthGoal.target_date});
+                              }
+                            }}
                           />
+                          <Text fontSize="xs" color="gray.500" mt={1}>
+                            If not specified, defaults to goal target date: {healthGoal.target_date}
+                          </Text>
                         </FormControl>
                       </Grid>
                       
@@ -851,9 +958,7 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
                 </Accordion>
               </TabPanel>
             </TabPanels>
-          </Tabs>
-          
-          {message && (
+          </Tabs>          {message && (
             <Box 
               mt={4} 
               p={3} 
@@ -862,6 +967,24 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
               color="red.500" 
               borderLeft="4px" 
               borderColor="red.500"
+              boxShadow="md"
+              animation="pulse 2s infinite"
+              data-error-message="true"
+              sx={{
+                "@keyframes pulse": {
+                  "0%": { boxShadow: "0 0 0 0 rgba(254, 178, 178, 0.5)" },
+                  "70%": { boxShadow: "0 0 0 10px rgba(254, 178, 178, 0)" },
+                  "100%": { boxShadow: "0 0 0 0 rgba(254, 178, 178, 0)" }
+                },
+                "@keyframes successPulse": {
+                  "0%": { boxShadow: "0 0 0 0 rgba(72, 187, 120, 0.7)" },
+                  "70%": { boxShadow: "0 0 0 15px rgba(72, 187, 120, 0)" },
+                  "100%": { boxShadow: "0 0 0 0 rgba(72, 187, 120, 0)" }
+                },
+                ".success-pulse": {
+                  animation: "successPulse 1s"
+                }
+              }}
             >
               <Text fontWeight="medium">{message}</Text>
             </Box>
@@ -874,11 +997,31 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
           borderTopRadius={0}
           p={4}
           mt={2}
-        >
-          <Button 
+        >          <Button 
             colorScheme="blue" 
             mr={3} 
-            onClick={handleSubmit} 
+            onClick={(e) => {
+              // Add ripple effect for better click feedback
+              const ripple = document.createElement('span');
+              ripple.style.position = 'absolute';
+              ripple.style.borderRadius = '50%';
+              ripple.style.transform = 'scale(0)';
+              ripple.style.animation = 'ripple 0.6s linear';
+              ripple.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+              
+              const rect = e.currentTarget.getBoundingClientRect();
+              const size = Math.max(rect.width, rect.height);
+              ripple.style.width = ripple.style.height = `${size}px`;
+              
+              ripple.style.left = `${e.clientX - rect.left - size/2}px`;
+              ripple.style.top = `${e.clientY - rect.top - size/2}px`;
+              
+              e.currentTarget.appendChild(ripple);
+              setTimeout(() => ripple.remove(), 600);
+              
+              // Call the submit handler
+              handleSubmit();
+            }}
             isLoading={isLoading}
             loadingText="Adding..."
             size="lg"
@@ -886,8 +1029,24 @@ const AddPatientModal = ({ isOpen, onClose, onAddPatient, isLoading }) => {
             bgGradient={buttonBgGradient}
             _hover={{
               bgGradient: buttonHoverBgGradient,
+              transform: 'translateY(-2px)',
+              boxShadow: 'lg',
             }}
+            _active={{
+              transform: 'translateY(0)',
+            }}
+            position="relative"
+            overflow="hidden"
+            transition="all 0.2s"
             borderRadius="md"
+            sx={{
+              "@keyframes ripple": {
+                "to": {
+                  transform: "scale(4)",
+                  opacity: 0,
+                }
+              }
+            }}
           >
             {withHealthGoal ? 'Add Patient with Health Goal' : 'Add Patient'}
           </Button>
