@@ -20,7 +20,7 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar = () => {} }) => {
   const location = useLocation();
   
   const menuItems = [
-    { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
+    //{ icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
     { icon: <FileText size={20} />, text: 'My Consults', path: '/my-consults' },
     { icon: <MessageSquare size={20} />, text: 'Patient Messages', path: '/patient-messages' },
     { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
