@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Paper, 
-  Typography, 
-  Box, 
-  TextField, 
-  Chip, 
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  IconButton,
-  Tooltip
+    Paper, 
+    Typography, 
+    Box, 
+    TextField, 
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableRow,
+    IconButton,
+    Tooltip
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DoneIcon from '@mui/icons-material/Done';
@@ -19,11 +18,11 @@ import CloseIcon from '@mui/icons-material/Close';
 
 function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
     const [editIndex, setEditIndex] = useState(null);
-    const [editContent, setEditContent] = useState('');        
-    const [localTranscript, setLocalTranscript] = useState(transcript);
+    const [editContent, setEditContent] = useState('');
+    const [localTranscript, setLocalTranscript] = useState(transcript || []);
 
     useEffect(() => {
-        setLocalTranscript(transcript);
+        setLocalTranscript(transcript || []);
     }, [transcript]);
 
     // Add keyboard event listeners for Escape key
@@ -41,22 +40,15 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
     }, [editIndex]);
 
     const handleContentChange = (index, newContent) => {
-        // Create a deep copy of the transcript array to ensure React detects the change
         const updatedTranscript = JSON.parse(JSON.stringify(localTranscript));
-        // Update the content of the specific entry
         updatedTranscript[index] = {
             ...updatedTranscript[index],
             content: newContent
         };
         
-        console.log('Updated transcript:', updatedTranscript);
-        
-        // Update local state
         setLocalTranscript(updatedTranscript);
         if (onTranscriptChange) {
             onTranscriptChange(updatedTranscript);
-            // Verify changes were applied
-            console.log('onTranscriptChange called with updated content');
         }
     };
 
@@ -70,18 +62,9 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
     };    
 
     const saveEdit = (index) => {
-        console.log('Saving edit for index:', index);
-        console.log('New content:', editContent);
-        console.log('Previous content:', localTranscript[index].content);
-        
-        // Only update if content has changed
         if (editContent !== localTranscript[index].content) {
             handleContentChange(index, editContent);
-            console.log('Content changed, update applied');
-        } else {
-            console.log('Content unchanged, no update needed');
         }
-        
         setEditIndex(null);
     };
 
@@ -113,178 +96,107 @@ function TranscriptTab({ transcript, onTranscriptChange, isMobile }) {
                 minHeight: '200px',
                 border: '1px dashed #cbd5e1'
             }}>
-                <Typography variant="h6" color="primary.main" sx={{ mb: 1, fontWeight: 500 }}>Consultation Transcript</Typography>
-                <Typography sx={{ color: 'text.secondary', fontSize: '0.95rem' }}>No transcript available yet.</Typography>
+                <Typography variant="h6" color="primary.main" sx={{ mb: 1, fontWeight: 500 }}>
+                    Consultation Transcript
+                </Typography>
+                <Typography sx={{ color: 'text.secondary', fontSize: '0.95rem' }}>
+                    No transcript available yet.
+                </Typography>
             </Paper>
         );
     }
     
-    return (        <Paper 
-            elevation={0} 
-            sx={{ 
-                padding: 0, 
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                backgroundColor: '#fcfcfc',
-                borderRadius: '4px',
-                border: '1px solid #eaeaea',
-                pb: isMobile ? '60px' : 0 // Add padding at the bottom for mobile view
-            }}
-        >
-            <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                padding: isMobile ? '12px 16px' : '16px 24px',
-                borderBottom: '1px solid #f0f0f0',
-                backgroundColor: '#f5f7fa'
-            }}>
-                <Typography 
-                    variant="h6" 
-                    color="primary.main" 
-                    sx={{ 
-                        fontWeight: 500,
-                        fontSize: isMobile ? '1.1rem' : '1.25rem'
-                    }}
-                >
-                    Consultation Transcript
-                </Typography>                <Chip 
-                    label={`${localTranscript.length} entries`} 
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                    sx={{ fontSize: '0.75rem' }}
-                />
-            </Box>
-              <Table 
-                stickyHeader 
-                size={isMobile ? "small" : "medium"} 
-                sx={{ 
-                    tableLayout: 'fixed',
-                    '& .MuiTableCell-root': {
-                        borderBottom: '1px solid rgba(224, 224, 224, 0.3)'
-                    }
-                }}
-            >
+    return (
+        <Paper elevation={0} sx={{ 
+            padding: 0, 
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#fcfcfc',
+            borderRadius: '4px',
+            border: '1px solid #eaeaea'
+        }}>
+            <Table>
                 <TableHead>
                     <TableRow>
-                        <TableCell width="20%" sx={{ 
-                            fontWeight: 600, 
-                            backgroundColor: '#f5f7fa', 
-                            color: '#475569' 
-                        }}>Time</TableCell>
-                        <TableCell width="65%" sx={{ 
-                            fontWeight: 600, 
-                            backgroundColor: '#f5f7fa', 
-                            color: '#475569' 
-                        }}>Content</TableCell>
-                        <TableCell width="15%" sx={{ 
-                            fontWeight: 600, 
-                            backgroundColor: '#f5f7fa', 
-                            color: '#475569',
-                            textAlign: 'center'
-                        }}>Edit</TableCell>
+                        <TableCell width="15%" sx={{ fontWeight: 600 }}>Time</TableCell>
+                        <TableCell width="70%" sx={{ fontWeight: 600 }}>Content</TableCell>
+                        <TableCell width="15%" align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {localTranscript.map((entry, index) => {
-                        const isEditing = editIndex === index;
-                        
-                        return (
-                            <TableRow 
-                                key={index} 
-                                sx={{ 
-                                    backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
-                                    '&:hover': {
-                                        backgroundColor: '#f1f5f9'
-                                    }
-                                }}
-                            >
-                                <TableCell sx={{ 
-                                    color: 'text.secondary',
-                                    fontSize: '0.8rem',
-                                    verticalAlign: 'top',
-                                    pt: 2
-                                }}>
-                                    {formatDisplayTime(entry.time)}
-                                </TableCell>
-                                <TableCell sx={{
-                                    py: 1.5,
-                                    verticalAlign: 'top'
-                                }}>                                    {isEditing ? (                                        <TextField
-                                            fullWidth
-                                            multiline
-                                            variant="outlined"
-                                            value={editContent}
-                                            onChange={(e) => setEditContent(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                // Save on Enter key
-                                                if (e.key === 'Enter' && !e.shiftKey) {
-                                                    e.preventDefault(); // Prevent newline
-                                                    saveEdit(index);
-                                                }
-                                                // Allow Shift+Enter for newlines
-                                            }}
-                                            size="small"
-                                            autoFocus
-                                            sx={{
-                                                '& .MuiOutlinedInput-root': {
-                                                    backgroundColor: '#ffffff',
-                                                    fontSize: '0.9rem'
-                                                }
-                                            }}
-                                            placeholder="Press Enter to save, Shift+Enter for new line"
-                                        />
-                                    ) : (
-                                        <Typography 
-                                            variant="body2" 
-                                            sx={{ 
-                                                whiteSpace: 'pre-wrap',
-                                                fontSize: '0.9rem',
-                                                lineHeight: 1.6,
-                                                color: 'text.primary'
-                                            }}
-                                        >
-                                            {entry.content}
-                                        </Typography>
-                                    )}
-                                </TableCell>
-                                <TableCell sx={{ textAlign: 'center', verticalAlign: 'top', pt: 1.5 }}>
-                                    {isEditing ? (
-                                        <>                                            <Tooltip title="Save (Enter)">
-                                                <IconButton 
-                                                    size="small" 
-                                                    onClick={() => saveEdit(index)}
-                                                    color="primary"
-                                                >
-                                                    <DoneIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <Tooltip title="Cancel (Escape)">
-                                                <IconButton 
-                                                    size="small" 
-                                                    onClick={cancelEditing}
-                                                    color="secondary"
-                                                >
-                                                    <CloseIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                        </>
-                                    ) : (
-                                        <Tooltip title="Edit">
+                    {localTranscript.map((entry, index) => (
+                        <TableRow key={index}>
+                            <TableCell sx={{ verticalAlign: 'top', pt: 1.5 }}>
+                                {formatDisplayTime(entry.time)}
+                            </TableCell>
+                            <TableCell>
+                                {editIndex === index ? (
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        value={editContent}
+                                        onChange={(e) => setEditContent(e.target.value)}
+                                        onKeyPress={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                saveEdit(index);
+                                            }
+                                        }}
+                                        autoFocus
+                                        variant="outlined"
+                                        size="small"
+                                    />
+                                ) : (
+                                    <Typography
+                                        component="div"
+                                        sx={{
+                                            whiteSpace: 'pre-wrap',
+                                            wordBreak: 'break-word',
+                                            color: 'text.primary'
+                                        }}
+                                    >
+                                        {entry.content}
+                                    </Typography>
+                                )}
+                            </TableCell>
+                            <TableCell sx={{ textAlign: 'center', verticalAlign: 'top', pt: 1.5 }}>
+                                {editIndex === index ? (
+                                    <>
+                                        <Tooltip title="Save (Enter)">
                                             <IconButton 
                                                 size="small" 
-                                                onClick={() => startEditing(index, entry.content)}
+                                                onClick={() => saveEdit(index)}
+                                                color="primary"
                                             >
-                                                <EditIcon fontSize="small" />
+                                                <DoneIcon fontSize="small" />
                                             </IconButton>
                                         </Tooltip>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        );                    })}
-                </TableBody>            </Table>
+                                        <Tooltip title="Cancel (Escape)">
+                                            <IconButton 
+                                                size="small" 
+                                                onClick={cancelEditing}
+                                                color="secondary"
+                                            >
+                                                <CloseIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </>
+                                ) : (
+                                    <Tooltip title="Edit">
+                                        <IconButton 
+                                            size="small" 
+                                            onClick={() => startEditing(index, entry.content)}
+                                        >
+                                            <EditIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
         </Paper>
     );
 }

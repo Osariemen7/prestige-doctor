@@ -14,6 +14,7 @@ import {
     MdOutlineDocumentScanner, 
     MdNotes,
     MdDescription,
+    MdSave,
 } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -991,7 +992,7 @@ const Call = () => {
     );
 
     const [assemblyAiToken, setAssemblyAiToken] = useState('');
-    const [transcript, setTranscript] = useState('');
+    const [transcript, setTranscript] = useState([]);
     const [isDocumentationSaved, setIsDocumentationSaved] = useState(false);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const assemblyWsRef = useRef(null);
@@ -1116,14 +1117,30 @@ const Call = () => {
                 };
 
                 assemblyWsRef.current.onmessage = (event) => {
-                    console.log("Raw WS message:", event.data);
                     try {
                         const data = JSON.parse(event.data);
-                        if (data.message_type === 'FinalTranscript') {
-                            setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
+                        if (data.error) {                        if (data.error === "Session idle for too long") {
+                                setConnectionStatus('disconnected');
+                                setIsRecording(false);
+                                setTimeout(() => {
+                                    connectWebSocket();
+                                }, 1000);
+                                return;
+                            }
+                        }
+                        if (data.message_type === 'FinalTranscript' && data.text) {
+                            setTranscript(prev => {
+                                const newEntry = {
+                                    time: new Date().toISOString(),
+                                    speaker: "", // Speaker will be assigned later if needed
+                                    content: data.text
+                                };
+                                const updatedTranscript = [...prev, newEntry];
+                                return updatedTranscript;
+                            });
                         }
                     } catch (error) {
-                        console.error("Error processing transcription message:", error);
+                        console.error('Error processing transcript:', error);
                     }
                 };
             });
@@ -1252,6 +1269,78 @@ const Call = () => {
         }
     }, [userCount, assemblyAiToken]);
 
+    const saveAllDocumentation = async () => {
+        try {
+            toast({
+                title: "Saving documentation...",
+                description: "Please wait while we save your documentation.",
+                status: "info",
+                duration: 3000,
+                isClosable: true,
+            });
+    
+            // If patientProfileRef exists and has getSuggestion method, try to generate suggestions first
+            if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
+                if (patientProfileRef.current.isGeneratingNote && patientProfileRef.current.isGeneratingNote()) {
+                    toast({
+                        title: "Note generation in progress",
+                        description: "A clinical note is already being generated. Please wait.",
+                        status: "info",
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                } else {
+                    await patientProfileRef.current.getSuggestion();
+                }
+            }
+    
+            // Save the documentation
+            let saved = false;
+            if (patientProfileRef.current && patientProfileRef.current.handleSubmitFromParent) {
+                saved = await patientProfileRef.current.handleSubmitFromParent('all');
+            }
+    
+            if (saved) {
+                setIsDocumentationSaved(true);
+                toast({
+                    title: "Documentation saved",
+                    description: "All documentation has been saved successfully.",
+                    status: "success",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                // Stop transcription and recording
+                if (isTranscribing) {
+                    stopRealtimeTranscription();
+                }
+                // Navigate back to dashboard
+                navigate('/dashboard');
+            }
+        } catch (error) {
+            console.error("Error saving documentation:", error);
+            toast({
+                title: "Error",
+                description: "Failed to save documentation. Please try again.",
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
+    const stopRealtimeTranscription = () => {
+        if (assemblyWsRef.current) {
+            assemblyWsRef.current.close();
+            assemblyWsRef.current = null;
+        }
+        setIsRecording(false);
+        setIsTranscribing(false);
+    };
+
+    const endCall = () => {
+        stopRealtimeTranscription();
+        navigate('/dashboard');
+    };
 
     // Main UI Render
     return (
@@ -1285,28 +1374,13 @@ const Call = () => {
                                 <Text fontSize="lg" fontWeight="medium">
                                     {formatTime(callDuration)}
                                 </Text>
-                            </Box>
-                            <Button
-                                leftIcon={<MdNotes />}
+                            </Box>                            <Button
+                                leftIcon={<MdSave />}
                                 size="sm"
                                 colorScheme="blue"
-                                onClick={() => {
-                                    if (patientProfileRef.current && patientProfileRef.current.getSuggestion) {
-                                        toast({
-                                            title: "Generating Documentation",
-                                            description: "Analyzing conversation and generating suggestions...",
-                                            status: "info",
-                                            duration: 3000,
-                                            isClosable: true,
-                                        });
-                                        // Call getSuggestion for all tabs
-                                        patientProfileRef.current.getSuggestion('patientProfile');
-                                        patientProfileRef.current.getSuggestion('healthGoals');
-                                        patientProfileRef.current.getSuggestion('medicalReview');
-                                    }
-                                }}
+                                onClick={saveAllDocumentation}
                             >
-                                Generate Documentation
+                                Save and Exit Call
                             </Button>
                         </HStack>
 
@@ -1364,7 +1438,11 @@ const Call = () => {
                                                     },
                                                 }}
                                             >
-                                                {transcript || "No transcription available yet..."}
+                                                {transcript.map((entry, index) => (
+                                                    <Text key={index}>
+                                                        <strong>{entry.time}</strong>: {entry.content}
+                                                    </Text>
+                                                )) || "No transcription available yet..."}
                                             </Box>
                                             {/* Audio Visualization */}
                                             {visualizer && (
