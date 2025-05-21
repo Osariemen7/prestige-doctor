@@ -68,6 +68,11 @@ const MyConsults = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+  const [nextPageUrl, setNextPageUrl] = useState(null);
+  const [prevPageUrl, setPrevPageUrl] = useState(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10); // Default page size, adjust if needed
   const navigate = useNavigate();
 
   // Sidebar navigation handler
@@ -82,12 +87,13 @@ const MyConsults = () => {
   };
 
   useEffect(() => {
-    const fetchConsults = async () => {
+    const fetchConsults = async (url = null) => {
       setLoading(true);
       try {
         const token = await getAccessToken();
         if (!token) throw new Error('Authentication required. Please log in again.');
-        const response = await fetch('https://health.prestigedelta.com/medicalreview/', {
+        const endpoint = url || `https://health.prestigedelta.com/patient-consults/?page=${currentPage}`;
+        const response = await fetch(endpoint, {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
@@ -98,9 +104,11 @@ const MyConsults = () => {
           throw new Error(`HTTP error! status: ${response.status}, body: ${errorBody}`);
         }
         const data = await response.json();
-        // Sort consults by creation date, newest first
-        const sortedData = data.sort((a, b) => new Date(b.created) - new Date(a.created));
-        setConsults(sortedData);
+        setConsults(Array.isArray(data.results) ? data.results : []);
+        setNextPageUrl(data.next);
+        setPrevPageUrl(data.previous);
+        setTotalCount(data.count || 0);
+        setPageSize(data.results && data.results.length > 0 ? data.results.length : pageSize);
       } catch (e) {
         console.error("Failed to fetch consultations:", e);
         setError(e.message);
@@ -108,25 +116,24 @@ const MyConsults = () => {
         setLoading(false);
       }
     };
-
     fetchConsults();
-  }, []);
+    // eslint-disable-next-line
+  }, [currentPage]);  const handleViewDetails = (publicId, consult) => {
+    navigate(`/consult-details/${consult.most_recent_review_public_id}`, {
+      state: {
+        patientFullName: consult.patient_name,
+        patientId: consult.patient_id,
+        collaborating_providers: consult.collaborating_providers,
+        patient_profile_data: consult.patient_profile_data, // Add this line to include patient profile data
+      },
+    });
+  };
 
-  const handleViewDetails = (consultId) => {
-    // Navigate to the detail page. The route might be different based on your app structure.
-    // Using consult.public_id if available and preferred for URLs, otherwise consult.id
-    const selectedConsult = consults.find(c => c.id === consultId);
-    if (selectedConsult) {
-      const navigationId = selectedConsult.public_id || consultId;
-      navigate(`/consult-details/${navigationId}`, { 
-        state: { 
-          patientFullName: selectedConsult.patient_full_name,
-          patientId: selectedConsult.id // Internal patient/consult ID
-        } 
-      });
-    } else {
-      console.error("Consult not found for ID:", consultId);
-      // Optionally, show an error to the user
+  const handlePageChange = (direction) => {
+    if (direction === 'next' && nextPageUrl) {
+      setCurrentPage((prev) => prev + 1);
+    } else if (direction === 'prev' && prevPageUrl) {
+      setCurrentPage((prev) => Math.max(1, prev - 1));
     }
   };
 
@@ -195,66 +202,107 @@ const MyConsults = () => {
                 </Typography>
               </Paper>
             ) : (
-              <Grid container spacing={{ xs: 2, md: 3 }}>
-                {consults.map((consult) => (
-                  <Grid item xs={12} sm={6} lg={4} key={consult.id}>
-                    <Card sx={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      height: '100%', 
-                      borderRadius: 3, 
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)', 
-                      transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                      '&:hover': { 
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 8px 20px rgba(0,0,0,0.12)' 
-                      } 
-                    }}>
-                      <CardContent sx={{ flexGrow: 1, p: { xs: 2, md: 2.5 } }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                          <Tooltip title={consult.patient_full_name || 'N/A'} placement="top-start">
-                            <Typography variant="h6" component="div" noWrap sx={{ fontWeight: 600, color: 'text.primary', maxWidth: 'calc(100% - 80px)' }}>
-                              {consult.patient_full_name || 'N/A'}
-                            </Typography>
-                          </Tooltip>
-                          {getStatusChip(consult.status)}
-                        </Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontStyle: 'italic' }}>
-                          ID: {consult.public_id || consult.id}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                          <strong>Date:</strong> {formatDate(consult.created)}
-                        </Typography>
-                        <Tooltip title={consult.chief_complaint || 'No chief complaint provided.'} placement="bottom-start">
-                          <Typography variant="body2" color="text.secondary" sx={{
-                            mb: 1,
-                            display: '-webkit-box',
-                            WebkitBoxOrient: 'vertical',
-                            WebkitLineClamp: 3, // Allow up to 3 lines
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            minHeight: '3.9em', // Approx 3 lines with 1.3em line-height
-                            lineHeight: '1.3em',
-                            color: 'text.secondary'
-                          }}>
-                            <strong>Complaint:</strong> {consult.chief_complaint || 'No chief complaint provided.'}
-                          </Typography>
-                        </Tooltip>
-                      </CardContent>
-                      <CardActions sx={{ justifyContent: 'flex-end', p: { xs: 1.5, md: 2 }, borderTop: '1px solid #eee' }}>
-                        <Button
-                          variant="contained"
-                          size="medium"
-                          onClick={() => handleViewDetails(consult.id)}
-                          sx={{ borderRadius: '999px', textTransform: 'none', px: 2.5 }}
-                        >
-                          View Details
-                        </Button>
-                      </CardActions>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
+              <>
+                <Grid container spacing={{ xs: 2, md: 3 }}>
+                  {consults.map((consult) => {
+                    const hasMedicalHistory = Array.isArray(consult.medical_history) && consult.medical_history.length > 0;
+
+                    return (
+                      <Grid item xs={12} sm={6} lg={4} key={consult.patient_id}>
+                        <Card sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          height: '100%',
+                          borderRadius: 3,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                          '&:hover': {
+                            transform: 'translateY(-4px)',
+                            boxShadow: '0 8px 20px rgba(0,0,0,0.12)'
+                          }
+                        }}>
+                          <CardContent sx={{ flexGrow: 1, p: { xs: 2, md: 2.5 } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                              <Tooltip title={consult.patient_name || 'N/A'} placement="top-start">
+                                <Typography variant="h6" component="div" noWrap sx={{ fontWeight: 600, color: 'text.primary', maxWidth: 'calc(100% - 80px)' }}>
+                                  {consult.patient_name || 'N/A'}
+                                </Typography>
+                              </Tooltip>
+                              {hasMedicalHistory ? getStatusChip(consult.most_recent_review_status) : getStatusChip('Awaiting Review')}
+                            </Box>
+
+                            {hasMedicalHistory ? (
+                              <>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontStyle: 'italic' }}>
+                                  ID: {consult.most_recent_review_id}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                                  <strong>Date:</strong> {formatDate(consult.most_recent_review_updated)}
+                                </Typography>
+                                <Tooltip title={consult.most_recent_review_chief_complaint || 'No chief complaint provided.'} placement="bottom-start">
+                                  <Typography variant="body2" color="text.secondary" sx={{
+                                    mb: 1,
+                                    display: '-webkit-box',
+                                    WebkitBoxOrient: 'vertical',
+                                    WebkitLineClamp: 3, // Allow up to 3 lines
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    minHeight: '3.9em', // Approx 3 lines with 1.3em line-height
+                                    lineHeight: '1.3em',
+                                    color: 'text.secondary'
+                                  }}>
+                                    <strong>Complaint:</strong> {consult.most_recent_review_chief_complaint || 'No chief complaint provided.'}
+                                  </Typography>
+                                </Tooltip>
+                              </>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                                This patient is awaiting their first consultation.
+                              </Typography>
+                            )}
+                          </CardContent>
+                          <CardActions sx={{ justifyContent: 'flex-end', p: { xs: 1.5, md: 2 }, borderTop: '1px solid #eee' }}>
+                            <Button
+                              variant="contained"
+                              size="medium"
+                              onClick={() => handleViewDetails(consult.most_recent_review_public_id, consult)}
+                              sx={{ borderRadius: '999px', textTransform: 'none', px: 2.5 }}
+                            >
+                              View Details
+                            </Button>
+                          </CardActions>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+                {/* Pagination Controls */}
+                {totalCount > pageSize && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 4 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => handlePageChange('prev')}
+                      disabled={!prevPageUrl || currentPage === 1}
+                      sx={{ mr: 2 }}
+                    >
+                      Previous
+                    </Button>
+                    <Typography variant="body2" sx={{ mx: 2 }}>
+                      {nextPageUrl === null
+                        ? `Page ${currentPage} of ${currentPage}`
+                        : `Page ${currentPage} of ${Math.ceil(totalCount / pageSize)}`}
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      onClick={() => handlePageChange('next')}
+                      disabled={!nextPageUrl}
+                      sx={{ ml: 2 }}
+                    >
+                      Next
+                    </Button>
+                  </Box>
+                )}
+              </>
             )}
           </Container>
         </div>

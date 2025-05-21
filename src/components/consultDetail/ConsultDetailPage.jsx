@@ -19,7 +19,9 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  InputAdornment
+  InputAdornment,
+  Snackbar, // Import Snackbar for copy confirmation
+  Alert as MuiAlert // Import Alert for copy confirmation
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -33,114 +35,274 @@ import {
   Search as SearchIcon,
   SpeakerNotes as SpeakerNotesIcon,
   Close as CloseIcon,
-  Lock as LockIcon, // Add LockIcon
+  Lock as LockIcon,
   Share as ShareIcon, 
   ContentCopy as ContentCopyIcon,
   WhatsApp as WhatsAppIcon,
   Twitter as TwitterIcon,
   LinkedIn as LinkedInIcon,
-  Reddit as RedditIcon
+  Reddit as RedditIcon,
+  Check as CheckIcon, // Add CheckIcon for copy confirmation
 } from '@mui/icons-material';
-import { getAccessToken } from '../api'; // Assuming api.js is in the parent directory
-import Sidebar from '../sidebar'; // Assuming Sidebar is in the parent directory
+import { getAccessToken } from '../api';
+import Sidebar from '../sidebar';
 
 // Import sub-components (will be created in subsequent steps)
-import DoctorNoteDisplay from './DoctorNoteDisplay';
+import CollaborationView from './CollaborationView'; // Ensure this import exists
+import DoctorNoteDisplay from './DoctorNoteDisplay'; // Ensure this import exists
 import TranscriptView from './TranscriptView';
-import CollaborationView from './CollaborationView';
 import PatientProfileView from './PatientProfileView';
 import HealthGoalView from './HealthGoalView';
-import MetricsActionsView from './MetricsActionsView';
 
 const ConsultDetailPage = () => {
   const { publicId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { patientFullName, patientId } = location.state || {};
+  const {
+    patientFullName,
+    patientId,
+    collaborating_providers: navCollaboratingProviders,
+    // patient_profile_data should be part of location.state
+  } = location.state || {};
 
-  const [consultData, setConsultData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Add new state for medical reviews and pagination
+  const [medicalReviews, setMedicalReviews] = useState([]);
+  const [selectedReview, setSelectedReview] = useState(null);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [reviewsError, setReviewsError] = useState(null);
+  const [nextPageUrl, setNextPageUrl] = useState(null);
+  const [prevPageUrl, setPrevPageUrl] = useState(null);
+  const [currentReviewPage, setCurrentReviewPage] = useState(1);
+  const [totalReviewCount, setTotalReviewCount] = useState(0);
+
+  // Initialize consultData with values from location.state if available
+  const [consultData, setConsultData] = useState(() => {
+    const initialState = {
+      doctor_note: null,
+      public_doctor_note: null,
+      session_conversation: [],
+      patient_data: null, // This will hold patient_profile_data
+      collaborating_providers: navCollaboratingProviders || [],
+      provider_id: null,
+      id: publicId,
+    };
+    if (location.state) {
+      initialState.doctor_note = location.state.doctor_note || null;
+      initialState.public_doctor_note = location.state.public_doctor_note || null;
+      initialState.session_conversation = location.state.session_conversation || [];
+      // Correctly initialize patient_data from location.state.patient_profile_data
+      initialState.patient_data = location.state.patient_profile_data || null;
+      initialState.collaborating_providers = navCollaboratingProviders || location.state.collaborating_providers || [];
+      initialState.provider_id = location.state.provider_id || null;
+      initialState.id = publicId || location.state.id || null;
+    }
+    return initialState;
+  });
+
+  // When a selectedReview is set, update relevant parts of consultData
+  useEffect(() => {
+    if (selectedReview) {
+      setConsultData(prevData => ({
+        ...prevData, // Preserve existing data like patient_data, id
+        doctor_note: selectedReview.doctor_note,
+        public_doctor_note: selectedReview.public_doctor_note,
+        session_conversation: selectedReview.session_conversation || [],
+        collaborating_providers: (selectedReview.collaborating_providers && selectedReview.collaborating_providers.length > 0)
+          ? selectedReview.collaborating_providers
+          : prevData.collaborating_providers,
+        provider_id: selectedReview.provider_id || prevData.provider_id,
+        // patient_data should remain from the initial load or be explicitly updated if review has it
+        // For now, assuming patient_data is primarily from the main consult (location.state)
+      }));
+    } else {
+      // If selectedReview is cleared, revert to initial state from location.state or defaults
+      if (location.state) {
+        setConsultData(prevData => ({
+          ...prevData, // Keep existing patient_data unless it needs to be reset
+          doctor_note: location.state.doctor_note || null,
+          public_doctor_note: location.state.public_doctor_note || null,
+          session_conversation: location.state.session_conversation || [],
+          collaborating_providers: navCollaboratingProviders || location.state.collaborating_providers || [],
+          provider_id: location.state.provider_id || null,
+          id: publicId || location.state.id || null,
+          // Ensure patient_data is correctly sourced if not from selectedReview
+          patient_data: location.state.patient_profile_data || prevData.patient_data || null,
+        }));
+      } else {
+        // Fallback if no location.state (e.g. direct navigation)
+        // In this case, patient_data might need to be fetched or will remain null
+        setConsultData({
+          doctor_note: null,
+          public_doctor_note: null,
+          session_conversation: [],
+          patient_data: null, // Or fetch if necessary
+          collaborating_providers: navCollaboratingProviders || [],
+          provider_id: null,
+          id: publicId,
+        });
+      }
+    }
+  }, [selectedReview, publicId, location.state, navCollaboratingProviders]);
+
+  // This useEffect handles the case where location.state might update after initial render
+  // or if selectedReview is not immediately available.
+  useEffect(() => {
+    if (navCollaboratingProviders && navCollaboratingProviders.length > 0) {
+      setConsultData(prevData => ({
+        ...prevData,
+        collaborating_providers: navCollaboratingProviders,
+      }));
+    }
+    // Ensure patient_data is also set from location.state if not already present
+    if (location.state && location.state.patient_profile_data && !consultData.patient_data) {
+        setConsultData(prevData => ({
+            ...prevData,
+            patient_data: location.state.patient_profile_data,
+        }));
+    }
+  }, [navCollaboratingProviders, location.state, consultData.patient_data]);
+
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // Added for auth status
+  const [shareDialogOpen, setShareDialogOpen] = useState(false); // For share dialog
+  const [snackbarOpen, setSnackbarOpen] = useState(false); // For copy snackbar
+  const [snackbarMessage, setSnackbarMessage] = useState(''); // For copy snackbar message
+  const [currentProviderId, setCurrentProviderId] = useState(null); // State for current provider ID
+  const [loadingProviderId, setLoadingProviderId] = useState(true); // Loading state for provider ID
+
+  // Fetch the current provider ID from the API
+  useEffect(() => {
+    const fetchCurrentProviderId = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) {
+          console.error('No token available for provider ID fetch');
+          return;
+        }
+
+        const response = await fetch('https://health.prestigedelta.com/provider/', {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentProviderId(data.id);
+          console.log('Current provider ID fetched:', data.id);
+        } else {
+          console.error('Failed to fetch provider ID:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching provider ID:', error);
+      } finally {
+        setLoadingProviderId(false);
+      }
+    };
+
+    fetchCurrentProviderId();
+  }, []); // Removed isAuthenticated dependency
+
+  // Fetch medical reviews from API
+  useEffect(() => {
+    const fetchMedicalReviews = async (url = null) => {
+      if (!patientId) return;
+      
+      setLoadingReviews(true);
+      setReviewsError(null);
+      
+      try {
+        const token = await getAccessToken();
+        if (!token) {
+          throw new Error('Authentication required. Please log in again.');
+        }
+        
+        const endpoint = url || `https://health.prestigedelta.com/patient-consults/${patientId}/medical_reviews/?page=${currentReviewPage}`;
+        const response = await fetch(endpoint, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (!response.ok) {
+          const errorBody = await response.text();
+          throw new Error(`HTTP error! status: ${response.status}, body: ${errorBody}`);
+        }
+        
+        const data = await response.json();
+        
+        // Handle paginated response
+        setMedicalReviews(Array.isArray(data.results) ? data.results : []);
+        setNextPageUrl(data.next);
+        setPrevPageUrl(data.previous);
+        setTotalReviewCount(data.count || 0);
+        
+        // Set the first review as the default selected review if we have reviews and no review is selected yet
+        if (Array.isArray(data.results) && data.results.length > 0 && !selectedReview) {
+          setSelectedReview(data.results[0]);
+        }
+      } catch (e) {
+        console.error("Failed to fetch medical reviews:", e);
+        setReviewsError(e.message);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+    
+    fetchMedicalReviews();
+    // eslint-disable-next-line
+  }, [patientId, currentReviewPage]);
+
+  const handlePageChange = (direction) => {
+    if (direction === 'next' && nextPageUrl) {
+      setCurrentReviewPage((prev) => prev + 1);
+    } else if (direction === 'prev' && prevPageUrl) {
+      setCurrentReviewPage((prev) => Math.max(1, prev - 1));
+    }
+  };
 
   // State for sharing functionality
   const [showShareModal, setShowShareModal] = useState(false);
   const [anonymizedNoteForShare, setAnonymizedNoteForShare] = useState(null);
   const [anonymizingNote, setAnonymizingNote] = useState(false);
   const [anonymizeError, setAnonymizeError] = useState(null);
+  
+  // Add states for copy feedback
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
 
-  const fetchConsultDetails = useCallback(async (isBackground = false) => {
-    if (!isBackground) {
-      setLoading(true);
-    }
-    setError(null);
-    let localToken = null;
-    try {
-      localToken = await getAccessToken(); // Should return null/undefined if no token, not throw
+  // Remove fetchConsultDetails and useEffect for fetching, since we are using navigation state props only
 
-      const headers = { 'Content-Type': 'application/json' };
-      if (localToken) {
-        headers['Authorization'] = `Bearer ${localToken}`;
-      }
-
-      const response = await fetch(`https://health.prestigedelta.com/review-note/${publicId}/`, { headers });
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        if (!localToken && (response.status === 401 || response.status === 403)) {
-          setError(`Public access to this note is restricted or requires authentication. Status: ${response.status}`);
-          setIsAuthenticated(false);
-          setConsultData(null); // Clear potentially stale data
-          return; // Stop further processing
-        }
-        throw new Error(`HTTP error! status: ${response.status}, body: ${errorBody}`);
-      }
-      const data = await response.json();
-      setConsultData(data);
-      setIsAuthenticated(!!localToken); // Set auth status based on token presence for this successful fetch
-    } catch (e) {
-      console.error("Failed to fetch consultation details:", e);
-      // Preserve specific auth error, otherwise set general error
-      if (!error && !(e.message.startsWith("Public access to this note is restricted") || e.message.startsWith("HTTP error!"))) {
-        setError(e.message);
-      } else if (!error) {
-        setError(e.message);
-      }
-      // If an error occurred, isAuthenticated reflects the state *before* this failed fetch attempt if localToken was found.
-      // If localToken was null, it remains false.
-      // Consider resetting consultData if error is severe
-      // setConsultData(null); // Or keep stale data? For now, keep.
-    } finally {
-      if (!isBackground) {
-        setLoading(false);
-      }
-    }
-  }, [publicId]);
-
-  useEffect(() => {
-    fetchConsultDetails();
-  }, [fetchConsultDetails]);
-
-  const handleMessageSent = useCallback(() => {
-    // Fetch details in the background without setting loading state
-    fetchConsultDetails(true); 
-  }, [fetchConsultDetails]);
-
-  const handleNavigate = (path) => navigate(path);
-  const handleLogout = () => navigate('/login');
-  const handleTabChange = (event, newValue) => setActiveTab(newValue);
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+    // No error state to clear
+  };
+  
   const openTranscriptModal = () => setIsTranscriptModalOpen(true);
   const closeTranscriptModal = () => setIsTranscriptModalOpen(false);
-
+  const handleNavigate = (path) => navigate(path);
+  const handleLogout = () => navigate('/login');
   const handleOpenShareModal = async () => {
-    if (!publicId || !isAuthenticated) return;
+    if (!publicId) return;
     setAnonymizingNote(true);
     setAnonymizeError(null);
     setAnonymizedNoteForShare(null); // Clear previous note
+    setCopySuccess(false); // Reset copy success state
+    
     try {
+      // If we already have an anonymized note (public_doctor_note), use it
+      if (consultData.public_doctor_note) {
+        setAnonymizedNoteForShare(consultData.public_doctor_note);
+        setShareUrl(window.location.origin + `/shared-note/${publicId}`);
+        setShowShareModal(true);
+        setAnonymizingNote(false);
+        return;
+      }
+      
+      // Otherwise, call the API to generate a new anonymized note
       const token = await getAccessToken();
       if (!token) {
         throw new Error("Authentication required to anonymize and share note.");
@@ -170,6 +332,8 @@ const ConsultDetailPage = () => {
       const data = await response.json();
       if (data.public_doctor_note) {
         setAnonymizedNoteForShare(data.public_doctor_note);
+        // Generate a shareable URL - adjust this based on your actual sharing mechanism
+        setShareUrl(window.location.origin + `/shared-note/${publicId}`);
         setShowShareModal(true);
       } else {
         throw new Error("Anonymized note data is not in the expected format. Missing 'public_doctor_note' field.");
@@ -186,10 +350,23 @@ const ConsultDetailPage = () => {
 
   const handleCloseShareModal = () => {
     setShowShareModal(false);
+    setCopySuccess(false); // Reset copy success state
     // Keep anonymizedNoteForShare if you want to show stale data on quick reopen, or clear it.
     // setAnonymizedNoteForShare(null); 
     // Keep anonymizeError so user can see it if modal is re-opened quickly, or clear it:
     // setAnonymizeError(null); 
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopySuccess(true);
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setCopySuccess(false), 3000);
+    } catch (e) {
+      console.error("Failed to copy link:", e);
+      // You could set an error state here if you want to show an error message
+    }
   };
 
   const renderAnonymizedNotePreview = (note) => {
@@ -264,89 +441,64 @@ const ConsultDetailPage = () => {
   };
 
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Loading Consultation Details...</Typography>
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container sx={{ py: 4 }}>
-        <Alert severity="error">
-          Failed to load consultation details: {error}.
-          <Button onClick={fetchConsultDetails} sx={{ ml: 2 }} variant="outlined">Retry</Button>
-        </Alert>
-      </Container>
-    );
-  }
-
-  if (!consultData && !loading && !error) { // Added !loading && !error to avoid showing this during initial load or on error
-    return (
-      <Container sx={{ py: 4 }}>
-        <Alert severity="info">No consultation data found or public access is restricted.</Alert>
-      </Container>
-    );
-  }
-
+  // REMOVE loading, error states and related UI logic
   // Fallback for consultData if it's null after loading/error states are passed
   const {
     doctor_note,
     public_doctor_note,
     session_conversation,
-    collaboration_messages,
-    patient_data
-  } = consultData || {};
+    patient_data,
+    collaborating_providers,
+    provider_id
+  } = consultData;
 
   // Determine which note to display
-  const noteForDisplay = (isAuthenticated && doctor_note) ? doctor_note : public_doctor_note;
+  const noteForDisplay = doctor_note || public_doctor_note;
   
-  // Extract medical history, conditionally based on auth
-  const medical_history_data = patient_data?.medical_history?.medical_history || [];
-  const effectiveMedicalHistory = isAuthenticated ? medical_history_data : [];
+  // Extract collaborating_providers from navigation state, selectedReview, or fallback to empty array
+  // const collaboratingProviders =
+  //   consultData.collaborating_providers && consultData.collaborating_providers.length > 0
+  //     ? consultData.collaborating_providers
+  //     : (selectedReview && selectedReview.collaborating_providers && selectedReview.collaborating_providers.length > 0
+  //         ? selectedReview.collaborating_providers
+  //         : []);
 
-  // Use patientFullName from navigation state, fallback to API data if needed
-  const displayName = patientFullName || (patient_data?.profile?.demographics ? `${patient_data.profile.demographics.first_name} ${patient_data.profile.demographics.last_name}` : 'N/A');
-  const displayPatientId = patientId || consultData.id; // Use internal ID from navigation state or API
+  // Extract medical history from the reviews, not from navigation state
+  const effectiveMedicalHistory = medicalReviews || [];
+
+  // Use patientFullName and patientId from navigation state
+  const displayName = patientFullName || 'N/A';
+  const displayPatientId = patientId || consultData?.id; // Use internal ID from navigation state or API
 
   return (
     <div className="dashboard-container" style={{ display: 'flex' }}>
-      {isAuthenticated ? (
-        <Sidebar
-          onNavigate={handleNavigate}
-          onLogout={handleLogout}
-          onToggleSidebar={setIsSidebarMinimized}
-        />
-      ) : (
-        // Render nothing for the sidebar area or a minimal placeholder if needed
-        // This effectively removes the sidebar for unauthenticated users.
-        // The login/signup buttons will be in the AppBar.
-        null 
-      )}
+      <Sidebar
+        onNavigate={handleNavigate}
+        onLogout={handleLogout}
+        onToggleSidebar={setIsSidebarMinimized}
+      />
       <Box 
         component="main" 
         sx={{ 
           flexGrow: 1, 
           p: 0, 
-          marginLeft: isAuthenticated ? { 
-            xs: 0, 
-            sm: isSidebarMinimized ? '64px' : '250px' 
-          } : 0, // No margin if sidebar is not there
+          marginLeft: {
+            xs: 0, // Mobile screens - sidebar is overlay
+            sm: 0, // Small tablets - sidebar is overlay
+            md: 0, // Medium tablets - sidebar is overlay
+            lg: isSidebarMinimized ? '64px' : '250px' // Large screens (desktops) - static sidebar
+          },
           transition: 'margin-left 0.3s ease-in-out',
           backgroundColor: '#f4f6f8', // Light background for the page
           minHeight: '100vh',
           width: { xs: '100%', sm: 'auto' } // Full width on mobile
         }}
-      >        <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: 'white' }}>
+      >
+        <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: 'white' }}>
           <Toolbar sx={{ flexWrap: 'wrap', p: { xs: 1, sm: 2 } }}>
-            {isAuthenticated && (
             <IconButton edge="start" color="inherit" onClick={() => navigate(-1)} aria-label="back">
               <ArrowBackIcon />
             </IconButton>
-            )}
             <Typography 
               variant="h6" 
               component="div" 
@@ -355,7 +507,7 @@ const ConsultDetailPage = () => {
                 color: 'primary.main', 
                 fontWeight: 'bold',
                 fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                ml: isAuthenticated ? 1 : 0, // Adjust margin if back button is not present
+                ml: 1,
                 // Handle long names on mobile
                 whiteSpace: { xs: 'normal', sm: 'nowrap' },
                 overflow: 'hidden',
@@ -370,278 +522,510 @@ const ConsultDetailPage = () => {
                 Consultation: {displayName} (ID: {displayPatientId})
               </Box>
             </Typography>
-            {isAuthenticated ? (
-              <>
-                <Button
-                  variant="outlined"
-                  startIcon={<SpeakerNotesIcon />}
-                  onClick={openTranscriptModal}
-                  sx={{ 
-                    mr: { xs: 1, sm: 1 }, 
-                    ml: { xs: 1, sm: 0 },
-                    fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                    py: { xs: 0.5 },
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <Box sx={{ display: { xs: 'none', sm: 'inline' } }}>View Transcript</Box>
-                  <Box sx={{ display: { xs: 'inline', sm: 'none' } }}>Transcript</Box>
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<ShareIcon />}
-                  onClick={handleOpenShareModal}
-                  disabled={anonymizingNote}
-                  sx={{ 
-                    mr: { xs: 0, sm: 2 },
-                    fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                    py: { xs: 0.5 },
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <Box sx={{ display: { xs: 'none', sm: 'inline' } }}>{anonymizingNote ? 'Preparing...' : 'Share Note'}</Box>
-                  <Box sx={{ display: { xs: 'inline', sm: 'none' } }}>Share</Box>
-                </Button>
-              </>
-            ) : (
-              <Box>
-                <Button color="primary" variant="outlined" onClick={() => navigate('/login')} sx={{ mr: 1, fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>Login</Button>
-                <Button color="primary" variant="contained" onClick={() => navigate('/register')} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>Sign Up</Button>
-              </Box>
-            )}
           </Toolbar>
         </AppBar>
 
-        <Container maxWidth="xl" sx={{ py: 3 }}>
-          <Paper elevation={3} sx={{ borderRadius: 2, overflow: 'hidden' }}>            <Tabs
-              value={activeTab}
-              onChange={handleTabChange}
-              indicatorColor="primary"
-              textColor="primary"
-              variant="scrollable"
-              scrollButtons="auto"
-              allowScrollButtonsMobile
-              aria-label="consultation detail tabs"
-              sx={{ 
-                borderBottom: 1, 
-                borderColor: 'divider', 
-                backgroundColor: 'background.paper',
-                '& .MuiTab-root': { 
-                  minHeight: { xs: 48, sm: 'auto' },
-                  fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                  padding: { xs: '6px 12px', sm: '12px 16px' },
-                  minWidth: { xs: 'auto', sm: 90 }
-                }
-              }}
-            >
-              {/* Display only icons on mobile, text+icons on larger screens */}
-              <Tab 
-                label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Doctor's Note</Box>} 
-                icon={<AssignmentIcon sx={{ fontSize: { xs: '1.2rem', sm: '1.5rem' } }} />} 
-                iconPosition="start"
-              />
-              <Tab 
-                label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Medical Team</Box>} 
-                icon={<ChatIcon sx={{ fontSize: { xs: '1.2rem', sm: '1.5rem' } }} />} 
-                iconPosition="start"
-              />
-              <Tab 
-                label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Patient Profile</Box>} 
-                icon={<PersonIcon sx={{ fontSize: { xs: '1.2rem', sm: '1.5rem' } }} />} 
-                iconPosition="start"
-              />
-              <Tab 
-                label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Health Goals</Box>} 
-                icon={<TrackChangesIcon sx={{ fontSize: { xs: '1.2rem', sm: '1.5rem' } }} />} 
-                iconPosition="start"
-              />
-              <Tab 
-                label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Metrics & Actions</Box>} 
-                icon={<AssessmentIcon sx={{ fontSize: { xs: '1.2rem', sm: '1.5rem' } }} />} 
-                iconPosition="start"
-              />
-            </Tabs>            <Box sx={{ p: { xs: 2, md: 3 }, backgroundColor: 'white' }}>
-              {activeTab === 0 && (
-                consultData ? (
-                  <DoctorNoteDisplay 
-                    initialNote={noteForDisplay} 
-                    medicalHistory={Array.isArray(effectiveMedicalHistory) ? effectiveMedicalHistory : []}
-                    currentConsultId={consultData.id} // Assuming consultData.id is public
-                  />
-                ) : (
-                  !loading && !error && <Alert severity="info">Doctor's note is currently unavailable.</Alert>
-                )
-              )}
-              {activeTab === 1 && ( // Collaboration
-                !isAuthenticated ? <AuthWall navigate={navigate} /> :
-                (consultData && <CollaborationView messages={collaboration_messages || []} publicId={publicId} onMessageSent={handleMessageSent} />)
-              )}
-              {activeTab === 2 && ( // Patient Profile
-                !isAuthenticated ? <AuthWall navigate={navigate} /> :
-                (consultData?.patient_data?.profile && <PatientProfileView profile={patient_data.profile} />)
-              )}
-              {activeTab === 3 && ( // Health Goals
-                !isAuthenticated ? <AuthWall navigate={navigate} /> :
-                (consultData?.patient_data?.goals_with_details && <HealthGoalView goals={patient_data.goals_with_details} />)
-              )}
-              {activeTab === 4 && ( // Metrics & Actions
-                !isAuthenticated ? <AuthWall navigate={navigate} /> :
-                (consultData?.patient_data?.metrics_and_actions && <MetricsActionsView data={patient_data.metrics_and_actions} isSidebarMinimized={isSidebarMinimized} />)
-              )}
-            </Box>
-          </Paper>
-        </Container>        {/* Transcript Modal */}
-        <Dialog 
-          open={isTranscriptModalOpen} 
-          onClose={closeTranscriptModal} 
-          fullWidth 
+        <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 1, sm: 2, md: 3 } }}>
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            indicatorColor="primary"
+            textColor="primary"
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            aria-label="consultation detail tabs"
+            sx={{
+              mb: { xs: 1, sm: 3 },
+              borderBottom: 1,
+              borderColor: 'divider',
+              ml: 0,
+              pl: 0,
+              width: '100%',
+              maxWidth: '100%',
+              minHeight: 48,
+              '& .MuiTab-root': {
+                minWidth: 0,
+                px: { xs: 0.5, sm: 2 },
+                py: { xs: 0.5, sm: 1.5 },
+                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                flex: 1,
+                minHeight: 48,
+                maxWidth: { xs: 48, sm: 160 },
+              },
+              '& .MuiTabs-flexContainer': {
+                justifyContent: { xs: 'space-between', sm: 'flex-start' },
+              },
+            }}
+          >
+            <Tab icon={<AssignmentIcon />} iconPosition="start" label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Doctor's Note</Box>} />
+            <Tab icon={<ChatIcon />} iconPosition="start" label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Medical Team</Box>} />
+            <Tab icon={<PersonIcon />} iconPosition="start" label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Patient Profile</Box>} />
+            <Tab icon={<TrackChangesIcon />} iconPosition="start" label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Health Goals</Box>} />
+          </Tabs>
+
+          {/* Tab Panels */}
+          <Box>
+            {activeTab === 0 && (
+              <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2 }}>
+                {/* Doctor Note Actions - Moved to the top */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'flex-end', 
+                  mb: 3, 
+                  gap: 2, 
+                  alignItems: 'center',
+                  flexWrap: 'wrap'
+                }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SpeakerNotesIcon />}
+                    onClick={openTranscriptModal}
+                    sx={{ 
+                      fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                      py: 1,
+                      borderRadius: '8px',
+                      borderColor: 'primary.main',
+                      '&:hover': {
+                        borderColor: 'primary.dark',
+                        backgroundColor: 'rgba(25, 118, 210, 0.08)'
+                      }
+                    }}
+                  >
+                    <Box>View Transcript</Box>
+                  </Button>
+                  
+                  <Button
+                    variant="contained"
+                    startIcon={<ShareIcon />}
+                    onClick={handleOpenShareModal}
+                    disabled={anonymizingNote}
+                    sx={{ 
+                      fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                      py: 1,
+                      px: 2,
+                      borderRadius: '8px',
+                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                      boxShadow: '0 4px 10px rgba(33, 150, 243, 0.3)',
+                      '&:hover': {
+                        background: 'linear-gradient(45deg, #1976D2 30%, #0DA8E0 90%)',
+                        boxShadow: '0 6px 12px rgba(33, 150, 243, 0.4)'
+                      }
+                    }}
+                  >
+                    {anonymizingNote ? 'Preparing Note...' : 'Share Doctor Note'}
+                  </Button>
+                </Box>
+                
+                <DoctorNoteDisplay 
+                  initialNote={noteForDisplay}
+                  medicalHistory={effectiveMedicalHistory}
+                  currentConsultId={publicId}
+                />
+                
+                {/* Add review selection dropdown and pagination controls */}
+                <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: { xs: 'column', sm: 'row' }, 
+                    alignItems: { sm: 'center' }, 
+                    justifyContent: 'space-between', 
+                    gap: 2 
+                  }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                      Medical History (Showing {medicalReviews.length} of {totalReviewCount} reviews)
+                    </Typography>
+                    
+                    {loadingReviews ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <CircularProgress size={20} sx={{ mr: 1 }} />
+                        <Typography variant="body2">Loading reviews...</Typography>
+                      </Box>
+                    ) : reviewsError ? (
+                      <Typography variant="body2" color="error">
+                        Error: {reviewsError}
+                      </Typography>
+                    ) : (
+                      <Box sx={{ 
+                        display: 'flex', 
+                        flexDirection: { xs: 'column', sm: 'row' }, 
+                        alignItems: 'center', 
+                        gap: 2 
+                      }}>
+                        {/* Review selector dropdown */}
+                        <Box sx={{ minWidth: 200 }}>
+                          <select 
+                            value={selectedReview?.id || ''} 
+                            onChange={(e) => {
+                              const selectedId = Number(e.target.value);
+                              const review = medicalReviews.find(r => r.id === selectedId);
+                              if (review) {
+                                setSelectedReview(review);
+                              }
+                            }}
+                          >
+                            {medicalReviews.map(review => (
+                              <option key={review.id} value={review.id}>
+                                {new Date(review.created).toLocaleDateString()} - {review.assessment_diagnosis || 'Consultation'}
+                              </option>
+                            ))}
+                          </select>
+                        </Box>
+
+                        {/* Pagination controls */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Button 
+                            variant="outlined" 
+                            onClick={() => handlePageChange('prev')} 
+                            disabled={!prevPageUrl}
+                            size="small"
+                            sx={{ 
+                              minWidth: 0, 
+                              borderRadius: 1, 
+                              px: 2, 
+                              py: 1, 
+                              fontSize: '0.875rem',
+                              color: prevPageUrl ? 'primary.main' : 'text.disabled',
+                              borderColor: prevPageUrl ? 'primary.main' : 'divider',
+                              '&:hover': {
+                                borderColor: prevPageUrl ? 'primary.dark' : 'divider',
+                              },
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>Previous</Typography>
+                          </Button>
+                          <Button 
+                            variant="outlined" 
+                            onClick={() => handlePageChange('next')} 
+                            disabled={!nextPageUrl}
+                            size="small"
+                            sx={{ 
+                              minWidth: 0, 
+                              borderRadius: 1, 
+                              px: 2, 
+                              py: 1, 
+                              fontSize: '0.875rem',
+                              color: nextPageUrl ? 'primary.main' : 'text.disabled',
+                              borderColor: nextPageUrl ? 'primary.main' : 'divider',
+                              '&:hover': {
+                                borderColor: nextPageUrl ? 'primary.dark' : 'divider',
+                              },
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>Next</Typography>
+                          </Button>
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              </Paper>
+            )}
+            {activeTab === 1 && (
+              <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2 }}>
+                <CollaborationView 
+                  publicId={publicId}
+                  initialCollaboratingProviders={consultData.collaborating_providers || []}
+                  currentProviderId={currentProviderId} // Pass the fetched provider ID
+                  onProviderSelect={(provider) => {
+                    // Navigate to provider's profile or perform any action
+                    console.log("Selected provider:", provider);
+                  }}
+                />
+              </Paper>
+            )}
+            {activeTab === 2 && (
+              <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2 }}>
+                <PatientProfileView 
+                  profile={patient_data}
+                  patientId={patientId}
+                  onEdit={() => {
+                    // Handle edit action
+                    console.log("Edit patient profile");
+                  }}
+                />
+              </Paper>
+            )}
+            {activeTab === 3 && (
+              <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2 }}>                <HealthGoalView 
+                  patientId={patientId}
+                  publicConsultId={publicId}
+                  onGoalSelect={(goal) => {
+                    // Handle goal selection
+                    console.log("Selected goal:", goal);
+                  }}
+                />
+              </Paper>
+            )}
+          </Box>
+        </Container>
+
+        {/* Transcript modal - simplified and always show the note content */}
+        <Dialog
+          open={isTranscriptModalOpen}
+          onClose={closeTranscriptModal}
           maxWidth="md"
-          sx={{
-            '& .MuiDialog-paper': {
-              margin: { xs: '16px', sm: '32px' },
-              width: { xs: 'calc(100% - 32px)', sm: 'auto' },
-              maxHeight: { xs: 'calc(100% - 32px)', sm: 'calc(100% - 64px)' }
-            }
-          }}
+          fullWidth
+          sx={{ '& .MuiDialog-paper': { borderRadius: 2 } }}
         >
-          <DialogTitle sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            p: { xs: 2, sm: 3 },
-            fontSize: { xs: '1.1rem', sm: '1.25rem' }
-          }}>
-            Session Transcript
-            <IconButton onClick={closeTranscriptModal} size="small">
-              <CloseIcon />
-            </IconButton>
+          <DialogTitle onClose={closeTranscriptModal}>
+            <Typography variant="h6" sx={{ fontWeight: 'medium' }}>
+              Transcript and Doctor's Note
+            </Typography>
           </DialogTitle>
-          <DialogContent dividers sx={{ p: { xs: 1.5, sm: 2.5 } }}>
-            {isAuthenticated && session_conversation && session_conversation.length > 0 ? (
-              <TranscriptView transcript={session_conversation} />
+          <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
+            {session_conversation && session_conversation.length > 0 ? (
+              <Box sx={{ 
+                maxHeight: '60vh',
+                overflowY: 'auto'
+              }}>
+                {session_conversation.map((message, index) => (
+                  <Box 
+                    key={index} 
+                    sx={{ 
+                      mb: 2, 
+                      p: 2, 
+                      borderRadius: 1, 
+                      backgroundColor: index % 2 === 0 ? '#f5f5f5' : 'white',
+                      border: '1px solid #eee'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        {message.speaker ? message.speaker : 'User'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {message.time ? new Date(message.time).toLocaleString() : 'No timestamp'}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1">
+                      {message.content}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             ) : (
-              <Typography sx={{ textAlign: 'center', py: 2, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-                {!isAuthenticated ? "Transcript is available for authenticated users only. Please log in." : "No transcript available for this session."}
+              <Typography variant="body2" color="text.secondary">
+                No conversation transcript is available for this consultation.
               </Typography>
             )}
           </DialogContent>
-          <DialogActions sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <DialogActions sx={{ p: { xs: 1, sm: 2 } }}>
             <Button 
               onClick={closeTranscriptModal} 
-              variant="outlined" 
-              sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+              color="primary" 
+              variant="contained" 
+              size="large"
+              sx={{ borderRadius: 1, px: 3, py: 1.5 }}
             >
               Close
             </Button>
           </DialogActions>
         </Dialog>
-      </Box>
 
-      {/* Share Note Modal */}
-      <Dialog 
-        open={showShareModal} 
-        onClose={handleCloseShareModal} 
-        fullWidth 
-        maxWidth="md"
-        sx={{
-          '& .MuiDialog-paper': {
-            margin: { xs: '16px', sm: '32px' },
-            width: { xs: 'calc(100% - 32px)', sm: 'auto' },
-            maxHeight: { xs: 'calc(100% - 32px)', sm: 'calc(100% - 64px)' }
-          }
-        }}
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-          Share Anonymized Note
-          <IconButton onClick={handleCloseShareModal} size="small">
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers>
-          {anonymizingNote && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', my: 3 }}>
-              <CircularProgress size={24} sx={{mr: 1}} />
-              <Typography>Anonymizing note...</Typography>
+        {/* Share modal - with enhanced sharing options */}
+        <Dialog
+          open={showShareModal}
+          onClose={handleCloseShareModal}
+          maxWidth="md"
+          fullWidth
+          sx={{ '& .MuiDialog-paper': { borderRadius: 2 } }}
+        >
+          <DialogTitle sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            pb: 1 
+          }}>
+            <Typography variant="h6" sx={{ fontWeight: 'medium' }}>
+              Share Anonymized Note
+            </Typography>
+            <IconButton onClick={handleCloseShareModal} size="small">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          
+          <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
+            {anonymizingNote ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 3 }}>
+                <CircularProgress size={40} sx={{ mr: 2 }} />
+                <Typography variant="body1">Preparing anonymized note...</Typography>
+              </Box>
+            ) : anonymizeError ? (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {anonymizeError}
+              </Alert>
+            ) : anonymizedNoteForShare ? (
+              <Box sx={{ 
+                whiteSpace: 'pre-line', 
+                wordBreak: 'break-word',
+                maxHeight: '50vh',
+                overflowY: 'auto',
+                p: 1
+              }}>
+                {renderAnonymizedNotePreview(anonymizedNoteForShare)}
+              </Box>
+            ) : (
+              <Typography variant="body1" color="text.secondary" align="center" sx={{ p: 3 }}>
+                No anonymized note available to share.
+              </Typography>
+            )}
+          </DialogContent>
+          
+          <DialogActions sx={{ 
+            p: 3, 
+            display: 'flex', 
+            flexDirection: {xs: 'column', sm: 'row'}, 
+            justifyContent: 'space-between', 
+            alignItems: {xs: 'stretch', sm: 'center'},
+            gap: 2
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: 1.5, 
+              justifyContent: {xs: 'center', sm: 'flex-start'},
+              width: {xs: '100%', sm: 'auto'}
+            }}>
+              <Button 
+                variant="outlined"
+                startIcon={copySuccess ? <CheckIcon color="success" /> : <ContentCopyIcon />}
+                onClick={handleCopyLink}
+                disabled={!anonymizedNoteForShare || anonymizingNote}
+                color={copySuccess ? "success" : "primary"}
+                sx={{ 
+                  borderRadius: '20px',
+                  px: 2.5,
+                  py: 1,
+                  transition: 'all 0.3s ease',
+                  borderWidth: copySuccess ? 2 : 1,
+                  fontWeight: 'medium'
+                }}
+              >
+                {copySuccess ? "Copied to clipboard!" : "Copy Case Link"}
+              </Button>
+                <Button 
+                variant="outlined"
+                startIcon={<WhatsAppIcon />}
+                onClick={() => {
+                  const text = `📋 Valuable medical insights to review! Access this anonymized clinical case: ${shareUrl}`;
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                disabled={!anonymizedNoteForShare || anonymizingNote}
+                sx={{ 
+                  borderRadius: '20px',
+                  px: 2.5,
+                  py: 1,
+                  color: '#25D366',
+                  borderColor: '#25D366',
+                  '&:hover': {
+                    borderColor: '#25D366',
+                    backgroundColor: 'rgba(37, 211, 102, 0.08)',
+                  }
+                }}
+              >
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>WhatsApp</Box>
+              </Button>
+                <Button 
+                variant="outlined"
+                startIcon={<TwitterIcon />}
+                onClick={() => {
+                  const text = `📋 Sharing important medical insights from this clinical case. Healthcare professionals may find this valuable:`;
+                  window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                disabled={!anonymizedNoteForShare || anonymizingNote}
+                sx={{ 
+                  borderRadius: '20px',
+                  px: 2.5,
+                  py: 1,
+                  color: '#1DA1F2',
+                  borderColor: '#1DA1F2',
+                  '&:hover': {
+                    borderColor: '#1DA1F2',
+                    backgroundColor: 'rgba(29, 161, 242, 0.08)',
+                  }
+                }}
+              >
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>X</Box>
+              </Button>
+                <Button 
+                variant="outlined"
+                startIcon={<LinkedInIcon />}
+                onClick={() => {
+                  // LinkedIn doesn't support custom text in the share URL, but the URL will be shared
+                  window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank');
+                }}
+                disabled={!anonymizedNoteForShare || anonymizingNote}
+                sx={{ 
+                  borderRadius: '20px',
+                  px: 2.5,
+                  py: 1,
+                  color: '#0A66C2',
+                  borderColor: '#0A66C2',
+                  '&:hover': {
+                    borderColor: '#0A66C2',
+                    backgroundColor: 'rgba(10, 102, 194, 0.08)',
+                  }
+                }}
+              >
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>LinkedIn</Box>
+              </Button>
+                <Button 
+                variant="outlined"
+                startIcon={<RedditIcon />}
+                onClick={() => {
+                  window.open(`https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent('Clinical Case Study: Interesting Medical Insights for Healthcare Professionals')}`, '_blank');
+                }}
+                disabled={!anonymizedNoteForShare || anonymizingNote}
+                sx={{ 
+                  borderRadius: '20px',
+                  px: 2.5,
+                  py: 1,
+                  color: '#FF4500',
+                  borderColor: '#FF4500',
+                  '&:hover': {
+                    borderColor: '#FF4500',
+                    backgroundColor: 'rgba(255, 69, 0, 0.08)',
+                  }
+                }}
+              >
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Reddit</Box>
+              </Button>
             </Box>
-          )}
-          {anonymizeError && !anonymizingNote && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {anonymizeError}
-            </Alert>
-          )}
-          {!anonymizingNote && anonymizedNoteForShare && renderAnonymizedNotePreview(anonymizedNoteForShare)}
-        </DialogContent>
-        <DialogActions sx={{ p: 2, display: 'flex', flexDirection: {xs: 'column', sm: 'row'}, justifyContent: 'space-between', flexWrap:'wrap' }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: {xs: 2, sm: 0}, justifyContent: {xs: 'center', sm: 'flex-start'} }}>
+            
             <Button 
-              onClick={() => navigator.clipboard.writeText(window.location.href).then(() => alert('URL copied to clipboard!')).catch(err => alert('Failed to copy URL: ' + err))}
-              startIcon={<ContentCopyIcon />}
-              size="small"
-              disabled={!anonymizedNoteForShare || anonymizingNote || !!anonymizeError}
+              onClick={handleCloseShareModal} 
+              variant="contained" 
+              sx={{ 
+                borderRadius: '20px',
+                minWidth: {xs: '100%', sm: '120px'},
+                py: 1.2
+              }}
             >
-              Copy URL
+              Close
             </Button>
-            <Button 
-              onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent('Check out this anonymized medical note: ' + window.location.href)}`, '_blank')}
-              startIcon={<WhatsAppIcon />}
-              size="small"
-              disabled={!anonymizedNoteForShare || anonymizingNote || !!anonymizeError}
-            >
-              WhatsApp
-            </Button>
-            <Button 
-              onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=Check%20out%20this%20anonymized%20medical%20note:`, '_blank')}
-              startIcon={<TwitterIcon />}
-              size="small"
-              disabled={!anonymizedNoteForShare || anonymizingNote || !!anonymizeError}
-            >
-              X
-            </Button>
-            <Button 
-              onClick={() => window.open(`https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(window.location.href)}&title=Anonymized%20Medical%20Note&summary=Check%20out%20this%20anonymized%20medical%20note.`, '_blank')}
-              startIcon={<LinkedInIcon />}
-              size="small"
-              disabled={!anonymizedNoteForShare || anonymizingNote || !!anonymizeError}
-            >
-              LinkedIn
-            </Button>
-            <Button 
-              onClick={() => window.open(`https://www.reddit.com/submit?url=${encodeURIComponent(window.location.href)}&title=Anonymized%20Medical%20Note`, '_blank')}
-              startIcon={<RedditIcon />}
-              size="small"
-              disabled={!anonymizedNoteForShare || anonymizingNote || !!anonymizeError}
-            >
-              Reddit
-            </Button>
-          </Box>
-          <Button onClick={handleCloseShareModal} variant="outlined" size="small">Close</Button>
-        </DialogActions>
-      </Dialog>
+          </DialogActions>
+        </Dialog>
+        
+        {/* Snackbar for copy confirmation */}
+        <Snackbar 
+          open={copySuccess} 
+          autoHideDuration={3000} 
+          onClose={() => setCopySuccess(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <MuiAlert 
+            elevation={6} 
+            variant="filled" 
+            severity="success" 
+            sx={{ width: '100%' }}
+          >
+            Link copied to clipboard!
+          </MuiAlert>
+        </Snackbar>
+      </Box>
     </div>
   );
 };
-
-// Helper component for authentication wall
-const AuthWall = ({ navigate }) => (
-  <Box sx={{ 
-    textAlign: 'center', 
-    p: 3, 
-    display: 'flex', 
-    flexDirection: 'column', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    minHeight: '300px' // Ensure it takes some space
-  }}>
-    <LockIcon sx={{ fontSize: 40, mb: 2, color: 'text.secondary' }} />
-    <Typography variant="h6" gutterBottom>Authentication Required</Typography>
-    <Typography variant="body1" sx={{ mb: 3, color: 'text.secondary', maxWidth: '400px' }}>
-      To access this feature and more detailed information, please log in or create an account.
-    </Typography>
-    <Box>
-      <Button variant="contained" onClick={() => navigate('/login')} sx={{ mr: 1 }}>Login</Button>
-      <Button variant="outlined" onClick={() => navigate('/register')}>Sign Up</Button>
-    </Box>
-  </Box>
-);
 
 export default ConsultDetailPage;

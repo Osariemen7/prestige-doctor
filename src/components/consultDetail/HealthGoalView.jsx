@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -11,7 +11,10 @@ import {
   LinearProgress,
   Grid,
   useMediaQuery,
-  useTheme
+  useTheme,
+  CircularProgress,
+  Alert,
+  Button
 } from '@mui/material';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -20,6 +23,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import SpeakerNotesIcon from '@mui/icons-material/SpeakerNotes';
+import { getAccessToken } from '../api'; // Import for API access
 
 // Helper function to format date strings
 const formatDate = (dateString) => {
@@ -151,11 +155,44 @@ const ActionItem = ({ action, index }) => {
   );
 };
 
-const HealthGoalView = ({ goals }) => {
-  const goalsArray = Array.isArray(goals) ? goals : (goals ? [goals] : []);
+const HealthGoalView = ({ patientId, publicConsultId }) => {
+  // Get the patient_data.goals_with_details from the ConsultDetailPage's API response
   const theme = useTheme();
   
-  if (!goalsArray.length) {
+  // Get goals directly from parent component
+  const [goals, setGoals] = useState([]);
+  
+  // Get goal details from ConsultDetailPage's consultData
+  useEffect(() => {
+    const getGoalData = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        };
+        
+        // Get data from main endpoint
+        const response = await fetch(`https://health.prestigedelta.com/review-note/${publicConsultId}/`, { headers });
+        
+        if (!response.ok) throw new Error(`Failed to fetch data: ${response.status}`);
+        
+        const data = await response.json();
+        // Extract goals_with_details from the patient_data
+        const goalData = data?.patient_data?.goals_with_details;
+        
+        setGoals(goalData ? [goalData] : []);
+      } catch (error) {
+        console.error("Error fetching health goal data:", error);
+      }
+    };
+    
+    getGoalData();  }, [publicConsultId]);
+  
+  // Loading state
+  if (!goals || goals.length === 0) {
     return (
       <Paper elevation={2} sx={{ p: 3, textAlign: 'center', borderRadius: 2 }}>
         <TrackChangesIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
@@ -168,9 +205,8 @@ const HealthGoalView = ({ goals }) => {
       </Paper>
     );
   }
-
   // Since there's only one goal, we take the first element.
-  const goal = goalsArray[0];
+  const goal = goals[0];
 
   return (
     <Paper elevation={2} sx={{ p: { xs: 1.5, md: 3 }, borderRadius: 2 }}>

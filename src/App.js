@@ -31,6 +31,7 @@ import LandingPageNew from './components/LandingPageNew'; // Import the new land
 import PatientUpdate from './components/patientUpdate'; // New import
 import MyConsults from './components/MyConsults'; // Import the new component
 import ConsultDetailPage from './components/consultDetail/ConsultDetailPage'; // Import our new consultation detail page
+import SharedNotePage from './components/publicPage/SharedNotePage'; // Import the new SharedNotePage
 
 
 const App = () => {
@@ -65,6 +66,7 @@ const App = () => {
             <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
             <Route path="/patient-update" element={<PatientUpdate />} />            <Route path="/my-consults" element={<MyConsults />} /> {/* Add route for My Consults */}
             <Route path="/consult-details/:publicId" element={<ConsultDetailPage />} /> {/* Use our new ConsultDetailPage component */}
+            <Route path="/shared-note/:publicId" element={<SharedNotePage />} /> {/* Add route for Shared Note Page */}
           </Routes>
         </div>
       </ReviewProvider>

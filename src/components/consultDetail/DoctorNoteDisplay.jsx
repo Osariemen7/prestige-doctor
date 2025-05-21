@@ -197,7 +197,7 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId }) =>
               .filter(item => item.id !== currentConsultId && item.doctor_note) // Filter out current and notes without doctor_note
               .map((item) => (
                 <MenuItem key={item.id} value={item.id} sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
-                  {`Note from ${formatDate(item.follow_up || item.follow_up_at)} (ID: ${item.id}) - ${item.chief_complaint?.substring(0,30) || 'N/A'}...`}
+                  {`Note from ${formatDate(item.updated || item.created)} (ID: ${item.id}) - ${item.chief_complaint?.substring(0,30) || 'N/A'}...`}
                 </MenuItem>
               ))}
           </Select>
@@ -284,30 +284,90 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId }) =>
               Prescriptions ({prescription?.length || 0})
             </Typography>
           </Box>
-        </AccordionSummary>
-        <AccordionDetails sx={{ backgroundColor: 'grey.50', p: { xs: 1.5, sm: 2.5 } }}>
+        </AccordionSummary>        <AccordionDetails sx={{ backgroundColor: 'grey.50', p: { xs: 1.5, sm: 2.5 } }}>
           {prescription && prescription.length > 0 ? (
             <List disablePadding sx={{ overflowX: 'auto' }}>
               {prescription.map((p, index) => (
                 <ListItem key={index} disableGutters divider={index < prescription.length - 1} 
                   sx={{ 
-                    py: { xs: 1, sm: 1.5 },
-                    px: { xs: 1, sm: 2 },
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    alignItems: { xs: 'flex-start', sm: 'center' }
+                    py: { xs: 1.5, sm: 2 },
+                    px: { xs: 1.5, sm: 2.5 },
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.7)' : 'transparent',
+                    borderRadius: 1,
+                    '&:hover': {
+                      backgroundColor: 'rgba(33, 150, 243, 0.04)'
+                    },
+                    transition: 'background-color 0.2s ease'
                   }}
                 >
-                  <ListItemText 
-                    primary={`${p.medication_name} ${p.dosage}`}
-                    secondary={`Route: ${p.route} | Interval: ${p.interval} hours | End Date: ${formatDate(p.end_date)} | Instructions: ${p.instructions}`}
-                    primaryTypographyProps={{ fontSize: { xs: '0.9rem', sm: '1rem' }, fontWeight: 'medium' }}
-                    secondaryTypographyProps={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
-                  />
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: { xs: 'column', sm: 'row' }, 
+                    alignItems: { xs: 'flex-start', sm: 'center' },
+                    width: '100%',
+                    justifyContent: 'space-between',
+                    mb: 1
+                  }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium', fontSize: { xs: '0.95rem', sm: '1.1rem' }, color: 'primary.dark' }}>
+                      {p.medication_name} {p.dosage}
+                    </Typography>
+                    <Chip 
+                      size="small" 
+                      label={`Every ${p.interval}h`} 
+                      color="primary" 
+                      variant="outlined" 
+                      sx={{ fontWeight: 'medium', ml: { xs: 0, sm: 2 }, mt: { xs: 0.5, sm: 0 } }} 
+                    />
+                  </Box>
+                  
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Route:</Box>
+                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.route || 'N/A'}</Box>
+                      </Box>
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Start:</Box>
+                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.start_date ? formatDate(p.start_date) : 'N/A'}</Box>
+                      </Box>
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>End:</Box>
+                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.end_date ? formatDate(p.end_date) : 'N/A'}</Box>
+                      </Box>
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Status:</Box>
+                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.status || 'Active'}</Box>
+                      </Box>
+                    </Grid>
+                    
+                    <Grid item xs={12}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px', alignSelf: 'flex-start' }}>Notes:</Box>
+                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.instructions || 'No special instructions'}</Box>
+                      </Box>
+                    </Grid>
+                  </Grid>
                 </ListItem>
               ))}
             </List>
           ) : (
-            <Typography>No prescriptions in this note.</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#9e9e9e', marginBottom: '16px' }}>
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+              </svg>
+              <Typography variant="body1" color="text.secondary">No prescriptions in this note.</Typography>
+            </Box>
           )}
         </AccordionDetails>
       </Accordion>      <Accordion 
@@ -352,30 +412,110 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId }) =>
               Investigations Ordered ({investigation?.length || 0})
             </Typography>
           </Box>
-        </AccordionSummary>
-        <AccordionDetails sx={{ backgroundColor: 'grey.50', p: { xs: 1.5, sm: 2.5 } }}>
+        </AccordionSummary>        <AccordionDetails sx={{ backgroundColor: 'grey.50', p: { xs: 1.5, sm: 2.5 } }}>
           {investigation && investigation.length > 0 ? (
             <List disablePadding sx={{ overflowX: 'auto' }}>
               {investigation.map((inv, index) => (
                 <ListItem key={index} disableGutters divider={index < investigation.length - 1}
                   sx={{ 
-                    py: { xs: 1, sm: 1.5 },
-                    px: { xs: 1, sm: 2 },
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    alignItems: { xs: 'flex-start', sm: 'center' }
+                    py: { xs: 1.5, sm: 2 },
+                    px: { xs: 1.5, sm: 2.5 },
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.7)' : 'transparent',
+                    borderRadius: 1,
+                    mb: 1,
+                    '&:hover': {
+                      backgroundColor: 'rgba(3, 169, 244, 0.04)'
+                    },
+                    transition: 'background-color 0.2s ease'
                   }}
                 >
-                  <ListItemText 
-                    primary={inv.test_type}
-                    secondary={`Reason: ${inv.reason} | Scheduled: ${formatDate(inv.scheduled_time)} | Instructions: ${inv.additional_instructions}`}
-                    primaryTypographyProps={{ fontSize: { xs: '0.9rem', sm: '1rem' }, fontWeight: 'medium' }}
-                    secondaryTypographyProps={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
-                  />
+                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1.5 }}>
+                    <Typography variant="subtitle1" sx={{ 
+                      fontWeight: 'medium', 
+                      fontSize: { xs: '0.95rem', sm: '1.1rem' }, 
+                      color: 'info.dark',
+                      mr: 2,
+                      flex: '1 1 auto' 
+                    }}>
+                      {inv.test_type}
+                    </Typography>
+                    {inv.scheduled_time && (
+                      <Chip 
+                        size="small" 
+                        label={`Scheduled: ${formatDate(inv.scheduled_time)}`} 
+                        color="info" 
+                        variant="outlined" 
+                        sx={{ fontWeight: 'medium' }} 
+                      />
+                    )}
+                  </Box>
+                  
+                  <Box sx={{ width: '100%' }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'flex-start',
+                      mb: 1.5
+                    }}>
+                      <Box component="span" sx={{ 
+                        color: 'text.secondary', 
+                        fontSize: '0.875rem', 
+                        mr: 1, 
+                        minWidth: { xs: '60px', sm: '80px' },
+                        alignSelf: 'flex-start'
+                      }}>
+                        Reason:
+                      </Box>
+                      <Box component="span" sx={{ 
+                        fontWeight: 'medium', 
+                        fontSize: '0.875rem',
+                        flex: '1 1 auto'
+                      }}>
+                        {inv.reason || 'Not specified'}
+                      </Box>
+                    </Box>
+                    
+                    {inv.additional_instructions && (
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'flex-start'
+                      }}>
+                        <Box component="span" sx={{ 
+                          color: 'text.secondary', 
+                          fontSize: '0.875rem', 
+                          mr: 1, 
+                          minWidth: { xs: '60px', sm: '80px' },
+                          alignSelf: 'flex-start'
+                        }}>
+                          Instructions:
+                        </Box>
+                        <Box component="span" sx={{ 
+                          fontWeight: 'medium', 
+                          fontSize: '0.875rem',
+                          flex: '1 1 auto',
+                          p: 1,
+                          backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                          borderRadius: 1,
+                          borderLeft: '3px solid',
+                          borderLeftColor: 'info.main'
+                        }}>
+                          {inv.additional_instructions}
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
                 </ListItem>
               ))}
             </List>
           ) : (
-            <Typography>No investigations ordered in this note.</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#9e9e9e', marginBottom: '16px' }}>
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </svg>
+              <Typography variant="body1" color="text.secondary">No investigations ordered in this note.</Typography>
+            </Box>
           )}
         </AccordionDetails>
       </Accordion>

@@ -1,34 +1,27 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Grid,
-  Avatar,
-  Chip,
-  Divider,
-  Card,
-  CardContent,
-  CardHeader,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  useMediaQuery,
-  useTheme
+import { 
+  useTheme, useMediaQuery, 
+  Box, Typography, Grid,
+  Card, CardHeader, CardContent,
+  List, ListItem, ListItemIcon, ListItemText,
+  Divider, Avatar, Chip
 } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import CakeIcon from '@mui/icons-material/Cake';
-import WcIcon from '@mui/icons-material/Wc';
-import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
-import EmailIcon from '@mui/icons-material/Email';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import MedicalInformationIcon from '@mui/icons-material/MedicalInformation';
-import HealingIcon from '@mui/icons-material/Healing';
-import SmokingRoomsIcon from '@mui/icons-material/SmokingRooms';
-import NoDrinksIcon from '@mui/icons-material/NoDrinks'; // Changed from NoSmoking to NoDrinks
-import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi'; // For activity level
-import FamilyRestroomIcon from '@mui/icons-material/FamilyRestroom';
+import {
+  Person as PersonIcon,
+  Cake as CakeIcon,
+  Wc as GenderIcon,
+  Phone as PhoneIcon,
+  LocationOn as LocationIcon,
+  Bloodtype as BloodtypeIcon,
+  MedicalServices as MedicalIcon,
+  Medication as MedicationIcon,
+  Warning as WarningIcon,
+  DirectionsRun as ActivityIcon,
+  Restaurant as DietIcon,
+  Nightlight as SleepIcon,
+  Height as HeightIcon,
+  Monitor as MonitorIcon
+} from '@mui/icons-material';
 
 // Helper function to format date strings
 const formatDate = (dateString) => {
@@ -37,9 +30,10 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
     });
   } catch (error) {
+    console.error("Error formatting date:", dateString, error);
     return 'Invalid Date';
   }
 };
@@ -88,211 +82,217 @@ const PatientProfileView = ({ profile }) => {
 
   if (!profile) {
     return (
-      <Paper elevation={2} sx={{ p: 3, textAlign: 'center', borderRadius: 2 }}>
-        <PersonIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-        <Typography variant="h6" color="text.secondary">
-          Patient Profile Not Available
-        </Typography>
-      </Paper>
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="h6" color="text.secondary">No patient data available</Typography>
+      </Box>
     );
   }
 
-  const { demographics, contact, address, medical_conditions, allergies, medications, lifestyle, family_history } = profile;
+  console.log("Profile data received:", profile); // Add this to debug
+
+  // Extract all relevant sections from the profile data
+  const { 
+    demographics = {}, 
+    genetic_proxies = {}, 
+    environment = {},
+    lifestyle = {},
+    clinical_status = {}
+  } = profile;
 
   const fullName = demographics ? `${demographics.first_name || ''} ${demographics.last_name || ''}`.trim() : 'N/A';
+  
+  // Convert API structure to the component's expected format
+  const medications = clinical_status?.medications || [];
+  const chronic_conditions = clinical_status?.chronic_conditions || [];
+  const blood_type = genetic_proxies?.blood_type || 'N/A';
+  const family_history = genetic_proxies?.family_history || [];
+  const biometrics = lifestyle?.biometrics || {};
+  const environmental_factors = environment?.environmental_risks || [];
 
   return (
-    <Box>
-      <Paper elevation={3} sx={{ 
-        p: { xs: 2, md: 3 }, 
-        borderRadius: 2, 
+    <Box sx={{ width: '100%' }}>
+      <Typography variant="h5" sx={{ 
         mb: 3, 
-        display: 'flex', 
-        alignItems: 'center', 
-        flexDirection: { xs: 'column', sm: 'row' },
-        textAlign: { xs: 'center', sm: 'left' }
+        fontWeight: 'bold',
+        color: 'primary.main',
+        fontSize: { xs: '1.25rem', sm: '1.5rem' }
       }}>
-        <Avatar sx={{ 
-          width: { xs: 70, sm: 80 }, 
-          height: { xs: 70, sm: 80 }, 
-          mr: { sm: 3 }, 
-          mb: { xs: 2, sm: 0 }, 
-          bgcolor: 'primary.main', 
-          fontSize: { xs: '1.8rem', sm: '2.5rem' } 
-        }}>
-          {fullName !== 'N/A' ? `${demographics.first_name[0]}${demographics.last_name[0]}` : <PersonIcon sx={{ fontSize: { xs: '2rem', sm: '2.5rem' } }}/>
-          }
-        </Avatar>
-        <Box>
-          <Typography variant="h4" component="div" sx={{ 
-            fontWeight: 'bold',
-            fontSize: { xs: '1.5rem', sm: '2.125rem' }
-          }}>
-            {fullName}
-          </Typography>
-          {demographics?.date_of_birth && (
-            <Typography variant="subtitle1" color="text.secondary" sx={{ 
-              fontSize: { xs: '0.875rem', sm: '1rem' }
-            }}>
-              Born: {formatDate(demographics.date_of_birth)}
-            </Typography>
-          )}
-        </Box>
-      </Paper>
-
-      <Grid container spacing={{ xs: 2, md: 3 }}>
-        <Grid item xs={12} sm={6} lg={4}>
-          <SectionCard title="Demographics" icon={<PersonIcon color="primary" />}>
-            <List dense>
-              <ProfileItem icon={<CakeIcon fontSize="small" />} label="Date of Birth" value={formatDate(demographics?.date_of_birth)} />
-              <ProfileItem icon={<WcIcon fontSize="small" />} label="Gender" value={demographics?.gender} />
-              <ProfileItem icon={<PersonIcon fontSize="small" />} label="Preferred Language" value={demographics?.preferred_language} />
-            </List>
-          </SectionCard>
-        </Grid>
-
-        <Grid item xs={12} sm={6} lg={4}>
-          <SectionCard title="Contact Information" icon={<ContactPhoneIcon color="primary" />}>
-            <List dense>
-              <ProfileItem icon={<EmailIcon fontSize="small" />} label="Email" value={contact?.email} />
-              <ProfileItem icon={<ContactPhoneIcon fontSize="small" />} label="Phone" value={contact?.phone_number} />
-              {address && (
-                <ProfileItem 
-                  icon={<LocationOnIcon fontSize="small" />} 
-                  label="Address" 
-                  value={`${address.street || ''}, ${address.city || ''}, ${address.state || ''} ${address.zip_code || ''}, ${address.country || ''}`.replace(/ ,|^, |, $/g, '') || 'N/A'}
-                />
-              )}
-            </List>
-          </SectionCard>
-        </Grid>
-
-        <Grid item xs={12} sm={6} lg={4}>
-          <SectionCard title="Lifestyle" icon={<SportsKabaddiIcon color="primary" />}>
-            <List dense>              <ProfileItem 
-                icon={lifestyle?.smoking_status === 'non_smoker' ? <NoDrinksIcon fontSize="small" /> : <SmokingRoomsIcon fontSize="small" />} 
-                label="Smoking Status" 
-                value={lifestyle?.smoking_status}
+        Patient Profile: {fullName}
+      </Typography>
+    
+      <Grid container spacing={3}>
+        {/* Personal Information */}
+        <Grid item xs={12} md={6}>
+          <SectionCard 
+            title="Personal Information" 
+            icon={<PersonIcon color="primary" />}
+          >
+            <List disablePadding>
+              <ProfileItem 
+                icon={<PersonIcon fontSize="small" />} 
+                label="Full Name" 
+                value={fullName} 
               />
-              <ProfileItem label="Alcohol Consumption" value={lifestyle?.alcohol_consumption} />
-              <ProfileItem label="Activity Level" value={lifestyle?.activity_level} />
-              <ProfileItem label="Dietary Habits" value={lifestyle?.dietary_habits} />
+              <ProfileItem 
+                icon={<CakeIcon fontSize="small" />} 
+                label="Date of Birth" 
+                value={formatDate(demographics.date_of_birth)} 
+              />
+              <ProfileItem 
+                icon={<GenderIcon fontSize="small" />} 
+                label="Gender" 
+                value={demographics.gender ? demographics.gender.charAt(0).toUpperCase() + demographics.gender.slice(1) : 'N/A'} 
+              />
+              <ProfileItem 
+                icon={<PhoneIcon fontSize="small" />} 
+                label="Phone Number" 
+                value={demographics.phone_number} 
+              />
+              <ProfileItem 
+                icon={<LocationIcon fontSize="small" />} 
+                label="Country" 
+                value={demographics.location?.country_code || 'N/A'} 
+              />
+              <ProfileItem 
+                icon={<BloodtypeIcon fontSize="small" />} 
+                label="Blood Type" 
+                value={blood_type} 
+              />
             </List>
           </SectionCard>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
-          <SectionCard title="Medical Conditions" icon={<MedicalInformationIcon color="primary" />}>
-            {medical_conditions && medical_conditions.length > 0 ? (
-              <List dense sx={{ 
-                maxHeight: { xs: '200px', sm: '250px' },
-                overflowY: 'auto'
-              }}>
-                {medical_conditions.map((condition, index) => (
-                  <ListItem key={index} sx={{ py: { xs: 0.5, sm: 1 } }}>
-                    <ListItemText 
-                      primary={condition.condition_name}
-                      secondary={`Diagnosed: ${formatDate(condition.diagnosis_date)} - Severity: ${condition.severity || 'N/A'}`}
-                      primaryTypographyProps={{ 
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                        fontWeight: 'medium' 
-                      }}
-                      secondaryTypographyProps={{ 
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' } 
-                      }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>No significant medical conditions reported.</Typography>}
+        {/* Biometrics */}
+        <Grid item xs={12} md={6}>
+          <SectionCard 
+            title="Biometrics" 
+            icon={<HeightIcon color="primary" />}
+          >
+            <List disablePadding>
+              <ProfileItem 
+                icon={<HeightIcon fontSize="small" />} 
+                label="Height" 
+                value={biometrics.height ? `${biometrics.height} cm` : 'N/A'} 
+              />
+              <ProfileItem 
+                icon={<MonitorIcon fontSize="small" />} 
+                label="Weight" 
+                value={biometrics.weight ? `${biometrics.weight} kg` : 'N/A'} 
+              />
+              <ProfileItem 
+                icon={<ActivityIcon fontSize="small" />} 
+                label="BMI" 
+                value={biometrics.bmi || 'N/A'} 
+              />
+            </List>
           </SectionCard>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
-          <SectionCard title="Allergies" icon={<HealingIcon color="primary" />}>
-            {allergies && allergies.length > 0 ? (
-              <List dense sx={{ 
-                maxHeight: { xs: '200px', sm: '250px' },
-                overflowY: 'auto'
-              }}>
-                {allergies.map((allergy, index) => (
-                  <ListItem key={index} sx={{ py: { xs: 0.5, sm: 1 } }}>
-                    <ListItemText 
-                      primary={allergy.allergen}
-                      secondary={`Reaction: ${allergy.reaction || 'N/A'} - Severity: ${allergy.severity || 'N/A'}`}
-                      primaryTypographyProps={{ 
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                        fontWeight: 'medium'  
-                      }}
-                      secondaryTypographyProps={{ 
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' } 
-                      }}
-                    />
-                  </ListItem>
+        {/* Medical Conditions */}
+        <Grid item xs={12} md={6}>
+          <SectionCard 
+            title="Medical Conditions" 
+            icon={<MedicalIcon color="primary" />}
+          >
+            {chronic_conditions.length > 0 ? (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {chronic_conditions.map((condition, index) => (
+                  <Chip 
+                    key={index}
+                    label={condition} 
+                    color="primary" 
+                    variant="outlined" 
+                    size={isMobile ? "small" : "medium"}
+                  />
                 ))}
-              </List>
-            ) : <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>No known allergies.</Typography>}
-          </SectionCard>
-        </Grid>
-        
-        <Grid item xs={12}>
-          <SectionCard title="Current Medications" icon={<HealingIcon color="primary" />}>
-            {medications && medications.length > 0 ? (
-              <List dense sx={{ 
-                maxHeight: { xs: 'none', md: '300px' },
-                overflowY: { xs: 'visible', md: 'auto' }
-              }}>
-                {medications.map((med, index) => (
-                  <ListItem key={index} sx={{ 
-                    py: { xs: 0.5, sm: 1 },
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    alignItems: { xs: 'flex-start', sm: 'center' },
-                    mb: { xs: 1, sm: 0 }
-                  }}>
-                    <ListItemText 
-                      primary={`${med.medication_name} ${med.dosage}`}
-                      secondary={`Route: ${med.route} | Frequency: ${med.frequency} | Started: ${formatDate(med.start_date)}`}
-                      primaryTypographyProps={{ 
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                        fontWeight: 'medium' 
-                      }}
-                      secondaryTypographyProps={{ 
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                        display: 'block', // Ensure secondary text wraps properly on mobile
-                        mt: { xs: 0.5, sm: 0 }
-                      }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>No current medications reported.</Typography>}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">No medical conditions recorded</Typography>
+            )}
           </SectionCard>
         </Grid>
 
-        <Grid item xs={12}>
-          <SectionCard title="Family History" icon={<FamilyRestroomIcon color="primary" />}>
-            {family_history && family_history.length > 0 ? (
-              <List dense sx={{ 
-                maxHeight: { xs: 'none', md: '300px' },
-                overflowY: { xs: 'visible', md: 'auto' }
-              }}>
+        {/* Medications */}
+        <Grid item xs={12} md={6}>
+          <SectionCard 
+            title="Medications" 
+            icon={<MedicationIcon color="primary" />}
+          >
+            {medications.length > 0 ? (
+              <List disablePadding>
+                {medications.map((medication, index) => (
+                  <ListItem key={index} sx={{ py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 30 }}>
+                      <MedicationIcon fontSize="small" color="primary" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={medication} 
+                      primaryTypographyProps={{ 
+                        fontSize: { xs: '0.875rem', sm: '1rem' } 
+                      }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">No medications recorded</Typography>
+            )}
+          </SectionCard>
+        </Grid>
+
+        {/* Environmental Factors */}
+        <Grid item xs={12} md={6}>
+          <SectionCard 
+            title="Environmental Factors" 
+            icon={<WarningIcon color="primary" />}
+          >
+            {environmental_factors.length > 0 ? (
+              <List disablePadding>
+                {environmental_factors.map((factor, index) => (
+                  <ListItem key={index} sx={{ py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 30 }}>
+                      <WarningIcon fontSize="small" color="warning" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={factor} 
+                      primaryTypographyProps={{ 
+                        fontSize: { xs: '0.875rem', sm: '1rem' } 
+                      }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">No environmental factors recorded</Typography>
+            )}
+          </SectionCard>
+        </Grid>
+
+        {/* Family History */}
+        <Grid item xs={12} md={6}>
+          <SectionCard 
+            title="Family History" 
+            icon={<PersonIcon color="primary" />}
+          >
+            {family_history.length > 0 ? (
+              <List disablePadding>
                 {family_history.map((item, index) => (
-                  <ListItem key={index} sx={{ py: { xs: 0.5, sm: 1 } }}>
+                  <ListItem key={index} sx={{ py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 30 }}>
+                      <PersonIcon fontSize="small" color="primary" />
+                    </ListItemIcon>
                     <ListItemText 
-                      primary={`${item.condition} (${item.relationship})`}
-                      secondary={`Notes: ${item.notes || 'N/A'}`}
+                      primary={item} 
                       primaryTypographyProps={{ 
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                        fontWeight: 'medium' 
-                      }}
-                      secondaryTypographyProps={{ 
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' } 
+                        fontSize: { xs: '0.875rem', sm: '1rem' } 
                       }}
                     />
                   </ListItem>
                 ))}
               </List>
-            ) : <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>No family history reported.</Typography>}
+            ) : (
+              <Typography variant="body2" color="text.secondary">No family history recorded</Typography>
+            )}
           </SectionCard>
         </Grid>
       </Grid>
