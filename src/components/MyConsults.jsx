@@ -13,11 +13,20 @@ import {
   Alert,
   Chip,
   Tooltip,
-  Paper
+  Paper,
+  TextField,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
 import AssignmentIcon from '@mui/icons-material/Assignment'; // Icon for the page title
+import SearchIcon from '@mui/icons-material/Search';
+import AddIcon from '@mui/icons-material/Add';
+import ClearIcon from '@mui/icons-material/Clear';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 import { getAccessToken } from './api';
 import Sidebar from './sidebar';
+import AddPatientModalMui from './AddPatientModalMui';
 
 // Helper function to format date
 const formatDate = (dateString) => {
@@ -73,6 +82,10 @@ const MyConsults = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10); // Default page size, adjust if needed
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredConsults, setFilteredConsults] = useState([]);
+  const [isAddPatientModalOpen, setIsAddPatientModalOpen] = useState(false);
+  const [addPatientLoading, setAddPatientLoading] = useState(false);
   const navigate = useNavigate();
 
   // Sidebar navigation handler
@@ -84,6 +97,36 @@ const MyConsults = () => {
   const handleLogout = () => {
     // Clear tokens, redirect, etc. (implement as needed)
     navigate('/login');
+  };
+
+  // Define handleAddPatientAPI within the component scope
+  const handleAddPatientAPI = async (patientData, callbackResetForm) => {
+    setAddPatientLoading(true);
+    console.log("Adding patient:", patientData);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    // alert('Patient added (simulated)!');
+    // In a real app, you would make an API call here:
+    // try {
+    //   const response = await fetch('/api/patients', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify(patientData),
+    //   });
+    //   if (!response.ok) throw new Error('Failed to add patient');
+    //   const newPatient = await response.json();
+    //   // Optionally, refresh consults list or navigate
+    //   // toast({ title: "Patient added successfully!", status: "success" }); 
+    //   callbackResetForm(); // Reset the form in the modal
+    //   setIsAddPatientModalOpen(false); // Close the modal
+    // } catch (error) {
+    //   console.error("Error adding patient:", error);
+    //   // toast({ title: "Error adding patient", description: error.message, status: "error" });
+    //   // Potentially, do not reset form or close modal if error is recoverable by user
+    // }
+    setAddPatientLoading(false);
+    callbackResetForm(); // Example: reset form even on simulated success
+    setIsAddPatientModalOpen(false); // Example: close modal
   };
 
   useEffect(() => {
@@ -137,6 +180,21 @@ const MyConsults = () => {
     }
   };
 
+  // Search functionality
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredConsults(consults);
+    } else {
+      const lowercasedFilter = searchTerm.toLowerCase();
+      setFilteredConsults(
+        consults.filter((consult) =>
+          consult.patient_name?.toLowerCase().includes(lowercasedFilter) ||
+          consult.most_recent_review_chief_complaint?.toLowerCase().includes(lowercasedFilter)
+        )
+      );
+    }
+  }, [searchTerm, consults]);
+
   // Loading and error states remain unchanged
   if (loading) {
     return (
@@ -188,23 +246,109 @@ const MyConsults = () => {
       <div className={`${isSidebarMinimized ? 'ml-16 md:ml-16' : 'ml-0 md:ml-64'} flex-1 transition-all duration-300`}>
         <div className="min-h-screen bg-gray-50 p-6">
           <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, px: { xs: 2, md: 3 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: { xs: 2, md: 4 } }}>
-              <AssignmentIcon color="primary" sx={{ fontSize: { xs: 30, md: 40 }, mr: 1.5 }} />
-              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                My Consultations
-              </Typography>
-            </Box>
-            {consults.length === 0 ? (
-              <Paper elevation={3} sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary">No consultations found.</Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-                  There are currently no consultations to display.
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 2, md: 4 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <AssignmentIcon color="primary" sx={{ fontSize: { xs: 30, md: 40 }, mr: 1.5 }} />
+                <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                  My Consultations
                 </Typography>
+              </Box>
+              {/* ACTIONS BOX - container for Search TextField and Add Patient Button */}
+              <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' }, // Stack on xs, row on sm+
+                alignItems: { xs: 'stretch', sm: 'center' }, // Stretch items in column, center in row
+                gap: 2, // Spacing between TextField and Button
+                width: { xs: '100%', md: 'auto' } // Full width on xs and sm if parent stacks, else auto for md+
+                                                // Adjusted to md: 'auto' to allow more space for search on sm if parent is row
+              }}>
+                <TextField
+                  variant="outlined"
+                  placeholder="Search by patient name or complaint"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  sx={{
+                    flexGrow: { sm: 1 }, // Grow on sm+ when in a row
+                    width: { xs: '100%', sm: 'auto' }, // Full width on xs
+                    borderRadius: 2,
+                    // Removed mr: 2, gap on parent Box handles spacing
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchTerm && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="clear search"
+                          onClick={() => setSearchTerm('')}
+                          edge="end"
+                        >
+                          <ClearIcon color="action" />
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setIsAddPatientModalOpen(true)} // Changed to open modal
+                  // disabled // Remove or manage disabled state based on your logic
+                  sx={{
+                    py: 1.5,
+                    px: 3,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 'medium',
+                    width: { xs: '100%', sm: 'auto' } // Full width on xs
+                  }}
+                >
+                  Add Patient
+                </Button>
+              </Box>
+            </Box>
+            {filteredConsults.length === 0 && searchTerm.trim() === '' ? (
+              <Paper elevation={3} sx={{ p: { xs: 3, md: 6 }, textAlign: 'center', mt: 4 }}>
+                <AssignmentIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
+                <Typography variant="h5" color="text.secondary" sx={{ mb: 1, fontWeight: 'medium' }}>
+                  No Consultations Yet
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                  Start by adding a new patient to see their consultation details here.
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => navigate('/new-patient-form')}
+                  sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 'medium', py: 1, px: 3 }}
+                >
+                  Add New Patient
+                </Button>
+              </Paper>
+            ) : filteredConsults.length === 0 && searchTerm.trim() !== '' ? (
+              <Paper elevation={3} sx={{ p: 3, textAlign: 'center', mt: 4 }}>
+                <SearchIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  No consultations found for "{searchTerm}".
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+                  Try a different search term or clear the search.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  onClick={() => setSearchTerm('')}
+                  sx={{ mt: 2, borderRadius: 2, textTransform: 'none' }}
+                >
+                  Clear Search
+                </Button>
               </Paper>
             ) : (
               <>
                 <Grid container spacing={{ xs: 2, md: 3 }}>
-                  {consults.map((consult) => {
+                  {filteredConsults.map((consult) => {
                     const hasMedicalHistory = Array.isArray(consult.medical_history) && consult.medical_history.length > 0;
 
                     return (
@@ -307,6 +451,12 @@ const MyConsults = () => {
           </Container>
         </div>
       </div>
+      <AddPatientModalMui
+        isOpen={isAddPatientModalOpen}
+        onClose={() => setIsAddPatientModalOpen(false)}
+        onAddPatient={handleAddPatientAPI} // Now correctly references the function
+        isLoading={addPatientLoading}
+      />
     </div>
   );
 };

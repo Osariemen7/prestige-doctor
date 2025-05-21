@@ -50,7 +50,6 @@ import {
     DrawerOverlay,
     DrawerContent,
     DrawerCloseButton,
-    keyframes,
     Icon,
     useMediaQuery,
     Popover,
@@ -70,7 +69,7 @@ import Chat from './chatVoice';
 import PatientProfile from './write';
 import { ErrorBoundary } from 'react-error-boundary';
 import { AgoraRTC } from 'agora-rtc-sdk-ng';
-
+import { keyframes } from '@emotion/react';
 
 // Animation for recording indicator
 const pulseAnimation = keyframes`

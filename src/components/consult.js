@@ -19,7 +19,6 @@ import {
   Tooltip,
   Badge,
   Input,
-  keyframes,
   VStack,
   Modal,
   ModalOverlay,
@@ -53,6 +52,7 @@ import PatientProfileDisplay from './document';
 import PatientProfile from './write';
 import AddPatientModal from './AddPatientModal';
 import axios from 'axios';
+import { keyframes } from '@emotion/react';
 
 const pulseAnimation = keyframes`
   0% { transform: scale(1); opacity: 0.8; }

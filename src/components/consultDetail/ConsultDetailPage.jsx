@@ -164,46 +164,9 @@ const ConsultDetailPage = () => {
 
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-  const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);
-  const [shareDialogOpen, setShareDialogOpen] = useState(false); // For share dialog
+  const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);  const [shareDialogOpen, setShareDialogOpen] = useState(false); // For share dialog
   const [snackbarOpen, setSnackbarOpen] = useState(false); // For copy snackbar
   const [snackbarMessage, setSnackbarMessage] = useState(''); // For copy snackbar message
-  const [currentProviderId, setCurrentProviderId] = useState(null); // State for current provider ID
-  const [loadingProviderId, setLoadingProviderId] = useState(true); // Loading state for provider ID
-
-  // Fetch the current provider ID from the API
-  useEffect(() => {
-    const fetchCurrentProviderId = async () => {
-      try {
-        const token = await getAccessToken();
-        if (!token) {
-          console.error('No token available for provider ID fetch');
-          return;
-        }
-
-        const response = await fetch('https://health.prestigedelta.com/provider/', {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentProviderId(data.id);
-          console.log('Current provider ID fetched:', data.id);
-        } else {
-          console.error('Failed to fetch provider ID:', response.status);
-        }
-      } catch (error) {
-        console.error('Error fetching provider ID:', error);
-      } finally {
-        setLoadingProviderId(false);
-      }
-    };
-
-    fetchCurrentProviderId();
-  }, []); // Removed isAuthenticated dependency
 
   // Fetch medical reviews from API
   useEffect(() => {
@@ -519,7 +482,7 @@ const ConsultDetailPage = () => {
                 {displayName}
               </Box>
               <Box sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                Consultation: {displayName} (ID: {displayPatientId})
+                Patient: {displayName} (ID: {displayPatientId})
               </Box>
             </Typography>
           </Toolbar>
@@ -725,8 +688,8 @@ const ConsultDetailPage = () => {
               <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2 }}>
                 <CollaborationView 
                   publicId={publicId}
+                  patientId={patientId || consultData.patient_id}
                   initialCollaboratingProviders={consultData.collaborating_providers || []}
-                  currentProviderId={currentProviderId} // Pass the fetched provider ID
                   onProviderSelect={(provider) => {
                     // Navigate to provider's profile or perform any action
                     console.log("Selected provider:", provider);
