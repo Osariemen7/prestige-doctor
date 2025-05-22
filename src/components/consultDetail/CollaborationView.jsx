@@ -1394,6 +1394,16 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
                         />
                       </Box>
                     )}
+
+                    {msg.image && (
+                      <Box sx={{ mt: 0.5, mb: 1, cursor: 'pointer' }} onClick={() => window.open(msg.image, '_blank')}>
+                        <img
+                          src={msg.image}
+                          alt="Message image"
+                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }}
+                        />
+                      </Box>
+                    )}
                     
                     <Typography variant="body2" component="div" style={{ whiteSpace: 'pre-wrap' }}>
                       {msg.message}
