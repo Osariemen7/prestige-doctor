@@ -57,7 +57,7 @@ const LoginPage = () => {
           navigate('/available');
         } else {
           localStorage.setItem('user-info', JSON.stringify(result));
-          navigate('/dashboard');
+          navigate('/my-consults');
         }
       }
     } catch (error) {

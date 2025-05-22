@@ -1313,8 +1313,8 @@ const Call = () => {
                 if (isTranscribing) {
                     stopRealtimeTranscription();
                 }
-                // Navigate back to dashboard
-                navigate('/dashboard');
+                // Navigate back to my consults
+                navigate('/my-consults');
             }
         } catch (error) {
             console.error("Error saving documentation:", error);
@@ -1339,7 +1339,7 @@ const Call = () => {
 
     const endCall = () => {
         stopRealtimeTranscription();
-        navigate('/dashboard');
+        navigate('/my-consults');
     };
 
     // Main UI Render

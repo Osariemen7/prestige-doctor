@@ -1056,7 +1056,7 @@ const ConsultAIPage = () => {
       return;
     }
     await handleBilling();
-    navigate('/dashboard');
+    navigate('/my-consults');
   }, [wsStatus]);
 
 
