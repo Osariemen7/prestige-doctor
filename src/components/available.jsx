@@ -96,7 +96,7 @@ export default function AvailabilitySelector() {
         
         // Delay navigation by 2 seconds
         setTimeout(() => {
-          navigate('/dashboard');
+          navigate('/my-consults');s
         }, 2000);
       }
     } catch (error) {
