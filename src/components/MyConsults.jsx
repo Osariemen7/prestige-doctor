@@ -161,13 +161,14 @@ const MyConsults = () => {
     };
     fetchConsults();
     // eslint-disable-next-line
-  }, [currentPage]);  const handleViewDetails = (publicId, consult) => {
+  }, [currentPage]);  const handleViewDetails = (publicId, consult, pendingAIreviewId = null) => {
     navigate(`/consult-details/${consult.most_recent_review_public_id}`, {
       state: {
         patientFullName: consult.patient_name,
         patientId: consult.patient_id,
         collaborating_providers: consult.collaborating_providers,
         patient_profile_data: consult.patient_profile_data, // Add this line to include patient profile data
+        pendingAIreviewId: pendingAIreviewId, // Pass the pending AI review ID
       },
     });
   };
@@ -347,9 +348,16 @@ const MyConsults = () => {
               </Paper>
             ) : (
               <>
-                <Grid container spacing={{ xs: 2, md: 3 }}>
-                  {filteredConsults.map((consult) => {
+                <Grid container spacing={{ xs: 2, md: 3 }}>                {filteredConsults.map((consult) => {
                     const hasMedicalHistory = Array.isArray(consult.medical_history) && consult.medical_history.length > 0;
+                    
+                    // Check if patient has AI-conducted review awaiting approval using new fields
+                    const hasAIReviewAwaitingApproval = hasMedicalHistory && 
+                      consult.most_recent_review_approval_status?.toLowerCase() !== 'approved' && 
+                      consult.most_recent_conducted_by_ai === true;
+                    
+                    // Get pending AI review ID if there's one awaiting approval
+                    const pendingAIreviewId = hasAIReviewAwaitingApproval ? consult.most_recent_review_id : null;
 
                     return (
                       <Grid item xs={12} sm={6} lg={4} key={consult.patient_id}>
@@ -374,6 +382,23 @@ const MyConsults = () => {
                               </Tooltip>
                               {hasMedicalHistory ? getStatusChip(consult.most_recent_review_status) : getStatusChip('Awaiting Review')}
                             </Box>
+                            
+                            {/* Show Dr House review indicator if AI review is awaiting approval */}
+                            {hasAIReviewAwaitingApproval && (
+                              <Box sx={{ mb: 1.5 }}>
+                                <Chip 
+                                  label="Review by Dr House awaiting approval" 
+                                  color="warning" 
+                                  size="small" 
+                                  sx={{ 
+                                    fontWeight: 500,
+                                    backgroundColor: '#fff3e0',
+                                    color: '#e65100',
+                                    border: '1px solid #ffb74d'
+                                  }} 
+                                />
+                              </Box>
+                            )}
 
                             {hasMedicalHistory ? (
                               <>
@@ -404,12 +429,11 @@ const MyConsults = () => {
                                 This patient is awaiting their first consultation.
                               </Typography>
                             )}
-                          </CardContent>
-                          <CardActions sx={{ justifyContent: 'flex-end', p: { xs: 1.5, md: 2 }, borderTop: '1px solid #eee' }}>
+                          </CardContent>                          <CardActions sx={{ justifyContent: 'flex-end', p: { xs: 1.5, md: 2 }, borderTop: '1px solid #eee' }}>
                             <Button
                               variant="contained"
                               size="medium"
-                              onClick={() => handleViewDetails(consult.most_recent_review_public_id, consult)}
+                              onClick={() => handleViewDetails(consult.most_recent_review_public_id, consult, pendingAIreviewId)}
                               sx={{ borderRadius: '999px', textTransform: 'none', px: 2.5 }}
                             >
                               View Details

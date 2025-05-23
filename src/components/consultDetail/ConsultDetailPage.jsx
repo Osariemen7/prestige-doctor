@@ -57,11 +57,11 @@ import HealthGoalView from './HealthGoalView';
 const ConsultDetailPage = () => {
   const { publicId } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
-  const {
+  const navigate = useNavigate();  const {
     patientFullName,
     patientId,
     collaborating_providers: navCollaboratingProviders,
+    pendingAIreviewId,
     // patient_profile_data should be part of location.state
   } = location.state || {};
 
@@ -579,11 +579,11 @@ const ConsultDetailPage = () => {
                     {anonymizingNote ? 'Preparing Note...' : 'Share Doctor Note'}
                   </Button>
                 </Box>
-                
-                <DoctorNoteDisplay 
+                  <DoctorNoteDisplay 
                   initialNote={noteForDisplay}
                   medicalHistory={effectiveMedicalHistory}
                   currentConsultId={publicId}
+                  pendingAIreviewId={pendingAIreviewId}
                 />
                 
                 {/* Add review selection dropdown and pagination controls */}
