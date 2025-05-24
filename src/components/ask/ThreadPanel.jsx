@@ -115,8 +115,7 @@ const ThreadPanel = ({ threads, selectedThread, onSelectThread, onDeleteThread, 
                       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                       transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                       onClick={(e) => e.stopPropagation()} // Stop propagation at the menu level
-                    >
-                      <MenuItem
+                    >                      <MenuItem
                         onClick={(e) => {
                           e.stopPropagation(); // Stop propagation to prevent thread selection
                           onDeleteThread(thread.id);

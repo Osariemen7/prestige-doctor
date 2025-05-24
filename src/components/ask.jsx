@@ -951,13 +951,11 @@ const SearchBox = () => {
   const handleLogout = () => {
     localStorage.removeItem('user-info');
     navigate('/');
-  };
-
-  const fetchThreadMessages = useCallback(async (threadId) => {
+  };  const fetchThreadMessages = useCallback(async (threadId) => {
     setIsLoadingThreadMessages(true);
     try {
       const token = await getAccessToken();
-      const response = await fetch(`https://health.prestigedelta.com/research/${threadId}`, {
+      const response = await fetch(`https://health.prestigedelta.com/research/${threadId}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -979,22 +977,25 @@ const SearchBox = () => {
       showSnackbar('Failed to load conversation messages', 'error');
     } finally {
       setIsLoadingThreadMessages(false);
-    }
-  }, [showSnackbar]);
-
+    }  }, [showSnackbar]);
   // In handleSelectThread, set threadId to thread.public_id
   const handleSelectThread = useCallback((thread) => {
     const stillExists = threads.find(t => (t.public_id || t.id) === (thread.public_id || thread.id));
     if (!stillExists) return;
     setSelectedThread(thread);
-    setThreadId(thread.public_id || thread.id);
+    const publicId = thread.public_id || thread.id;
+    setThreadId(publicId);
+    
+    // Navigate to the URL using public_id for user-facing URLs
+    navigate(`/ask/${publicId}`, { replace: true });
+    
     if (thread.patient) {
       const patientObj = datalist.find(p => p.id === thread.patient || p.id === thread.patient?.id);
       if (patientObj) setSelectedPatient(patientObj);
     }
-    fetchThreadMessages(thread.public_id || thread.id);
+    fetchThreadMessages(thread.id);
     if (isMobile) setIsThreadPanelOpen(false);
-  }, [isMobile, fetchThreadMessages, datalist, threads]);
+  }, [isMobile, fetchThreadMessages, datalist, threads, navigate]);
 
   const handleDeleteThread = useCallback(async (threadId) => {
     try {
@@ -1248,8 +1249,7 @@ const SearchBox = () => {
     // Check if the current path matches /ask/{public_id}
     const pathParts = location.pathname.split('/');
     const urlPublicId = pathParts[2]; // Extract public_id from the URL
-    
-    if (urlPublicId && urlPublicId !== threadId) {
+      if (urlPublicId && urlPublicId !== threadId) {
       console.log("Loading thread from URL:", urlPublicId);
       setThreadId(urlPublicId);
       
@@ -1258,7 +1258,7 @@ const SearchBox = () => {
       if (found) {
         // Select the thread if found
         setSelectedThread(found);
-        fetchThreadMessages(urlPublicId);
+        fetchThreadMessages(found.id);
       } else if (threads.length > 0) {
         // If thread not found but threads are loaded, refresh threads to try to find it
         refreshThreads().then(() => {
@@ -1266,12 +1266,12 @@ const SearchBox = () => {
           const refreshedThread = threads.find(t => t.public_id === urlPublicId || t.id === urlPublicId);
           if (refreshedThread) {
             setSelectedThread(refreshedThread);
-            fetchThreadMessages(urlPublicId);
+            fetchThreadMessages(refreshedThread.id);
           }
         });
       } else {
-        // If threads aren't loaded yet, wait for them and then try to find the thread
-        fetchThreadMessages(urlPublicId);
+        // If threads aren't loaded yet, wait for them to load first
+        // The thread will be loaded when threads are available
       }
     }
   }, [location.pathname, threadId, threads, fetchThreadMessages, refreshThreads, setThreadId, setSelectedThread]);
