@@ -719,6 +719,29 @@ const Voice = () => {
                             </Text>
                         </Box>
                     )}
+
+                    {/* Transcript Display (always visible below controls) */}
+                    <Box
+                        position="absolute"
+                        left="50%"
+                        bottom="-80px"
+                        transform="translateX(-50%)"
+                        width="90%"
+                        maxW="600px"
+                        bg="whiteAlpha.900"
+                        color="black"
+                        p={4}
+                        borderRadius="md"
+                        boxShadow="md"
+                        zIndex={2}
+                        fontSize="md"
+                        minH="48px"
+                        mt={4}
+                        style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                    >
+                        <Text fontWeight="bold" mb={2}>Live Transcript</Text>
+                        <Box>{transcript || 'No transcription available yet...'}</Box>
+                    </Box>
                 </Box>
             </Box>
         </ChakraProvider>
