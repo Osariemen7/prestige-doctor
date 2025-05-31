@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -22,7 +22,9 @@ import {
   Button,
   Alert,
   CircularProgress,
-  TextField
+  TextField,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SubjectIcon from '@mui/icons-material/Subject';
@@ -33,7 +35,25 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import WarningIcon from '@mui/icons-material/Warning';
 import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import SaveIcon from '@mui/icons-material/Save';
 import { getAccessToken } from '../api';
+
+// Optimized deep clone function for note data
+const deepCloneNote = (note) => {
+  if (!note) return null;
+  
+  return {
+    ...note,
+    prescription: Array.isArray(note.prescription) ? note.prescription.map(p => ({ ...p })) : [],
+    investigation: Array.isArray(note.investigation) ? note.investigation.map(i => ({ ...i })) : [],
+    subjective: note.subjective ? { ...note.subjective } : {},
+    objective: note.objective ? { ...note.objective } : {},
+    assessment: note.assessment ? { ...note.assessment } : {},
+    plan: note.plan ? { ...note.plan } : {},
+  };
+};
 
 // Helper function to format date strings
 const formatDate = (dateString) => {
@@ -47,7 +67,6 @@ const formatDate = (dateString) => {
       minute: '2-digit'
     });
   } catch (error) {
-    console.error("Error formatting date:", dateString, error);
     return 'Invalid Date';
   }
 };
@@ -219,72 +238,71 @@ const EditableNoteItem = ({ section, field, label, value, isEditMode, onUpdateNo
   </Box>
 );
 
-const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pendingAIreviewId }) => {
-  const [selectedNoteId, setSelectedNoteId] = useState(currentConsultId);
+const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentConsultId, pendingAIreviewId }) => {
+  // Initialize selectedNoteId to the first available medical history note, or currentConsultId if no history
+  const getInitialSelectedId = () => {
+    if (Array.isArray(medicalHistory) && medicalHistory.length > 0) {
+      const firstNote = medicalHistory.find(item => item.doctor_note);
+      return firstNote ? firstNote.id : currentConsultId;
+    }
+    return currentConsultId;
+  };
+
+  const [selectedNoteId, setSelectedNoteId] = useState(getInitialSelectedId());
   const [currentNote, setCurrentNote] = useState(initialNote);
   const [isApproving, setIsApproving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedNote, setEditedNote] = useState(null);
 
   useEffect(() => {
-    // If the selectedNoteId changes, find the corresponding note in medicalHistory
-    if (selectedNoteId === currentConsultId) {
-      setCurrentNote(initialNote);
-      // Reset editedNote with a deep copy of initialNote when switching notes
-      setEditedNote(JSON.parse(JSON.stringify(initialNote)));
-    } else {
-      const foundNote = medicalHistory.find(note => note.id === selectedNoteId)?.doctor_note;
-      setCurrentNote(foundNote || initialNote); // Fallback to initialNote if not found
-      // Reset editedNote with a deep copy of the found note when switching notes
-      setEditedNote(JSON.parse(JSON.stringify(foundNote || initialNote)));
-    }
-    
-    // Exit edit mode when switching notes
-    setIsEditMode(false);
-
-    // Log for debugging
-    console.log("Current Note:", initialNote);
-    console.log("Medical History:", medicalHistory);
-    console.log("Pending AI Review ID:", pendingAIreviewId);
-  }, [selectedNoteId, medicalHistory, initialNote, currentConsultId, pendingAIreviewId]);
-
-  const handleNoteChange = (event) => {
-    setSelectedNoteId(event.target.value);
-  };
-
-  // Toggle edit mode
-  const toggleEditMode = () => {
-    if (isEditMode) {
-      // If exiting edit mode, apply changes by updating currentNote
-      setCurrentNote(editedNote);
-      // Automatically save changes when exiting edit mode
-      handleApproveReview();
-    }
-    setIsEditMode(!isEditMode);
-  };
-
-  // Update specific field in the edited note
-  const updateEditedNote = (section, field, value) => {
-    if (!isEditMode || !editedNote) return;
-    
-    setEditedNote(prevNote => {
-      const newNote = {...prevNote};
-      if (!newNote[section]) {
-        newNote[section] = {};
+    if (Array.isArray(medicalHistory) && medicalHistory.length > 0) {
+      const firstNote = medicalHistory.find(item => item.doctor_note);
+      if (firstNote && selectedNoteId === currentConsultId) {
+        setSelectedNoteId(firstNote.id);
       }
-      newNote[section][field] = value;
-      return newNote;
-    });
-  };
+    }
 
-  // Function to approve AI review
-  const handleApproveReview = async () => {
+    let noteToDisplay;
+    if (selectedNoteId === currentConsultId) {
+      noteToDisplay = initialNote;
+    } else {
+      const foundItem = medicalHistory.find(item => item.id === selectedNoteId);
+      noteToDisplay = foundItem?.doctor_note || initialNote;
+    }
+    
+    setCurrentNote(noteToDisplay);
+
+    // Guard against null noteToDisplay before spreading
+    if (noteToDisplay) {
+        const sanitizedNote = {
+            ...noteToDisplay,
+            prescription: Array.isArray(noteToDisplay.prescription) ? noteToDisplay.prescription : [],
+            investigation: Array.isArray(noteToDisplay.investigation) ? noteToDisplay.investigation : [],
+        };        setEditedNote(deepCloneNote(sanitizedNote));
+    } else {
+        // Handle case where noteToDisplay is null (e.g., set editedNote to a default structure or null)
+        setEditedNote(null); // Or a default empty note structure
+    }
+    
+    setIsEditMode(false);
+  }, [selectedNoteId, medicalHistory, initialNote, currentConsultId]);
+
+  const handleNoteChange = useCallback((event) => {
+    setSelectedNoteId(event.target.value);
+  }, []);
+
+  const handleApproveReview = useCallback(async () => {
     if (!pendingAIreviewId || !currentConsultId) return;
     
     setIsApproving(true);
     try {
       const token = await getAccessToken();
-      const noteToSave = isEditMode ? editedNote : currentNote;
+      // Use editedNote if in edit mode and it exists, otherwise use currentNote
+      const noteToSave = (isEditMode && editedNote) ? editedNote : currentNote;
+
+      if (!noteToSave) {
+          throw new Error("No note data to save.");
+      }
       
       const response = await fetch(
         `https://health.prestigedelta.com/review-note/${currentConsultId}/save_doctor_note/`,
@@ -295,39 +313,165 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            doctor_note: noteToSave
+            doctor_note: noteToSave 
           }),
         }
       );
-      
       if (response.ok) {
         const data = await response.json();
-        console.log("Doctor note saved successfully:", data);
-        // Update current note with the response data
         setCurrentNote(data.doctor_note);
-        setEditedNote(JSON.parse(JSON.stringify(data.doctor_note)));
+        if (data.doctor_note) {
+            setEditedNote(deepCloneNote(data.doctor_note));
+        } else {
+            setEditedNote(null);
+        }
         setIsEditMode(false);
         
-        // Show success message or trigger a callback to refresh data
         alert("Doctor note saved and approved successfully!");
-        
-        // Refresh the page to reflect the changes
         window.location.reload();
       } else {
         const errorText = await response.text();
         throw new Error(`Failed to approve review: ${errorText}`);
       }
     } catch (error) {
-      console.error("Error approving review:", error);
       alert("Error approving review: " + error.message);
     } finally {
       setIsApproving(false);
     }
-  };
+  }, [pendingAIreviewId, currentConsultId, isEditMode, editedNote, currentNote]);
   
-  // No need for reject functionality as per requirements
+  const toggleEditMode = useCallback(() => {
+    if (isEditMode) {
+      // Save changes when exiting edit mode
+      setCurrentNote(editedNote);
+      
+      // Only call handleApproveReview if there's a pending AI review
+      if (pendingAIreviewId && currentConsultId) {
+        handleApproveReview();
+      }
+    } else if (currentNote) { // Only enter edit mode if there's a current note
+        // Deep clone currentNote to editedNote when entering edit mode
+        const noteToEdit = deepCloneNote(currentNote);
+        
+        // Ensure prescription and investigation fields are properly initialized
+        if (!noteToEdit.prescription) noteToEdit.prescription = [];
+        if (!noteToEdit.investigation) noteToEdit.investigation = [];
+        
+        setEditedNote(noteToEdit);
+    }
+    setIsEditMode(!isEditMode);
+  }, [isEditMode, editedNote, currentNote, pendingAIreviewId, currentConsultId, handleApproveReview]);
+
+  const updateEditedNote = useCallback((section, field, value) => {
+    if (!isEditMode || !editedNote) return;
+    
+    setEditedNote(prevNote => {
+      const newNote = {...prevNote};
+      if (section === 'prescription' || section === 'investigation') {
+        return prevNote; 
+      }
+      if (!newNote[section]) {
+        newNote[section] = {};
+      }      newNote[section][field] = value;
+      return newNote;
+    });
+  }, [isEditMode, editedNote]);  const handleAddPrescription = useCallback(() => {
+    if (!editedNote) return;
+    
+    setEditedNote(prev => {
+      const newNote = {
+        ...prev,
+        prescription: [
+          ...(prev.prescription || []),
+          { 
+            medication_name: '', 
+            dosage: '', 
+            interval: '', 
+            route: '', 
+            end_date: '' 
+          }        ]
+      };
+      return newNote;
+    });
+  }, [editedNote]);const handleRemovePrescription = useCallback((index) => {
+    if (!editedNote) return;
+    
+    setEditedNote(prev => ({
+      ...prev,
+      prescription: (prev.prescription || []).filter((_, i) => i !== index)
+    }));
+  }, [editedNote]);  const handleUpdatePrescriptionField = useCallback((index, field, value) => {
+    if (!editedNote) return;
+    
+    setEditedNote(prev => ({
+      ...prev,
+      prescription: (prev.prescription || []).map((item, i) => 
+        i === index ? { ...item, [field]: value } : item
+      )
+    }));
+  }, [editedNote]);  const handleAddInvestigation = useCallback(() => {
+    if (!editedNote) return;
+    
+    setEditedNote(prev => ({
+      ...prev,
+      investigation: [
+        ...(prev.investigation || []),
+        { test_type: '', reason: '' }
+      ]
+    }));
+  }, [editedNote]);  const handleRemoveInvestigation = useCallback((index) => {
+    if (!editedNote) return;
+    
+    setEditedNote(prev => ({
+      ...prev,
+      investigation: (prev.investigation || []).filter((_, i) => i !== index)
+    }));
+  }, [editedNote]);const handleUpdateInvestigationField = useCallback((index, field, value) => {
+    if (!editedNote) return;
+    
+    // Add validation for specific fields
+    if (field === 'scheduled_time' && value) {
+      // Validate that the scheduled time is in the future
+      const scheduledTime = new Date(value);
+      const now = new Date();
+      
+      if (isNaN(scheduledTime.getTime())) {
+        alert('Please enter a valid date and time.');
+        return;
+      }
+    }
+    
+    setEditedNote(prev => {
+      // If investigation doesn't exist or isn't an array, initialize it
+      if (!Array.isArray(prev.investigation)) {
+        return {
+          ...prev,
+          investigation: [{[field]: value}]
+        };
+      }
+        return {
+        ...prev,
+        investigation: prev.investigation.map((item, i) =>
+          i === index ? { ...item, [field]: value } : item
+        )
+      };
+    });
+  }, [editedNote]);
   
-  if (!currentNote) {
+  // Memoize expensive computations for better performance (must be before early returns)
+  const filteredMedicalHistory = useMemo(() => {
+    return Array.isArray(medicalHistory) ? medicalHistory.filter(item => item.doctor_note) : [];
+  }, [medicalHistory]);
+
+  const prescription = useMemo(() => 
+    (isEditMode && editedNote?.prescription) ? editedNote.prescription : (currentNote?.prescription || [])
+  , [isEditMode, editedNote?.prescription, currentNote?.prescription]);
+  
+  const investigation = useMemo(() => 
+    (isEditMode && editedNote?.investigation) ? editedNote.investigation : (currentNote?.investigation || [])
+  , [isEditMode, editedNote?.investigation, currentNote?.investigation]);
+  
+  if (!currentNote) { 
     return (
       <Box sx={{ textAlign: 'center', p: 4 }}>
         <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
@@ -340,10 +484,10 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
     );
   }
 
-  const { subjective, objective, assessment, plan, next_review, prescription, investigation } = currentNote;
+  const { subjective, objective, assessment, plan, next_review } = currentNote;
+
   return (
     <Box>
-      {/* Pending AI Review Alert */}
       {pendingAIreviewId && selectedNoteId === pendingAIreviewId && (
         <Alert 
           severity="warning" 
@@ -365,8 +509,7 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
                 This note was generated by AI and requires your review and approval.
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
-              <Button
+            <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>              <Button
                 variant="contained"
                 color={isEditMode ? "primary" : "info"}
                 size="small"
@@ -394,8 +537,21 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
           </Box>
         </Alert>
       )}
-
-      {Array.isArray(medicalHistory) && medicalHistory.length > 0 && (
+      
+      {/* Always show edit button */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Button
+          variant="contained"
+          color={isEditMode ? "primary" : "info"}
+          size="medium"
+          startIcon={isEditMode ? <SaveIcon /> : <EditIcon />}
+          onClick={toggleEditMode}
+          disabled={isApproving}
+          sx={{ minWidth: 'auto' }}
+        >
+          {isEditMode ? 'Save Changes' : 'Edit Note'}
+        </Button>
+      </Box>      {filteredMedicalHistory.length > 0 && (
         <FormControl fullWidth sx={{ mb: 3 }}>
           <InputLabel id="medical-history-note-select-label">View Note From</InputLabel>
           <Select
@@ -406,12 +562,7 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
             onChange={handleNoteChange}
             sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
           >
-            <MenuItem value={currentConsultId}>
-              <em>Current Consultation Note</em>
-            </MenuItem>
-            {medicalHistory
-              .filter(item => item.id !== currentConsultId && item.doctor_note) // Filter out current and notes without doctor_note
-              .map((item) => (
+            {filteredMedicalHistory.map((item) => (
                 <MenuItem key={item.id} value={item.id} sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                     <Typography sx={{ flex: 1 }}>
@@ -626,10 +777,8 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
             )}
           </Section>
         </Grid>
-      </Grid>
-
-      {/* Detailed Prescriptions and Investigations are handled in separate tabs but can be summarized here if needed */}
-      {/* For example, a quick summary or count */}      <Accordion 
+      </Grid>      <Accordion 
+        expanded={isEditMode || prescription?.length > 0}
         sx={{ 
           mt: 3, 
           borderRadius: 2, 
@@ -647,15 +796,16 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
           id="panel-prescriptions-header"
           sx={{ 
             minHeight: { xs: '48px', sm: '56px' },
-            backgroundColor: (theme) => theme.palette.primary.light + '20', // Light transparent background
+            backgroundColor: (theme) => theme.palette.primary.light + '20', 
             '&.Mui-expanded': {
-              backgroundColor: (theme) => theme.palette.primary.light + '30', // Slightly darker when expanded
+              backgroundColor: (theme) => theme.palette.primary.light + '30', 
             }
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Box sx={{ mr: 1 }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              {/* Corrected SVG attributes */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
               </svg>
             </Box>
@@ -666,97 +816,165 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
                 fontSize: { xs: '0.95rem', sm: '1.25rem' },
                 color: 'primary.main'
               }}
-            >
-              Prescriptions ({prescription?.length || 0})
+            >              Prescriptions ({isEditMode && editedNote?.prescription ? editedNote.prescription.length : (prescription?.length || 0)})
             </Typography>
           </Box>
         </AccordionSummary>        <AccordionDetails sx={{ backgroundColor: 'grey.50', p: { xs: 1.5, sm: 2.5 } }}>
-          {prescription && prescription.length > 0 ? (
-            <List disablePadding sx={{ overflowX: 'auto' }}>
-              {prescription.map((p, index) => (
-                <ListItem key={index} disableGutters divider={index < prescription.length - 1} 
-                  sx={{ 
-                    py: { xs: 1.5, sm: 2 },
-                    px: { xs: 1.5, sm: 2.5 },
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.7)' : 'transparent',
-                    borderRadius: 1,
-                    '&:hover': {
-                      backgroundColor: 'rgba(33, 150, 243, 0.04)'
-                    },
-                    transition: 'background-color 0.2s ease'
-                  }}
-                >
-                  <Box sx={{ 
-                    display: 'flex', 
-                    flexDirection: { xs: 'column', sm: 'row' }, 
-                    alignItems: { xs: 'flex-start', sm: 'center' },
-                    width: '100%',
-                    justifyContent: 'space-between',
-                    mb: 1
-                  }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium', fontSize: { xs: '0.95rem', sm: '1.1rem' }, color: 'primary.dark' }}>
-                      {p.medication_name} {p.dosage}
-                    </Typography>
-                    <Chip 
-                      size="small" 
-                      label={`Every ${p.interval}h`} 
-                      color="primary" 
-                      variant="outlined" 
-                      sx={{ fontWeight: 'medium', ml: { xs: 0, sm: 2 }, mt: { xs: 0.5, sm: 0 } }} 
-                    />
+          {/* Show edit mode when in edit mode (toggleEditMode already handles the restrictions) */}
+          {isEditMode ? (
+            <>
+              <Typography variant="h6" sx={{ mb: 2 }}>Edit Prescriptions</Typography>
+                {/* Simple list of prescriptions with add/remove */}
+              {(editedNote?.prescription || []).map((p, index) => (
+                <Paper key={index} elevation={1} sx={{ mb: 2, p: 2, borderRadius: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ flex: 1 }}>
+                      <TextField
+                        label="Medication Name"
+                        value={p.medication_name || ''}
+                        onChange={(e) => handleUpdatePrescriptionField(index, 'medication_name', e.target.value)}
+                        fullWidth
+                        sx={{ mb: 1 }}
+                      />
+                      <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
+                        <TextField
+                          label="Dosage"
+                          value={p.dosage || ''}
+                          onChange={(e) => handleUpdatePrescriptionField(index, 'dosage', e.target.value)}
+                          sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="Frequency"
+                          value={p.interval || ''}
+                          onChange={(e) => handleUpdatePrescriptionField(index, 'interval', e.target.value)}
+                          sx={{ flex: 1 }}
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 2 }}>
+                        <TextField
+                          label="Route"
+                          value={p.route || ''}
+                          onChange={(e) => handleUpdatePrescriptionField(index, 'route', e.target.value)}
+                          sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="End Date"
+                          type="date"
+                          value={p.end_date || ''}
+                          onChange={(e) => handleUpdatePrescriptionField(index, 'end_date', e.target.value)}
+                          sx={{ flex: 1 }}
+                          InputLabelProps={{
+                            shrink: true,
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <IconButton onClick={() => handleRemovePrescription(index)} color="error" sx={{ ml: 2 }}>
+                      <DeleteIcon />
+                    </IconButton>
                   </Box>
-                  
-                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                    <Grid item xs={12} sm={6} md={3}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
-                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Route:</Box>
-                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.route || 'N/A'}</Box>
-                      </Box>
-                    </Grid>
-                    
-                    <Grid item xs={12} sm={6} md={3}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
-                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Start:</Box>
-                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.start_date ? formatDate(p.start_date) : 'N/A'}</Box>
-                      </Box>
-                    </Grid>
-                    
-                    <Grid item xs={12} sm={6} md={3}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
-                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>End:</Box>
-                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.end_date ? formatDate(p.end_date) : 'N/A'}</Box>
-                      </Box>
-                    </Grid>
-                    
-                    <Grid item xs={12} sm={6} md={3}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
-                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Status:</Box>
-                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.status || 'Active'}</Box>
-                      </Box>
-                    </Grid>
-                    
-                    <Grid item xs={12}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px', alignSelf: 'flex-start' }}>Notes:</Box>
-                        <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.instructions || 'No special instructions'}</Box>
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </ListItem>
+                </Paper>
               ))}
-            </List>
+              
+              <Button
+                startIcon={<AddIcon />}
+                onClick={handleAddPrescription}
+                variant="outlined"
+                sx={{ mt: 2 }}
+              >
+                Add Prescription</Button>
+            </>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3 }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#9e9e9e', marginBottom: '16px' }}>
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
-              </svg>
-              <Typography variant="body1" color="text.secondary">No prescriptions in this note.</Typography>
-            </Box>
+            prescription && prescription.length > 0 ? (
+              <List disablePadding sx={{ overflowX: 'auto' }}>
+                {prescription.map((p, index) => (
+                  <ListItem key={index} disableGutters divider={index < prescription.length - 1} 
+                    sx={{ 
+                      py: { xs: 1.5, sm: 2 },
+                      px: { xs: 1.5, sm: 2.5 },
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.7)' : 'transparent',
+                      borderRadius: 1,
+                      '&:hover': {
+                        backgroundColor: 'rgba(33, 150, 243, 0.04)'
+                      },
+                      transition: 'background-color 0.2s ease'
+                    }}
+                  >
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: { xs: 'column', sm: 'row' }, 
+                      alignItems: { xs: 'flex-start', sm: 'center' },
+                      width: '100%',
+                      justifyContent: 'space-between',
+                      mb: 1
+                    }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'medium', fontSize: { xs: '0.95rem', sm: '1.1rem' }, color: 'primary.dark' }}>
+                        {p.medication_name} {p.dosage}
+                      </Typography>
+                      <Chip 
+                        size="small" 
+                        label={`Every ${p.interval}h`} 
+                        color="primary" 
+                        variant="outlined" 
+                        sx={{ fontWeight: 'medium', ml: { xs: 0, sm: 2 }, mt: { xs: 0.5, sm: 0 } }} 
+                      />
+                    </Box>
+                    
+                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                          <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Route:</Box>
+                          <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.route || 'N/A'}</Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                          <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Start:</Box>
+                          <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.start_date ? formatDate(p.start_date) : 'N/A'}</Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                          <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>End:</Box>
+                          <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.end_date ? formatDate(p.end_date) : 'N/A'}</Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                          <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px' }}>Status:</Box>
+                          <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.status || 'Active'}</Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                          <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem', mr: 1, minWidth: '60px', alignSelf: 'flex-start' }}>Notes:</Box>
+                          <Box component="span" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{p.instructions || 'No special instructions'}</Box>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3 }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#9e9e9e', marginBottom: '16px' }}>
+                  <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+                </svg>
+                <Typography variant="body1" color="text.secondary">No prescriptions in this note.</Typography>
+              </Box>
+            )
           )}
         </AccordionDetails>
-      </Accordion>      <Accordion 
+      </Accordion>
+      
+      {/* Second accordion for investigations */}      <Accordion 
+        expanded={isEditMode || investigation?.length > 0}
         sx={{ 
           mt: 2, 
           borderRadius: 2, 
@@ -774,15 +992,16 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
           id="panel-investigations-header"
           sx={{ 
             minHeight: { xs: '48px', sm: '56px' },
-            backgroundColor: (theme) => theme.palette.info.light + '20', // Light transparent background
+            backgroundColor: (theme) => theme.palette.info.light + '20', 
             '&.Mui-expanded': {
-              backgroundColor: (theme) => theme.palette.info.light + '30', // Slightly darker when expanded
+              backgroundColor: (theme) => theme.palette.info.light + '30', 
             }
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Box sx={{ mr: 1 }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              {/* Corrected SVG attributes */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
               </svg>
@@ -794,78 +1013,97 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
                 fontSize: { xs: '0.95rem', sm: '1.25rem' },
                 color: 'info.main'
               }}
-            >
-              Investigations Ordered ({investigation?.length || 0})
+            >              Investigations Ordered ({isEditMode && editedNote?.investigation ? editedNote.investigation.length : (investigation?.length || 0)})
             </Typography>
           </Box>
         </AccordionSummary>        <AccordionDetails sx={{ backgroundColor: 'grey.50', p: { xs: 1.5, sm: 2.5 } }}>
-          {investigation && investigation.length > 0 ? (
-            <List disablePadding sx={{ overflowX: 'auto' }}>
-              {investigation.map((inv, index) => (
-                <ListItem key={index} disableGutters divider={index < investigation.length - 1}
-                  sx={{ 
-                    py: { xs: 1.5, sm: 2 },
-                    px: { xs: 1.5, sm: 2.5 },
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.7)' : 'transparent',
-                    borderRadius: 1,
-                    mb: 1,
-                    '&:hover': {
-                      backgroundColor: 'rgba(3, 169, 244, 0.04)'
-                    },
-                    transition: 'background-color 0.2s ease'
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1.5 }}>
-                    <Typography variant="subtitle1" sx={{ 
-                      fontWeight: 'medium', 
-                      fontSize: { xs: '0.95rem', sm: '1.1rem' }, 
-                      color: 'info.dark',
-                      mr: 2,
-                      flex: '1 1 auto' 
-                    }}>
-                      {inv.test_type}
-                    </Typography>
-                    {inv.scheduled_time && (
-                      <Chip 
-                        size="small" 
-                        label={`Scheduled: ${formatDate(inv.scheduled_time)}`} 
-                        color="info" 
-                        variant="outlined" 
-                        sx={{ fontWeight: 'medium' }} 
+          {/* Show edit mode when in edit mode (toggleEditMode already handles the restrictions) */}
+          {isEditMode ? (
+            <>
+              <Typography variant="h6" sx={{ mb: 2 }}>Edit Investigations</Typography>
+              
+              {/* Simple list of investigations with add/remove */}
+              {(editedNote?.investigation || []).map((inv, index) => (
+                <Paper key={index} elevation={1} sx={{ mb: 2, p: 2, borderRadius: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ flex: 1 }}>
+                      <TextField
+                        label="Test Type"
+                        value={inv.test_type || ''}
+                        onChange={(e) => handleUpdateInvestigationField(index, 'test_type', e.target.value)}
+                        fullWidth
+                        sx={{ mb: 1 }}
                       />
-                    )}
+                      <TextField
+                        label="Reason"
+                        value={inv.reason || ''}
+                        onChange={(e) => handleUpdateInvestigationField(index, 'reason', e.target.value)}
+                        fullWidth
+                        multiline
+                        rows={2}
+                      />
+                    </Box>
+                    <IconButton onClick={() => handleRemoveInvestigation(index)} color="error" sx={{ ml: 2 }}>
+                      <DeleteIcon />
+                    </IconButton>
                   </Box>
-                  
-                  <Box sx={{ width: '100%' }}>
-                    <Box sx={{ 
-                      display: 'flex', 
+                </Paper>
+              ))}
+              
+              <Button
+                startIcon={<AddIcon />}
+                onClick={handleAddInvestigation}
+                variant="outlined"
+                sx={{ mt: 2 }}
+              >
+                Add Investigation
+              </Button>
+            </>
+          ) : (
+            investigation && investigation.length > 0 ? (
+              <List disablePadding sx={{ overflowX: 'auto' }}>
+                {investigation.map((inv, index) => (
+                  <ListItem key={index} disableGutters divider={index < investigation.length - 1}
+                    sx={{ 
+                      py: { xs: 1.5, sm: 2 },
+                      px: { xs: 1.5, sm: 2.5 },
+                      flexDirection: 'column',
                       alignItems: 'flex-start',
-                      mb: 1.5
-                    }}>
-                      <Box component="span" sx={{ 
-                        color: 'text.secondary', 
-                        fontSize: '0.875rem', 
-                        mr: 1, 
-                        minWidth: { xs: '60px', sm: '80px' },
-                        alignSelf: 'flex-start'
-                      }}>
-                        Reason:
-                      </Box>
-                      <Box component="span" sx={{ 
+                      backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.7)' : 'transparent',
+                      borderRadius: 1,
+                      mb: 1,
+                      '&:hover': {
+                        backgroundColor: 'rgba(3, 169, 244, 0.04)'
+                      },
+                      transition: 'background-color 0.2s ease'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1.5 }}>
+                      <Typography variant="subtitle1" sx={{ 
                         fontWeight: 'medium', 
-                        fontSize: '0.875rem',
-                        flex: '1 1 auto'
+                        fontSize: { xs: '0.95rem', sm: '1.1rem' }, 
+                        color: 'info.dark',
+                        mr: 2,
+                        flex: '1 1 auto' 
                       }}>
-                        {inv.reason || 'Not specified'}
-                      </Box>
+                        {inv.test_type}
+                      </Typography>
+                      {inv.scheduled_time && (
+                        <Chip 
+                          size="small" 
+                          label={`Scheduled: ${formatDate(inv.scheduled_time)}`} 
+                          color="info" 
+                          variant="outlined" 
+                          sx={{ fontWeight: 'medium' }} 
+                        />
+                      )}
                     </Box>
                     
-                    {inv.additional_instructions && (
+                    <Box sx={{ width: '100%' }}>
                       <Box sx={{ 
                         display: 'flex', 
-                        alignItems: 'flex-start'
+                        alignItems: 'flex-start',
+                        mb: 1.5
                       }}>
                         <Box component="span" sx={{ 
                           color: 'text.secondary', 
@@ -874,39 +1112,62 @@ const DoctorNoteDisplay = ({ initialNote, medicalHistory, currentConsultId, pend
                           minWidth: { xs: '60px', sm: '80px' },
                           alignSelf: 'flex-start'
                         }}>
-                          Instructions:
+                          Reason:
                         </Box>
                         <Box component="span" sx={{ 
                           fontWeight: 'medium', 
                           fontSize: '0.875rem',
-                          flex: '1 1 auto',
-                          p: 1,
-                          backgroundColor: 'rgba(3, 169, 244, 0.05)',
-                          borderRadius: 1,
-                          borderLeft: '3px solid',
-                          borderLeftColor: 'info.main'
+                          flex: '1 1 auto'
                         }}>
-                          {inv.additional_instructions}
+                          {inv.reason || 'Not specified'}
                         </Box>
                       </Box>
-                    )}
-                  </Box>
-                </ListItem>
-              ))}
-            </List>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3 }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#9e9e9e', marginBottom: '16px' }}>
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-              </svg>
-              <Typography variant="body1" color="text.secondary">No investigations ordered in this note.</Typography>
-            </Box>
+                      
+                      {inv.additional_instructions && (
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start'
+                        }}>
+                          <Box component="span" sx={{ 
+                            color: 'text.secondary', 
+                            fontSize: '0.875rem', 
+                            mr: 1, 
+                            minWidth: { xs: '60px', sm: '80px' },
+                            alignSelf: 'flex-start'
+                          }}>
+                            Instructions:
+                          </Box>
+                          <Box component="span" sx={{ 
+                            fontWeight: 'medium', 
+                            fontSize: '0.875rem',
+                            flex: '1 1 auto',
+                            p: 1,
+                            backgroundColor: 'rgba(3, 169, 244, 0.05)',
+                            borderRadius: 1,
+                            borderLeft: '3px solid',
+                            borderLeftColor: 'info.main'
+                          }}>
+                            {inv.additional_instructions}
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3 }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#9e9e9e', marginBottom: '16px' }}>
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                <Typography variant="body1" color="text.secondary">No investigations ordered in this note.</Typography>
+              </Box>
+            )
           )}
         </AccordionDetails>
       </Accordion>
-    </Box>
-  );
-};
+    </Box>  );
+});
 
 export default DoctorNoteDisplay;
