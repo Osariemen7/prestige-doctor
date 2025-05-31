@@ -81,6 +81,49 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+/* Calendar Styling */
+.main-calendar-wrapper .fc {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.main-calendar-wrapper .fc-theme-standard td, 
+.main-calendar-wrapper .fc-theme-standard th {
+  border-color: #EDF2F7;
+}
+
+.main-calendar-wrapper .fc-timegrid-slot-label {
+  font-size: 0.875rem;
+  color: #4A5568;
+}
+
+.main-calendar-wrapper .fc-timegrid-axis {
+  border-right: 2px solid #EDF2F7;
+}
+
+.main-calendar-wrapper .fc-toolbar-title {
+  font-size: 1.25rem !important;
+  font-weight: 600;
+  color: #2D3748;
+}
+
+.main-calendar-wrapper .fc-button {
+  background: #EDF2F7 !important;
+  border: none !important;
+  color: #4A5568 !important;
+  font-weight: 500;
+  text-transform: capitalize;
+  padding: 0.5rem 1rem;
+  box-shadow: none !important;
+}
+
+.main-calendar-wrapper .fc-button-active {
+  background: #3182CE !important;
+  color: white !important;
+}
+
 /* Header styles */
 .calendar-container .fc-toolbar {
   margin-bottom: 1.5rem !important;
