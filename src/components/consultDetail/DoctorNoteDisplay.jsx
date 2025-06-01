@@ -247,13 +247,13 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
     }
     return currentConsultId;
   };
-
   const [selectedNoteId, setSelectedNoteId] = useState(getInitialSelectedId());
   const [currentNote, setCurrentNote] = useState(initialNote);
   const [isApproving, setIsApproving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedNote, setEditedNote] = useState(null);
-
+  const [prescriptionExpanded, setPrescriptionExpanded] = useState(false);
+  const [investigationExpanded, setInvestigationExpanded] = useState(false);
   useEffect(() => {
     if (Array.isArray(medicalHistory) && medicalHistory.length > 0) {
       const firstNote = medicalHistory.find(item => item.doctor_note);
@@ -279,11 +279,17 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
             prescription: Array.isArray(noteToDisplay.prescription) ? noteToDisplay.prescription : [],
             investigation: Array.isArray(noteToDisplay.investigation) ? noteToDisplay.investigation : [],
         };        setEditedNote(deepCloneNote(sanitizedNote));
+        
+        // Set initial expansion state based on content
+        setPrescriptionExpanded(isEditMode || (sanitizedNote.prescription && sanitizedNote.prescription.length > 0));
+        setInvestigationExpanded(isEditMode || (sanitizedNote.investigation && sanitizedNote.investigation.length > 0));
     } else {
         // Handle case where noteToDisplay is null (e.g., set editedNote to a default structure or null)
         setEditedNote(null); // Or a default empty note structure
+        setPrescriptionExpanded(false);
+        setInvestigationExpanded(false);
     }
-    
+    // Only reset edit mode when changing notes, not when toggling edit mode
     setIsEditMode(false);
   }, [selectedNoteId, medicalHistory, initialNote, currentConsultId]);
 
@@ -338,29 +344,53 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
     } finally {
       setIsApproving(false);
     }
-  }, [pendingAIreviewId, currentConsultId, isEditMode, editedNote, currentNote]);
+  }, [pendingAIreviewId, currentConsultId, isEditMode, editedNote, currentNote]);  const toggleEditMode = useCallback(() => {
+  // Debug log to see what values we're working with
+  console.log('Debug values:', {
+    pendingAIreviewId,
+    currentConsultId,
+    isEditMode,
+    hasCurrentNote: !!currentNote
+  });
   
-  const toggleEditMode = useCallback(() => {
-    if (isEditMode) {
-      // Save changes when exiting edit mode
-      setCurrentNote(editedNote);
-      
-      // Only call handleApproveReview if there's a pending AI review
-      if (pendingAIreviewId && currentConsultId) {
-        handleApproveReview();
-      }
-    } else if (currentNote) { // Only enter edit mode if there's a current note
-        // Deep clone currentNote to editedNote when entering edit mode
-        const noteToEdit = deepCloneNote(currentNote);
-        
-        // Ensure prescription and investigation fields are properly initialized
-        if (!noteToEdit.prescription) noteToEdit.prescription = [];
-        if (!noteToEdit.investigation) noteToEdit.investigation = [];
-        
-        setEditedNote(noteToEdit);
+  // Only allow editing if there's a pending AI review
+  if (!pendingAIreviewId) {
+    console.log('No pendingAIreviewId - edit disabled');
+    return;
+  }
+  
+  if (isEditMode) {
+    // Save changes when exiting edit mode
+    setCurrentNote(editedNote);
+    
+    // Call handleApproveReview to save and approve the changes
+    if (pendingAIreviewId && currentConsultId) {
+      handleApproveReview();
     }
-    setIsEditMode(!isEditMode);
-  }, [isEditMode, editedNote, currentNote, pendingAIreviewId, currentConsultId, handleApproveReview]);
+  } else {
+    // Only enter edit mode if there's a current note
+    if (currentNote) {
+      // Deep clone currentNote to editedNote when entering edit mode
+      const noteToEdit = deepCloneNote(currentNote);
+      
+      // Ensure prescription and investigation fields are properly initialized
+      if (!noteToEdit.prescription) noteToEdit.prescription = [];
+      if (!noteToEdit.investigation) noteToEdit.investigation = [];
+      
+      setEditedNote(noteToEdit);
+      
+      // Expand accordions when entering edit mode
+      setPrescriptionExpanded(true);
+      setInvestigationExpanded(true);
+    } else {
+      console.log('No current note available to edit');
+    }
+  }
+  
+  // Toggle edit mode regardless
+  console.log('Toggling edit mode from', isEditMode, 'to', !isEditMode);
+  setIsEditMode(!isEditMode);
+}, [isEditMode, editedNote, currentNote, pendingAIreviewId, currentConsultId, handleApproveReview]);
 
   const updateEditedNote = useCallback((section, field, value) => {
     if (!isEditMode || !editedNote) return;
@@ -426,7 +456,7 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
       ...prev,
       investigation: (prev.investigation || []).filter((_, i) => i !== index)
     }));
-  }, [editedNote]);const handleUpdateInvestigationField = useCallback((index, field, value) => {
+  }, [editedNote]);  const handleUpdateInvestigationField = useCallback((index, field, value) => {
     if (!editedNote) return;
     
     // Add validation for specific fields
@@ -458,6 +488,15 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
     });
   }, [editedNote]);
   
+  // Handlers for accordion expansion
+  const handlePrescriptionToggle = useCallback(() => {
+    setPrescriptionExpanded(prev => !prev);
+  }, []);
+  
+  const handleInvestigationToggle = useCallback(() => {
+    setInvestigationExpanded(prev => !prev);
+  }, []);
+  
   // Memoize expensive computations for better performance (must be before early returns)
   const filteredMedicalHistory = useMemo(() => {
     return Array.isArray(medicalHistory) ? medicalHistory.filter(item => item.doctor_note) : [];
@@ -487,8 +526,7 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
   const { subjective, objective, assessment, plan, next_review } = currentNote;
 
   return (
-    <Box>
-      {pendingAIreviewId && selectedNoteId === pendingAIreviewId && (
+    <Box>      {pendingAIreviewId && (
         <Alert 
           severity="warning" 
           icon={<WarningIcon />}
@@ -534,24 +572,10 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
                 </Button>
               )}
             </Box>
-          </Box>
-        </Alert>
+          </Box>        </Alert>
       )}
       
-      {/* Always show edit button */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button
-          variant="contained"
-          color={isEditMode ? "primary" : "info"}
-          size="medium"
-          startIcon={isEditMode ? <SaveIcon /> : <EditIcon />}
-          onClick={toggleEditMode}
-          disabled={isApproving}
-          sx={{ minWidth: 'auto' }}
-        >
-          {isEditMode ? 'Save Changes' : 'Edit Note'}
-        </Button>
-      </Box>      {filteredMedicalHistory.length > 0 && (
+      {filteredMedicalHistory.length > 0 && (
         <FormControl fullWidth sx={{ mb: 3 }}>
           <InputLabel id="medical-history-note-select-label">View Note From</InputLabel>
           <Select
@@ -605,11 +629,20 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
                   isEditMode={isEditMode}
                   onUpdateNote={updateEditedNote}
                 />
+                <EditableNoteItem 
+                  section="subjective" 
+                  field="review_of_systems" 
+                  label="Review of Systems" 
+                  value={editedNote?.subjective?.review_of_systems}
+                  isEditMode={isEditMode}
+                  onUpdateNote={updateEditedNote}
+                />
               </>
             ) : (
               <>
                 <NoteItem label="Chief Complaint" value={subjective?.chief_complaint} />
                 <NoteItem label="History of Present Illness" value={subjective?.history_of_present_illness} />
+                <NoteItem label="Review of Systems" value={subjective?.review_of_systems} />
               </>
             )}
           </Section>
@@ -778,7 +811,8 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
           </Section>
         </Grid>
       </Grid>      <Accordion 
-        expanded={isEditMode || prescription?.length > 0}
+        expanded={prescriptionExpanded}
+        onChange={handlePrescriptionToggle}
         sx={{ 
           mt: 3, 
           borderRadius: 2, 
@@ -974,7 +1008,8 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
       </Accordion>
       
       {/* Second accordion for investigations */}      <Accordion 
-        expanded={isEditMode || investigation?.length > 0}
+        expanded={investigationExpanded}
+        onChange={handleInvestigationToggle}
         sx={{ 
           mt: 2, 
           borderRadius: 2, 
