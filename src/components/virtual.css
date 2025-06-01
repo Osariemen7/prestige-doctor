@@ -81,6 +81,49 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+/* Calendar Styling */
+.main-calendar-wrapper .fc {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.main-calendar-wrapper .fc-theme-standard td, 
+.main-calendar-wrapper .fc-theme-standard th {
+  border-color: #EDF2F7;
+}
+
+.main-calendar-wrapper .fc-timegrid-slot-label {
+  font-size: 0.875rem;
+  color: #4A5568;
+}
+
+.main-calendar-wrapper .fc-timegrid-axis {
+  border-right: 2px solid #EDF2F7;
+}
+
+.main-calendar-wrapper .fc-toolbar-title {
+  font-size: 1.25rem !important;
+  font-weight: 600;
+  color: #2D3748;
+}
+
+.main-calendar-wrapper .fc-button {
+  background: #EDF2F7 !important;
+  border: none !important;
+  color: #4A5568 !important;
+  font-weight: 500;
+  text-transform: capitalize;
+  padding: 0.5rem 1rem;
+  box-shadow: none !important;
+}
+
+.main-calendar-wrapper .fc-button-active {
+  background: #3182CE !important;
+  color: white !important;
+}
+
 /* Header styles */
 .calendar-container .fc-toolbar {
   margin-bottom: 1.5rem !important;
@@ -225,6 +268,42 @@
   color: #3182CE;
   font-weight: 500;
   font-size: 0.875rem;
+}
+
+/* Modal Calendar Styles */
+.modal-calendar-wrapper .fc {
+  --fc-border-color: #E2E8F0;
+  --fc-button-bg-color: #4299E1;
+  --fc-button-border-color: #4299E1;
+  --fc-button-hover-bg-color: #3182CE;
+  --fc-button-hover-border-color: #3182CE;
+  --fc-today-bg-color: #EBF8FF;
+}
+
+.modal-calendar-wrapper .fc .fc-toolbar-title {
+  font-size: 1.2em;
+}
+
+.modal-calendar-wrapper .fc .fc-button {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.modal-calendar-wrapper .fc .fc-daygrid-day-number {
+  font-size: 0.875rem;
+  padding: 0.25rem;
+}
+
+.modal-calendar-wrapper .fc .fc-daygrid-day.fc-day-today {
+  background-color: var(--fc-today-bg-color);
+}
+
+.modal-calendar-wrapper .fc .fc-highlight {
+  background-color: #BEE3F8 !important;
+}
+
+.modal-calendar-wrapper .fc-timegrid-slots table {
+  display: none;
 }
 
 /* Responsive adjustments */

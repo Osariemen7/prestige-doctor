@@ -52,7 +52,6 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-// Removed: import AppointmentCalendar from './AppointmentCalendar';
 import "./virtual.css";
 
 const MotionBox = motion(Box);
@@ -102,43 +101,38 @@ const Va = () => {
   const [selectedDate, setSelectedDate] = useState(null); // Date object for DatePicker/FullCalendar selection context
   const [isLoadingSlots, setIsLoadingSlots] = useState(false); 
   const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const navigate = useNavigate();
 
-  // Memoized events for the main page FullCalendar (shows all slots from `info`)
+  // Memoized events for the main page FullCalendar (shows only scheduled appointments)
   const allCalendarEvents = useMemo(() => {
-    return info.map(slot => ({
-      id: slot.id || slot.start_time, 
-      title: slot.status === "AVAILABLE" 
-             ? `${formatTimeSlotForDisplay(slot.start_time)} Available` 
-             : `${formatTimeSlotForDisplay(slot.start_time)} Booked`,
-      start: slot.start_time,
-      end: slot.end_time,
-      allDay: false,
-      backgroundColor: slot.status === "AVAILABLE" ? '#48BB78' /* green.400 */ : '#A0AEC0' /* gray.400 */,
-      borderColor: slot.status === "AVAILABLE" ? '#38A169' /* green.500 */ : '#718096' /* gray.500 */,
-      textColor: slot.status === "AVAILABLE" ? 'white' : 'black',
-      classNames: slot.status === "AVAILABLE" ? ['fc-event-available'] : ['fc-event-booked'],
-      extendedProps: { ...slot } // Store original slot data
-    }));
+    return info
+      .filter(slot => slot.status === "SCHEDULED")
+      .map(slot => ({
+        id: slot.appointment_id || slot.start_time,
+        title: `Patient ${slot.patient_id || 'N/A'}`,
+        start: slot.start_time,
+        end: slot.end_time,
+        allDay: false,
+        backgroundColor: '#3182CE', // blue.500
+        borderColor: '#2B6CB0', // blue.600
+        textColor: 'white',
+        classNames: ['fc-event-scheduled'],
+        extendedProps: { ...slot }
+      }));
   }, [info]);
 
-  // Memoized events for the modal FullCalendar (shows available slots for the `selectedDate`)
-  const modalCalendarEvents = useMemo(() => {
-    return availableSlots.map(slot => ({ 
-      id: slot.id || slot.start_time,
-      title: `${formatTimeSlotForDisplay(slot.start_time)} - ${formatTimeSlotForDisplay(slot.end_time)}`,
-      start: slot.start_time,
-      end: slot.end_time,
-      allDay: false,
-      backgroundColor: startTime === slot.start_time ? '#2B6CB0' /* blue.600 */ : '#3182CE' /* blue.500 */,
-      borderColor: startTime === slot.start_time ? '#2C5282' /* blue.700 */ : '#2B6CB0' /* blue.600 */,
-      textColor: 'white',
-      classNames: ['fc-event-available-modal', startTime === slot.start_time ? 'fc-event-selected-modal' : ''],
-      extendedProps: { ...slot }
-    }));
-  }, [availableSlots, startTime]);
-
+  // Combined scheduled appointments for the upcoming appointments section
+  const upcomingAppointments = useMemo(() => {
+    const booked = info.filter(item => item.status === "BOOKED");
+    const scheduled = info.filter(item => item.status === "SCHEDULED");
+    
+    return [...booked, ...scheduled].sort((a, b) => 
+      new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    );
+  }, [info]);
 
   // Fetch patient list
   useEffect(() => {
@@ -447,42 +441,68 @@ const Va = () => {
                         <Box flex={{ base: "1", lg: "1.5" }} className="main-calendar-wrapper">
                           <FullCalendar
                             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                            initialView="dayGridMonth"
+                            initialView="timeGridWeek"
                             headerToolbar={{
                               left: 'prev,next today',
                               center: 'title',
                               right: 'dayGridMonth,timeGridWeek,timeGridDay'
                             }}
                             events={allCalendarEvents}
-                            dateClick={async (dateClickInfo) => {
-                              const clickedDateObj = dateClickInfo.date;
-                              const clickedDateStr = clickedDateObj.toISOString().split('T')[0];
-                              setSelectedDate(clickedDateObj);
-                              setDate(clickedDateStr); // This will trigger useEffect to call fetchAvailableSlots
-                            }}
                             eventClick={(eventClickInfo) => {
                               const { event } = eventClickInfo;
-                              if (event.extendedProps.status === "AVAILABLE") {
-                                setStartTime(event.start.toISOString());
-                                setSelectedSlot(event.extendedProps);
-                                setSelectedDate(event.start); 
-                                setDate(event.start.toISOString().split('T')[0]);
-                                // Fetch slots for this specific date for the modal before opening
-                                fetchAvailableSlots(event.start.toISOString().split('T')[0]).then(() => {
-                                  scheduleModalDisclosure.onOpen();
-                                });
-                              } else {
-                                toast({
-                                  title: "Slot Booked",
-                                  description: `This slot from ${formatTimeSlotForDisplay(event.start)} to ${formatTimeSlotForDisplay(event.end)} is already booked.`,
-                                  status: "info", duration: 3000, isClosable: true,
-                                });
-                              }
+                              const appointmentInfo = event.extendedProps;
+                              // Create a modal to display appointment details
+                              toast({
+                                title: "Appointment Details",
+                                description: (
+                                  <VStack align="start" spacing={2}>
+                                    <Text fontWeight="bold">
+                                      {formatTimeSlotForDisplay(event.start)} - {formatTimeSlotForDisplay(event.end)}
+                                    </Text>
+                                    <Text>Patient ID: {appointmentInfo.patient_id}</Text>
+                                    {appointmentInfo.patient_phone_number && (
+                                      <Text>Phone: {appointmentInfo.patient_phone_number}</Text>
+                                    )}
+                                    {appointmentInfo.channel_name && (
+                                      <Button 
+                                        size="sm" 
+                                        colorScheme="blue" 
+                                        leftIcon={<FiVideo />}
+                                        onClick={() => handleCalls(appointmentInfo)}
+                                        mt={2}
+                                      >
+                                        Join Call
+                                      </Button>
+                                    )}
+                                  </VStack>
+                                ),
+                                status: "info",
+                                duration: null,
+                                isClosable: true,
+                              });
                             }}
-                            height="auto" contentHeight="auto"
-                            slotMinTime="08:00:00" slotMaxTime="22:00:00"
-                            allDaySlot={false} nowIndicator={true} dayMaxEvents={true}
+                            height="600px"
+                            slotMinTime="08:00:00"
+                            slotMaxTime="22:00:00"
+                            allDaySlot={false}
+                            nowIndicator={true}
+                            dayMaxEvents={3}
                             eventDisplay="block"
+                            slotEventOverlap={false}
+                            expandRows={true}
+                            stickyHeaderDates={true}
+                            handleWindowResize={true}
+                            weekNumbers={true}
+                            businessHours={{
+                              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+                              startTime: '08:00',
+                              endTime: '22:00',
+                            }}
+                            slotLabelFormat={{
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              meridiem: 'short'
+                            }}
                           />
                         </Box>
                         <Box flex="1" mt={{base: 4, lg: 0}}>
@@ -541,28 +561,44 @@ const Va = () => {
                 <Box>
                   <Heading size="md" mb={4}>Upcoming Appointments</Heading>
                   <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
-                    {bookedItems.length > 0 || link?.appointment ? (
+                    {(upcomingAppointments.length > 0 || link?.appointment) ? (
                       <>
-                        {bookedItems.map((item, index) => {
-                           if (!item.appointment || !item.appointment.channel_name) return null; 
-                          const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${item.appointment.channel_name}${item.appointment.review_id ? `&reviewId=${item.appointment.review_id}`: ''}`;
+                        {upcomingAppointments.map((item, index) => {
+                          if (!item.channel_name && !item.appointment?.channel_name) return null;
+                          const appointmentInfo = item.appointment || item;
+                          const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${appointmentInfo.channel_name}${appointmentInfo.review_id ? `&reviewId=${appointmentInfo.review_id}`: ''}`;
                           const appointmentDate = new Date(item.start_time);
                           const isToday = appointmentDate.toDateString() === new Date().toDateString();
 
                           return (
-                            <MotionBox key={item.id || index} whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
+                            <MotionBox key={item.appointment_id || item.id || index} whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
                               <Card shadow="md" variant="outline">
                                 <CardHeader pb={2}><Flex justify="space-between" align="center">
-                                    <Heading size="sm">Appt. #{item.appointment.id || index + 1}</Heading>
+                                    <Heading size="sm">Appt. #{appointmentInfo.id || index + 1}</Heading>
                                     <Badge colorScheme={isToday ? 'green' : 'blue'} variant="solid" borderRadius="full" px={3}>
-                                      {isToday ? 'Today' : appointmentDate.toLocaleDateString()} </Badge>
+                                      {isToday ? 'Today' : appointmentDate.toLocaleDateString()}
+                                    </Badge>
                                 </Flex></CardHeader>
                                 <CardBody py={3}><VStack align="stretch" spacing={2.5}>
                                     <Flex align="center" gap={2} title={`Patient ID: ${item.patient_id || 'N/A'}`}><FiUser /><Text fontSize="sm">ID: {item.patient_id || 'N/A'}</Text></Flex>
-                                    <Flex align="center" gap={2}><FiClock /><Text fontSize="sm">{appointmentDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</Text></Flex>
-                                    <Flex align="center" justify="space-between" gap={2}><Text fontSize="xs" color="gray.600" noOfLines={1} title={dynamicLink}>{dynamicLink}</Text><CopyButton textToCopy={dynamicLink} /></Flex>
+                                    <Flex align="center" gap={2}><FiClock />
+                                      <Text fontSize="sm">{appointmentDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
+                                    </Flex>
+                                    <Flex align="center" justify="space-between" gap={2}>
+                                      <Text fontSize="xs" color="gray.600" noOfLines={1} title={dynamicLink}>{dynamicLink}</Text>
+                                      <CopyButton textToCopy={dynamicLink} />
+                                    </Flex>
                                 </VStack></CardBody>
-                                <CardFooter pt={2}><Button colorScheme="blue" width="full" leftIcon={<FiVideo />} onClick={() => handleCalls(item)}>Join Call</Button></CardFooter>
+                                <CardFooter pt={2}>
+                                  <Button 
+                                    colorScheme={item.status === "SCHEDULED" ? "blue" : "green"} 
+                                    width="full" 
+                                    leftIcon={<FiVideo />} 
+                                    onClick={() => handleCalls(item)}
+                                  >
+                                    Join Call
+                                  </Button>
+                                </CardFooter>
                               </Card>
                             </MotionBox>
                           );
@@ -604,79 +640,112 @@ const Va = () => {
                 <ModalBody pb={6}>
                   <Flex direction={{ base: "column", md: "row" }} gap={6}>
                     <Box flex={{ base: "1", md: "0.6" }} className="modal-calendar-wrapper">
-                      <FormControl id="schedule-date-calendar">
-                        <FormLabel>Select Date & Time Slot</FormLabel>
-                        <Box borderWidth="1px" borderRadius="lg" p={1.5} bg="white" shadow="xs">
-                           <FullCalendar
-                                plugins={[timeGridPlugin, interactionPlugin]} // Only timegrid and interaction needed for day view
-                                initialView="timeGridDay"
-                                initialDate={selectedDate ? selectedDate.toISOString().split('T')[0] : undefined} // Set to selectedDate
-                                headerToolbar={{ left: 'prev,next', center: 'title', right: 'today' }}
-                                events={modalCalendarEvents} // Uses availableSlots for the selectedDate
-                                allDaySlot={false}
-                                slotMinTime="08:00:00" slotMaxTime="22:00:00"
-                                height="auto" contentHeight="auto" // Adjust height for modal
-                                selectable={true} // Allow selecting time ranges if needed, though eventClick is primary
-                                dateClick={async (dateClickInfo) => { // Allow changing day in modal
-                                    const clickedDateObj = dateClickInfo.date;
-                                    const clickedDateStr = clickedDateObj.toISOString().split('T')[0];
-                                    setSelectedDate(clickedDateObj); 
-                                    setDate(clickedDateStr); // This will trigger fetchAvailableSlots
-                                }}
-                                eventClick={(eventClickInfo) => {
-                                    const { event } = eventClickInfo;
-                                    setStartTime(event.start.toISOString());
-                                    setSelectedSlot(event.extendedProps);
-                                }}
-                                nowIndicator={true}
-                              />
+                      <FormControl id="schedule-date" mb={4}>
+                        <FormLabel>Select Date</FormLabel>
+                        <Box height="300px" mb={4}>
+                          <FullCalendar
+                            plugins={[dayGridPlugin, interactionPlugin]}
+                            initialView="dayGridMonth"
+                            headerToolbar={{
+                              left: 'prev',
+                              center: 'title',
+                              right: 'next'
+                            }}
+                            selectable={true}
+                            dateClick={(dateClickInfo) => {
+                              const selectedDate = dateClickInfo.date;
+                              setSelectedDate(selectedDate);
+                              setDate(selectedDate.toISOString().split('T')[0]);
+                            }}
+                            selectMirror={true}
+                            validRange={{
+                              start: new Date().toISOString().split('T')[0]
+                            }}
+                            height="100%"
+                            dayMaxEvents={0}
+                            events={allCalendarEvents}
+                            eventDisplay="background"
+                            eventColor="#EDF2F7"
+                            eventTextColor="#718096"
+                            businessHours={{
+                              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+                              startTime: '08:00',
+                              endTime: '22:00',
+                            }}
+                          />
                         </Box>
                       </FormControl>
+                      
+                      <Box mt={6}>
+                       
+                      </Box>
+
+                      {availableSlots.some(slot => slot.status === "SCHEDULED") && (
+                        <Box mt={6}>
+                          <FormLabel>Scheduled Appointments</FormLabel>
+                          <VStack spacing={2} align="stretch">
+                            {availableSlots
+                              .filter(slot => slot.status === "SCHEDULED")
+                              .map((slot) => (
+                                <Box
+                                  key={slot.appointment_id || slot.start_time}
+                                  p={2}
+                                  bg="gray.100"
+                                  borderRadius="md"
+                                  borderLeft="4px solid"
+                                  borderLeftColor="blue.500"
+                                >
+                                  <Text fontSize="sm" fontWeight="medium">
+                                    {formatTimeSlotForDisplay(slot.start_time)} - {formatTimeSlotForDisplay(slot.end_time)}
+                                  </Text>
+                                  {slot.patient_id && (
+                                    <Text fontSize="xs" color="gray.600">
+                                      Patient ID: {slot.patient_id}
+                                    </Text>
+                                  )}
+                                </Box>
+                              ))}
+                          </VStack>
+                        </Box>
+                      )}
                     </Box>
 
                     <Box flex="1" mt={{base: 4, md: 0}}>
-                      <FormControl id="schedule-time-list-modal" isRequired>
-                        <FormLabel>
-                            {selectedDate ? `Confirm for ${selectedDate.toLocaleDateString()}` : "Select a Date"}
-                            {startTime && (<Text as="span" fontWeight="bold" color="blue.600"> at {formatTimeSlotForDisplay(startTime)}</Text>)}
-                        </FormLabel>
-                        {isLoadingSlots ? ( <Spinner />
-                        ) : availableSlots.length > 0 ? (
-                          <VStack spacing={3} align="stretch" maxH="350px" overflowY="auto" pr={2} className="custom-scrollbar">
-                            {Object.entries(groupSlotsByHour(availableSlots))
-                              .sort(([hourA], [hourB]) => Number(hourA) - Number(hourB))
-                              .map(([hour, { label, slots }]) => (
-                              <Box key={hour} w="full">
-                                <Flex align="center" bg="gray.50" p={1.5} borderRadius="md" mb={1.5} borderLeft="3px solid" borderColor="gray.300">
-                                  <FiClock size="0.8em" style={{marginRight: '5px'}}/>
-                                  <Text fontWeight="medium" color="gray.600" fontSize="xs">{label}</Text>
-                                </Flex>
-                                <SimpleGrid columns={{base:1, sm:2}} spacing={1.5}>
-                                  {slots.map((slot) => (
-                                    <Button key={slot.start_time} size="xs" width="full"
-                                      colorScheme={startTime === slot.start_time ? "blue" : "gray"}
-                                      variant={startTime === slot.start_time ? "solid" : "outline"}
-                                      onClick={() => { setStartTime(slot.start_time); setSelectedSlot(slot); }}
-                                      isDisabled={slot.status !== "AVAILABLE"}
-                                      _hover={ slot.status === "AVAILABLE" ? { transform: "translateY(-1px)", shadow: "sm" } : undefined }
-                                      transition="all 0.15s" px={1}
-                                    >
-                                      <VStack spacing={0} align="center">
-                                        <Text fontSize="sm">{formatTimeSlotForDisplay(slot.start_time)}</Text>
-                                        <Text fontSize="xs" opacity={0.8}>
-                                          {`${(new Date(slot.end_time).getTime() - new Date(slot.start_time).getTime()) / (1000 * 60)}min`}
-                                        </Text>
-                                      </VStack>
-                                    </Button>
-                                  ))}
-                                </SimpleGrid>
-                              </Box>
-                            ))}
-                          </VStack>
-                        ) : (
-                          <Text color="gray.500">No slots for this day, or select a day.</Text>
-                        )}
-                      </FormControl>
+                       <FormControl>
+                          <FormLabel>Available Time Slots</FormLabel>
+                          {isLoadingSlots ? (
+                            <Center p={4}><Spinner /></Center>
+                          ) : availableSlots.length > 0 ? (
+                            <SimpleGrid columns={2} spacing={2} maxH="350px" overflowY="auto" pr={2}>
+                              {availableSlots
+                                .filter(slot => slot.status === "AVAILABLE")
+                                .map((slot) => (
+                                  <Button
+                                    key={slot.start_time}
+                                    size="sm"
+                                    colorScheme={startTime === slot.start_time ? "blue" : "gray"}
+                                    variant={startTime === slot.start_time ? "solid" : "outline"}
+                                    onClick={() => {
+                                      setStartTime(slot.start_time);
+                                      setSelectedSlot(slot);
+                                    }}
+                                    py={4}
+                                  >
+                                    <VStack spacing={0}>
+                                      <Text>{formatTimeSlotForDisplay(slot.start_time)}</Text>
+                                      <Text fontSize="xs" opacity={0.8}>
+                                        {`${(new Date(slot.end_time).getTime() - new Date(slot.start_time).getTime()) / (1000 * 60)}min`}
+                                      </Text>
+                                    </VStack>
+                                  </Button>
+                              ))}
+                            </SimpleGrid>
+                          ) : (
+                            <Text color="gray.500" textAlign="center" py={4}>
+                              {selectedDate ? "No available slots for this date" : "Select a date to see available slots"}
+                            </Text>
+                          )}
+                        </FormControl>
                     </Box>
                   </Flex>
 
@@ -699,36 +768,44 @@ const Va = () => {
                 </ModalBody>
                 <ModalFooter>
                   <Button variant="ghost" mr={3} onClick={scheduleModalDisclosure.onClose}>Cancel</Button>
-                  <Button colorScheme="blue" onClick={() => handleBookingSubmit(false)} isLoading={buttonVisible} loadingText="Submitting"> Book Appointment </Button>
+                  <Button colorScheme="blue" onClick={() => handleBookingSubmit(false)} isLoading={buttonVisible} loadingText="Submitting...">
+                    Book Appointment
+                  </Button>
                 </ModalFooter>
               </ModalContent>
             </Modal>
 
             {/* Instant Call Modal (Modal 2) */}
-            <Modal isOpen={instantModalDisclosure.isOpen} onClose={instantModalDisclosure.onClose}>
+            <Modal isOpen={instantModalDisclosure.isOpen} onClose={instantModalDisclosure.onClose} size="md" scrollBehavior="inside">
               <ModalOverlay />
               <ModalContent>
-                <ModalHeader>Start Instant Call</ModalHeader>
+                <ModalHeader>Book Instant Call</ModalHeader>
                 <ModalCloseButton />
-                <ModalBody pb={6}><VStack spacing={4} align="stretch">
-                    <FormControl id="instant-patient"> <FormLabel>Select Patient (Optional)</FormLabel>
-                        <Select placeholder="Select patient or enter manually" value={isManualInput ? 'manual' : selectedPatientId} onChange={(e) => handlePatientSelect(e.target.value)}>
+                <ModalBody pb={6}>
+                  <VStack spacing={4} align="stretch">
+                    <FormControl id="instant-patient" isRequired>
+                      <FormLabel>Select Patient</FormLabel>
+                      <Select placeholder="Select patient or enter manually" value={isManualInput ? 'manual' : selectedPatientId} onChange={(e) => handlePatientSelect(e.target.value)}>
                         <option value="manual">Enter Phone Number Manually</option>
                         {dataList.map((patient) => (<option key={patient.id} value={patient.id.toString()}>
                             {patient.full_name ? `${patient.full_name} (${patient.phone_number})` : patient.phone_number} </option> ))}
-                        </Select>
+                      </Select>
                     </FormControl>
-                    {isManualInput && ( <FormControl id="instant-phone"> <FormLabel>Phone Number (Optional)</FormLabel>
+                    {isManualInput && ( <FormControl id="instant-phone" isRequired> <FormLabel>Phone Number</FormLabel>
                         <Input type="tel" value={phoneNumber} onChange={(e) => setPhone(e.target.value)} placeholder="e.g., 08012345678"/>
                         </FormControl> )}
-                    <FormControl id="instant-reason" isRequired> <FormLabel>Reason for Appointment</FormLabel>
-                        <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Briefly describe the reason for this instant call"/>
+                    <FormControl id="instant-reason" isRequired>
+                      <FormLabel>Reason for Appointment</FormLabel>
+                      <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Briefly describe the reason for this call"/>
                     </FormControl>
                     {message && <Text color='red.500' fontSize="sm">{message}</Text>}
-                </VStack></ModalBody>
+                  </VStack>
+                </ModalBody>
                 <ModalFooter>
                   <Button variant="ghost" mr={3} onClick={instantModalDisclosure.onClose}>Cancel</Button>
-                  <Button colorScheme="green" onClick={() => handleBookingSubmit(true)} isLoading={buttonVisible} loadingText="Starting"> Start Instant Call </Button>
+                  <Button colorScheme="green" onClick={() => handleBookingSubmit(true)} isLoading={buttonVisible} loadingText="Submitting...">
+                    Book Instant Call
+                  </Button>
                 </ModalFooter>
               </ModalContent>
             </Modal>
