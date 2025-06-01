@@ -52,10 +52,6 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import {
-  SingleDatepicker,
-} from "chakra-dayzed-datepicker";
-// Removed: import AppointmentCalendar from './AppointmentCalendar';
 import "./virtual.css";
 
 const MotionBox = motion(Box);
@@ -105,6 +101,8 @@ const Va = () => {
   const [selectedDate, setSelectedDate] = useState(null); // Date object for DatePicker/FullCalendar selection context
   const [isLoadingSlots, setIsLoadingSlots] = useState(false); 
   const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -561,7 +559,7 @@ const Va = () => {
                 </Box>
 
                 <Box>
-                  <Heading size="md" mb={4}>Appointments</Heading>
+                  <Heading size="md" mb={4}>Upcoming Appointments</Heading>
                   <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
                     {(upcomingAppointments.length > 0 || link?.appointment) ? (
                       <>
@@ -644,20 +642,76 @@ const Va = () => {
                     <Box flex={{ base: "1", md: "0.6" }} className="modal-calendar-wrapper">
                       <FormControl id="schedule-date" mb={4}>
                         <FormLabel>Select Date</FormLabel>
-                        <Input
-                          type="date"
-                          value={selectedDate ? selectedDate.toISOString().split('T')[0] : ''}
-                          min={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => {
-                            const date = new Date(e.target.value);
-                            setSelectedDate(date);
-                            setDate(date.toISOString().split('T')[0]);
-                          }}
-                        />
+                        <Box height="300px" mb={4}>
+                          <FullCalendar
+                            plugins={[dayGridPlugin, interactionPlugin]}
+                            initialView="dayGridMonth"
+                            headerToolbar={{
+                              left: 'prev',
+                              center: 'title',
+                              right: 'next'
+                            }}
+                            selectable={true}
+                            dateClick={(dateClickInfo) => {
+                              const selectedDate = dateClickInfo.date;
+                              setSelectedDate(selectedDate);
+                              setDate(selectedDate.toISOString().split('T')[0]);
+                            }}
+                            selectMirror={true}
+                            validRange={{
+                              start: new Date().toISOString().split('T')[0]
+                            }}
+                            height="100%"
+                            dayMaxEvents={0}
+                            events={allCalendarEvents}
+                            eventDisplay="background"
+                            eventColor="#EDF2F7"
+                            eventTextColor="#718096"
+                            businessHours={{
+                              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+                              startTime: '08:00',
+                              endTime: '22:00',
+                            }}
+                          />
+                        </Box>
                       </FormControl>
                       
                       <Box mt={6}>
-                        <FormControl>
+                       
+                      </Box>
+
+                      {availableSlots.some(slot => slot.status === "SCHEDULED") && (
+                        <Box mt={6}>
+                          <FormLabel>Scheduled Appointments</FormLabel>
+                          <VStack spacing={2} align="stretch">
+                            {availableSlots
+                              .filter(slot => slot.status === "SCHEDULED")
+                              .map((slot) => (
+                                <Box
+                                  key={slot.appointment_id || slot.start_time}
+                                  p={2}
+                                  bg="gray.100"
+                                  borderRadius="md"
+                                  borderLeft="4px solid"
+                                  borderLeftColor="blue.500"
+                                >
+                                  <Text fontSize="sm" fontWeight="medium">
+                                    {formatTimeSlotForDisplay(slot.start_time)} - {formatTimeSlotForDisplay(slot.end_time)}
+                                  </Text>
+                                  {slot.patient_id && (
+                                    <Text fontSize="xs" color="gray.600">
+                                      Patient ID: {slot.patient_id}
+                                    </Text>
+                                  )}
+                                </Box>
+                              ))}
+                          </VStack>
+                        </Box>
+                      )}
+                    </Box>
+
+                    <Box flex="1" mt={{base: 4, md: 0}}>
+                       <FormControl>
                           <FormLabel>Available Time Slots</FormLabel>
                           {isLoadingSlots ? (
                             <Center p={4}><Spinner /></Center>
@@ -692,81 +746,6 @@ const Va = () => {
                             </Text>
                           )}
                         </FormControl>
-                      </Box>
-
-                      {availableSlots.some(slot => slot.status === "SCHEDULED") && (
-                        <Box mt={6}>
-                          <FormLabel>Scheduled Appointments</FormLabel>
-                          <VStack spacing={2} align="stretch">
-                            {availableSlots
-                              .filter(slot => slot.status === "SCHEDULED")
-                              .map((slot) => (
-                                <Box
-                                  key={slot.appointment_id || slot.start_time}
-                                  p={2}
-                                  bg="gray.100"
-                                  borderRadius="md"
-                                  borderLeft="4px solid"
-                                  borderLeftColor="blue.500"
-                                >
-                                  <Text fontSize="sm" fontWeight="medium">
-                                    {formatTimeSlotForDisplay(slot.start_time)} - {formatTimeSlotForDisplay(slot.end_time)}
-                                  </Text>
-                                  {slot.patient_id && (
-                                    <Text fontSize="xs" color="gray.600">
-                                      Patient ID: {slot.patient_id}
-                                    </Text>
-                                  )}
-                                </Box>
-                              ))}
-                          </VStack>
-                        </Box>
-                      )}
-                    </Box>
-
-                    <Box flex="1" mt={{base: 4, md: 0}}>
-                      <FormControl id="schedule-time-list-modal" isRequired>
-                        <FormLabel>
-                            {selectedDate ? `Confirm for ${selectedDate.toLocaleDateString()}` : "Select a Date"}
-                            {startTime && (<Text as="span" fontWeight="bold" color="blue.600"> at {formatTimeSlotForDisplay(startTime)}</Text>)}
-                        </FormLabel>
-                        {isLoadingSlots ? ( <Spinner />
-                        ) : availableSlots.length > 0 ? (
-                          <VStack spacing={3} align="stretch" maxH="350px" overflowY="auto" pr={2} className="custom-scrollbar">
-                            {Object.entries(groupSlotsByHour(availableSlots))
-                              .sort(([hourA], [hourB]) => Number(hourA) - Number(hourB))
-                              .map(([hour, { label, slots }]) => (
-                              <Box key={hour} w="full">
-                                <Flex align="center" bg="gray.50" p={1.5} borderRadius="md" mb={1.5} borderLeft="3px solid" borderColor="gray.300">
-                                  <FiClock size="0.8em" style={{marginRight: '5px'}}/>
-                                  <Text fontWeight="medium" color="gray.600" fontSize="xs">{label}</Text>
-                                </Flex>
-                                <SimpleGrid columns={{base:1, sm:2}} spacing={1.5}>
-                                  {slots.map((slot) => (
-                                    <Button key={slot.start_time} size="xs" width="full"
-                                      colorScheme={startTime === slot.start_time ? "blue" : "gray"}
-                                      variant={startTime === slot.start_time ? "solid" : "outline"}
-                                      onClick={() => { setStartTime(slot.start_time); setSelectedSlot(slot); }}
-                                      isDisabled={slot.status !== "AVAILABLE"}
-                                      _hover={ slot.status === "AVAILABLE" ? { transform: "translateY(-1px)", shadow: "sm" } : undefined }
-                                      transition="all 0.15s" px={1}
-                                    >
-                                      <VStack spacing={0} align="center">
-                                        <Text fontSize="sm">{formatTimeSlotForDisplay(slot.start_time)}</Text>
-                                        <Text fontSize="xs" opacity={0.8}>
-                                          {`${(new Date(slot.end_time).getTime() - new Date(slot.start_time).getTime()) / (1000 * 60)}min`}
-                                        </Text>
-                                      </VStack>
-                                    </Button>
-                                  ))}
-                                </SimpleGrid>
-                              </Box>
-                            ))}
-                          </VStack>
-                        ) : (
-                          <Text color="gray.500">No slots for this day, or select a day.</Text>
-                        )}
-                      </FormControl>
                     </Box>
                   </Flex>
 
