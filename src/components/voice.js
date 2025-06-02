@@ -33,10 +33,25 @@ const Voice = () => {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const destination = audioContext.createMediaStreamDestination();
     const [transcript, setTranscript] = useState('');
-    const [assemblyAiToken, setAssemblyAiToken] = useState('');
-    const assemblyWsRef = useRef(null);
+    const [assemblyAiToken, setAssemblyAiToken] = useState('');    const assemblyWsRef = useRef(null);
     const wsClosingForResumeRef = useRef(false);
     let transcriptionInterval = null;
+
+    // Add auto-join effect
+    useEffect(() => {
+        const autoJoinCall = async () => {
+            try {
+                if (!isJoined && (item.channel_name || chanel)) {
+                    console.log('Auto-joining call...');
+                    await joinChannelWithVideo();
+                }
+            } catch (error) {
+                console.error('Error auto-joining call:', error);
+            }
+        };
+
+        autoJoinCall();
+    }, [item.channel_name, chanel]); // Only run when channel name changes
 
     const [isSaving, setIsSaving] = useState(false);
     const [data, setData] = useState(null);
@@ -59,6 +74,15 @@ const Voice = () => {
 
     const [connectionState, setConnectionState] = useState('DISCONNECTED');
     const [isPaused, setIsPaused] = useState(false);
+
+    const stopRecord = () => {
+        if (assemblyWsRef.current && assemblyWsRef.current.readyState === WebSocket.OPEN) {
+            assemblyWsRef.current.close();
+            assemblyWsRef.current = null;
+        }
+        setIsRecording(false);
+        console.log('Recording stopped.');
+    };
 
     const getSuggestion = async () => {
         if (isGettingSuggestion.current) return;
@@ -133,7 +157,6 @@ const Voice = () => {
 
                 if (mediaType === 'video') {
                     setRemoteUsers((prevUsers) => {
-                        // Check if user already exists
                         if (prevUsers.find(u => u.uid === user.uid)) {
                             return prevUsers;
                         }
@@ -142,14 +165,27 @@ const Voice = () => {
                 }
                 
                 if (mediaType === 'audio') {
-                    // Play audio immediately after successful subscription
+                    // Defensive: play audio even if already in list
                     if (user.audioTrack) {
-                        user.audioTrack.play();
-                        // Set volume to normal level
+                        try {
+                            user.audioTrack.play();
+                        } catch (err) {
+                            console.warn('Error playing remote audio track:', err);
+                        }
                         user.audioTrack.setVolume(100);
                         console.log('Playing remote audio track for user:', user.uid);
+                    } else {
+                        // Retry if audioTrack is not ready
+                        setTimeout(() => {
+                            if (user.audioTrack) {
+                                try { user.audioTrack.play(); } catch (err) {}
+                            }
+                        }, 500);
                     }
-                    setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
+                    setRemoteAudioTracks((prev) => {
+                        if (prev.includes(user.audioTrack)) return prev;
+                        return [...prev, user.audioTrack];
+                    });
                 }
 
                 setUserCount((prev) => {
@@ -160,6 +196,9 @@ const Voice = () => {
                     return newCount;
                 });
             } catch (error) {
+                if (error && error.message && error.message.includes('permission')) {
+                    alert('Microphone or camera permission denied. Please allow access and refresh the page.');
+                }
                 console.error('Error subscribing to user:', error);
             }
         });
@@ -168,7 +207,7 @@ const Voice = () => {
             console.log('User unpublished:', user.uid, mediaType);
             if (mediaType === 'audio') {
                 if (user.audioTrack) {
-                    user.audioTrack.stop();
+                    try { user.audioTrack.stop(); } catch (err) {}
                 }
                 setRemoteAudioTracks((prev) =>
                     prev.filter((track) => track !== user.audioTrack)
@@ -191,6 +230,17 @@ const Voice = () => {
             client.removeAllListeners();
             stopTimer();
         };
+    }, []);
+
+    // Defensive: check device permissions on mount
+    useEffect(() => {
+        (async () => {
+            try {
+                await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            } catch (err) {
+                alert('Microphone or camera permission denied. Please allow access and refresh the page.');
+            }
+        })();
     }, []);
       
 
@@ -540,6 +590,56 @@ const Voice = () => {
                 return '';
         }
     };
+
+    // Add cleanup effect when component unmounts
+    useEffect(() => {
+        return async () => {
+            try {
+                // Stop any ongoing recording
+                if (isRecording) {
+                    stopRecord();
+                }
+
+                // Clean up audio tracks
+                if (localAudioTrack) {
+                    localAudioTrack.stop();
+                    localAudioTrack.close();
+                }
+
+                // Clean up video tracks
+                if (localVideoTrack) {
+                    localVideoTrack.stop();
+                    localVideoTrack.close();
+                }
+
+                // Clean up remote audio tracks
+                remoteAudioTracks.forEach(track => {
+                    track.stop();
+                });
+
+                // Leave the channel if joined
+                if (isJoined && client) {
+                    await client.leave();
+                }
+
+                // Reset states
+                setLocalAudioTrack(null);
+                setLocalVideoTrack(null);
+                setRemoteAudioTracks([]);
+                setRemoteUsers([]);
+                setIsJoined(false);
+                setIsVideoEnabled(false);
+
+                // Clear timer if running
+                if (timerId) {
+                    clearInterval(timerId);
+                }
+
+            } catch (error) {
+                console.error('Error during cleanup:', error);
+            }
+        };
+    }, [isJoined, isRecording, localAudioTrack, localVideoTrack, remoteAudioTracks, timerId]);
 
     return (
         <ChakraProvider>
