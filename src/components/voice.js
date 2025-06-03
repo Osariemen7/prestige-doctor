@@ -24,19 +24,18 @@ const Voice = () => {
     const [isRecording, setIsRecording] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [recorder, setRecorder] = useState(null);
-    const [isLoading, setIsLoading] = useState(false); // New loading state
+    const [isLoading, setIsLoading] = useState(false);
     const [userCount, setUserCount] = useState(0);
-    const [callDuration, setCallDuration] = useState(900); // Countdown from 60 seconds
-    const [timerId, setTimerId] = useState(null);
-    const timerIdRef = useRef('')
-    const navigate = useNavigate()
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const destination = audioContext.createMediaStreamDestination();
+    const [callDuration, setCallDuration] = useState(900);
+    const timerIdRef = useRef(null);
+    const navigate = useNavigate();
+    const audioContextRef = useRef(null);
+    const destinationRef = useRef(null);
     const [transcript, setTranscript] = useState('');
     const [assemblyAiToken, setAssemblyAiToken] = useState('');
     const assemblyWsRef = useRef(null);
     const wsClosingForResumeRef = useRef(false);
-    let transcriptionInterval = null;
+    const transcriptionIntervalRef = useRef(null);
 
     const [isSaving, setIsSaving] = useState(false);
     const [data, setData] = useState(null);
@@ -51,14 +50,31 @@ const Voice = () => {
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const isGettingSuggestion = useRef(false);
-    const { state: locationState } = useLocation();
-    const reviewid = searchParams.get("reviewid") || locationState?.item?.review_id;
-    const thread = locationState?.item?.thread_id;
+    const reviewid = searchParams.get("reviewid") || state?.item?.review_id;
+    const thread = state?.item?.thread_id;
 
-    const client = createClient({ mode: 'rtc', codec: 'vp8' });
+    const clientRef = useRef(null);
 
     const [connectionState, setConnectionState] = useState('DISCONNECTED');
     const [isPaused, setIsPaused] = useState(false);
+
+    // Initialize client and audio context
+    useEffect(() => {
+        if (!clientRef.current) {
+            clientRef.current = createClient({ mode: 'rtc', codec: 'vp8' });
+        }
+        
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            destinationRef.current = audioContextRef.current.createMediaStreamDestination();
+        }
+
+        return () => {
+            if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+                audioContextRef.current.close();
+            }
+        };
+    }, []);
 
     const getSuggestion = async () => {
         if (isGettingSuggestion.current) return;
@@ -115,16 +131,17 @@ const Voice = () => {
             setIsSaving(false);
             isGettingSuggestion.current = false;
         }
-    };
+    };    useEffect(() => {
+        const client = clientRef.current;
+        if (!client) return;
 
-    useEffect(() => {
         // Add connection state handlers
-        client.on('connection-state-change', (curState, prevState) => {
+        const handleConnectionStateChange = (curState, prevState) => {
             console.log(`Connection state changed from ${prevState} to ${curState}`);
             setConnectionState(curState);
-        });
+        };
 
-        client.on('user-published', async (user, mediaType) => {
+        const handleUserPublished = async (user, mediaType) => {
             console.log('User published:', user.uid, mediaType);
             try {
                 // Subscribe to the remote user
@@ -162,9 +179,9 @@ const Voice = () => {
             } catch (error) {
                 console.error('Error subscribing to user:', error);
             }
-        });
+        };
 
-        client.on('user-unpublished', (user, mediaType) => {
+        const handleUserUnpublished = (user, mediaType) => {
             console.log('User unpublished:', user.uid, mediaType);
             if (mediaType === 'audio') {
                 if (user.audioTrack) {
@@ -185,16 +202,20 @@ const Voice = () => {
                 }
                 return newCount;
             });
-        });
+        };
+
+        client.on('connection-state-change', handleConnectionStateChange);
+        client.on('user-published', handleUserPublished);
+        client.on('user-unpublished', handleUserUnpublished);
 
         return () => {
-            client.removeAllListeners();
+            client.off('connection-state-change', handleConnectionStateChange);
+            client.off('user-published', handleUserPublished);
+            client.off('user-unpublished', handleUserUnpublished);
             stopTimer();
         };
     }, []);
-      
-
-      const startTimer = () => {
+          const startTimer = () => {
         setCallDuration(900); // Reset duration
         if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear any existing interval
         const id = setInterval(() => {
@@ -218,14 +239,19 @@ const Voice = () => {
       
     
       const stopTimer = () => {
-        if (timerId) {
-            clearInterval(timerId);
-            setTimerId(null);
+        if (timerIdRef.current) {
+            clearInterval(timerIdRef.current);
+            timerIdRef.current = null;
         }
     };
     
-    
-    async function joinChannelWithVideo() {
+      async function joinChannelWithVideo() {
+        const client = clientRef.current;
+        if (!client) {
+            console.error('Client not initialized');
+            return;
+        }
+
         if (isJoined) {
             console.warn('You are already in the channel.');
             return;
@@ -286,9 +312,10 @@ const Voice = () => {
         }
     }
     
-    
+        async function disableVideo() {
+        const client = clientRef.current;
+        if (!client) return;
 
-    async function disableVideo() {
         if (isVideoEnabled && localVideoTrack) {
             try {
                 await client.unpublish(localVideoTrack);
@@ -303,12 +330,11 @@ const Voice = () => {
             }
         }
     }
-      
-
-   async function leaveChannel() {
+         async function leaveChannel() {
+    const client = clientRef.current;
     setIsLoading(true); // Start loading
     try {
-        if (isJoined) {
+        if (isJoined && client) {
             console.log('Leaving channel...');
             await client.leave();
             stopTimer();
@@ -341,7 +367,7 @@ const Voice = () => {
     } finally {
         setIsLoading(false); // Stop loading
         navigate('/');
-            window.location.href = 'https://prestigehealth.app/';
+        window.location.href = 'https://prestigehealth.app/';
     }
 }
 
@@ -569,19 +595,19 @@ const Voice = () => {
 
                 {/* Video Container */}
                 <Box flex="1" position="relative">
-                    <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
-
-                    {/* Transcription Icon - Moved to top-right */}
+                    <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />                    {/* Transcription Icon - Moved to top-right */}
                     <Box position="absolute" top="20px" right="20px" zIndex={2}>
-                        <Popover placement="left">
+                        <Popover placement="left" isLazy>
                             <PopoverTrigger>
-                                <IconButton
-                                    icon={<MdDescription />}
-                                    colorScheme="blue"
-                                    variant="solid"
-                                    borderRadius="full"
-                                    aria-label="View Transcription"
-                                />
+                                <Box>
+                                    <IconButton
+                                        icon={<MdDescription />}
+                                        colorScheme="blue"
+                                        variant="solid"
+                                        borderRadius="full"
+                                        aria-label="View Transcription"
+                                    />
+                                </Box>
                             </PopoverTrigger>
                             <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
                                 <PopoverArrow />
