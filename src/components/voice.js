@@ -25,16 +25,18 @@ const Voice = () => {
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [recorder, setRecorder] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [userCount, setUserCount] = useState(0);
-    const [callDuration, setCallDuration] = useState(900);
+    const [userCount, setUserCount] = useState(0);    const [callDuration, setCallDuration] = useState(900);
     const timerIdRef = useRef(null);
     const navigate = useNavigate();
     const audioContextRef = useRef(null);
     const destinationRef = useRef(null);
     const [transcript, setTranscript] = useState('');
-    const [assemblyAiToken, setAssemblyAiToken] = useState('');    const assemblyWsRef = useRef(null);
+    const [assemblyAiToken, setAssemblyAiToken] = useState('');
+    const assemblyWsRef = useRef(null);
     const wsClosingForResumeRef = useRef(false);
     const transcriptionIntervalRef = useRef(null);
+    const [timerId, setTimerId] = useState(null);
+    const transcriptionInterval = useRef(null);
 
     const [isSaving, setIsSaving] = useState(false);
     const [data, setData] = useState(null);
@@ -386,8 +388,10 @@ const Voice = () => {
 }
 
     
-    
-    async function enableVideo() {
+      async function enableVideo() {
+        const client = clientRef.current;
+        if (!client) return;
+        
         try {
             if (localVideoTrack) {
                 console.log('Cleaning up existing video track before creating new one');
@@ -405,11 +409,17 @@ const Voice = () => {
             console.error('Error enabling video:', error);
         }
     }
-   
-    const formatDuration = (seconds) => {
+     const formatDuration = (seconds) => {
         const minutes = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
+    const stopRecord = () => {
+        if (recorder) {
+            recorder.stop();
+        }
+        setIsRecording(false);
     };
 
     const pauseTranscription = () => {
@@ -513,9 +523,8 @@ const Voice = () => {
         return () => {
             if (assemblyWsRef.current) {
                 assemblyWsRef.current.close();
-            }
-            if (transcriptionInterval) {
-                clearInterval(transcriptionInterval);
+            }            if (transcriptionInterval.current) {
+                clearInterval(transcriptionInterval.current);
             }
         };
     }, []);
@@ -605,11 +614,9 @@ const Voice = () => {
                 // Clean up remote audio tracks
                 remoteAudioTracks.forEach(track => {
                     track.stop();
-                });
-
-                // Leave the channel if joined
-                if (isJoined && client) {
-                    await client.leave();
+                });                // Leave the channel if joined
+                if (isJoined && clientRef.current) {
+                    await clientRef.current.leave();
                 }
 
                 // Reset states
@@ -618,9 +625,7 @@ const Voice = () => {
                 setRemoteAudioTracks([]);
                 setRemoteUsers([]);
                 setIsJoined(false);
-                setIsVideoEnabled(false);
-
-                // Clear timer if running
+                setIsVideoEnabled(false);                // Clear timer if running
                 if (timerId) {
                     clearInterval(timerId);
                 }
