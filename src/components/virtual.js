@@ -345,7 +345,7 @@ const Va = () => {
   };
       
   const handleCalls = (item) => { 
-    if (item && item.appointment) navigate('/call', { state: { item: item.appointment } });
+    if (item) navigate('/call', { state: { item: item } });
     else toast({title: "Error", description: "Appointment details missing.", status: "error"})
   };
 
@@ -355,7 +355,7 @@ const Va = () => {
   };
   
   const cLink = link?.appointment?.channel_name && link?.appointment?.review_id
-  ? `https://prestige-doctor.vercel.app/appointment?channel=${link.appointment.channel_name}&reviewId=${link.appointment.review_id}`
+  ? `https://provider.prestigehealth.app/appointment?channel=${link.appointment.channel_name}&reviewId=${link.appointment.review_id}`
   : '';
 
   const bookedItems = useMemo(() => info.filter((item) => item.status === "BOOKED"), [info]);
@@ -566,7 +566,7 @@ const Va = () => {
                         {upcomingAppointments.map((item, index) => {
                           if (!item.channel_name && !item.appointment?.channel_name) return null;
                           const appointmentInfo = item.appointment || item;
-                          const dynamicLink = `https://prestige-doctor.vercel.app/appointment?channel=${appointmentInfo.channel_name}${appointmentInfo.review_id ? `&reviewId=${appointmentInfo.review_id}`: ''}`;
+                          const dynamicLink = `https://provider.prestigehealth.app/appointment?channel=${appointmentInfo.channel_name}${appointmentInfo.review_id ? `&reviewId=${appointmentInfo.review_id}`: ''}`;
                           const appointmentDate = new Date(item.start_time);
                           const isToday = appointmentDate.toDateString() === new Date().toDateString();
 

@@ -66,11 +66,11 @@ import VideoDisplay from './vod';
 import { getAccessToken } from './api';
 import { useReview } from './context';
 import Chat from './chatVoice';
-
+import { keyframes } from '@emotion/react';
 import PatientProfile from './write';
 import { ErrorBoundary } from 'react-error-boundary';
 import { AgoraRTC } from 'agora-rtc-sdk-ng';
-import { keyframes } from '@emotion/react';
+
 
 // Animation for recording indicator
 const pulseAnimation = keyframes`
@@ -288,6 +288,22 @@ const Call = () => {
     const [searchParams] = useSearchParams();
     const chanel = searchParams.get('channel');
     const navigate = useNavigate();
+    const location = useLocation(); // Add this line for route monitoring
+
+    // Add effect to handle route changes
+    useEffect(() => {
+        const handleRouteChange = async () => {
+            if (isJoined) {
+                await leaveChannel();
+            }
+        };
+
+        // Call cleanup when route changes
+        return () => {
+            handleRouteChange();
+        };
+    }, [location.pathname]); // Watch for route changes
+
     const [message, setMessage] = useState('');
     const [callDuration, setCallDuration] = useState(900); // Initialize callDuration
     const [timerId, setTimerId] = useState(null);
@@ -543,9 +559,7 @@ const Call = () => {
             }
 
             remoteAudioTracks.forEach((track) => track.stop());
-            setRemoteAudioTracks([]);
-
-            await clientRef.current.leave();
+            setRemoteAudioTracks([]);            await clientRef.current.leave();
             
             setRemoteUsers([]);
             setIsVideoEnabled(false);
@@ -556,10 +570,20 @@ const Call = () => {
             startTimeRef.current = null;
             setCallDuration(900);
 
+            // Save documentation before exiting
+            await saveAllDocumentation();
+
             console.log('Successfully left the channel and cleaned up.');
         } catch (error) {
             console.error('Error leaving channel:', error);
             setMessage('Error leaving channel');
+            toast({
+                title: 'Error',
+                description: 'Failed to save documentation and leave channel. Please try again.',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
         } finally {
             setIsLoading(false);
             navigate('/virtual');
@@ -1313,8 +1337,8 @@ const Call = () => {
                 if (isTranscribing) {
                     stopRealtimeTranscription();
                 }
-                // Navigate back to my consults
-                navigate('/my-consults');
+                // Navigate back to dashboard
+                navigate('/dashboard');
             }
         } catch (error) {
             console.error("Error saving documentation:", error);
@@ -1339,7 +1363,7 @@ const Call = () => {
 
     const endCall = () => {
         stopRealtimeTranscription();
-        navigate('/my-consults');
+        navigate('/dashboard');
     };
 
     // Main UI Render

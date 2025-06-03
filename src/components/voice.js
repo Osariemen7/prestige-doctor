@@ -5,8 +5,8 @@ import { getAccessToken } from './api';
 import axios from 'axios';
 import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff, MdDescription } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, 
-  Popover, PopoverTrigger, PopoverContent, PopoverBody, PopoverArrow, PopoverCloseButton } from '@chakra-ui/react';
+import { Box, Flex, IconButton, Avatar, 
+  Popover, PopoverTrigger, PopoverContent, PopoverBody, PopoverArrow, PopoverCloseButton, Text, Spinner, Heading } from '@chakra-ui/react';
 import VideoDisplay from './vod';
 
 const Voice = () => {
@@ -32,8 +32,7 @@ const Voice = () => {
     const audioContextRef = useRef(null);
     const destinationRef = useRef(null);
     const [transcript, setTranscript] = useState('');
-    const [assemblyAiToken, setAssemblyAiToken] = useState('');
-    const assemblyWsRef = useRef(null);
+    const [assemblyAiToken, setAssemblyAiToken] = useState('');    const assemblyWsRef = useRef(null);
     const wsClosingForResumeRef = useRef(false);
     const transcriptionIntervalRef = useRef(null);
 
@@ -144,13 +143,11 @@ const Voice = () => {
         const handleUserPublished = async (user, mediaType) => {
             console.log('User published:', user.uid, mediaType);
             try {
-                // Subscribe to the remote user
                 await client.subscribe(user, mediaType);
                 console.log('Subscribed to', user.uid, mediaType);
 
                 if (mediaType === 'video') {
                     setRemoteUsers((prevUsers) => {
-                        // Check if user already exists
                         if (prevUsers.find(u => u.uid === user.uid)) {
                             return prevUsers;
                         }
@@ -159,14 +156,31 @@ const Voice = () => {
                 }
                 
                 if (mediaType === 'audio') {
-                    // Play audio immediately after successful subscription
+                    // Always play remote audio track and prevent duplicates
                     if (user.audioTrack) {
-                        user.audioTrack.play();
-                        // Set volume to normal level
-                        user.audioTrack.setVolume(100);
-                        console.log('Playing remote audio track for user:', user.uid);
+                        try {
+                            user.audioTrack.play();
+                            user.audioTrack.setVolume(100);
+                            console.log('Playing remote audio track for user:', user.uid);
+                        } catch (err) {
+                            console.warn('Error playing remote audio track:', err);
+                        }
+                        setRemoteAudioTracks((prev) => {
+                            if (prev.includes(user.audioTrack)) return prev;
+                            return [...prev, user.audioTrack];
+                        });
+                    } else {
+                        // Retry if audioTrack is not ready
+                        setTimeout(() => {
+                            if (user.audioTrack) {
+                                try { user.audioTrack.play(); user.audioTrack.setVolume(100); } catch (err) {}
+                                setRemoteAudioTracks((prev) => {
+                                    if (prev.includes(user.audioTrack)) return prev;
+                                    return [...prev, user.audioTrack];
+                                });
+                            }
+                        }, 500);
                     }
-                    setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
                 }
 
                 setUserCount((prev) => {
@@ -567,31 +581,80 @@ const Voice = () => {
         }
     };
 
+    // Add cleanup effect when component unmounts
+    useEffect(() => {
+        return async () => {
+            try {
+                // Stop any ongoing recording
+                if (isRecording) {
+                    stopRecord();
+                }
+
+                // Clean up audio tracks
+                if (localAudioTrack) {
+                    localAudioTrack.stop();
+                    localAudioTrack.close();
+                }
+
+                // Clean up video tracks
+                if (localVideoTrack) {
+                    localVideoTrack.stop();
+                    localVideoTrack.close();
+                }
+
+                // Clean up remote audio tracks
+                remoteAudioTracks.forEach(track => {
+                    track.stop();
+                });
+
+                // Leave the channel if joined
+                if (isJoined && client) {
+                    await client.leave();
+                }
+
+                // Reset states
+                setLocalAudioTrack(null);
+                setLocalVideoTrack(null);
+                setRemoteAudioTracks([]);
+                setRemoteUsers([]);
+                setIsJoined(false);
+                setIsVideoEnabled(false);
+
+                // Clear timer if running
+                if (timerId) {
+                    clearInterval(timerId);
+                }
+
+            } catch (error) {
+                console.error('Error during cleanup:', error);
+            }
+        };
+    }, [isJoined, isRecording, localAudioTrack, localVideoTrack, remoteAudioTracks, timerId]);
+
     return (
-        <ChakraProvider>
-            <Box 
-                position="relative" 
-                height="100vh" 
-                width="100%" 
-                bg="#2c2c2c"
-                display="flex"
-                flexDirection="column"
+        <Box 
+            position="relative" 
+            height="100vh" 
+            width="100%" 
+            bg="#2c2c2c"
+            display="flex"
+            flexDirection="column"
+        >
+            {/* Connection Status */}
+            <Box
+                position="absolute"
+                top="20px"
+                left="20px"
+                zIndex={2}
+                bg={connectionState === 'CONNECTED' ? 'green.500' : 'orange.500'}
+                color="white"
+                px="3"
+                py="1"
+                borderRadius="full"
+                fontSize="sm"
             >
-                {/* Connection Status */}
-                <Box
-                    position="absolute"
-                    top="20px"
-                    left="20px"
-                    zIndex={2}
-                    bg={connectionState === 'CONNECTED' ? 'green.500' : 'orange.500'}
-                    color="white"
-                    px="3"
-                    py="1"
-                    borderRadius="full"
-                    fontSize="sm"
-                >
-                    {getConnectionStatusMessage()}
-                </Box>
+                {getConnectionStatusMessage()}
+            </Box>
 
                 {/* Video Container */}
                 <Box flex="1" position="relative">
@@ -628,149 +691,148 @@ const Voice = () => {
                         </Popover>
                     </Box>
 
-                    {/* Control Panel with Timer */}
-                    <Flex
-                        position="absolute"
-                        bottom="20px"
-                        left="50%"
-                        transform="translateX(-50%)"
-                        flexDirection="column"
-                        alignItems="center"
-                        gap="15px"
-                        zIndex="1"
-                    >
-                        {/* Timer moved above controls */}
-                        {isJoined && (
-                            <Box 
-                                bg="rgba(0, 0, 0, 0.6)" 
-                                px="4" 
-                                py="2" 
-                                borderRadius="full"
-                                mb="10px"
-                            >
-                                <Text fontSize="xl" color="white" fontWeight="bold">
-                                    {formatDuration(callDuration)}
-                                </Text>
-                            </Box>
-                        )}
-
-                        {/* Control Buttons */}
-                        <Flex gap="30px" alignItems="center">
-                            <Box textAlign="center">
-                                <IconButton
-                                    icon={<MdCallEnd />}
-                                    colorScheme="red"
-                                    fontSize="36px"
-                                    onClick={leaveChannel}
-                                    borderRadius="full"
-                                    size="lg"
-                                />
-                                <Text marginTop="5px" color="white">End Call</Text>
-                            </Box>
-
-                            {!isVideoEnabled && vid ? (
-                                <Box textAlign='center'> 
-                                    <IconButton 
-                                        icon={<MdVideoCall />} 
-                                        colorScheme="blue" 
-                                        fontSize="36px" 
-                                        onClick={enableVideo}  
-                                        borderRadius="full" 
-                                        size="lg" 
-                                    />
-                                    <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text>
-                                </Box>
-                            ) : (
-                                <Box textAlign="center">
-                                    {isVideoEnabled ? (
-                                        <IconButton 
-                                            icon={<MdVideocamOff />} 
-                                            colorScheme="red" 
-                                            fontSize="36px" 
-                                            onClick={disableVideo} 
-                                            borderRadius="full" 
-                                            size="lg" 
-                                        />
-                                    ) : (
-                                        <IconButton 
-                                            icon={<MdVideocam />} 
-                                            colorScheme="green" 
-                                            fontSize="36px" 
-                                            onClick={joinChannelWithVideo}  
-                                            borderRadius="full" 
-                                            size="lg" 
-                                        />
-                                    )}
-                                    <Text marginTop="5px" fontSize='12px' color='white'>
-                                        {isVideoEnabled ? 'Disable Video' : 'Start Call'}
-                                    </Text>
-                                </Box>
-                            )}
-                        </Flex>
-                    </Flex>
-
-                    {/* Loading Spinner */}
-                    {isLoading && (
-                        <Box
-                            position="absolute"
-                            top="50%"
-                            left="50%"
-                            transform="translate(-50%, -50%)"
-                            textAlign="center"
-                            zIndex="2"
-                            bg="rgba(0, 0, 0, 0.7)"
-                            p={4}
-                            borderRadius="md"
+                {/* Control Panel with Timer */}
+                <Flex
+                    position="absolute"
+                    bottom="20px"
+                    left="50%"
+                    transform="translateX(-50%)"
+                    flexDirection="column"
+                    alignItems="center"
+                    gap="15px"
+                    zIndex="1"
+                >
+                    {/* Timer moved above controls */}
+                    {isJoined && (
+                        <Box 
+                            bg="rgba(0, 0, 0, 0.6)" 
+                            px="4" 
+                            py="2" 
+                            borderRadius="full"
+                            mb="10px"
                         >
-                            <Spinner color="blue.500" size="xl" />
-                            <Text fontSize="lg" color="white" mt={2}>Processing...</Text>
-                        </Box>
-                    )}
-
-                    {/* Waiting for Caller */}
-                    {isJoined && remoteUsers.length === 0 && (
-                        <Box
-                            position="absolute"
-                            top="50%"
-                            left="50%"
-                            transform="translate(-50%, -50%)"
-                            textAlign="center"
-                            zIndex="2"
-                            bg="rgba(0, 0, 0, 0.7)"
-                            p={4}
-                            borderRadius="md"
-                        >
-                            <Text fontSize="lg" color="yellow.400">
-                                Waiting for other caller to join...
+                            <Text fontSize="xl" color="white" fontWeight="bold">
+                                {formatDuration(callDuration)}
                             </Text>
                         </Box>
                     )}
 
-                    {/* Transcript Display (always visible below controls) */}
+                    {/* Control Buttons */}
+                    <Flex gap="30px" alignItems="center">
+                        <Box textAlign="center">
+                            <IconButton
+                                icon={<MdCallEnd />}
+                                colorScheme="red"
+                                fontSize="36px"
+                                onClick={leaveChannel}
+                                borderRadius="full"
+                                size="lg"
+                            />
+                            <Text marginTop="5px" color="white">End Call</Text>
+                        </Box>
+
+                        {!isVideoEnabled && vid ? (
+                            <Box textAlign='center'> 
+                                <IconButton 
+                                    icon={<MdVideoCall />} 
+                                    colorScheme="blue" 
+                                    fontSize="36px" 
+                                    onClick={enableVideo}  
+                                    borderRadius="full" 
+                                    size="lg" 
+                                />
+                                <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text>
+                            </Box>
+                        ) : (
+                            <Box textAlign="center">
+                                {isVideoEnabled ? (
+                                    <IconButton 
+                                        icon={<MdVideocamOff />} 
+                                        colorScheme="red" 
+                                        fontSize="36px" 
+                                        onClick={disableVideo} 
+                                        borderRadius="full" 
+                                        size="lg" 
+                                    />
+                                ) : (
+                                    <IconButton 
+                                        icon={<MdVideocam />} 
+                                        colorScheme="green" 
+                                        fontSize="36px" 
+                                        onClick={joinChannelWithVideo}  
+                                        borderRadius="full" 
+                                        size="lg" 
+                                    />
+                                )}
+                                <Text marginTop="5px" fontSize='12px' color='white'>
+                                    {isVideoEnabled ? 'Disable Video' : 'Start Call'}
+                                </Text>
+                            </Box>
+                        )}
+                    </Flex>
+                </Flex>
+
+                {/* Loading Spinner */}
+                {isLoading && (
                     <Box
                         position="absolute"
+                        top="50%"
                         left="50%"
-                        bottom="-80px"
-                        transform="translateX(-50%)"
-                        width="90%"
-                        maxW="600px"
-                        bg="whiteAlpha.900"
-                        color="black"
+                        transform="translate(-50%, -50%)"
+                        textAlign="center"
+                        zIndex="2"
+                        bg="rgba(0, 0, 0, 0.7)"
                         p={4}
                         borderRadius="md"
-                        boxShadow="md"
-                        zIndex={2}
-                        fontSize="md"
-                        minH="48px"
-                        mt={4}
-                        style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
-                        <Text fontWeight="bold" mb={2}>Live Transcript</Text>
-                        <Box>{transcript || 'No transcription available yet...'}</Box>
+                        <Spinner color="blue.500" size="xl" />
+                        <Text fontSize="lg" color="white" mt={2}>Processing...</Text>
                     </Box>
+                )}
+
+                {/* Waiting for Caller */}
+                {isJoined && remoteUsers.length === 0 && (
+                    <Box
+                        position="absolute"
+                        top="50%"
+                        left="50%"
+                        transform="translate(-50%, -50%)"
+                        textAlign="center"
+                        zIndex="2"
+                        bg="rgba(0, 0, 0, 0.7)"
+                        p={4}
+                        borderRadius="md"
+                    >
+                        <Text fontSize="lg" color="yellow.400">
+                            Waiting for other caller to join...
+                        </Text>
+                    </Box>
+                )}
+
+                {/* Transcript Display (always visible below controls) */}
+                <Box
+                    position="absolute"
+                    left="50%"
+                    bottom="-80px"
+                    transform="translateX(-50%)"
+                    width="90%"
+                    maxW="600px"
+                    bg="whiteAlpha.900"
+                    color="black"
+                    p={4}
+                    borderRadius="md"
+                    boxShadow="md"
+                    zIndex={2}
+                    fontSize="md"
+                    minH="48px"
+                    mt={4}
+                    style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                >
+                    <Text fontWeight="bold" mb={2}>Live Transcript</Text>
+                    <Box>{transcript || 'No transcription available yet...'}</Box>
                 </Box>
             </Box>
-        </ChakraProvider>
+        </Box>
     );
 };
 
