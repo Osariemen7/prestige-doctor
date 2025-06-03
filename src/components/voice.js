@@ -5,7 +5,7 @@ import { getAccessToken } from './api';
 import axios from 'axios';
 import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff, MdDescription } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, 
+import { Box, Flex, IconButton, Avatar, 
   Popover, PopoverTrigger, PopoverContent, PopoverBody, PopoverArrow, PopoverCloseButton } from '@chakra-ui/react';
 import VideoDisplay from './vod';
 
@@ -643,207 +643,207 @@ const Voice = () => {
 
     return (
         <ChakraProvider>
-            <Box 
-                position="relative" 
-                height="100vh" 
-                width="100%" 
-                bg="#2c2c2c"
-                display="flex"
-                flexDirection="column"
+        <Box 
+            position="relative" 
+            height="100vh" 
+            width="100%" 
+            bg="#2c2c2c"
+            display="flex"
+            flexDirection="column"
+        >
+            {/* Connection Status */}
+            <Box
+                position="absolute"
+                top="20px"
+                left="20px"
+                zIndex={2}
+                bg={connectionState === 'CONNECTED' ? 'green.500' : 'orange.500'}
+                color="white"
+                px="3"
+                py="1"
+                borderRadius="full"
+                fontSize="sm"
             >
-                {/* Connection Status */}
-                <Box
-                    position="absolute"
-                    top="20px"
-                    left="20px"
-                    zIndex={2}
-                    bg={connectionState === 'CONNECTED' ? 'green.500' : 'orange.500'}
-                    color="white"
-                    px="3"
-                    py="1"
-                    borderRadius="full"
-                    fontSize="sm"
-                >
-                    {getConnectionStatusMessage()}
+                {getConnectionStatusMessage()}
+            </Box>
+
+            {/* Video Container */}
+            <Box flex="1" position="relative">
+                <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
+
+                {/* Transcription Icon - Moved to top-right */}
+                <Box position="absolute" top="20px" right="20px" zIndex={2}>
+                    <Popover placement="left">
+                        <PopoverTrigger>
+                            <IconButton
+                                icon={<MdDescription />}
+                                colorScheme="blue"
+                                variant="solid"
+                                borderRadius="full"
+                                aria-label="View Transcription"
+                            />
+                        </PopoverTrigger>
+                        <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
+                            <PopoverArrow />
+                            <PopoverCloseButton />
+                            <PopoverBody p={4}>
+                                <Text fontWeight="bold" mb={2}>Transcription</Text>
+                                <Box 
+                                    bg="gray.50" 
+                                    p={3} 
+                                    borderRadius="md" 
+                                    fontSize="sm"
+                                    whiteSpace="pre-wrap"
+                                >
+                                    {transcript || "No transcription available yet..."}
+                                </Box>
+                            </PopoverBody>
+                        </PopoverContent>
+                    </Popover>
                 </Box>
 
-                {/* Video Container */}
-                <Box flex="1" position="relative">
-                    <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
-
-                    {/* Transcription Icon - Moved to top-right */}
-                    <Box position="absolute" top="20px" right="20px" zIndex={2}>
-                        <Popover placement="left">
-                            <PopoverTrigger>
-                                <IconButton
-                                    icon={<MdDescription />}
-                                    colorScheme="blue"
-                                    variant="solid"
-                                    borderRadius="full"
-                                    aria-label="View Transcription"
-                                />
-                            </PopoverTrigger>
-                            <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
-                                <PopoverArrow />
-                                <PopoverCloseButton />
-                                <PopoverBody p={4}>
-                                    <Text fontWeight="bold" mb={2}>Transcription</Text>
-                                    <Box 
-                                        bg="gray.50" 
-                                        p={3} 
-                                        borderRadius="md" 
-                                        fontSize="sm"
-                                        whiteSpace="pre-wrap"
-                                    >
-                                        {transcript || "No transcription available yet..."}
-                                    </Box>
-                                </PopoverBody>
-                            </PopoverContent>
-                        </Popover>
-                    </Box>
-
-                    {/* Control Panel with Timer */}
-                    <Flex
-                        position="absolute"
-                        bottom="20px"
-                        left="50%"
-                        transform="translateX(-50%)"
-                        flexDirection="column"
-                        alignItems="center"
-                        gap="15px"
-                        zIndex="1"
-                    >
-                        {/* Timer moved above controls */}
-                        {isJoined && (
-                            <Box 
-                                bg="rgba(0, 0, 0, 0.6)" 
-                                px="4" 
-                                py="2" 
-                                borderRadius="full"
-                                mb="10px"
-                            >
-                                <Text fontSize="xl" color="white" fontWeight="bold">
-                                    {formatDuration(callDuration)}
-                                </Text>
-                            </Box>
-                        )}
-
-                        {/* Control Buttons */}
-                        <Flex gap="30px" alignItems="center">
-                            <Box textAlign="center">
-                                <IconButton
-                                    icon={<MdCallEnd />}
-                                    colorScheme="red"
-                                    fontSize="36px"
-                                    onClick={leaveChannel}
-                                    borderRadius="full"
-                                    size="lg"
-                                />
-                                <Text marginTop="5px" color="white">End Call</Text>
-                            </Box>
-
-                            {!isVideoEnabled && vid ? (
-                                <Box textAlign='center'> 
-                                    <IconButton 
-                                        icon={<MdVideoCall />} 
-                                        colorScheme="blue" 
-                                        fontSize="36px" 
-                                        onClick={enableVideo}  
-                                        borderRadius="full" 
-                                        size="lg" 
-                                    />
-                                    <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text>
-                                </Box>
-                            ) : (
-                                <Box textAlign="center">
-                                    {isVideoEnabled ? (
-                                        <IconButton 
-                                            icon={<MdVideocamOff />} 
-                                            colorScheme="red" 
-                                            fontSize="36px" 
-                                            onClick={disableVideo} 
-                                            borderRadius="full" 
-                                            size="lg" 
-                                        />
-                                    ) : (
-                                        <IconButton 
-                                            icon={<MdVideocam />} 
-                                            colorScheme="green" 
-                                            fontSize="36px" 
-                                            onClick={joinChannelWithVideo}  
-                                            borderRadius="full" 
-                                            size="lg" 
-                                        />
-                                    )}
-                                    <Text marginTop="5px" fontSize='12px' color='white'>
-                                        {isVideoEnabled ? 'Disable Video' : 'Start Call'}
-                                    </Text>
-                                </Box>
-                            )}
-                        </Flex>
-                    </Flex>
-
-                    {/* Loading Spinner */}
-                    {isLoading && (
-                        <Box
-                            position="absolute"
-                            top="50%"
-                            left="50%"
-                            transform="translate(-50%, -50%)"
-                            textAlign="center"
-                            zIndex="2"
-                            bg="rgba(0, 0, 0, 0.7)"
-                            p={4}
-                            borderRadius="md"
+                {/* Control Panel with Timer */}
+                <Flex
+                    position="absolute"
+                    bottom="20px"
+                    left="50%"
+                    transform="translateX(-50%)"
+                    flexDirection="column"
+                    alignItems="center"
+                    gap="15px"
+                    zIndex="1"
+                >
+                    {/* Timer moved above controls */}
+                    {isJoined && (
+                        <Box 
+                            bg="rgba(0, 0, 0, 0.6)" 
+                            px="4" 
+                            py="2" 
+                            borderRadius="full"
+                            mb="10px"
                         >
-                            <Spinner color="blue.500" size="xl" />
-                            <Text fontSize="lg" color="white" mt={2}>Processing...</Text>
-                        </Box>
-                    )}
-
-                    {/* Waiting for Caller */}
-                    {isJoined && remoteUsers.length === 0 && (
-                        <Box
-                            position="absolute"
-                            top="50%"
-                            left="50%"
-                            transform="translate(-50%, -50%)"
-                            textAlign="center"
-                            zIndex="2"
-                            bg="rgba(0, 0, 0, 0.7)"
-                            p={4}
-                            borderRadius="md"
-                        >
-                            <Text fontSize="lg" color="yellow.400">
-                                Waiting for other caller to join...
+                            <Text fontSize="xl" color="white" fontWeight="bold">
+                                {formatDuration(callDuration)}
                             </Text>
                         </Box>
                     )}
 
-                    {/* Transcript Display (always visible below controls) */}
+                    {/* Control Buttons */}
+                    <Flex gap="30px" alignItems="center">
+                        <Box textAlign="center">
+                            <IconButton
+                                icon={<MdCallEnd />}
+                                colorScheme="red"
+                                fontSize="36px"
+                                onClick={leaveChannel}
+                                borderRadius="full"
+                                size="lg"
+                            />
+                            <Text marginTop="5px" color="white">End Call</Text>
+                        </Box>
+
+                        {!isVideoEnabled && vid ? (
+                            <Box textAlign='center'> 
+                                <IconButton 
+                                    icon={<MdVideoCall />} 
+                                    colorScheme="blue" 
+                                    fontSize="36px" 
+                                    onClick={enableVideo}  
+                                    borderRadius="full" 
+                                    size="lg" 
+                                />
+                                <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text>
+                            </Box>
+                        ) : (
+                            <Box textAlign="center">
+                                {isVideoEnabled ? (
+                                    <IconButton 
+                                        icon={<MdVideocamOff />} 
+                                        colorScheme="red" 
+                                        fontSize="36px" 
+                                        onClick={disableVideo} 
+                                        borderRadius="full" 
+                                        size="lg" 
+                                    />
+                                ) : (
+                                    <IconButton 
+                                        icon={<MdVideocam />} 
+                                        colorScheme="green" 
+                                        fontSize="36px" 
+                                        onClick={joinChannelWithVideo}  
+                                        borderRadius="full" 
+                                        size="lg" 
+                                    />
+                                )}
+                                <Text marginTop="5px" fontSize='12px' color='white'>
+                                    {isVideoEnabled ? 'Disable Video' : 'Start Call'}
+                                </Text>
+                            </Box>
+                        )}
+                    </Flex>
+                </Flex>
+
+                {/* Loading Spinner */}
+                {isLoading && (
                     <Box
                         position="absolute"
+                        top="50%"
                         left="50%"
-                        bottom="-80px"
-                        transform="translateX(-50%)"
-                        width="90%"
-                        maxW="600px"
-                        bg="whiteAlpha.900"
-                        color="black"
+                        transform="translate(-50%, -50%)"
+                        textAlign="center"
+                        zIndex="2"
+                        bg="rgba(0, 0, 0, 0.7)"
                         p={4}
                         borderRadius="md"
-                        boxShadow="md"
-                        zIndex={2}
-                        fontSize="md"
-                        minH="48px"
-                        mt={4}
-                        style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
-                        <Text fontWeight="bold" mb={2}>Live Transcript</Text>
-                        <Box>{transcript || 'No transcription available yet...'}</Box>
+                        <Spinner color="blue.500" size="xl" />
+                        <Text fontSize="lg" color="white" mt={2}>Processing...</Text>
                     </Box>
+                )}
+
+                {/* Waiting for Caller */}
+                {isJoined && remoteUsers.length === 0 && (
+                    <Box
+                        position="absolute"
+                        top="50%"
+                        left="50%"
+                        transform="translate(-50%, -50%)"
+                        textAlign="center"
+                        zIndex="2"
+                        bg="rgba(0, 0, 0, 0.7)"
+                        p={4}
+                        borderRadius="md"
+                    >
+                        <Text fontSize="lg" color="yellow.400">
+                            Waiting for other caller to join...
+                        </Text>
+                    </Box>
+                )}
+
+                {/* Transcript Display (always visible below controls) */}
+                <Box
+                    position="absolute"
+                    left="50%"
+                    bottom="-80px"
+                    transform="translateX(-50%)"
+                    width="90%"
+                    maxW="600px"
+                    bg="whiteAlpha.900"
+                    color="black"
+                    p={4}
+                    borderRadius="md"
+                    boxShadow="md"
+                    zIndex={2}
+                    fontSize="md"
+                    minH="48px"
+                    mt={4}
+                    style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                >
+                    <Text fontWeight="bold" mb={2}>Live Transcript</Text>
+                    <Box>{transcript || 'No transcription available yet...'}</Box>
                 </Box>
             </Box>
+        </Box>
         </ChakraProvider>
     );
 };
