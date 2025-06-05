@@ -1,837 +1,398 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from 'agora-rtc-sdk-ng';
-import Recorder from 'recorder-js';
 import { getAccessToken } from './api';
-import axios from 'axios';
-import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff, MdDescription } from 'react-icons/md';
+import {
+    MdCallEnd,
+    MdVideocam,
+    MdVideocamOff,
+    MdDescription,
+} from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { Box, Flex, IconButton, Avatar, 
-  Popover, PopoverTrigger, PopoverContent, PopoverBody, PopoverArrow, PopoverCloseButton, Text, Spinner, Heading } from '@chakra-ui/react';
+import {
+    ChakraProvider,
+    Box,
+    Flex,
+    IconButton,
+    Text,
+    Spinner,
+    Heading,
+    useToast,
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+    PopoverBody,
+    PopoverArrow,
+    PopoverCloseButton,
+    Tooltip,
+    Alert,
+    AlertIcon,
+} from '@chakra-ui/react';
 import VideoDisplay from './vod';
 
+// This is the fixed version of your Voice component.
 const Voice = () => {
+    // Hooks
     const { state } = useLocation();
-    const item = state?.item || {};
     const [searchParams] = useSearchParams();
-    const chanel = searchParams.get("channel");
+    const navigate = useNavigate();
+    const toast = useToast();
 
-    const [vid, setVid] = useState(false)
+    // Component State
     const [isJoined, setIsJoined] = useState(false);
-    const [remoteAudioTracks, setRemoteAudioTracks] = useState([]);
+    const [remoteUsers, setRemoteUsers] = useState([]);
     const [localAudioTrack, setLocalAudioTrack] = useState(null);
     const [localVideoTrack, setLocalVideoTrack] = useState(null);
-    const [remoteUsers, setRemoteUsers] = useState([]);
-    const [isRecording, setIsRecording] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-    const [recorder, setRecorder] = useState(null);
-    const [isLoading, setIsLoading] = useState(false); // New loading state
+    const [isLoading, setIsLoading] = useState(false);
     const [userCount, setUserCount] = useState(0);
-    const [callDuration, setCallDuration] = useState(900); // Countdown from 60 seconds
-    const [timerId, setTimerId] = useState(null);
-    const timerIdRef = useRef('')
-    const navigate = useNavigate()
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const destination = audioContext.createMediaStreamDestination();
+    const [callDuration, setCallDuration] = useState(900); // 15 minutes
     const [transcript, setTranscript] = useState('');
-    const [assemblyAiToken, setAssemblyAiToken] = useState('');    const assemblyWsRef = useRef(null);
-    const wsClosingForResumeRef = useRef(false);
-    let transcriptionInterval = null;
-
-    // Add auto-join effect
-    useEffect(() => {
-        const autoJoinCall = async () => {
-            try {
-                if (!isJoined && (item.channel_name || chanel)) {
-                    console.log('Auto-joining call...');
-                    await joinChannelWithVideo();
-                }
-            } catch (error) {
-                console.error('Error auto-joining call:', error);
-            }
-        };
-
-        autoJoinCall();
-    }, [item.channel_name, chanel]); // Only run when channel name changes
-
-    const [isSaving, setIsSaving] = useState(false);
-    const [data, setData] = useState(null);
-    const [editableData, setEditableData] = useState(null);
-    const [suggestionData, setSuggestionData] = useState(null);
-    const [appliedSuggestions, setAppliedSuggestions] = useState({
-        profile: {},
-        goals: {},
-        review: {}
-    });
-    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-    const [snackbarMessage, setSnackbarMessage] = useState('');
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const isGettingSuggestion = useRef(false);
-    const { state: locationState } = useLocation();
-    const reviewid = searchParams.get("reviewid") || locationState?.item?.review_id;
-    const thread = locationState?.item?.thread_id;
-
-    const client = createClient({ mode: 'rtc', codec: 'vp8' });
-
+    const [assemblyAiToken, setAssemblyAiToken] = useState('');
     const [connectionState, setConnectionState] = useState('DISCONNECTED');
-    const [isPaused, setIsPaused] = useState(false);
 
-    const stopRecord = () => {
-        if (assemblyWsRef.current && assemblyWsRef.current.readyState === WebSocket.OPEN) {
-            assemblyWsRef.current.close();
-            assemblyWsRef.current = null;
-        }
-        setIsRecording(false);
-        console.log('Recording stopped.');
-    };
-
-    const getSuggestion = async () => {
-        if (isGettingSuggestion.current) return;
-        isGettingSuggestion.current = true;
+    // Refs for stable objects
+    const clientRef = useRef(null);
+    const timerIdRef = useRef(null);
+    const assemblyWsRef = useRef(null);
     
-        setIsSaving(true);
+    // Derived values from router
+    const item = state?.item || {};
+    const channel = item.channel_name || searchParams.get("channel");
+
+    // --- Core Agora Logic ---
+
+    // Function to handle a user joining the call
+    const handleUserPublished = async (user, mediaType) => {
         try {
-            let suggestionPayload = {
-                note: JSON.parse(JSON.stringify(editableData))
-            };
-    
-            if (transcript) {
-                const currentTime = new Date().toISOString();
-                suggestionPayload.transcript = [
-                    {
-                        time: currentTime,
-                        speaker: "patient",
-                        content: transcript
-                    },
-                    {
-                        time: currentTime,
-                        speaker: "doctor",
-                        content: ''
-                    }
-                ];
-            }
-    
-            if (thread) {
-                suggestionPayload.note.thread_id = thread;
-            }
-    
-            const accessToken = await getAccessToken();
-            const response = await axios.post(
-                `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
-                suggestionPayload,
-                {
-                    headers: { Authorization: `Bearer ${accessToken}` },
-                }
-            );
-    
-            const result = response.data;
-    
-            setSnackbarSeverity('success');
-            setSnackbarMessage('Suggestion generated successfully!');
-            setSnackbarOpen(true);
-            return true;
-        } catch (error) {
-            console.error("Error getting suggestion:", error);
-            setSnackbarSeverity('error');
-            setSnackbarMessage('Failed to generate suggestion.');
-            setSnackbarOpen(true);
-            return false;
-        } finally {
-            setIsSaving(false);
-            isGettingSuggestion.current = false;
-        }
-    };
-
-    useEffect(() => {
-        // Add connection state handlers
-        client.on('connection-state-change', (curState, prevState) => {
-            console.log(`Connection state changed from ${prevState} to ${curState}`);
-            setConnectionState(curState);
-        });
-
-        client.on('user-published', async (user, mediaType) => {
-            console.log('User published:', user.uid, mediaType);
-            try {
-                await client.subscribe(user, mediaType);
-                console.log('Subscribed to', user.uid, mediaType);
-
-                if (mediaType === 'video') {
-                    setRemoteUsers((prevUsers) => {
-                        if (prevUsers.find(u => u.uid === user.uid)) {
-                            return prevUsers;
-                        }
-                        return [...prevUsers, user];
-                    });
-                }
-                
-                if (mediaType === 'audio') {
-                    // Always play remote audio track and prevent duplicates
-                    if (user.audioTrack) {
-                        try {
-                            user.audioTrack.play();
-                            user.audioTrack.setVolume(100);
-                            console.log('Playing remote audio track for user:', user.uid);
-                        } catch (err) {
-                            console.warn('Error playing remote audio track:', err);
-                        }
-                        setRemoteAudioTracks((prev) => {
-                            if (prev.includes(user.audioTrack)) return prev;
-                            return [...prev, user.audioTrack];
-                        });
-                    } else {
-                        // Retry if audioTrack is not ready
-                        setTimeout(() => {
-                            if (user.audioTrack) {
-                                try { user.audioTrack.play(); user.audioTrack.setVolume(100); } catch (err) {}
-                                setRemoteAudioTracks((prev) => {
-                                    if (prev.includes(user.audioTrack)) return prev;
-                                    return [...prev, user.audioTrack];
-                                });
-                            }
-                        }, 500);
-                    }
-                }
-
-                setUserCount((prev) => {
-                    const newCount = prev + 1;
-                    if (newCount === 2) {
-                        startTimer();
-                    }
-                    return newCount;
-                });
-            } catch (error) {
-                console.error('Error subscribing to user:', error);
-            }
-        });
-
-        client.on('user-unpublished', (user, mediaType) => {
-            console.log('User unpublished:', user.uid, mediaType);
-            if (mediaType === 'audio') {
-                if (user.audioTrack) {
-                    user.audioTrack.stop();
-                }
-                setRemoteAudioTracks((prev) =>
-                    prev.filter((track) => track !== user.audioTrack)
-                );
-            }
+            await clientRef.current.subscribe(user, mediaType);
             if (mediaType === 'video') {
-                setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+                setRemoteUsers((prev) => [...prev, user]);
             }
-            
+            if (mediaType === 'audio' && user.audioTrack) {
+                user.audioTrack.play();
+            }
+            // Update user count and start timer on the second user's join
             setUserCount((prev) => {
-                const newCount = Math.max(prev - 1, 0);
-                if (newCount < 2) {
-                    stopTimer();
-                }
+                const newCount = prev + 1;
+                if (newCount === 2) startTimer();
                 return newCount;
             });
+        } catch (error) {
+            console.error('Failed to subscribe to user:', error);
+            toast({ title: "Subscription Error", description: "Failed to connect to the other participant.", status: "error", duration: 5000, isClosable: true });
+        }
+    };
+
+    // Function to handle a user leaving
+    const handleUserUnpublished = (user) => {
+        setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+        // Update user count and stop timer if only one person is left
+        setUserCount((prev) => {
+            const newCount = Math.max(prev - 1, 0);
+            if (newCount < 2) stopTimer();
+            return newCount;
         });
+    };
 
+    // Initialize Agora Client and set up listeners (runs only once on mount)
+    useEffect(() => {
+        // FIX: Use a ref to store the client instance, preventing re-creation on re-renders.
+        clientRef.current = createClient({ mode: 'rtc', codec: 'vp8' });
+        const client = clientRef.current;
+
+        client.on('connection-state-change', (curState, prevState) => {
+            setConnectionState(curState);
+        });
+        client.on('user-published', handleUserPublished);
+        client.on('user-unpublished', handleUserUnpublished);
+
+        // Auto-join the call when component mounts
+        if (channel) {
+            joinChannelWithVideo();
+        } else {
+             toast({ title: "Error", description: "No channel name provided.", status: "error", duration: 5000, isClosable: true });
+        }
+
+        // Cleanup function on component unmount
         return () => {
+            leaveChannel();
             client.removeAllListeners();
-            stopTimer();
         };
-    }, []);
-      
+    }, []); // Empty dependency array ensures this runs only once.
 
-      const startTimer = () => {
-        setCallDuration(900); // Reset duration
-        if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear any existing interval
-        const id = setInterval(() => {
+    const joinChannelWithVideo = async () => {
+        if (isJoined) return;
+
+        setIsLoading(true);
+        try {
+            const appId = '44787e17cd0348cd8b75366a2b5931e9'; // Your App ID
+            await clientRef.current.join(appId, channel, null, null);
+
+            const audioTrack = await createMicrophoneAudioTrack();
+            const videoTrack = await createCameraVideoTrack();
+
+            await clientRef.current.publish([audioTrack, videoTrack]);
+
+            setLocalAudioTrack(audioTrack);
+            setLocalVideoTrack(videoTrack);
+            setIsVideoEnabled(true);
+            setIsJoined(true);
+            setUserCount(1);
+
+        } catch (error) {
+            console.error('Error joining channel:', error);
+            toast({ title: "Connection Error", description: `Failed to join the call: ${error.message}`, status: "error", duration: 5000, isClosable: true });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    const leaveChannel = async () => {
+        stopTimer();
+        stopTranscription();
+
+        try {
+            if (localAudioTrack) {
+                localAudioTrack.stop();
+                localAudioTrack.close();
+            }
+            if (localVideoTrack) {
+                localVideoTrack.stop();
+                localVideoTrack.close();
+            }
+            if(clientRef.current && isJoined){
+                await clientRef.current.leave();
+            }
+        } catch (error) {
+            console.error("Error during cleanup:", error);
+        } finally {
+            setLocalAudioTrack(null);
+            setLocalVideoTrack(null);
+            setRemoteUsers([]);
+            setIsJoined(false);
+            setIsVideoEnabled(false);
+            setUserCount(0);
+            setCallDuration(900);
+            navigate('/'); // Navigate to a safe page after leaving
+        }
+    };
+
+    const toggleVideo = async () => {
+        if (!localVideoTrack) return;
+        
+        if (isVideoEnabled) {
+            await localVideoTrack.setEnabled(false);
+            setIsVideoEnabled(false);
+        } else {
+            await localVideoTrack.setEnabled(true);
+            setIsVideoEnabled(true);
+        }
+    };
+
+    // --- Timer Logic ---
+    
+    const startTimer = () => {
+        if (timerIdRef.current) return;
+        timerIdRef.current = setInterval(() => {
             setCallDuration((prev) => {
                 if (prev <= 1) {
-                    clearInterval(id);
+                    clearInterval(timerIdRef.current);
+                    timerIdRef.current = null;
                     leaveChannel();
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
-        timerIdRef.current = id; // Store interval ID in useRef
     };
-    
-    useEffect(() => {
-        return () => {
-            if (timerIdRef.current) clearInterval(timerIdRef.current); // Clear timer on component unmount
-        };
-    }, []);
-      
-    
-      const stopTimer = () => {
-        if (timerId) {
-            clearInterval(timerId);
-            setTimerId(null);
+
+    const stopTimer = () => {
+        if (timerIdRef.current) {
+            clearInterval(timerIdRef.current);
+            timerIdRef.current = null;
         }
     };
-    
-    
-    async function joinChannelWithVideo() {
-        if (isJoined) {
-            console.warn('You are already in the channel.');
-            return;
-        }
-    
-        setIsLoading(true);
-        try {
-            const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
-            const channel = item.channel_name || chanel;
-    
-            // First try to join the channel
-            console.log('Attempting to join channel:', channel);
-            await client.join(appId, channel, token, null);
-            console.log('Successfully joined channel');
-           
-            // Create and publish audio track
-            const audioTrack = await createMicrophoneAudioTrack({
-                encoderConfig: {
-                    sampleRate: 48000,
-                    stereo: false,
-                    bitrate: 128
-                }
-            });
 
-            console.log('Created audio track, publishing...');
-            await client.publish(audioTrack);
-            setLocalAudioTrack(audioTrack);
-            console.log('Published audio track successfully');
-
-            // Create and publish video track
-            console.log('Creating video track...');
-            const videoTrack = await createCameraVideoTrack({
-                encoderConfig: {
-                    width: 640,
-                    height: 480,
-                    frameRate: 30,
-                    bitrateMin: 400,
-                    bitrateMax: 1000
-                }
-            });
-            
-            console.log('Publishing video track...');
-            await client.publish(videoTrack);
-            setLocalVideoTrack(videoTrack);
-            setIsVideoEnabled(true);
-            console.log('Published video track successfully');
-
-            setIsJoined(true);
-            setUserCount(1);
-
-        } catch (error) {
-            console.error('Error joining channel:', error);
-            // Show error message to user
-            alert(`Failed to join call: ${error.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    }
-    
-    
-
-    async function disableVideo() {
-        if (isVideoEnabled && localVideoTrack) {
-            try {
-                await client.unpublish(localVideoTrack);
-                localVideoTrack.stop();
-                localVideoTrack.close();
-                setLocalVideoTrack(null);
-                setIsVideoEnabled(false);
-                setVid(true);
-                console.log('Video disabled.');
-            } catch (error) {
-                console.error('Error disabling video:', error);
-            }
-        }
-    }
-      
-
-   async function leaveChannel() {
-    setIsLoading(true); // Start loading
-    try {
-        if (isJoined) {
-            console.log('Leaving channel...');
-            await client.leave();
-            stopTimer();
-        }
-
-        if (localAudioTrack) {
-            localAudioTrack.stop();
-            localAudioTrack.close();
-            setLocalAudioTrack(null);
-        }
-
-        if (localVideoTrack) {
-            localVideoTrack.stop();
-            localVideoTrack.close();
-            setLocalVideoTrack(null);
-        }
-
-        remoteAudioTracks.forEach((track) => track.stop());
-        setRemoteAudioTracks([]);
-
-        setRemoteUsers([]);
-        setIsVideoEnabled(false);
-        setIsRecording(false);
-        setUserCount(0);
-        setIsJoined(false);
-
-        console.log('Left the channel and cleaned up tracks.');
-    } catch (error) {
-        console.error('Error leaving channel:', error);
-    } finally {
-        setIsLoading(false); // Stop loading
-        navigate('/');
-            window.location.href = 'https://prestigehealth.app/';
-    }
-}
-
-    
-    
-    async function enableVideo() {
-        try {
-            if (localVideoTrack) {
-                console.log('Cleaning up existing video track before creating new one');
-                await client.unpublish(localVideoTrack);
-                localVideoTrack.stop();
-                localVideoTrack.close();
-            }
-            
-            const videoTrack = await createCameraVideoTrack();
-            await client.publish(videoTrack);
-            setLocalVideoTrack(videoTrack);
-            setIsVideoEnabled(true);
-            console.log('Video enabled.');
-        } catch (error) {
-            console.error('Error enabling video:', error);
-        }
-    }
-   
     const formatDuration = (seconds) => {
         const minutes = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
-    const pauseTranscription = () => {
-        getSuggestion();
-        setIsPaused(true);
-        if (assemblyWsRef.current && assemblyWsRef.current.readyState === WebSocket.OPEN) {
-            const socketBeingPaused = assemblyWsRef.current;
-            socketBeingPaused.onclose = () => {
-                if (assemblyWsRef.current === socketBeingPaused) {
-                    assemblyWsRef.current = null;
-                }
-            };
-            socketBeingPaused.close(1000, "User paused transcription");
-        }
-    };
+    // --- Transcription Logic (AssemblyAI) ---
 
-    const resumeTranscription = () => {
-        setIsPaused(false);
-        if (assemblyWsRef.current) {
-            wsClosingForResumeRef.current = true;
-            assemblyWsRef.current.onclose = null;
-            assemblyWsRef.current.close(1000, "Closing old WebSocket before resume");
-            assemblyWsRef.current = null;
-            setTimeout(() => {
-                wsClosingForResumeRef.current = false;
-            }, 200);
-        }
-        setTimeout(() => {
-            connectWebSocket();
-        }, 300);
-    };
-
-    const connectWebSocket = async () => {
-
-        if (!assemblyAiToken) {
-            console.log('No AssemblyAI token available');
-            return;
-        }
-
-        const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${assemblyAiToken}`;
-        assemblyWsRef.current = new WebSocket(socketUrl);
-
-        assemblyWsRef.current.onopen = () => {
-            console.log('AssemblyAI WebSocket connected');
-            // Set up interval to call getSuggestion every 18 seconds
-            const suggestionInterval = setInterval(getSuggestion, 18000);
-            // Store interval ID to clear it later
-            setTimerId(prev => ({...prev, suggestionInterval}));
-            
-        };
-
-        assemblyWsRef.current.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-
-        assemblyWsRef.current.onclose = (event) => {
-            const currentWs = assemblyWsRef.current;
-            if (wsClosingForResumeRef.current) {
-                wsClosingForResumeRef.current = false;
-                if (currentWs === assemblyWsRef.current) {
-                    assemblyWsRef.current = null;
-                }
-                return;
-            }
-            if (isPaused) {
-                return;
-            } else {
-                stopTimer();
-                setIsRecording(false);
-            }
-            if (currentWs === assemblyWsRef.current) {
-                assemblyWsRef.current = null;
-            }
-        };
-
-        assemblyWsRef.current.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.error) {
-                    if (data.error === "Session idle for too long") {
-                        setConnectionState('DISCONNECTED');
-                        setIsRecording(false);
-                        setTimeout(() => {
-                            connectWebSocket();
-                        }, 1000);
-                        return;
-                    }
-                }
-                if (data.message_type === 'FinalTranscript') {
-                    console.log('Received transcript:', data.text);
-                    setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
-                }
-            } catch (error) {
-                console.error('Error processing transcript:', error);
-            }
-        };
-    };
-
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (assemblyWsRef.current) {
-                assemblyWsRef.current.close();
-            }
-            if (transcriptionInterval) {
-                clearInterval(transcriptionInterval);
-            }
-        };
-    }, []);
-
-    // Add AssemblyAI token fetch effect
+    // Fetch AssemblyAI token
     useEffect(() => {
         const fetchAssemblyAiToken = async () => {
             try {
                 const token = await getAccessToken();
-                const response = await fetch(
-                    "https://health.prestigedelta.com/assemblyai/generate-token/",
-                    {
-                        headers: {
-                            "Content-Type": "application/json",
-                            Accept: "application/json",
-                            Authorization: `Bearer ${token}`,
-                        },
-                    }
-                );
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch AssemblyAI token');
-                }
-                
+                const response = await fetch("https://health.prestigedelta.com/assemblyai/generate-token/", {
+                    headers: { "Authorization": `Bearer ${token}` },
+                });
+                if (!response.ok) throw new Error('Failed to fetch AssemblyAI token');
                 const data = await response.json();
                 setAssemblyAiToken(data.token);
-                console.log('AssemblyAI token fetched successfully');
             } catch (error) {
                 console.error("Error fetching AssemblyAI token:", error);
+                toast({ title: "Transcription Error", description: "Could not initialize transcription service.", status: "warning", duration: 5000, isClosable: true });
             }
         };
-
         fetchAssemblyAiToken();
-        // Refresh token every hour
-        const tokenRefreshInterval = setInterval(fetchAssemblyAiToken, 3600000);
+    }, [toast]);
 
-        return () => {
-            clearInterval(tokenRefreshInterval);
-        };
-    }, []);
-
-  useEffect(() => {
-          if (userCount > 1 && assemblyAiToken) {
-              connectWebSocket();
-          }
-      }, [userCount, assemblyAiToken]);
-  
-    // Add connection status display
-    const getConnectionStatusMessage = () => {
-        switch (connectionState) {
-            case 'CONNECTING':
-                return 'Connecting...';
-            case 'CONNECTED':
-                return 'Connected';
-            case 'DISCONNECTED':
-                return 'Disconnected';
-            case 'DISCONNECTING':
-                return 'Disconnecting...';
-            case 'RECONNECTING':
-                return 'Reconnecting...';
-            default:
-                return '';
+    // Connect to WebSocket when conditions are met
+    useEffect(() => {
+        if (isJoined && userCount > 1 && assemblyAiToken && !assemblyWsRef.current) {
+            connectWebSocket();
         }
+    }, [isJoined, userCount, assemblyAiToken]);
+
+    const connectWebSocket = () => {
+        if (!assemblyAiToken) return;
+
+        const socketUrl = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${assemblyAiToken}`;
+        assemblyWsRef.current = new WebSocket(socketUrl);
+
+        assemblyWsRef.current.onopen = () => console.log('AssemblyAI WebSocket connected');
+        assemblyWsRef.current.onerror = (error) => console.error('WebSocket error:', error);
+        assemblyWsRef.current.onclose = () => {
+            console.log('AssemblyAI WebSocket closed');
+            assemblyWsRef.current = null;
+        };
+        assemblyWsRef.current.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.message_type === 'FinalTranscript' && data.text) {
+                setTranscript(prev => prev + data.text + ' ');
+            }
+        };
     };
 
-    // Add cleanup effect when component unmounts
-    useEffect(() => {
-        return async () => {
-            try {
-                // Stop any ongoing recording
-                if (isRecording) {
-                    stopRecord();
-                }
+    const stopTranscription = () => {
+        if (assemblyWsRef.current) {
+            assemblyWsRef.current.close();
+            assemblyWsRef.current = null;
+        }
+    };
+    
+    // --- UI Rendering ---
 
-                // Clean up audio tracks
-                if (localAudioTrack) {
-                    localAudioTrack.stop();
-                    localAudioTrack.close();
-                }
+    const getStatusMessage = () => {
+        if (connectionState === 'RECONNECTING') return 'Reconnecting...';
+        if (connectionState === 'CONNECTED') return 'Connected';
+        if (isLoading) return 'Connecting...';
+        return 'Disconnected';
+    }
 
-                // Clean up video tracks
-                if (localVideoTrack) {
-                    localVideoTrack.stop();
-                    localVideoTrack.close();
-                }
-
-                // Clean up remote audio tracks
-                remoteAudioTracks.forEach(track => {
-                    track.stop();
-                });
-
-                // Leave the channel if joined
-                if (isJoined && client) {
-                    await client.leave();
-                }
-
-                // Reset states
-                setLocalAudioTrack(null);
-                setLocalVideoTrack(null);
-                setRemoteAudioTracks([]);
-                setRemoteUsers([]);
-                setIsJoined(false);
-                setIsVideoEnabled(false);
-
-                // Clear timer if running
-                if (timerId) {
-                    clearInterval(timerId);
-                }
-
-            } catch (error) {
-                console.error('Error during cleanup:', error);
-            }
-        };
-    }, [isJoined, isRecording, localAudioTrack, localVideoTrack, remoteAudioTracks, timerId]);
-
+    // FIX: Wrap the entire component in ChakraProvider to ensure UI elements render correctly.
     return (
-        <Box 
-            position="relative" 
-            height="100vh" 
-            width="100%" 
-            bg="#2c2c2c"
-            display="flex"
-            flexDirection="column"
-        >
-            {/* Connection Status */}
+        <ChakraProvider>
             <Box
-                position="absolute"
-                top="20px"
-                left="20px"
-                zIndex={2}
-                bg={connectionState === 'CONNECTED' ? 'green.500' : 'orange.500'}
-                color="white"
-                px="3"
-                py="1"
-                borderRadius="full"
-                fontSize="sm"
+                position="relative"
+                height="100vh"
+                width="100%"
+                bg="#2c2c2c"
+                display="flex"
+                flexDirection="column"
             >
-                {getConnectionStatusMessage()}
-            </Box>
-
-            {/* Video Container */}
-            <Box flex="1" position="relative">
-                <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
-
-                {/* Transcription Icon - Moved to top-right */}
-                <Box position="absolute" top="20px" right="20px" zIndex={2}>
-                    <Popover placement="left">
-                        <PopoverTrigger>
-                            <IconButton
-                                icon={<MdDescription />}
-                                colorScheme="blue"
-                                variant="solid"
-                                borderRadius="full"
-                                aria-label="View Transcription"
-                            />
-                        </PopoverTrigger>
-                        <PopoverContent width="300px" maxHeight="400px" overflowY="auto">
-                            <PopoverArrow />
-                            <PopoverCloseButton />
-                            <PopoverBody p={4}>
-                                <Text fontWeight="bold" mb={2}>Transcription</Text>
-                                <Box 
-                                    bg="gray.50" 
-                                    p={3} 
-                                    borderRadius="md" 
-                                    fontSize="sm"
-                                    whiteSpace="pre-wrap"
-                                >
-                                    {transcript || "No transcription available yet..."}
-                                </Box>
-                            </PopoverBody>
-                        </PopoverContent>
-                    </Popover>
+                {/* Status Badge */}
+                <Box position="absolute" top="20px" left="20px" zIndex={2}>
+                    <Text
+                        bg={connectionState === 'CONNECTED' ? 'green.500' : 'orange.500'}
+                        color="white"
+                        px="3"
+                        py="1"
+                        borderRadius="full"
+                        fontSize="sm"
+                    >
+                        {getStatusMessage()}
+                    </Text>
                 </Box>
 
-                {/* Control Panel with Timer */}
+                {/* Main Video Area */}
+                <Box flex="1" position="relative" bg="black">
+                    <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
+
+                    {isLoading && (
+                        <Flex position="absolute" inset="0" align="center" justify="center" bg="rgba(0,0,0,0.5)">
+                            <Spinner size="xl" color="white" />
+                        </Flex>
+                    )}
+
+                    {isJoined && userCount < 2 && !isLoading && (
+                         <Alert status="info" position="absolute" top="50%" left="50%" transform="translate(-50%, -50%)" zIndex={2}>
+                             <AlertIcon />
+                             Waiting for other participant to join...
+                         </Alert>
+                    )}
+                </Box>
+
+                {/* Control Bar */}
                 <Flex
                     position="absolute"
                     bottom="20px"
                     left="50%"
                     transform="translateX(-50%)"
-                    flexDirection="column"
                     alignItems="center"
-                    gap="15px"
-                    zIndex="1"
+                    gap="20px"
+                    zIndex={2}
+                    bg="rgba(0, 0, 0, 0.6)"
+                    p={4}
+                    borderRadius="full"
                 >
-                    {/* Timer moved above controls */}
                     {isJoined && (
-                        <Box 
-                            bg="rgba(0, 0, 0, 0.6)" 
-                            px="4" 
-                            py="2" 
-                            borderRadius="full"
-                            mb="10px"
-                        >
-                            <Text fontSize="xl" color="white" fontWeight="bold">
-                                {formatDuration(callDuration)}
-                            </Text>
-                        </Box>
+                        <Text fontSize="lg" color="white" fontWeight="bold" fontFamily="monospace">
+                            {formatDuration(callDuration)}
+                        </Text>
                     )}
 
-                    {/* Control Buttons */}
-                    <Flex gap="30px" alignItems="center">
-                        <Box textAlign="center">
-                            <IconButton
-                                icon={<MdCallEnd />}
-                                colorScheme="red"
-                                fontSize="36px"
-                                onClick={leaveChannel}
-                                borderRadius="full"
-                                size="lg"
+                    <Tooltip label={isVideoEnabled ? "Disable Video" : "Enable Video"}>
+                        <IconButton
+                            icon={isVideoEnabled ? <MdVideocam /> : <MdVideocamOff />}
+                            colorScheme={isVideoEnabled ? "blue" : "gray"}
+                            isRound
+                            size="lg"
+                            onClick={toggleVideo}
+                            isDisabled={!isJoined || !localVideoTrack}
+                        />
+                    </Tooltip>
+
+                    <Tooltip label="End Call">
+                        <IconButton
+                            icon={<MdCallEnd />}
+                            colorScheme="red"
+                            isRound
+                            size="lg"
+                            onClick={leaveChannel}
+                            isDisabled={!isJoined}
+                        />
+                    </Tooltip>
+                    
+                     <Popover placement="top">
+                        <PopoverTrigger>
+                           <IconButton
+                                icon={<MdDescription />}
+                                colorScheme="blue"
+                                variant="ghost"
+                                _hover={{ bg: "whiteAlpha.200" }}
+                                isRound size="lg"
+                                aria-label="View Transcription"
+                                isDisabled={!isJoined}
                             />
-                            <Text marginTop="5px" color="white">End Call</Text>
-                        </Box>
-
-                        {!isVideoEnabled && vid ? (
-                            <Box textAlign='center'> 
-                                <IconButton 
-                                    icon={<MdVideoCall />} 
-                                    colorScheme="blue" 
-                                    fontSize="36px" 
-                                    onClick={enableVideo}  
-                                    borderRadius="full" 
-                                    size="lg" 
-                                />
-                                <Text marginTop="5px" fontSize='12px' color='white'>Enable Video</Text>
-                            </Box>
-                        ) : (
-                            <Box textAlign="center">
-                                {isVideoEnabled ? (
-                                    <IconButton 
-                                        icon={<MdVideocamOff />} 
-                                        colorScheme="red" 
-                                        fontSize="36px" 
-                                        onClick={disableVideo} 
-                                        borderRadius="full" 
-                                        size="lg" 
-                                    />
-                                ) : (
-                                    <IconButton 
-                                        icon={<MdVideocam />} 
-                                        colorScheme="green" 
-                                        fontSize="36px" 
-                                        onClick={joinChannelWithVideo}  
-                                        borderRadius="full" 
-                                        size="lg" 
-                                    />
-                                )}
-                                <Text marginTop="5px" fontSize='12px' color='white'>
-                                    {isVideoEnabled ? 'Disable Video' : 'Start Call'}
+                        </PopoverTrigger>
+                        <PopoverContent bg="gray.800" color="white" borderColor="gray.600">
+                            <PopoverArrow bg="gray.800"/>
+                            <PopoverCloseButton />
+                            <PopoverBody p={4} maxHeight="300px" overflowY="auto">
+                                <Heading size="sm" mb={2}>Live Transcription</Heading>
+                                <Text fontSize="sm" whiteSpace="pre-wrap">
+                                    {transcript || "Transcription will appear here..."}
                                 </Text>
-                            </Box>
-                        )}
-                    </Flex>
+                            </PopoverBody>
+                        </PopoverContent>
+                    </Popover>
                 </Flex>
-
-                {/* Loading Spinner */}
-                {isLoading && (
-                    <Box
-                        position="absolute"
-                        top="50%"
-                        left="50%"
-                        transform="translate(-50%, -50%)"
-                        textAlign="center"
-                        zIndex="2"
-                        bg="rgba(0, 0, 0, 0.7)"
-                        p={4}
-                        borderRadius="md"
-                    >
-                        <Spinner color="blue.500" size="xl" />
-                        <Text fontSize="lg" color="white" mt={2}>Processing...</Text>
-                    </Box>
-                )}
-
-                {/* Waiting for Caller */}
-                {isJoined && remoteUsers.length === 0 && (
-                    <Box
-                        position="absolute"
-                        top="50%"
-                        left="50%"
-                        transform="translate(-50%, -50%)"
-                        textAlign="center"
-                        zIndex="2"
-                        bg="rgba(0, 0, 0, 0.7)"
-                        p={4}
-                        borderRadius="md"
-                    >
-                        <Text fontSize="lg" color="yellow.400">
-                            Waiting for other caller to join...
-                        </Text>
-                    </Box>
-                )}
-
-                {/* Transcript Display (always visible below controls) */}
-                <Box
-                    position="absolute"
-                    left="50%"
-                    bottom="-80px"
-                    transform="translateX(-50%)"
-                    width="90%"
-                    maxW="600px"
-                    bg="whiteAlpha.900"
-                    color="black"
-                    p={4}
-                    borderRadius="md"
-                    boxShadow="md"
-                    zIndex={2}
-                    fontSize="md"
-                    minH="48px"
-                    mt={4}
-                    style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                >
-                    <Text fontWeight="bold" mb={2}>Live Transcript</Text>
-                    <Box>{transcript || 'No transcription available yet...'}</Box>
-                </Box>
             </Box>
-        </Box>
+        </ChakraProvider>
     );
 };
 
