@@ -96,7 +96,6 @@ const Voice = () => {
 
     // Initialize Agora Client and set up listeners (runs only once on mount)
     useEffect(() => {
-        // FIX: Use a ref to store the client instance, preventing re-creation on re-renders.
         clientRef.current = createClient({ mode: 'rtc', codec: 'vp8' });
         const client = clientRef.current;
 
@@ -118,7 +117,7 @@ const Voice = () => {
             leaveChannel();
             client.removeAllListeners();
         };
-    }, []); // Empty dependency array ensures this runs only once.
+    }, []);
 
     const joinChannelWithVideo = async () => {
         if (isJoined) return;
@@ -173,7 +172,7 @@ const Voice = () => {
             setIsVideoEnabled(false);
             setUserCount(0);
             setCallDuration(900);
-            navigate('/'); // Navigate to a safe page after leaving
+            navigate('/');
         }
     };
 
@@ -221,7 +220,6 @@ const Voice = () => {
 
     // --- Transcription Logic (AssemblyAI) ---
 
-    // Fetch AssemblyAI token
     useEffect(() => {
         const fetchAssemblyAiToken = async () => {
             try {
@@ -240,7 +238,6 @@ const Voice = () => {
         fetchAssemblyAiToken();
     }, [toast]);
 
-    // Connect to WebSocket when conditions are met
     useEffect(() => {
         if (isJoined && userCount > 1 && assemblyAiToken && !assemblyWsRef.current) {
             connectWebSocket();
@@ -283,7 +280,6 @@ const Voice = () => {
         return 'Disconnected';
     }
 
-    // FIX: Wrap the entire component in ChakraProvider to ensure UI elements render correctly.
     return (
         <ChakraProvider>
             <Box
@@ -329,14 +325,15 @@ const Voice = () => {
                 {/* Control Bar */}
                 <Flex
                     position="absolute"
-                    bottom="20px"
+                    // THIS IS THE FIX: Responsive 'bottom' property
+                    bottom={{ base: '60px', md: '30px' }}
                     left="50%"
                     transform="translateX(-50%)"
                     alignItems="center"
                     gap="20px"
                     zIndex={2}
                     bg="rgba(0, 0, 0, 0.6)"
-                    p={4}
+                    p={{ base: 3, md: 4 }}
                     borderRadius="full"
                 >
                     {isJoined && (
