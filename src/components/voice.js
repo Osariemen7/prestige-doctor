@@ -314,7 +314,7 @@ const Voice = () => {
                         </Flex>
                     )}
 
-                    {isJoined && userCount < 2 && !isLoading && (
+                    {isJoined && remoteUsers.length === 0 && !isLoading && (
                          <Alert status="info" position="absolute" top="50%" left="50%" transform="translate(-50%, -50%)" zIndex={2}>
                              <AlertIcon />
                              Waiting for other participant to join...
