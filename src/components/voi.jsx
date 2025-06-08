@@ -271,6 +271,47 @@ const TranscriptionControls = ({ isRecording, onToggle }) => (
 );
 
 const Call = () => {
+    const wakeLockRef = useRef(null);
+    
+    // Add wake lock functionality
+    const requestWakeLock = async () => {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLockRef.current = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock is active');
+            } else {
+                const video = document.createElement('video');
+                video.setAttribute('playsinline', '');
+                video.setAttribute('autoplay', '');
+                video.style.display = 'none';
+                document.body.appendChild(video);
+                wakeLockRef.current = video;
+            }
+        } catch (err) {
+            console.error('Wake Lock request failed:', err);
+        }
+    };
+
+    const releaseWakeLock = async () => {
+        if (wakeLockRef.current) {
+            try {
+                if (wakeLockRef.current instanceof HTMLVideoElement) {
+                    document.body.removeChild(wakeLockRef.current);
+                } else {
+                    await wakeLockRef.current.release();
+                }
+                wakeLockRef.current = null;
+            } catch (err) {
+                console.error('Failed to release Wake Lock:', err);
+            }
+        }
+    };
+
+    useEffect(() => {
+        requestWakeLock();
+        return () => releaseWakeLock();
+    }, []);
+
     const [isMobile] = useMediaQuery("(max-width: 768px)");
     const audioContextRef = useRef(null);
     const processorRef = useRef(null);

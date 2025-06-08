@@ -54,6 +54,7 @@ const Voice = () => {
     const clientRef = useRef(null);
     const timerIdRef = useRef(null);
     const assemblyWsRef = useRef(null);
+    const wakeLockRef = useRef(null);
     
     // Derived values from router
     const item = state?.item || {};
@@ -101,6 +102,10 @@ const Voice = () => {
 
         client.on('connection-state-change', (curState, prevState) => {
             setConnectionState(curState);
+            // Request wake lock when connected
+            if (curState === 'CONNECTED') {
+                requestWakeLock();
+            }
         });
         client.on('user-published', handleUserPublished);
         client.on('user-unpublished', handleUserUnpublished);
@@ -115,6 +120,7 @@ const Voice = () => {
         // Cleanup function on component unmount
         return () => {
             leaveChannel();
+            releaseWakeLock();
             client.removeAllListeners();
         };
     }, []);
@@ -149,6 +155,7 @@ const Voice = () => {
     const leaveChannel = async () => {
         stopTimer();
         stopTranscription();
+        await releaseWakeLock();
 
         try {
             if (localAudioTrack) {
@@ -271,6 +278,33 @@ const Voice = () => {
         }
     };
     
+    // --- Wake Lock Logic ---
+
+    const requestWakeLock = async () => {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLockRef.current = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock is active');
+            } else {
+                console.log('Wake Lock API is not supported');
+            }
+        } catch (err) {
+            console.error('Wake Lock request failed:', err);
+        }
+    };
+
+    const releaseWakeLock = async () => {
+        if (wakeLockRef.current) {
+            try {
+                await wakeLockRef.current.release();
+                wakeLockRef.current = null;
+                console.log('Wake Lock released');
+            } catch (err) {
+                console.error('Failed to release Wake Lock:', err);
+            }
+        }
+    };
+
     // --- UI Rendering ---
 
     const getStatusMessage = () => {
