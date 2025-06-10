@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from 'react-router-dom'; // Add useLocation
 import { getAccessToken } from './api'; // Add this import
 import AskQuestionIcon from '@mui/icons-material/Psychology'; // Add this import
 import PersonIcon from '@mui/icons-material/Person';
+import PatientProfile from './write.jsx'; // Import consultation component
 
 const PatientMessages = () => {
   const navigate = useNavigate();
@@ -48,6 +49,10 @@ const PatientMessages = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [messages, setMessages] = useState([]); // Add messages state for new conversations
   const [expandedImage, setExpandedImage] = useState(null);
+  // Add consultation mode states
+  const [isConsultationMode, setIsConsultationMode] = useState(false);
+  const [isDocumentationSaved, setIsDocumentationSaved] = useState(false);
+  const patientProfileRef = useRef(null);
 
   const messageContainerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -92,11 +97,21 @@ const PatientMessages = () => {
       messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
     }
   };
-
   // Add effect to scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
-  }, [selectedThread, messages]);
+  }, [selectedThread, messages]);  // Check if selectedThread has review_id but don't automatically switch to consultation mode
+  // Messages view should always be the default when navigating to the page
+  useEffect(() => {
+    if (selectedThread) {
+      console.log('Selected thread data:', selectedThread);
+      console.log('Review ID:', selectedThread.review_id);
+      // Always keep consultation mode false unless explicitly activated by user
+      setIsConsultationMode(false);
+    } else {
+      setIsConsultationMode(false);
+    }
+  }, [selectedThread]);
 
   const showSnackbar = (message, severity = 'error') => {
     setSnackbarMessage(message);
@@ -525,11 +540,24 @@ const PatientMessages = () => {
       fileInputRef.current.click();
     }
   };
-
   const getLastMessageTime = (thread) => {
     if (!thread.messages || thread.messages.length === 0) return '';
     const lastMessage = thread.messages[thread.messages.length - 1];
-    return new Date(lastMessage.created).toLocaleString();
+    return new Date(lastMessage.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Transform messages from selectedThread.messages format to transcript component format
+  const transformMessagesToTranscript = (messages) => {
+    if (!Array.isArray(messages)) {
+      return [];
+    }
+    
+    return messages.map((message) => ({
+      time: message.created || new Date().toISOString(),
+      content: message.message_value || '',
+      // Optional: Include speaker info as a prefix to content if needed
+      // content: `${getRoleName(message.role)}: ${message.message_value || ''}`,
+    }));
   };
 
   const renderConversationList = () => (
@@ -984,14 +1012,129 @@ const PatientMessages = () => {
           {msg.message_value}
         </Typography>
         <Typography variant="caption" sx={{ /* ...existing styles... */ }}>
-          {new Date(msg.created).toLocaleTimeString()}
+          {(() => {
+            const date = new Date(msg.created);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          })()}
         </Typography>
       </Box>
     </Box>
   );
+  const handleSaveAndExitConsultation = async () => {
+    if (patientProfileRef.current && patientProfileRef.current.saveAllDocumentation) {
+      try {
+        await patientProfileRef.current.saveAllDocumentation();
+        setIsDocumentationSaved(true);
+        setIsConsultationMode(false); // Switch back to messages view
+        showSnackbar('Documentation saved successfully!', 'success');
+      } catch (error) {
+        showSnackbar('Failed to save documentation. Please try again.', 'error');
+      }
+    } else {
+      setIsConsultationMode(false); // Fallback: just exit
+    }
+  };
 
-  const renderConversationDetail = () => (
-    <Paper sx={{ 
+  const renderConversationDetail = () => {
+    // If in consultation mode (thread has review_id), show PatientProfile component
+    if (isConsultationMode && selectedThread && selectedThread.review_id) {
+      return (
+        <Paper sx={{ 
+          flex: 1, 
+          height: 'calc(100vh - 2rem)',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          width: isMobile ? '100%' : 'auto',
+        }}>
+          <Box 
+            sx={{ 
+              position: 'sticky',
+              top: 0,
+              bgcolor: 'background.paper',
+              zIndex: 1,
+              p: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid rgba(0,0,0,0.12)'
+            }}
+          >
+            <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 500 }}>
+              {selectedThread?.patient_name || `Patient (${selectedThread.patient})`} - Consultation
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setIsConsultationMode(false)}
+                sx={{ textTransform: 'none' }}
+              >
+                View Messages
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                size="small"
+                onClick={handleSaveAndExitConsultation}
+                sx={{ textTransform: 'none' }}
+              >
+                Save & Exit
+              </Button>
+              <IconButton 
+                onClick={handleRefresh} 
+                disabled={isRefreshing}
+              >
+                <RefreshIcon 
+                  sx={{ 
+                    animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                    '@keyframes spin': {
+                      '0%': { transform: 'rotate(0deg)' },
+                      '100%': { transform: 'rotate(360deg)' },
+                    }
+                  }} 
+                />
+              </IconButton>
+            </Box>
+          </Box>          {/* Double Scroller: Outer container for PatientProfile */}
+          <Box 
+            sx={{ 
+              flex: 1, 
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              position: 'relative',
+              height: `calc(100vh - ${isMobile && isNewConversation ? '330px' : isMobile ? '270px' : '310px'})`,
+            }}
+          >
+            {/* Inner scrollable container for PatientProfile */}
+            <Box
+              sx={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                minHeight: '100%',
+              }}
+            >
+              {console.log('Rendering PatientProfile with reviewid:', selectedThread.review_id, 'thread:', selectedThread.thread_id)}
+              <PatientProfile
+                ref={patientProfileRef}
+                reviewid={selectedThread.review_id}
+                thread={selectedThread.thread_id}
+                transcript={transformMessagesToTranscript(selectedThread.messages || [])}
+                setIsDocumentationSaved={setIsDocumentationSaved}
+                isMobile={isMobile}
+                hideSaveAllButton={false}
+              />
+            </Box>
+          </Box>
+        </Paper>
+      );
+    }
+
+    // Default message view
+    return (    <Paper sx={{ 
       flex: 1, 
       height: 'calc(100vh - 2rem)',
       position: 'relative',
@@ -999,8 +1142,6 @@ const PatientMessages = () => {
       flexDirection: 'column',
       overflow: 'hidden',
       width: isMobile ? '100%' : 'auto',
-      // Increase padding bottom for mobile to prevent content from being hidden behind fixed input
-      pb: isMobile ? '100px' : 0  // Increased from 76px to 100px
     }}>
       {selectedThread || isNewConversation ? (
         <>
@@ -1017,101 +1158,124 @@ const PatientMessages = () => {
               borderBottom: '1px solid rgba(0,0,0,0.12)'
             }}
           >
-            {/* Show patient name for new conversation if selected, or thread name for existing */}
-            <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 500 }}>
+            {/* Show patient name for new conversation if selected, or thread name for existing */}            <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 500 }}>
               {isNewConversation && selectedPatient
                 ? datalist.find(p => p.id === selectedPatient)?.full_name || `Patient (${selectedPatient})`
                 : selectedThread?.patient_name || (selectedThread ? `Patient (${selectedThread.patient})` : '')}
             </Typography>
-            <IconButton 
-              onClick={handleRefresh} 
-              disabled={isRefreshing}
-              sx={{ ml: 'auto' }}
-            >
-              <RefreshIcon 
-                sx={{ 
-                  animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-                  '@keyframes spin': {
-                    '0%': { transform: 'rotate(0deg)' },
-                    '100%': { transform: 'rotate(360deg)' },
-                  }
-                }} 
-              />
-            </IconButton>
-          </Box>
-          {/* Scrollable content area with ref */}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              {/* Show consultation button if thread has review_id */}
+              {selectedThread && selectedThread.review_id && (
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={() => setIsConsultationMode(true)}
+                  sx={{ 
+                    textTransform: 'none',
+                    bgcolor: '#4caf50',
+                    '&:hover': { bgcolor: '#45a049' }
+                  }}
+                >
+                  View Consultation
+                </Button>
+              )}
+              <IconButton 
+                onClick={handleRefresh} 
+                disabled={isRefreshing}
+              >
+                <RefreshIcon 
+                  sx={{ 
+                    animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                    '@keyframes spin': {
+                      '0%': { transform: 'rotate(0deg)' },
+                      '100%': { transform: 'rotate(360deg)' },
+                    }
+                  }} 
+                />
+              </IconButton>
+            </Box>
+          </Box>          {/* Double Scroller: Outer container for layout control */}
           <Box 
-            ref={messageContainerRef}
-            sx={{              flex: 1,
-              overflowY: 'auto',
-              p: { xs: 2, lg: 4 },
-              mb: isMobile ? (isNewConversation ? 14 : 10) : 0, // Increase bottom margin for mobile + dropdown
-              scrollBehavior: 'smooth',
+            sx={{
+              flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: (isNewConversation && messages.length === 0) ? 'center' : 'flex-start',
+              overflow: 'hidden',
+              position: 'relative',
+              height: `calc(100vh - ${isMobile && isNewConversation ? '330px' : isMobile ? '270px' : '310px'})`,
             }}
           >
-            {/* If new conversation and no messages, show instructions centered */}
-            {isNewConversation && messages.length === 0 ? (
-              <Box sx={{ textAlign: 'center', width: '100%', maxWidth: 340 }}>
-                <Paper elevation={0} sx={{
-                  background: '#f5f7fa',
-                  color: '#607D8B',
-                  p: 2,
-                  borderRadius: 2,
-                  fontSize: 15,
-                  textAlign: 'center',
-                  lineHeight: 1.6,
-                  wordBreak: 'break-word',
-                  maxWidth: '100%',
-                  minHeight: 36,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mx: 'auto',
-                }}>
-                  <span style={{ opacity: 0.9 }}>
-                    To start a conversation, select a patient, type your message, and optionally attach an image. The patient will receive your message on WhatsApp as a secure chat.
-                  </span>
-                </Paper>
-              </Box>
-            ) : (
-              <Box sx={{ 
+            {/* Inner scrollable container for messages */}
+            <Box 
+              ref={messageContainerRef}
+              sx={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                p: { xs: 2, lg: 4 },
+                scrollBehavior: 'smooth',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 2,
-                width: '100%',
-                alignItems: 'flex-start',
-              }}>
-                {/* Show either thread messages or new conversation messages */}
-                {((selectedThread && Array.isArray(selectedThread.messages)) ? selectedThread.messages : Array.isArray(messages) ? messages : []).map((msg) => 
-                  renderMessage(msg, selectedThread)
-                )}
-              </Box>
-            )}
-          </Box>          {/* Fixed input box at bottom - use fixed position for mobile */}
+                alignItems: 'center',
+                justifyContent: (isNewConversation && messages.length === 0) ? 'center' : 'flex-start',
+                minHeight: '100%',
+              }}
+            >
+              {/* If new conversation and no messages, show instructions centered */}
+              {isNewConversation && messages.length === 0 ? (
+                <Box sx={{ textAlign: 'center', width: '100%', maxWidth: 340 }}>
+                  <Paper elevation={0} sx={{
+                    background: '#f5f7fa',
+                    color: '#607D8B',
+                    p: 2,
+                    borderRadius: 2,
+                    fontSize: 15,
+                    textAlign: 'center',
+                    lineHeight: 1.6,
+                    wordBreak: 'break-word',
+                    maxWidth: '100%',
+                    minHeight: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mx: 'auto',
+                  }}>
+                    <span style={{ opacity: 0.9 }}>
+                      To start a conversation, select a patient, type your message, and optionally attach an image. The patient will receive your message on WhatsApp as a secure chat.
+                    </span>
+                  </Paper>
+                </Box>
+              ) : (
+                <Box sx={{ 
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  width: '100%',
+                  alignItems: 'flex-start',
+                  pb: 2, // Small padding at bottom for better spacing
+                }}>
+                  {/* Show either thread messages or new conversation messages */}
+                  {((selectedThread && Array.isArray(selectedThread.messages)) ? selectedThread.messages : Array.isArray(messages) ? messages : []).map((msg) => 
+                    renderMessage(msg, selectedThread)
+                  )}
+                </Box>
+              )}
+            </Box>
+          </Box>          {/* Fixed input box at bottom */}
           <Box sx={{
-            position: isMobile ? 'fixed' : 'absolute',
+            position: 'sticky',
             bottom: 0,
-            left: isMobile ? 0 : 0,
-            right: 0,
-            width: isMobile ? '100%' : 'auto',
             bgcolor: 'background.paper',
             borderTop: '1px solid rgba(0,0,0,0.12)',
             p: 2,
-            maxHeight: isMobile && isNewConversation ? '230px' : '170px', // Increased height for mobile with dropdown
             zIndex: 10,
-            boxShadow: isMobile ? '0 -2px 10px rgba(0,0,0,0.1)' : 'none',
+            boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
             display: 'flex',
-            justifyContent: 'center', // Center the input box horizontally
-            alignItems: 'center',      // Center vertically
-            pb: isMobile && isNewConversation ? 3 : 2  // Extra padding at bottom for mobile with dropdown
+            justifyContent: 'center',
+            alignItems: 'center',
           }}>
             {renderInputBox()}
-          </Box>
-        </>
+          </Box></>
       ) : (
         <Box sx={{ textAlign: 'center', mt: 4 }}>
           <Typography variant="h6" color="text.secondary">
@@ -1123,7 +1287,8 @@ const PatientMessages = () => {
         </Box>
       )}
     </Paper>
-  );
+    );
+  };
 
   const renderDesktopLayout = () => (
     <div className="flex flex-col lg:flex-row gap-4">

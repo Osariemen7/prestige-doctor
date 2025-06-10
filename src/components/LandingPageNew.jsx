@@ -367,12 +367,12 @@ const LandingPageNew = () => {
         <Box
           id="hero"
           sx={{
-            minHeight: { xs: '120vh', md: '100vh' },
+            minHeight: { xs: '120vh', md: '90vh' }, // Reduce desktop minHeight
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            pt: { xs: 15, md: 20 },
-            pb: { xs: 12, md: 15 },
+            pt: { xs: 15, md: 8 }, // Reduce top padding on desktop
+            pb: { xs: 12, md: 6 }, // Reduce bottom padding on desktop
             background: 'linear-gradient(180deg, #001C82 0%, #050816 100%)',
             position: 'relative',
             overflow: 'hidden',
@@ -555,7 +555,7 @@ const LandingPageNew = () => {
           </Container>        <Box
             sx={{
               position: 'absolute',
-              bottom: { xs: 30, md: 40 },
+              bottom: { xs: 10, md: 20 }, // Move arrow further down
               width: '100%',
               display: 'flex',
               justifyContent: 'center',

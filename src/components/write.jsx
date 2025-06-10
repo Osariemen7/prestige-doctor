@@ -75,11 +75,14 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             }
         }
         return output;
-    };
-
-    const fetchSubscribers = async () => {
+    };    const fetchSubscribers = async () => {
         setLoading(true);
         try {
+            // Validate reviewid before making API call
+            if (!reviewid || reviewid === null || reviewid === undefined) {
+                throw new Error('Invalid consultation ID');
+            }
+
             const accessToken = await getAccessToken();
             const response = await axios.get(
                 `https://health.prestigedelta.com/documentreview/${reviewid}/aggregate-data/`,
@@ -94,7 +97,13 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
         } catch (error) {
             console.error("Error fetching data:", error);
             setSnackbarSeverity('error');
-            setSnackbarMessage('Error fetching data.');
+            if (error.response?.status === 404) {
+                setSnackbarMessage('Consultation not found. This consultation may not exist or you may not have access to it.');
+            } else if (error.message === 'Invalid consultation ID') {
+                setSnackbarMessage('Invalid consultation ID provided.');
+            } else {
+                setSnackbarMessage('Error fetching consultation data.');
+            }
             setSnackbarOpen(true);
         } finally {
             setLoading(false);
@@ -291,10 +300,16 @@ const PatientProfile = forwardRef(({ reviewid, thread, setIsDocumentationSaved, 
             setIsShowRecommendationsLoading(false);
             isGettingSuggestion.current = false;
         }
-    };
-
-    // Function to get suggested questions for the doctor
+    };    // Function to get suggested questions for the doctor
     const getSuggestedQuestions = async () => {
+        // Add validation for reviewid
+        if (!reviewid || reviewid === null || reviewid === undefined) {
+            setSnackbarSeverity('error');
+            setSnackbarMessage('Invalid consultation ID. Cannot generate questions.');
+            setSnackbarOpen(true);
+            return false;
+        }
+
         if (isGettingSuggestion.current) {
             setSnackbarSeverity('info');
             setSnackbarMessage('An AI process is already running. Please wait for it to complete.');
