@@ -239,6 +239,16 @@ const getAccessToken = async () => {
 useEffect(() => {
   getAccessToken();
   
+  // Google Ads conversion tracking for successful registration
+  if (typeof window !== 'undefined' && window.gtag) {
+    window.gtag('event', 'conversion', {
+      'send_to': 'AW-11242421150/jxFjCIehodcaEJ735vAp',
+      'value': 1.0,
+      'currency': 'USD'
+    });
+    console.log('Registration conversion tracked - user reached provider page');
+  }
+  
   // Rotate testimonials every 8 seconds
   const testimonialInterval = setInterval(() => {
     setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
@@ -310,8 +320,7 @@ const handleSubmit = async (e) => {
     if (response.status !== 200) {
       setMessage(result.message || 'An error occurred');
       setMessageSeverity('error');
-      setSnackbarOpen(true);
-    } else {
+      setSnackbarOpen(true);    } else {
       setMessage('Profile created successfully!');
       setMessageSeverity('success');
       setSnackbarOpen(true);
