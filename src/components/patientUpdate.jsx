@@ -43,7 +43,7 @@ const PatientUpdate = () => {
             };
 
             const response = await axios.post(
-                'https://health.prestigedelta.com/appointments/book/',
+                'https://service.prestigedelta.com/appointments/book/',
                 data,
                 {
                     headers: { Authorization: `Bearer ${accessToken}` },
@@ -79,7 +79,7 @@ const PatientUpdate = () => {
         try {
             const accessToken = await getAccessToken();
             const response = await axios.get(
-                `https://health.prestigedelta.com/documentreview/${reviewId}/aggregate-data/`,
+                `https://service.prestigedelta.com/documentreview/${reviewId}/aggregate-data/`,
                 {
                     headers: { Authorization: `Bearer ${accessToken}` },
                 }

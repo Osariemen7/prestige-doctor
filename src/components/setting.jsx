@@ -40,14 +40,14 @@ import Sidebar from './sidebar';
 const fetchProviderData = async (accessToken, setProviderData, setTempProviderData, setAvailabilities, setTempAvailabilities) => {
   try {
     const [providerResponse, availabilityResponse] = await Promise.all([
-      fetch('https://health.prestigedelta.com/provider', {
+      fetch('https://service.prestigedelta.com/provider', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       }),
-      fetch('https://health.prestigedelta.com/availability/', {
+      fetch('https://service.prestigedelta.com/availability/', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -151,7 +151,7 @@ const SettingPage = () => {
   const handleSaveProviderData = async () => {
     try {
       const accessToken = await getAccessToken();
-      const response = await fetch('https://health.prestigedelta.com/provider/', {
+      const response = await fetch('https://service.prestigedelta.com/provider/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -202,7 +202,7 @@ const SettingPage = () => {
       const formData = {
         availabilities: formattedAvailabilities,
       };
-      const response = await fetch('https://health.prestigedelta.com/availability/', {
+      const response = await fetch('https://service.prestigedelta.com/availability/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

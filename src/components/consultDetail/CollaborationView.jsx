@@ -133,7 +133,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
         return;
       }
       
-      const response = await fetch(`https://health.prestigedelta.com/review-note/${publicId}/messages/`, {
+      const response = await fetch(`https://service.prestigedelta.com/review-note/${publicId}/messages/`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
         'Authorization': `Bearer ${token}`,
       };
 
-      const response = await fetch('https://health.prestigedelta.com/provider/', { headers });
+      const response = await fetch('https://service.prestigedelta.com/provider/', { headers });
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -266,7 +266,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
         return;
       }
       
-      const response = await fetch(`https://health.prestigedelta.com/team/${patientId}/collaborators/`, {
+      const response = await fetch(`https://service.prestigedelta.com/team/${patientId}/collaborators/`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -343,7 +343,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
         setLoadingSearch(false);
         return;
       }
-      const response = await fetch(`https://health.prestigedelta.com/provider_search/?search=${encodeURIComponent(query)}`, {
+      const response = await fetch(`https://service.prestigedelta.com/provider_search/?search=${encodeURIComponent(query)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -542,7 +542,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
       const formData = new FormData();
       formData.append('image', file);
       
-      const response = await fetch('https://health.prestigedelta.com/research/upload-image/', {
+      const response = await fetch('https://service.prestigedelta.com/research/upload-image/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -646,7 +646,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
         payload.image_url = uploadedImageUrl;
       }
 
-      const response = await fetch(`https://health.prestigedelta.com/review-note/${publicId}/send_collaboration_message/`, {
+      const response = await fetch(`https://service.prestigedelta.com/review-note/${publicId}/send_collaboration_message/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -698,7 +698,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
         return;
       }
       
-      const response = await fetch(`https://health.prestigedelta.com/team/${patientId}/remove_collaborator/`, {
+      const response = await fetch(`https://service.prestigedelta.com/team/${patientId}/remove_collaborator/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -732,7 +732,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
     setError(null);
     try {
       const token = await getAccessToken();
-      const response = await fetch(`https://health.prestigedelta.com/team/${patientId}/add_collaborator/`, {
+      const response = await fetch(`https://service.prestigedelta.com/team/${patientId}/add_collaborator/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -774,7 +774,7 @@ const CollaborationView = ({ publicId, patientId, initialCollaboratingProviders 
 
     try {
       const token = await getAccessToken();
-      const response = await fetch(`https://health.prestigedelta.com/team/${patientId}/add_collaborator/`, {
+      const response = await fetch(`https://service.prestigedelta.com/team/${patientId}/add_collaborator/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

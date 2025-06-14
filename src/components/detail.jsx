@@ -186,7 +186,7 @@ const Details = () => {
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `https://health.prestigedelta.com/providerdashboard/${item.id}/`,
+        `https://service.prestigedelta.com/providerdashboard/${item.id}/`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -270,7 +270,7 @@ const Details = () => {
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `https://health.prestigedelta.com/recommendations/${selectedRecommendation.id}/mark-actioned/`,
+        `https://service.prestigedelta.com/recommendations/${selectedRecommendation.id}/mark-actioned/`,
         {
           method: "POST",
           headers: {
@@ -379,7 +379,7 @@ const Details = () => {
       
       // Fetch pending reviews
       const pendingResponse = await fetch(
-        `https://health.prestigedelta.com/medicalreview/pending-ai/?patient_id=${item.id}`,
+        `https://service.prestigedelta.com/medicalreview/pending-ai/?patient_id=${item.id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -389,7 +389,7 @@ const Details = () => {
       
       // Fetch approved reviews
       const approvedResponse = await fetch(
-        `https://health.prestigedelta.com/medicalreview/approved/?patient_id=${item.id}`,
+        `https://service.prestigedelta.com/medicalreview/approved/?patient_id=${item.id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -430,7 +430,7 @@ const Details = () => {
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `https://health.prestigedelta.com/medicalreview/${reviewId}/approve/`,
+        `https://service.prestigedelta.com/medicalreview/${reviewId}/approve/`,
         {
           method: "POST",
           headers: {
@@ -474,7 +474,7 @@ const Details = () => {
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `https://health.prestigedelta.com/medicalreview/${reviewId}/reject/`,
+        `https://service.prestigedelta.com/medicalreview/${reviewId}/reject/`,
         {
           method: "POST",
           headers: {

@@ -42,7 +42,7 @@ const AppointmentModal = ({ isOpen, onClose, patientId, toast }) => {
         try {
           const accessToken = await getAccessToken();
           const response = await axios.get(
-            `https://health.prestigedelta.com/appointments/available_slots/?date=${date}`,
+            `https://service.prestigedelta.com/appointments/available_slots/?date=${date}`,
             {
               headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -83,7 +83,7 @@ const AppointmentModal = ({ isOpen, onClose, patientId, toast }) => {
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        "https://health.prestigedelta.com/appointments/book/",
+        "https://service.prestigedelta.com/appointments/book/",
         {
           method: "POST",
           headers: {

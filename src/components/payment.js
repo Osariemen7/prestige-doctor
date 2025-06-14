@@ -21,7 +21,7 @@ function PaymentForm() {
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
   
-  const url = 'https://health.prestigedelta.com/paystack/';
+  const url = 'https://service.prestigedelta.com/paystack/';
   const callback_url = 'https://prestige-health.vercel.app/components/callback';
 
  

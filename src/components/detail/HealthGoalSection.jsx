@@ -88,7 +88,7 @@ const HealthGoalSection = ({ patientData, patientId, updateHealthGoal, toast }) 
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        "https://health.prestigedelta.com/healthgoal/manage_goal/",
+        "https://service.prestigedelta.com/healthgoal/manage_goal/",
         {
           method: "POST",
           headers: {

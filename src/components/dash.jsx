@@ -39,7 +39,7 @@ const DashboardPage = () => {
       if (!accessToken) return;
 
       try {
-        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+        const response = await fetch('https://service.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -69,7 +69,7 @@ const DashboardPage = () => {
       if (!accessToken) return;
 
       try {
-        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+        const response = await fetch('https://service.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

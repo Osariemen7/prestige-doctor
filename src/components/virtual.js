@@ -144,7 +144,7 @@ const Va = () => {
         return;
       }
       try {
-        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+        const response = await fetch('https://service.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: { 'Content-Type': 'application/json', accept: 'application/json', Authorization: `Bearer ${accessToken}`},
         });
@@ -169,7 +169,7 @@ const Va = () => {
       try {
         const accessToken = await getAccessToken();
         if (!accessToken) { setLoading(false); return; }
-        const response = await axios.get("https://health.prestigedelta.com/appointments/available_slots/", {
+        const response = await axios.get("https://service.prestigedelta.com/appointments/available_slots/", {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         setInfo(response.data); 
@@ -196,7 +196,7 @@ const Va = () => {
       if (!token) { setIsLoadingSlots(false); return; }
 
       const response = await axios.get(
-        `https://health.prestigedelta.com/appointments/available_slots/?date=${formattedDateForAPI}`,
+        `https://service.prestigedelta.com/appointments/available_slots/?date=${formattedDateForAPI}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -295,7 +295,7 @@ const Va = () => {
     if(!token) {setButtonVisible(false); return; }
 
     try {
-        const response = await fetch('https://health.prestigedelta.com/appointments/book/', {
+        const response = await fetch('https://service.prestigedelta.com/appointments/book/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
             body: JSON.stringify(payload),
@@ -307,7 +307,7 @@ const Va = () => {
             setLink(result); 
             
             // Refresh all slots info for main calendar and booked items list
-            const refreshedAllSlots = await axios.get("https://health.prestigedelta.com/appointments/available_slots/", { headers: { Authorization: `Bearer ${token}` } });
+            const refreshedAllSlots = await axios.get("https://service.prestigedelta.com/appointments/available_slots/", { headers: { Authorization: `Bearer ${token}` } });
             setInfo(refreshedAllSlots.data);
             
             // If a date was selected, refresh its specific available slots too

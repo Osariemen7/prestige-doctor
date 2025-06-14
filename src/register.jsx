@@ -34,7 +34,7 @@ const RegistrationPage = () => {
         ...formData,
         phone_number: formattedPhoneNumber,
       };
-      const response = await fetch('https://health.prestigedelta.com/register/', {
+      const response = await fetch('https://service.prestigedelta.com/register/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

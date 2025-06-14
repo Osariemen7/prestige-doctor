@@ -130,7 +130,7 @@ const WebRTCComponent = ({ ephemeralKey, onStop }) => {
   const sendToBackend = async (payload) => {
     const accessToken = await getAccessToken()
     try {
-      const response = await fetch('https://health.prestigedelta.com/runfunction/', {
+      const response = await fetch('https://service.prestigedelta.com/runfunction/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,

@@ -40,7 +40,7 @@ const Talk = () => {
       const phone_number = ite.user.phone_number
       let item = {phone_number}
       try {
-        const response = await fetch('https://health.prestigedelta.com/openaisession/',{
+        const response = await fetch('https://service.prestigedelta.com/openaisession/',{
           method: "POST",
           headers:{'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',

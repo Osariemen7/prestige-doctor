@@ -221,7 +221,7 @@ const getRefreshToken = async () => {
 const getAccessToken = async () => {
   let refresh = await getRefreshToken()
   let term = {refresh}
-  let rep = await fetch ('https://health.prestigedelta.com/tokenrefresh/',{
+  let rep = await fetch ('https://service.prestigedelta.com/tokenrefresh/',{
     method: 'POST',
     headers:{
       'Content-Type': 'application/json',
@@ -307,7 +307,7 @@ const handleSubmit = async (e) => {
   
   const accessToken = await getAccessToken();
   try {
-    const response = await fetch('https://health.prestigedelta.com/provider/', {
+    const response = await fetch('https://service.prestigedelta.com/provider/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

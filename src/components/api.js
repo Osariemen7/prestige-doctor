@@ -27,7 +27,7 @@ export const getRefreshToken = async () => {
 export const getAccessToken = async () => {
   let refresh = await getRefreshToken()
   let term = {refresh}
-  let rep = await fetch ('https://health.prestigedelta.com/tokenrefresh/',{
+  let rep = await fetch ('https://service.prestigedelta.com/tokenrefresh/',{
       method: 'POST',
       headers:{
         'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ export const sendAudioFile = async (blob, recipient, documentation = false) => {
     }
 
     // Make the API call
-    const response = await fetch('https://health.prestigedelta.com/recording/', {
+    const response = await fetch('https://service.prestigedelta.com/recording/', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -120,7 +120,7 @@ export const sendMessage = async (message, data) => {
   try {
     const token = await getAccessToken();
     if (token) {
-      const response = await fetch(`https://health.prestigedelta.com/medicalreview/${data.review_id}/`, {
+      const response = await fetch(`https://service.prestigedelta.com/medicalreview/${data.review_id}/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -146,7 +146,7 @@ export const submitEdits = async (data, editableFields) => {
   try {
     const token = await getAccessToken();
     if (token) {
-      const response = await fetch(`https://health.prestigedelta.com/updatereview/${data.review_id}/`, {
+      const response = await fetch(`https://service.prestigedelta.com/updatereview/${data.review_id}/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -170,7 +170,7 @@ export const balanceCheck = async (expertise_level) => {
   try {
     const token = await getAccessToken();
     if (!token) throw new Error('No access token available.');
-    const url = `https://health.prestigedelta.com/credits/check-funds/?expertise_level=${encodeURIComponent(expertise_level)}`;
+    const url = `https://service.prestigedelta.com/credits/check-funds/?expertise_level=${encodeURIComponent(expertise_level)}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {

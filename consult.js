@@ -59,7 +59,7 @@ const ConsultAIPage = () => {
   useEffect(() => {
     const token = getAccessToken();
     if (phoneNumber.length === 11) {
-      fetch(`https://health.prestigedelta.com/patientreviews/${phoneNumber}/`, {
+      fetch(`https://service.prestigedelta.com/patientreviews/${phoneNumber}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ const ConsultAIPage = () => {
 
     try {
       const response = await fetch(
-        'https://health.prestigedelta.com/appointments/book/',
+        'https://service.prestigedelta.com/appointments/book/',
         {
           method: 'POST',
           headers: {

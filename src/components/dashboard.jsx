@@ -125,7 +125,7 @@ const Dashboard = () => {
     }
 
     try {
-        const token = await getAccessToken();        const response = await fetch('https://health.prestigedelta.com/appointments/create-patient/', {
+        const token = await getAccessToken();        const response = await fetch('https://service.prestigedelta.com/appointments/create-patient/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -228,7 +228,7 @@ const Dashboard = () => {
     if (!accessToken) return;
 
     try {
-      const response = await fetch('https://health.prestigedelta.com/providerdashboard/', {
+      const response = await fetch('https://service.prestigedelta.com/providerdashboard/', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

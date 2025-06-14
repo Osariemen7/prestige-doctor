@@ -73,7 +73,7 @@ const ProviderPage = () => {
     };
 
     try {
-      const response = await fetch('https://health.prestigedelta.com/provider/', {
+      const response = await fetch('https://service.prestigedelta.com/provider/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

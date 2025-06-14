@@ -60,7 +60,7 @@ export default function AvailabilitySelector() {
   const getAccessToken = async () => {
     const refresh = await getRefreshToken();
     const term = { refresh };
-    let rep = await fetch('https://health.prestigedelta.com/tokenrefresh/', {
+    let rep = await fetch('https://service.prestigedelta.com/tokenrefresh/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ export default function AvailabilitySelector() {
     const formData = { availabilities };
 
     try {
-      const response = await fetch('https://health.prestigedelta.com/availability/', {
+      const response = await fetch('https://service.prestigedelta.com/availability/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

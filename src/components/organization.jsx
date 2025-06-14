@@ -63,7 +63,7 @@ const Organization =()=>{
   const getAccessToken = async () => {
     let refresh = await getRefreshToken();
     let term = { refresh };
-    let rep = await fetch('https://health.prestigedelta.com/tokenrefresh/', {
+    let rep = await fetch('https://service.prestigedelta.com/tokenrefresh/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ const Organization =()=>{
       }
   
       const response = await fetch(
-        `https://health.prestigedelta.com/setorganization/`,
+        `https://service.prestigedelta.com/setorganization/`,
         {
           method: 'POST',
           headers: {
@@ -169,7 +169,7 @@ const handleAddress=(event)=> {
   const fetchDa = async () => {
     const accessToken = await getAccessToken();
     
-  let response = await fetch("https://health.prestigedelta.com/banklist/",{
+  let response = await fetch("https://service.prestigedelta.com/banklist/",{
   method: "GET",
   headers:{'Authorization': `Bearer ${accessToken}`},
   })
@@ -220,7 +220,7 @@ const handleAddress=(event)=> {
           }
       
           const response = await fetch(
-            `https://health.prestigedelta.com/banktransfer/?bank_code=${bank_code}&nuban=${account_number}`,
+            `https://service.prestigedelta.com/banktransfer/?bank_code=${bank_code}&nuban=${account_number}`,
             {
               method: "GET",
               headers: {

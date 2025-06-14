@@ -150,7 +150,7 @@ const Account = () => {    const [balance, setBal] = useState(null);
         setLoading(true);
         try {
             const response = await fetch(
-                'https://health.prestigedelta.com/banktransfer/',
+                'https://service.prestigedelta.com/banktransfer/',
                 {
                     method: 'POST',
                     headers: {
@@ -200,7 +200,7 @@ const Account = () => {    const [balance, setBal] = useState(null);
             const accessToken = await getAccessToken();
             if (!accessToken) return;
 
-            let response = await fetch("https://health.prestigedelta.com/confetti/", {
+            let response = await fetch("https://service.prestigedelta.com/confetti/", {
                 method: "GET",
                 headers: { 'Authorization': `Bearer ${accessToken}` },
             });
@@ -239,7 +239,7 @@ const Account = () => {    const [balance, setBal] = useState(null);
         if (!accessToken) return;
         setLoading(true);
         try {
-            let response = await fetch("https://health.prestigedelta.com/credits/balance/", {
+            let response = await fetch("https://service.prestigedelta.com/credits/balance/", {
                 method: "GET",
                 headers: { 'Authorization': `Bearer ${accessToken}` },
             });

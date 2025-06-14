@@ -231,7 +231,7 @@ const Voice = () => {
         const fetchAssemblyAiToken = async () => {
             try {
                 const token = await getAccessToken();
-                const response = await fetch("https://health.prestigedelta.com/assemblyai/generate-token/", {
+                const response = await fetch("https://service.prestigedelta.com/assemblyai/generate-token/", {
                     headers: { "Authorization": `Bearer ${token}` },
                 });
                 if (!response.ok) throw new Error('Failed to fetch AssemblyAI token');

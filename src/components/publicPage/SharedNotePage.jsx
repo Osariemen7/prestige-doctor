@@ -220,7 +220,7 @@ const SharedNotePageInternal = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`https://health.prestigedelta.com/review-note/${publicId}/`);
+        const response = await fetch(`https://service.prestigedelta.com/review-note/${publicId}/`);
         if (!response.ok) {
           const errorBody = await response.text();
           throw new Error(`Failed to fetch note: ${response.status} ${response.statusText}. ${errorBody}`);

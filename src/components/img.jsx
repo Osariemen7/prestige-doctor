@@ -41,7 +41,7 @@ const ConversationWithImage = ({ dataChannelRef, recentTranscript }) => {
       formData.append("caption", transcript);
 
       const response = await fetch(
-        "https://health.prestigedelta.com/imagecompletion/",
+        "https://service.prestigedelta.com/imagecompletion/",
         {
           method: "POST",
           headers: {

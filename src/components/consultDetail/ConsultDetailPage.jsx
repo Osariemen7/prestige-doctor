@@ -182,7 +182,7 @@ const ConsultDetailPage = () => {
           throw new Error('Authentication required. Please log in again.');
         }
         
-        const endpoint = url || `https://health.prestigedelta.com/patient-consults/${patientId}/medical_reviews/?page=${currentReviewPage}`;
+        const endpoint = url || `https://service.prestigedelta.com/patient-consults/${patientId}/medical_reviews/?page=${currentReviewPage}`;
         const response = await fetch(endpoint, {
           headers: {
             'Content-Type': 'application/json',
@@ -271,7 +271,7 @@ const ConsultDetailPage = () => {
         throw new Error("Authentication required to anonymize and share note.");
       }
 
-      const response = await fetch(`https://health.prestigedelta.com/review-note/${publicId}/anonymize_doctor_note/`, {
+      const response = await fetch(`https://service.prestigedelta.com/review-note/${publicId}/anonymize_doctor_note/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

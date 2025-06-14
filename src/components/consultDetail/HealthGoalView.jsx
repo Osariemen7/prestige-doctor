@@ -175,7 +175,7 @@ const HealthGoalView = ({ patientId, publicConsultId }) => {
         };
         
         // Get data from main endpoint
-        const response = await fetch(`https://health.prestigedelta.com/review-note/${publicConsultId}/`, { headers });
+        const response = await fetch(`https://service.prestigedelta.com/review-note/${publicConsultId}/`, { headers });
         
         if (!response.ok) throw new Error(`Failed to fetch data: ${response.status}`);
         

@@ -18,7 +18,7 @@ const getMessage = async () => {
     try {
       const token = await getAccessToken();
       if (token) {
-        const response = await fetch(`https://health.prestigedelta.com/updatereview/${review_id}/`, {
+        const response = await fetch(`https://service.prestigedelta.com/updatereview/${review_id}/`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -127,7 +127,7 @@ const getMessage = async () => {
         return;
       }
   
-      const response = await fetch(`https://health.prestigedelta.com/updatereview/${reviewId}/`, {
+      const response = await fetch(`https://service.prestigedelta.com/updatereview/${reviewId}/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

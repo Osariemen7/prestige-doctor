@@ -439,7 +439,7 @@ const SearchBox = () => {
         const token = await getAccessToken();
         const formData = new FormData();
         formData.append('image', file);
-        const response = await fetch('https://health.prestigedelta.com/research/upload-image/', {
+        const response = await fetch('https://service.prestigedelta.com/research/upload-image/', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
@@ -474,7 +474,7 @@ const SearchBox = () => {
   const refreshThreads = useCallback(async () => {
     try {
       const token = await getAccessToken();
-      const response = await fetch('https://health.prestigedelta.com/research/', {
+      const response = await fetch('https://service.prestigedelta.com/research/', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -544,7 +544,7 @@ const SearchBox = () => {
           'Authorization': `Bearer ${token}`
         };
         
-        apiUrl = "https://health.prestigedelta.com/research/";
+        apiUrl = "https://service.prestigedelta.com/research/";
         
         // Use perplexityThread if available from navigation state
         if (location.state?.perplexityThread) {
@@ -569,7 +569,7 @@ const SearchBox = () => {
         if (isPublicThread && currentThreadId) {
           // This is the API endpoint for public threads
           // The API endpoint is /public-research/ regardless of the URL path
-          apiUrl = `https://health.prestigedelta.com/public-research/${currentThreadId}/continue/`;
+          apiUrl = `https://service.prestigedelta.com/public-research/${currentThreadId}/continue/`;
           
           console.log("Using public research API endpoint:", apiUrl);
           
@@ -901,7 +901,7 @@ const SearchBox = () => {
       if (!accessToken) return;
 
       try {
-        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+        const response = await fetch('https://service.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -955,7 +955,7 @@ const SearchBox = () => {
     setIsLoadingThreadMessages(true);
     try {
       const token = await getAccessToken();
-      const response = await fetch(`https://health.prestigedelta.com/research/${threadId}/`, {
+      const response = await fetch(`https://service.prestigedelta.com/research/${threadId}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1000,7 +1000,7 @@ const SearchBox = () => {
   const handleDeleteThread = useCallback(async (threadId) => {
     try {
       const token = await getAccessToken();
-      await fetch(`https://health.prestigedelta.com/research/${threadId}/`, {
+      await fetch(`https://service.prestigedelta.com/research/${threadId}/`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1023,7 +1023,7 @@ const SearchBox = () => {
     const fetchThreads = async () => {
       try {
         const token = await getAccessToken();
-        const response = await fetch('https://health.prestigedelta.com/research/', {
+        const response = await fetch('https://service.prestigedelta.com/research/', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -1119,7 +1119,7 @@ const SearchBox = () => {
         payload.patient_id = selectedPatient.id;
       }
       
-      const response = await fetch('https://health.prestigedelta.com/suggestions/', {
+      const response = await fetch('https://service.prestigedelta.com/suggestions/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1198,7 +1198,7 @@ const SearchBox = () => {
         // Conditionally add patient_id only if a patient is selected
         ...(selectedPatient ? { patient_id: selectedPatient.id } : {})
       };
-      const response = await fetch('https://health.prestigedelta.com/followupquestions/', {
+      const response = await fetch('https://service.prestigedelta.com/followupquestions/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

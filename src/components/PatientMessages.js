@@ -133,7 +133,7 @@ const PatientMessages = () => {
           return;
         }
 
-        const response = await fetch('https://health.prestigedelta.com/providermessages/', {
+        const response = await fetch('https://service.prestigedelta.com/providermessages/', {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
@@ -173,7 +173,7 @@ const PatientMessages = () => {
       if (!accessToken) return;
 
       try {
-        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+        const response = await fetch('https://service.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -293,7 +293,7 @@ const PatientMessages = () => {
         formData.append('image', imageFile);
         
         // Send the FormData request
-        response = await fetch('https://health.prestigedelta.com/providermessages/', {
+        response = await fetch('https://service.prestigedelta.com/providermessages/', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -313,7 +313,7 @@ const PatientMessages = () => {
           payload.conversation_id = selectedThread.thread_id;
         }
 
-        response = await fetch('https://health.prestigedelta.com/providermessages/', {
+        response = await fetch('https://service.prestigedelta.com/providermessages/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -368,7 +368,7 @@ const PatientMessages = () => {
       handleClearImage();
 
       // Refresh threads
-      const threadsResponse = await fetch('https://health.prestigedelta.com/providermessages/', {
+      const threadsResponse = await fetch('https://service.prestigedelta.com/providermessages/', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         }
@@ -465,7 +465,7 @@ const PatientMessages = () => {
       const accessToken = await getAccessToken();
       if (!accessToken) return;
 
-      const response = await fetch('https://health.prestigedelta.com/providermessages/', {
+      const response = await fetch('https://service.prestigedelta.com/providermessages/', {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,

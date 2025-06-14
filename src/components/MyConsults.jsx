@@ -142,7 +142,7 @@ const MyConsults = () => {
           endpoint = url;
         } else {
           // Build the endpoint with review_status parameter
-          const baseUrl = 'https://health.prestigedelta.com/patient-consults/';
+          const baseUrl = 'https://service.prestigedelta.com/patient-consults/';
           const params = new URLSearchParams();
           params.set('page', currentPage.toString());
           if (reviewStatusFilter !== 'all') {

@@ -206,7 +206,7 @@ const ConsultAIPage = () => {
       if (!accessToken) return;
 
       try {
-        const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+        const response = await fetch('https://service.prestigedelta.com/patientlist/', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -254,7 +254,7 @@ const ConsultAIPage = () => {
         appointment_id,
         seconds_used: Math.max(0, seconds_used),
       };
-      const response = await fetch('https://health.prestigedelta.com/billing/', {
+      const response = await fetch('https://service.prestigedelta.com/billing/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -320,7 +320,7 @@ const ConsultAIPage = () => {
       try {
         const tok = await getAccessToken();
         const tokenRes = await fetch(
-          "https://health.prestigedelta.com/assemblyai/generate-token/",
+          "https://service.prestigedelta.com/assemblyai/generate-token/",
           {
             headers: {
               "Content-Type": "application/json",
@@ -1005,7 +1005,7 @@ const ConsultAIPage = () => {
     const token = await getAccessToken();
 
     try {
-      const response = await fetch('https://health.prestigedelta.com/appointments/book/', {
+      const response = await fetch('https://service.prestigedelta.com/appointments/book/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1218,7 +1218,7 @@ const ConsultAIPage = () => {
     setErrorMessage('');
     try {
       const token = await getAccessToken();
-      const response = await fetch('https://health.prestigedelta.com/appointments/create-patient/', {
+      const response = await fetch('https://service.prestigedelta.com/appointments/create-patient/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1240,7 +1240,7 @@ const ConsultAIPage = () => {
           const accessToken = await getAccessToken();
           if (!accessToken) return;
           try {
-            const response = await fetch('https://health.prestigedelta.com/patientlist/', {
+            const response = await fetch('https://service.prestigedelta.com/patientlist/', {
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',

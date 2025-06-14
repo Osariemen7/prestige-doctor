@@ -523,7 +523,7 @@ const ChatScreen = ({
         const token = await getAccessToken();
         const formData = new FormData();
         formData.append('image', file);
-        const response = await fetch('https://health.prestigedelta.com/research/upload-image/', {
+        const response = await fetch('https://service.prestigedelta.com/research/upload-image/', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
@@ -593,7 +593,7 @@ const ChatScreen = ({
 
     try {
       const token = await getAccessToken();
-      const apiUrl = "https://health.prestigedelta.com/research/";
+      const apiUrl = "https://service.prestigedelta.com/research/";
 
       let payload = {};
       let formData = null;
@@ -803,7 +803,7 @@ const ChatScreen = ({
       const accessToken = await getAccessToken();
       console.log('Fetching suggestions for patient ID:', patientId);
       
-      const response = await fetch('https://health.prestigedelta.com/suggestions/', {
+      const response = await fetch('https://service.prestigedelta.com/suggestions/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

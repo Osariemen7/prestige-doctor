@@ -75,7 +75,7 @@ const DocDash = () => {
     const token = await getAccessToken();
 
     try {
-      const response = await fetch(`https://health.prestigedelta.com/providersub/${doctorData[0].id}/subscribe/`, {
+      const response = await fetch(`https://service.prestigedelta.com/providersub/${doctorData[0].id}/subscribe/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,7 +109,7 @@ const DocDash = () => {
     const fetchData = async () => {
       const accessToken = await getAccessToken();
       try {
-        const response = await fetch('https://health.prestigedelta.com/doctorsubscribers/', {
+        const response = await fetch('https://service.prestigedelta.com/doctorsubscribers/', {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'content-type': 'application/json',
@@ -136,7 +136,7 @@ const DocDash = () => {
       const phones = await getUser()
       const phone = phones.phone_number
       try {
-        const response = await fetch(`https://health.prestigedelta.com/providerlist/?phone_number=${phone}/`, {
+        const response = await fetch(`https://service.prestigedelta.com/providerlist/?phone_number=${phone}/`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'content-type': 'application/json',
@@ -163,7 +163,7 @@ const DocDash = () => {
       if (!accessToken) return;
 
       try {
-        const response = await fetch("https://health.prestigedelta.com/provider/", {
+        const response = await fetch("https://service.prestigedelta.com/provider/", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

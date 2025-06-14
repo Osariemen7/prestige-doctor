@@ -84,7 +84,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
     try {
       const accessToken = await getAccessToken();
       const response = await axios.get(
-        `https://health.prestigedelta.com/documentreview/${reviewid}/aggregate-data/`,
+        `https://service.prestigedelta.com/documentreview/${reviewid}/aggregate-data/`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -348,7 +348,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
 
       const accessToken = await getAccessToken();
       await axios.post(
-        `https://health.prestigedelta.com/documentreview/${reviewid}/document-assessment/`,
+        `https://service.prestigedelta.com/documentreview/${reviewid}/document-assessment/`,
         editableData,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -403,7 +403,7 @@ const PatientProfileDisplay = forwardRef(({ reviewid, thread, wsStatus, setIsDoc
 
       const accessToken = await getAccessToken();
       const response = await axios.post(
-        `https://health.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
+        `https://service.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
         suggestionPayload,
         {
           headers: { Authorization: `Bearer ${accessToken}` },

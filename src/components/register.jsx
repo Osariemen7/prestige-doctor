@@ -91,7 +91,7 @@ const RegistrationPage = () => {
         confirm_password: formData.password,
       };
 
-      const response = await fetch('https://health.prestigedelta.com/register/', {
+      const response = await fetch('https://service.prestigedelta.com/register/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

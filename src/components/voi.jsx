@@ -888,7 +888,7 @@ const Call = () => {
     
                 console.log('Sending billing data:', billingData); // Debug log
     
-                const response = await fetch('https://health.prestigedelta.com/billing/', {
+                const response = await fetch('https://service.prestigedelta.com/billing/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1070,7 +1070,7 @@ const Call = () => {
           try {
             const tok = await getAccessToken();
             const tokenRes = await fetch(
-              "https://health.prestigedelta.com/assemblyai/generate-token/",
+              "https://service.prestigedelta.com/assemblyai/generate-token/",
               {
                 headers: {
                   "Content-Type": "application/json",

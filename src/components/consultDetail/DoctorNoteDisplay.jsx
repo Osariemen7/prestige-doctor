@@ -311,7 +311,7 @@ const DoctorNoteDisplay = React.memo(({ initialNote, medicalHistory, currentCons
       }
       
       const response = await fetch(
-        `https://health.prestigedelta.com/review-note/${currentConsultId}/save_doctor_note/`,
+        `https://service.prestigedelta.com/review-note/${currentConsultId}/save_doctor_note/`,
         {
           method: "POST",
           headers: {
