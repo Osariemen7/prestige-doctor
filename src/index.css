@@ -49,3 +49,13 @@ body.chakra-ui-light[style*="overflow: hidden"] {
 .force-scroll {
   overflow: auto !important;
 }
+
+/* Recording pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

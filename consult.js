@@ -22,7 +22,7 @@ import VoiceNoteScreen from './voicenote';
 import ChatScreen from './chatScreen';
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
-import { getAccessToken } from './api';
+import { getAccessToken } from './src/api';
 import Sidebar from './sidebar';
 import PatientProfileDisplay from './document';
 
