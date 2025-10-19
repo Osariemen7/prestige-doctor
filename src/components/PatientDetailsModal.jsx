@@ -29,7 +29,8 @@ const PatientDetailsModal = ({
   onClose, 
   onSubmit, 
   initialData = null,
-  loading = false 
+  loading = false,
+  readOnly = false
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -42,10 +43,40 @@ const PatientDetailsModal = ({
   const [saveDocumentation, setSaveDocumentation] = useState(true);
   const [error, setError] = useState('');
 
+  const primaryActionSx = {
+    px: { xs: 3, sm: 5 },
+    py: 2,
+    fontWeight: 'bold',
+    textTransform: 'none',
+    boxShadow: 4,
+    minWidth: { xs: '100%', sm: 220 },
+    bgcolor: 'primary.main',
+    color: 'common.white',
+    '&:hover': {
+      bgcolor: 'primary.dark',
+      boxShadow: 6
+    }
+  };
+
+  const secondaryActionSx = {
+    px: { xs: 3, sm: 4 },
+    py: 2,
+    fontWeight: 'bold',
+    textTransform: 'none',
+    minWidth: { xs: '100%', sm: 160 },
+  borderWidth: 2,
+    borderColor: 'grey.400',
+    color: 'text.primary',
+    '&:hover': {
+      borderColor: 'grey.600',
+      bgcolor: 'grey.100'
+    }
+  };
+
   // Check if patient data already exists (makes fields read-only)
-  const hasExistingFirstName = Boolean(initialData?.patient_first_name);
-  const hasExistingLastName = Boolean(initialData?.patient_last_name);
-  const hasExistingPhone = Boolean(initialData?.patient_phone_number);
+  const hasExistingFirstName = readOnly && Boolean(initialData?.patient_first_name);
+  const hasExistingLastName = readOnly && Boolean(initialData?.patient_last_name);
+  const hasExistingPhone = readOnly && Boolean(initialData?.patient_phone_number);
   const hasAllExistingPatientData = hasExistingFirstName && hasExistingLastName && hasExistingPhone;
   const hasExistingPatientData = hasAllExistingPatientData;
 
@@ -71,12 +102,15 @@ const PatientDetailsModal = ({
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Validation: at least phone number is required
-    if (!formData.patient_phone_number.trim()) {
-      setError('Phone number is required to save documentation');
-      return;
+    // Validate phone number format if provided
+    if (formData.patient_phone_number.trim()) {
+      const phoneRegex = /^\+\d{1,4}\d{6,14}$/;
+      if (!phoneRegex.test(formData.patient_phone_number.trim())) {
+        setError('Phone number must be in international format (e.g., +1234567890)');
+        return;
+      }
     }
-
+    
     // Call parent submit handler
     onSubmit({
       ...formData,
@@ -166,13 +200,12 @@ const PatientDetailsModal = ({
           value={formData.patient_phone_number}
           onChange={handleChange}
           fullWidth
-          required
           disabled={loading || hasExistingPhone}
           InputProps={{
             readOnly: hasExistingPhone
           }}
           placeholder="+234XXXXXXXXXX"
-          helperText="Required for saving documentation"
+          helperText="Optional - must be in international format (e.g., +1234567890) for saving documentation"
         />
 
         {/* Save Documentation Toggle */}
@@ -209,11 +242,20 @@ const PatientDetailsModal = ({
       </Stack>
 
       {/* Actions */}
-      <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+      <Box
+        sx={{
+          mt: 4,
+          display: 'flex',
+          gap: 2,
+          justifyContent: { xs: 'center', sm: 'flex-end' },
+          flexDirection: { xs: 'column', sm: 'row' }
+        }}
+      >
         <Button
           onClick={handleClose}
           disabled={loading}
           variant="outlined"
+          sx={secondaryActionSx}
         >
           Cancel
         </Button>
@@ -222,6 +264,7 @@ const PatientDetailsModal = ({
           variant="contained"
           disabled={loading}
           startIcon={loading ? <CircularProgress size={20} /> : <SendIcon />}
+          sx={primaryActionSx}
         >
           {loading ? 'Processing...' : 'Upload & Process'}
         </Button>

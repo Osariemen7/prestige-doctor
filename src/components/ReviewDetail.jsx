@@ -24,12 +24,12 @@ import {
   CheckCircle as CheckCircleIcon,
   Add as AddIcon,
   Mic as MicIcon,
-  Upload as UploadIcon,
   PlayArrow as PlayArrowIcon,
   Warning as WarningIcon,
-  CloudUpload as CloudUploadIcon,
   Autorenew as AutorenewIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  ContentCopy as ContentCopyIcon,
+  CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import { useTheme, useMediaQuery } from '@mui/material';
@@ -38,8 +38,9 @@ import RecordingModal from './RecordingModal';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
 
-const ReviewDetail = () => {
-  const { publicId } = useParams();
+const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
+  const { publicId: urlPublicId } = useParams();
+  const publicId = urlPublicId;
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -61,9 +62,106 @@ const ReviewDetail = () => {
   const [editingNote, setEditingNote] = useState(false);
   const [editedNote, setEditedNote] = useState(null);
   const previousStatusRef = useRef(null);
+  const lastFetchRef = useRef(0);
 
   const existingNote = useMemo(() => getExistingNote(review), [review]);
   const existingTranscript = useMemo(() => collectReviewTranscripts(review), [review]);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const currentProcessingStatus = getStatus(publicId);
+
+  const handleCopyNote = async () => {
+    if (!review.doctor_note) return;
+
+    try {
+      // Get patient name and encounter date
+      const patientName = (review.patient_first_name || review.patient_last_name) 
+        ? `${review.patient_first_name || ''} ${review.patient_last_name || ''}`.trim() 
+        : 'Patient Name Not Specified';
+      
+      const encounter = review.in_person_encounters && review.in_person_encounters.length > 0 
+        ? review.in_person_encounters[0] 
+        : null;
+      const encounterDate = encounter?.encounter_date 
+        ? new Date(encounter.encounter_date).toLocaleDateString() 
+        : new Date().toLocaleDateString();
+
+      // Format the EMR-friendly SOAP note
+      let soapText = `PATIENT: ${patientName}\n`;
+      soapText += `DATE: ${encounterDate}\n`;
+      soapText += `CHIEF COMPLAINT: ${review.chief_complaint || 'Not specified'}\n\n`;
+
+      // Helper function to format SOAP section content
+      const formatSOAPContent = (content) => {
+        if (!content) return 'Not provided';
+        if (typeof content === 'string') return content;
+        if (typeof content === 'object' && content !== null) {
+          const entries = Object.entries(content);
+          if (entries.length === 0) return 'Not provided';
+          return entries
+            .filter(([key, value]) => value && value.trim())
+            .map(([key, value]) => {
+              // Convert key from snake_case to Title Case
+              const titleCaseKey = key
+                .replace(/_/g, ' ')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+              return `${titleCaseKey}: ${String(value).trim()}`;
+            })
+            .join('\n\n');
+        }
+        return 'Not provided';
+      };
+
+      soapText += 'SUBJECTIVE:\n';
+      soapText += formatSOAPContent(review.doctor_note.subjective);
+      soapText += '\n\nOBJECTIVE:\n';
+      soapText += formatSOAPContent(review.doctor_note.objective);
+      soapText += '\n\nASSESSMENT:\n';
+      soapText += formatSOAPContent(review.doctor_note.assessment);
+      soapText += '\n\nPLAN:\n';
+      soapText += formatSOAPContent(review.doctor_note.plan);
+
+      // Add prescriptions if available
+      if (review.doctor_note.prescription && Array.isArray(review.doctor_note.prescription) && review.doctor_note.prescription.length > 0) {
+        const prescriptions = review.doctor_note.prescription
+          .filter(p => p && typeof p === 'object')
+          .map(p => {
+            const medName = p.medication_name || p.name || 'Unknown Medication';
+            const dosage = p.dosage || 'N/A';
+            const instructions = p.instructions || 'N/A';
+            return `• ${medName} - ${dosage}\n  Instructions: ${instructions}`;
+          })
+          .join('\n\n');
+        if (prescriptions.trim()) {
+          soapText += `\n\nPRESCRIPTIONS:\n${prescriptions}`;
+        }
+      }
+
+      // Add investigations if available
+      if (review.doctor_note.investigation && Array.isArray(review.doctor_note.investigation) && review.doctor_note.investigation.length > 0) {
+        const investigations = review.doctor_note.investigation
+          .filter(i => i && typeof i === 'object')
+          .map(i => {
+            const testName = i.test_type || i.name || 'Unknown Test';
+            const reason = i.reason || 'Not specified';
+            const instructions = i.instructions ? `\n  Instructions: ${i.instructions}` : '';
+            return `• ${testName}\n  Reason: ${reason}${instructions}`;
+          })
+          .join('\n\n');
+        if (investigations.trim()) {
+          soapText += `\n\nINVESTIGATIONS:\n${investigations}`;
+        }
+      }
+
+      await navigator.clipboard.writeText(soapText);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000); // Hide success message after 2 seconds
+    } catch (error) {
+      console.error('Failed to copy note:', error);
+      alert('Failed to copy note to clipboard');
+    }
+  };
 
   useEffect(() => {
     fetchReviewDetail();
@@ -76,9 +174,12 @@ const ReviewDetail = () => {
     let timer;
 
     if (previousStatus && !currentStatus && review) {
-      timer = setTimeout(() => {
-        fetchReviewDetail();
-      }, 1000);
+      const now = Date.now();
+      if (now - lastFetchRef.current >= 3000) {
+        timer = setTimeout(() => {
+          fetchReviewDetail();
+        }, 1000);
+      }
     }
 
     previousStatusRef.current = currentStatus;
@@ -115,24 +216,30 @@ const ReviewDetail = () => {
       if (response.ok) {
         const data = await response.json();
         setReview(data);
+        lastFetchRef.current = Date.now();
         
-        // Pre-fill patient data if available from encounters
-        if (data.in_person_encounters && data.in_person_encounters.length > 0) {
-          const encounter = data.in_person_encounters[0];
-          setPatientData({
-            first_name: encounter.patient_first_name || '',
-            last_name: encounter.patient_last_name || '',
-            phone: encounter.patient_phone || '',
-            email: encounter.patient_email || ''
-          });
+        // Pre-fill patient data from review level, fallback to encounter level
+        setPatientData({
+          first_name: data.patient_first_name || (data.in_person_encounters && data.in_person_encounters.length > 0 ? data.in_person_encounters[0].patient_first_name : '') || '',
+          last_name: data.patient_last_name || (data.in_person_encounters && data.in_person_encounters.length > 0 ? data.in_person_encounters[0].patient_last_name : '') || '',
+          phone: data.patient_phone_number || (data.in_person_encounters && data.in_person_encounters.length > 0 ? data.in_person_encounters[0].patient_phone_number : '') || '',
+          email: data.patient_email || (data.in_person_encounters && data.in_person_encounters.length > 0 ? data.in_person_encounters[0].patient_email : '') || ''
+        });
+        
+        if (onUpdate) {
+          onUpdate();
         }
       } else {
         console.error('Failed to fetch review');
-        navigate('/reviews');
+        if (!embedded) {
+          navigate('/reviews');
+        }
       }
     } catch (error) {
       console.error('Error fetching review:', error);
-      navigate('/reviews');
+      if (!embedded) {
+        navigate('/reviews');
+      }
     } finally {
       setLoading(false);
     }
@@ -207,8 +314,13 @@ const ReviewDetail = () => {
 
       const updatePayload = {
         note_payload: editedNote,
-        create_patient: false,
-        send_summary: false
+        send_summary: false, // Don't send summary when just updating notes
+        create_patient: false, // Don't create patient when just updating notes
+        patient_first_name: patientData.first_name || '',
+        patient_last_name: patientData.last_name || '',
+        patient_phone_number: patientData.phone || '',
+        patient_email: patientData.email || '',
+        patient_summary: review.patient_summary || ''
       };
 
       const response = await fetch(
@@ -234,6 +346,63 @@ const ReviewDetail = () => {
     } catch (error) {
       console.error('Error saving note:', error);
       alert('An error occurred while saving the note');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!review) return;
+    
+    const encounterId = currentEncounter?.public_id || encounter?.public_id;
+    if (!encounterId) {
+      alert('No encounter found to finalize');
+      return;
+    }
+
+    if (!review.doctor_note) {
+      alert('Please ensure the encounter has been documented before finalizing');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = await getAccessToken();
+
+      const finalizePayload = {
+        note_payload: review.doctor_note,
+        send_summary: true,
+        create_patient: true,
+        patient_first_name: patientData.first_name || '',
+        patient_last_name: patientData.last_name || '',
+        patient_phone: patientData.phone || '',
+        patient_email: patientData.email || '',
+        patient_summary: review.patient_summary || 'Your medical encounter has been completed. Please follow the treatment plan provided.'
+      };
+
+      const response = await fetch(
+        `https://service.prestigedelta.com/in-person-encounters/${encounterId}/finalize/`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(finalizePayload)
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        alert('Encounter finalized successfully!');
+        fetchReviewDetail(); // Refresh to show updated status
+      } else {
+        const error = await response.json();
+        alert(`Failed to finalize encounter: ${JSON.stringify(error)}`);
+      }
+    } catch (error) {
+      console.error('Error finalizing encounter:', error);
+      alert('An error occurred while finalizing the encounter');
     } finally {
       setSaving(false);
     }
@@ -340,19 +509,19 @@ const ReviewDetail = () => {
                       size="small"
                       sx={{ pl: 2 }}
                     />
-                  ) : (
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'text.secondary', pl: 2 }}>
-                      {typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
-                    </Typography>
-                  )}
-                </Box>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </Box>
-    );
-  };
+                ) : (
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                    {typeof editedValue === 'object' ? JSON.stringify(editedValue, null, 2) : (editedValue || 'Not provided')}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </Box>
+  );
+};
 
   const renderPrescriptions = (prescriptions) => {
     if (!prescriptions || prescriptions.length === 0) return null;
@@ -380,7 +549,7 @@ const ReviewDetail = () => {
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     <strong>Interval:</strong> Every {prescription.interval} hours
                   </Typography>
-                  <Typography variant="body2" sx={{ mb: 1 }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
                     <strong>End Date:</strong> {prescription.end_date}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
@@ -451,17 +620,19 @@ const ReviewDetail = () => {
   const hasEncounter = review?.in_person_encounters && review.in_person_encounters.length > 0;
   const encounter = hasEncounter ? review.in_person_encounters[0] : null;
 
-  return (
-    <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 }, px: { xs: 2, md: 3 } }}>
+  const content = (
+    <>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/reviews')}
-          sx={{ mb: 2 }}
-        >
-          Back to Reviews
-        </Button>
+        {!embedded && (
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate('/reviews')}
+            sx={{ mb: 2 }}
+          >
+            Back to Reviews
+          </Button>
+        )}
         
         <Box display="flex" flexDirection={isMobile ? 'column' : 'row'} justifyContent="space-between" alignItems={isMobile ? 'flex-start' : 'center'} gap={2}>
           <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
@@ -483,24 +654,12 @@ const ReviewDetail = () => {
             )}
           </Box>
           
-          {!review.is_finalized && (
-            <Button
-              variant="contained"
-              startIcon={<SaveIcon />}
-              onClick={() => setShowFinalizeDialog(true)}
-              size={isMobile ? "medium" : "large"}
-              disabled={!hasEncounter}
-              fullWidth={isMobile}
-            >
-              Save Encounter
-            </Button>
-          )}
         </Box>
       </Box>
 
       {/* Processing Status Banner */}
       {(() => {
-        const currentStatus = getStatus(publicId);
+        const currentStatus = currentProcessingStatus;
         if (currentStatus === 'uploading') {
           return (
             <Alert 
@@ -509,10 +668,10 @@ const ReviewDetail = () => {
               sx={{ mb: 3, animation: 'pulse 2s infinite' }}
             >
               <Typography variant="subtitle1" fontWeight="bold">
-                Uploading Audio...
+                Uploading audio...
               </Typography>
               <Typography variant="body2">
-                Your recording is being uploaded. This may take a moment.
+                We are securely uploading the recording prior to processing the documentation.
               </Typography>
             </Alert>
           );
@@ -538,7 +697,12 @@ const ReviewDetail = () => {
 
       {/* Workflow Status Card */}
       {!review.is_finalized && (
-        <Card sx={{ mb: 3, background: (hasEncounter || currentEncounter) ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+        <Card sx={{ 
+          mb: 3, 
+          background: (hasEncounter || currentEncounter) 
+            ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' 
+            : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' 
+        }}>
           <CardContent>
             <Typography variant="h6" color="white" gutterBottom fontWeight="bold">
               {(hasEncounter || currentEncounter) ? 'Review Workflow' : 'Complete These Steps'}
@@ -550,8 +714,22 @@ const ReviewDetail = () => {
                   ? 'This review has an encounter. You can now save it.' 
                   : 'Create and process an encounter before saving this review'}
             </Typography>
+            {(currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing') && (
+              <Chip
+                icon={currentProcessingStatus === 'uploading' ? <CloudUploadIcon /> : <AutorenewIcon />}
+                label={currentProcessingStatus === 'uploading' ? 'Uploading audio...' : 'Processing documentation...'}
+                color={currentProcessingStatus === 'uploading' ? 'info' : 'warning'}
+                size="small"
+                sx={{
+                  mb: 2,
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  '& .MuiChip-icon': { color: 'white' }
+                }}
+              />
+            )}
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid item xs={12} sm={4}>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
@@ -567,54 +745,39 @@ const ReviewDetail = () => {
                   {(hasEncounter || currentEncounter) ? '✓ Created' : '1. Create'}
                 </Button>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid item xs={12} sm={4}>
                 <Button
                   variant="contained"
                   startIcon={creatingEncounter ? <CircularProgress size={20} color="inherit" /> : <MicIcon />}
                   onClick={handleRecordClick}
-                  disabled={creatingEncounter}
+                  disabled={creatingEncounter || review.is_finalized || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
                   fullWidth
                   sx={{ 
                     bgcolor: (currentEncounter || hasEncounter) ? 'white' : 'rgba(255,255,255,0.2)',
                     color: (currentEncounter || hasEncounter) ? 'primary.main' : 'white',
-                    '&:hover': { bgcolor: (currentEncounter || hasEncounter) ? 'grey.100' : 'rgba(255,255,255,0.3)' }
+                    '&:hover': { bgcolor: (currentEncounter || hasEncounter) ? 'grey.100' : 'rgba(255,255,255,0.3)' },
+                    '&:disabled': { opacity: 0.5 }
                   }}
                 >
-                  {creatingEncounter ? 'Creating...' : '2. Record'}
+                  {creatingEncounter ? 'Creating...' : 
+                   review.in_person_encounters && review.in_person_encounters.length > 0 ? '2. Record New Encounter' : '2. Record'}
                 </Button>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid item xs={12} sm={4}>
                 <Button
                   variant="contained"
-                  startIcon={<UploadIcon />}
-                  disabled
+                  startIcon={<CheckCircleIcon />}
+                  onClick={handleFinalize}
+                  disabled={saving || (!hasEncounter && !currentEncounter) || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
                   fullWidth
                   sx={{ 
-                    bgcolor: 'rgba(255,255,255,0.2)',
+                    bgcolor: 'success.main',
                     color: 'white',
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
+                    '&:hover': { bgcolor: 'success.dark' },
+                    '&:disabled': { bgcolor: 'grey.400' }
                   }}
                 >
-                  3. Upload
-                </Button>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Button
-                  variant="contained"
-                  startIcon={<PlayArrowIcon />}
-                  onClick={() => {
-                    const encounterId = currentEncounter?.public_id || encounter?.public_id;
-                    if (encounterId) navigate(`/process/${encounterId}`);
-                  }}
-                  disabled={!hasEncounter && !currentEncounter}
-                  fullWidth
-                  sx={{ 
-                    bgcolor: 'rgba(255,255,255,0.2)',
-                    color: 'white',
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
-                  }}
-                >
-                  4. Process
+                  {saving ? 'Finalizing...' : '3. Finalize'}
                 </Button>
               </Grid>
             </Grid>
@@ -632,7 +795,7 @@ const ReviewDetail = () => {
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
-                <strong>Name:</strong> {review.patient_full_name || 'Not specified'}
+                <strong>Name:</strong> {(review.patient_first_name || review.patient_last_name) ? `${review.patient_first_name || ''} ${review.patient_last_name || ''}`.trim() : 'Not specified'}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -643,11 +806,6 @@ const ReviewDetail = () => {
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
                 <strong>Phone:</strong> {review.patient_phone_number || 'Not specified'}
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Status:</strong> {review.review_status || 'Unknown'}
               </Typography>
             </Grid>
             <Grid item xs={12}>
@@ -674,14 +832,25 @@ const ReviewDetail = () => {
               Doctor's Note
             </Typography>
             {!editingNote ? (
-              <Button
-                variant="outlined"
-                startIcon={<EditIcon />}
-                onClick={handleEditNote}
-                size="small"
-              >
-                Edit Note
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<ContentCopyIcon />}
+                  onClick={handleCopyNote}
+                  size="small"
+                  color={copySuccess ? "success" : "primary"}
+                >
+                  {copySuccess ? 'Copied!' : 'Copy Note'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<EditIcon />}
+                  onClick={handleEditNote}
+                  size="small"
+                >
+                  Edit Note
+                </Button>
+              </Box>
             ) : (
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
@@ -825,11 +994,34 @@ const ReviewDetail = () => {
         onClose={() => setShowRecordingModal(false)}
         encounterId={currentEncounter?.public_id || encounter?.public_id}
         encounterData={currentEncounter || encounter}
+        patientPrefill={patientData}
         reviewId={publicId}
         onComplete={fetchReviewDetail}
         existingNote={existingNote}
         existingTranscript={existingTranscript}
       />
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <Box sx={{ py: { xs: 2, md: 4 }, px: { xs: 2, md: 3 } }}>
+        {content}
+      </Box>
+    );
+  }
+
+  return (
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        py: { xs: 2, md: 4 }, 
+        px: { xs: 1, sm: 2, md: 3 },
+        maxWidth: '100%',
+        width: '100%',
+      }}
+    >
+      {content}
     </Container>
   );
 };

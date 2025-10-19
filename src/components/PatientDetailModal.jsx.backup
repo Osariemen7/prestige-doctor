@@ -1,0 +1,655 @@
+import React, { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Box,
+  Tabs,
+  Tab,
+  Typography,
+  Chip,
+  IconButton,
+  Divider,
+  Grid,
+  Card,
+  CardContent,
+  Avatar,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Button,
+  Stack,
+  Paper,
+  alpha,
+  useTheme,
+} from '@mui/material';
+import {
+  Close as CloseIcon,
+  Person as PersonIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  LocationOn as LocationIcon,
+  FavoriteBorder as HeartIcon,
+  Assessment as AssessmentIcon,
+  Description as FileIcon,
+  TrendingUp as TrendingUpIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+  Schedule as ScheduleIcon,
+  Cake as CakeIcon,
+  ExpandMore as ExpandMoreIcon,
+} from '@mui/icons-material';
+import { format } from 'date-fns';
+import MetricChart from './MetricChart';
+
+const PatientDetailModal = ({ patient, onClose }) => {
+  const [selectedTab, setSelectedTab] = useState(0);
+  const theme = useTheme();
+
+  const profile = patient?.profile_data || {};
+  const carePlan = patient?.remote_care_plan || {};
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return format(new Date(dateString), 'MMM dd, yyyy');
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  const calculateAge = (dob) => {
+    if (!dob) return 'N/A';
+    try {
+      const birthDate = new Date(dob);
+      const ageDiff = Date.now() - birthDate.getTime();
+      const ageDate = new Date(ageDiff);
+      return Math.abs(ageDate.getUTCFullYear() - 1970);
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      active: { color: 'green', label: 'Active', icon: FiCheckCircle },
+      pending: { color: 'yellow', label: 'Pending', icon: FiClock },
+      churned: { color: 'red', label: 'Churned', icon: FiAlertCircle },
+      no_subscription: { color: 'gray', label: 'No Subscription', icon: FiAlertCircle },
+    };
+
+    const config = statusConfig[status] || statusConfig.no_subscription;
+
+    return (
+      <Badge colorScheme={config.color} fontSize="sm" px={3} py={1} borderRadius="full" display="flex" alignItems="center" gap={1}>
+        <Icon as={config.icon} />
+        {config.label}
+      </Badge>
+    );
+  };
+
+  const getHealthScoreColor = (score) => {
+    if (score >= 80) return 'green';
+    if (score >= 60) return 'yellow';
+    return 'red';
+  };
+
+  return (
+    <Modal isOpen={true} onClose={onClose} size="6xl" scrollBehavior="inside">
+      <ModalOverlay backdropFilter="blur(5px)" />
+      <ModalContent maxH="90vh" bg={cardBg}>
+        <ModalHeader borderBottom="1px" borderColor={borderColor}>
+          <Flex justify="space-between" align="center">
+            <HStack spacing={4}>
+              <Avatar
+                size="lg"
+                name={profile.full_name}
+                bg="blue.500"
+                color="white"
+              />
+              <VStack align="start" spacing={0}>
+                <Heading size="md">{profile.full_name || 'Unknown Patient'}</Heading>
+                <HStack spacing={2}>
+                  <Text fontSize="sm" color="gray.600">
+                    {calculateAge(profile.date_of_birth)} years old • {profile.gender || 'N/A'}
+                  </Text>
+                  {getStatusBadge(patient.subscription_status)}
+                </HStack>
+              </VStack>
+            </HStack>
+          </Flex>
+        </ModalHeader>
+        <ModalCloseButton />
+
+        <ModalBody p={6}>
+          <Tabs colorScheme="blue" index={selectedTab} onChange={setSelectedTab}>
+            <TabList>
+              <Tab>Overview</Tab>
+              <Tab>
+                Medical Reviews
+                {patient.medical_reviews && (
+                  <Badge ml={2} colorScheme="blue" borderRadius="full">
+                    {patient.medical_reviews.total_reviews}
+                  </Badge>
+                )}
+              </Tab>
+              <Tab>
+                Care Plan
+                {carePlan && <Badge ml={2} colorScheme="purple" borderRadius="full">Active</Badge>}
+              </Tab>
+              <Tab>
+                Metrics
+                {patient.metrics && (
+                  <Badge ml={2} colorScheme="green" borderRadius="full">
+                    {patient.metrics.filter(m => m.is_active).length}
+                  </Badge>
+                )}
+              </Tab>
+            </TabList>
+
+            <TabPanels>
+              {/* Overview Tab */}
+              <TabPanel>
+                <VStack spacing={6} align="stretch">
+                  {/* Profile Information */}
+                  <Card bg={bgColor} boxShadow="sm">
+                    <CardBody>
+                      <Heading size="sm" mb={4}>Profile Information</Heading>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        <HStack>
+                          <Icon as={FiPhone} color="blue.500" />
+                          <Box>
+                            <Text fontSize="xs" color="gray.500">Phone Number</Text>
+                            <Text fontWeight="semibold">{profile.phone_number || 'N/A'}</Text>
+                          </Box>
+                        </HStack>
+                        <HStack>
+                          <Icon as={FiCalendar} color="blue.500" />
+                          <Box>
+                            <Text fontSize="xs" color="gray.500">Date of Birth</Text>
+                            <Text fontWeight="semibold">{formatDate(profile.date_of_birth)}</Text>
+                          </Box>
+                        </HStack>
+                        <HStack>
+                          <Icon as={FiActivity} color="blue.500" />
+                          <Box>
+                            <Text fontSize="xs" color="gray.500">Blood Group</Text>
+                            <Text fontWeight="semibold">{profile.blood_group || 'N/A'}</Text>
+                          </Box>
+                        </HStack>
+                        <HStack>
+                          <Icon as={FiHeart} color="blue.500" />
+                          <Box>
+                            <Text fontSize="xs" color="gray.500">Marital Status</Text>
+                            <Text fontWeight="semibold" textTransform="capitalize">{profile.marital_status || 'N/A'}</Text>
+                          </Box>
+                        </HStack>
+                        {profile.occupation && (
+                          <HStack>
+                            <Icon as={FiUser} color="blue.500" />
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">Occupation</Text>
+                              <Text fontWeight="semibold">{profile.occupation}</Text>
+                            </Box>
+                          </HStack>
+                        )}
+                        {profile.address && (
+                          <HStack>
+                            <Icon as={FiMapPin} color="blue.500" />
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">Address</Text>
+                              <Text fontWeight="semibold">{profile.address}</Text>
+                            </Box>
+                          </HStack>
+                        )}
+                      </SimpleGrid>
+                    </CardBody>
+                  </Card>
+
+                  {/* Health Metrics */}
+                  <Card bg={bgColor} boxShadow="sm">
+                    <CardBody>
+                      <Heading size="sm" mb={4}>Health Metrics</Heading>
+                      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+                        <Box textAlign="center" p={3} bg={cardBg} borderRadius="lg">
+                          <Text fontSize="xs" color="gray.500" mb={1}>Height</Text>
+                          <Text fontSize="2xl" fontWeight="bold" color="blue.500">
+                            {profile.height ? `${profile.height} cm` : 'N/A'}
+                          </Text>
+                        </Box>
+                        <Box textAlign="center" p={3} bg={cardBg} borderRadius="lg">
+                          <Text fontSize="xs" color="gray.500" mb={1}>Weight</Text>
+                          <Text fontSize="2xl" fontWeight="bold" color="blue.500">
+                            {profile.weight ? `${profile.weight} kg` : 'N/A'}
+                          </Text>
+                        </Box>
+                        <Box textAlign="center" p={3} bg={cardBg} borderRadius="lg">
+                          <Text fontSize="xs" color="gray.500" mb={1}>BMI</Text>
+                          <Text fontSize="2xl" fontWeight="bold" color="blue.500">
+                            {profile.height && profile.weight 
+                              ? (profile.weight / ((profile.height / 100) ** 2)).toFixed(1)
+                              : 'N/A'}
+                          </Text>
+                        </Box>
+                        {profile.health_score !== undefined && (
+                          <Box textAlign="center" p={3} bg={cardBg} borderRadius="lg">
+                            <Text fontSize="xs" color="gray.500" mb={1}>Health Score</Text>
+                            <Text fontSize="2xl" fontWeight="bold" color={`${getHealthScoreColor(profile.health_score)}.500`}>
+                              {profile.health_score}/100
+                            </Text>
+                          </Box>
+                        )}
+                      </SimpleGrid>
+                    </CardBody>
+                  </Card>
+
+                  {/* Chronic Conditions */}
+                  {profile.chronic_conditions && profile.chronic_conditions.length > 0 && (
+                    <Card bg={bgColor} boxShadow="sm">
+                      <CardBody>
+                        <Heading size="sm" mb={4}>Chronic Conditions</Heading>
+                        <Flex wrap="wrap" gap={2}>
+                          {profile.chronic_conditions.map((condition, idx) => (
+                            <Badge key={idx} colorScheme="purple" fontSize="md" px={3} py={1} borderRadius="md">
+                              {condition}
+                            </Badge>
+                          ))}
+                        </Flex>
+                      </CardBody>
+                    </Card>
+                  )}
+
+                  {/* Emergency Contact */}
+                  {profile.emergency_contact && (
+                    <Card bg={bgColor} boxShadow="sm">
+                      <CardBody>
+                        <Heading size="sm" mb={4}>Emergency Contact</Heading>
+                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                          <HStack>
+                            <Icon as={FiUser} color="red.500" />
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">Name</Text>
+                              <Text fontWeight="semibold">{profile.emergency_contact.name}</Text>
+                            </Box>
+                          </HStack>
+                          <HStack>
+                            <Icon as={FiHeart} color="red.500" />
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">Relationship</Text>
+                              <Text fontWeight="semibold" textTransform="capitalize">{profile.emergency_contact.relationship}</Text>
+                            </Box>
+                          </HStack>
+                          <HStack>
+                            <Icon as={FiPhone} color="red.500" />
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">Phone</Text>
+                              <Text fontWeight="semibold">{profile.emergency_contact.phone}</Text>
+                            </Box>
+                          </HStack>
+                        </SimpleGrid>
+                      </CardBody>
+                    </Card>
+                  )}
+                </VStack>
+              </TabPanel>
+
+              {/* Medical Reviews Tab */}
+              <TabPanel>
+                <VStack spacing={4} align="stretch">
+                  {/* Summary Stats */}
+                  {patient.medical_reviews && (
+                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody textAlign="center">
+                          <Text fontSize="xs" color="gray.500" mb={1}>Total Reviews</Text>
+                          <Text fontSize="3xl" fontWeight="bold" color="blue.500">
+                            {patient.medical_reviews.total_reviews}
+                          </Text>
+                        </CardBody>
+                      </Card>
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody textAlign="center">
+                          <Text fontSize="xs" color="gray.500" mb={1}>Last 30 Days</Text>
+                          <Text fontSize="3xl" fontWeight="bold" color="green.500">
+                            {patient.medical_reviews.last_30_days}
+                          </Text>
+                        </CardBody>
+                      </Card>
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody textAlign="center">
+                          <Text fontSize="xs" color="gray.500" mb={1}>Pending AI Reviews</Text>
+                          <Text fontSize="3xl" fontWeight="bold" color="orange.500">
+                            {patient.pending_ai_review_count || 0}
+                          </Text>
+                        </CardBody>
+                      </Card>
+                    </SimpleGrid>
+                  )}
+
+                  {/* Full Medical Reviews */}
+                  {patient.full_medical_reviews && patient.full_medical_reviews.length > 0 ? (
+                    <Accordion allowMultiple>
+                      {patient.full_medical_reviews.map((review, idx) => (
+                        <AccordionItem key={review.id} border="1px" borderColor={borderColor} borderRadius="lg" mb={3}>
+                          <AccordionButton _hover={{ bg: bgColor }}>
+                            <Box flex="1" textAlign="left">
+                              <HStack justify="space-between" w="100%">
+                                <VStack align="start" spacing={1}>
+                                  <HStack>
+                                    <Badge colorScheme={review.status === 'finalized' ? 'green' : 'yellow'}>
+                                      {review.status}
+                                    </Badge>
+                                    {review.conducted_by_ai && (
+                                      <Badge colorScheme="purple">AI-Assisted</Badge>
+                                    )}
+                                    <Text fontSize="sm" color="gray.600">
+                                      {formatDateTime(review.created)}
+                                    </Text>
+                                  </HStack>
+                                  <Text fontWeight="semibold" fontSize="md">
+                                    {review.chief_complaint || 'No chief complaint'}
+                                  </Text>
+                                </VStack>
+                              </HStack>
+                            </Box>
+                            <AccordionIcon />
+                          </AccordionButton>
+                          <AccordionPanel pb={4} bg={bgColor}>
+                            <VStack align="stretch" spacing={4}>
+                              {review.reviewing_doctor && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>Reviewing Doctor</Text>
+                                  <Text>{review.reviewing_doctor.full_name} - {review.reviewing_doctor.specialty}</Text>
+                                </Box>
+                              )}
+
+                              {review.history_of_present_illness && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>History of Present Illness</Text>
+                                  <Text fontSize="sm">{review.history_of_present_illness}</Text>
+                                </Box>
+                              )}
+
+                              {review.physical_examination_findings && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>Physical Examination</Text>
+                                  <Text fontSize="sm">{review.physical_examination_findings}</Text>
+                                </Box>
+                              )}
+
+                              {review.assessment_diagnosis && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>Assessment & Diagnosis</Text>
+                                  <Text fontSize="sm">{review.assessment_diagnosis}</Text>
+                                </Box>
+                              )}
+
+                              {review.management_plan && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>Management Plan</Text>
+                                  <Text fontSize="sm">{review.management_plan}</Text>
+                                </Box>
+                              )}
+
+                              {review.lifestyle_advice && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>Lifestyle Advice</Text>
+                                  <Text fontSize="sm">{review.lifestyle_advice}</Text>
+                                </Box>
+                              )}
+
+                              {review.follow_up_plan && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>Follow-up Plan</Text>
+                                  <Text fontSize="sm">{review.follow_up_plan}</Text>
+                                </Box>
+                              )}
+
+                              {review.prescriptions && review.prescriptions.length > 0 && (
+                                <Box>
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={2}>Prescriptions</Text>
+                                  <VStack align="stretch" spacing={2}>
+                                    {review.prescriptions.map((rx, rxIdx) => (
+                                      <Box key={rxIdx} p={2} bg={cardBg} borderRadius="md" borderLeft="3px solid" borderColor="blue.500">
+                                        <Text fontSize="sm" fontWeight="semibold">{rx.medication || 'Unknown medication'}</Text>
+                                        <Text fontSize="xs" color="gray.600">{rx.dosage} - {rx.frequency}</Text>
+                                      </Box>
+                                    ))}
+                                  </VStack>
+                                </Box>
+                              )}
+
+                              {review.clinical_encounter_score && (
+                                <Box p={3} bg={cardBg} borderRadius="md">
+                                  <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>Clinical Encounter Score</Text>
+                                  <HStack>
+                                    <Badge colorScheme="blue" fontSize="md">{review.clinical_encounter_score.score}/100</Badge>
+                                    {review.clinical_encounter_score.feedback && (
+                                      <Text fontSize="sm">{review.clinical_encounter_score.feedback}</Text>
+                                    )}
+                                  </HStack>
+                                </Box>
+                              )}
+                            </VStack>
+                          </AccordionPanel>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  ) : (
+                    <Card bg={bgColor}>
+                      <CardBody>
+                        <VStack spacing={3} py={10}>
+                          <Icon as={FiFileText} w={12} h={12} color="gray.400" />
+                          <Text color="gray.500">No medical reviews available</Text>
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  )}
+                </VStack>
+              </TabPanel>
+
+              {/* Care Plan Tab */}
+              <TabPanel>
+                {carePlan ? (
+                  <VStack spacing={4} align="stretch">
+                    <Card bg={bgColor} boxShadow="sm">
+                      <CardBody>
+                        <Heading size="md" mb={4}>{carePlan.condition_name}</Heading>
+                        <Text mb={4}>{carePlan.plan_details}</Text>
+                        
+                        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
+                          <HStack>
+                            <Icon as={FiCalendar} color="blue.500" />
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">Start Date</Text>
+                              <Text fontWeight="semibold">{formatDate(carePlan.start_date)}</Text>
+                            </Box>
+                          </HStack>
+                          <HStack>
+                            <Icon as={FiCalendar} color="blue.500" />
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">End Date</Text>
+                              <Text fontWeight="semibold">{formatDate(carePlan.end_date)}</Text>
+                            </Box>
+                          </HStack>
+                        </SimpleGrid>
+
+                        {carePlan.hospitalization_risk_7_day !== undefined && (
+                          <Box mb={4} p={3} bg={cardBg} borderRadius="md">
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" mb={1}>7-Day Hospitalization Risk</Text>
+                            <HStack>
+                              <Icon as={FiTrendingUp} color={(carePlan.hospitalization_risk_7_day * 100) > 20 ? 'red.500' : 'green.500'} />
+                              <Text fontSize="2xl" fontWeight="bold" color={(carePlan.hospitalization_risk_7_day * 100) > 20 ? 'red.500' : 'green.500'}>
+                                {(carePlan.hospitalization_risk_7_day * 100).toFixed(1)}%
+                              </Text>
+                            </HStack>
+                          </Box>
+                        )}
+                      </CardBody>
+                    </Card>
+
+                    {carePlan.prevention_focus && (
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody>
+                          <Heading size="sm" mb={2}>Prevention Focus</Heading>
+                          <Text>{carePlan.prevention_focus}</Text>
+                        </CardBody>
+                      </Card>
+                    )}
+
+                    {carePlan.risk_factors_addressed && carePlan.risk_factors_addressed.length > 0 && (
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody>
+                          <Heading size="sm" mb={3}>Risk Factors Addressed</Heading>
+                          <Flex wrap="wrap" gap={2}>
+                            {carePlan.risk_factors_addressed.map((factor, idx) => (
+                              <Badge key={idx} colorScheme="orange" fontSize="sm" px={3} py={1} borderRadius="md">
+                                {factor}
+                              </Badge>
+                            ))}
+                          </Flex>
+                        </CardBody>
+                      </Card>
+                    )}
+
+                    {carePlan.lifestyle_modifications && carePlan.lifestyle_modifications.length > 0 && (
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody>
+                          <Heading size="sm" mb={3}>Lifestyle Modifications</Heading>
+                          <VStack align="stretch" spacing={2}>
+                            {carePlan.lifestyle_modifications.map((mod, idx) => (
+                              <HStack key={idx}>
+                                <Icon as={FiCheckCircle} color="green.500" />
+                                <Text>{mod}</Text>
+                              </HStack>
+                            ))}
+                          </VStack>
+                        </CardBody>
+                      </Card>
+                    )}
+
+                    {carePlan.monitoring_priorities && carePlan.monitoring_priorities.length > 0 && (
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody>
+                          <Heading size="sm" mb={3}>Monitoring Priorities</Heading>
+                          <Flex wrap="wrap" gap={2}>
+                            {carePlan.monitoring_priorities.map((priority, idx) => (
+                              <Badge key={idx} colorScheme="blue" fontSize="sm" px={3} py={1} borderRadius="md">
+                                {priority}
+                              </Badge>
+                            ))}
+                          </Flex>
+                        </CardBody>
+                      </Card>
+                    )}
+
+                    {carePlan.early_warning_signs && carePlan.early_warning_signs.length > 0 && (
+                      <Card bg={bgColor} boxShadow="sm" borderLeft="4px solid" borderColor="red.500">
+                        <CardBody>
+                          <Heading size="sm" mb={3} color="red.500">Early Warning Signs</Heading>
+                          <VStack align="stretch" spacing={2}>
+                            {carePlan.early_warning_signs.map((sign, idx) => (
+                              <HStack key={idx}>
+                                <Icon as={FiAlertCircle} color="red.500" />
+                                <Text>{sign}</Text>
+                              </HStack>
+                            ))}
+                          </VStack>
+                        </CardBody>
+                      </Card>
+                    )}
+
+                    {carePlan.success_metrics && carePlan.success_metrics.length > 0 && (
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody>
+                          <Heading size="sm" mb={3}>Success Metrics</Heading>
+                          <VStack align="stretch" spacing={2}>
+                            {carePlan.success_metrics.map((metric, idx) => (
+                              <HStack key={idx}>
+                                <Icon as={FiCheckCircle} color="green.500" />
+                                <Text>{metric}</Text>
+                              </HStack>
+                            ))}
+                          </VStack>
+                        </CardBody>
+                      </Card>
+                    )}
+
+                    {carePlan.rationale && (
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody>
+                          <Heading size="sm" mb={2}>Clinical Rationale</Heading>
+                          <Text>{carePlan.rationale}</Text>
+                        </CardBody>
+                      </Card>
+                    )}
+
+                    {carePlan.insurance && (
+                      <Card bg={bgColor} boxShadow="sm">
+                        <CardBody>
+                          <Heading size="sm" mb={3}>Insurance Information</Heading>
+                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                            <Box>
+                              <Text fontSize="xs" color="gray.500">Provider</Text>
+                              <Text fontWeight="semibold">{carePlan.insurance}</Text>
+                            </Box>
+                            {carePlan.insurance_member_id && (
+                              <Box>
+                                <Text fontSize="xs" color="gray.500">Member ID</Text>
+                                <Text fontWeight="semibold">{carePlan.insurance_member_id}</Text>
+                              </Box>
+                            )}
+                          </SimpleGrid>
+                        </CardBody>
+                      </Card>
+                    )}
+                  </VStack>
+                ) : (
+                  <Card bg={bgColor}>
+                    <CardBody>
+                      <VStack spacing={3} py={10}>
+                        <Icon as={FiFileText} w={12} h={12} color="gray.400" />
+                        <Text color="gray.500">No active care plan</Text>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                )}
+              </TabPanel>
+
+              {/* Metrics Tab */}
+              <TabPanel>
+                {patient.metrics && patient.metrics.length > 0 ? (
+                  <VStack spacing={6} align="stretch">
+                    {patient.metrics.filter(m => m.is_active).map(metric => (
+                      <MetricChart key={metric.id} metric={metric} />
+                    ))}
+                  </VStack>
+                ) : (
+                  <Card bg={bgColor}>
+                    <CardBody>
+                      <VStack spacing={3} py={10}>
+                        <Icon as={FiActivity} w={12} h={12} color="gray.400" />
+                        <Text color="gray.500">No metrics available</Text>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                )}
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  );
+};
+
+export default PatientDetailModal;

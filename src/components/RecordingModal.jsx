@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   Box,
   Button,
@@ -15,33 +15,40 @@ import {
   IconButton,
   Stepper,
   Step,
-  StepLabel,
-  CircularProgress,
-  ToggleButton,
-  ToggleButtonGroup,
-  FormControl,
-  InputLabel,
-  Input,
-  FormHelperText
+  StepLabel
 } from '@mui/material';
 import {
   Mic as MicIcon,
   Pause as PauseIcon,
   PlayArrow as PlayArrowIcon,
   Stop as StopIcon,
-  Close as CloseIcon,
-  CheckCircle as CheckCircleIcon,
-  CloudUpload as CloudUploadIcon
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import PatientDetailsModal from './PatientDetailsModal';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
+
+const selectPreferredValue = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined) {
+      continue;
+    }
+
+    const stringValue = String(value).trim();
+    if (stringValue.length > 0) {
+      return value;
+    }
+  }
+
+  return '';
+};
 
 const RecordingModal = ({
   open,
   onClose,
   encounterId,
   encounterData,
+  patientPrefill = null,
   reviewId,
   onComplete,
   onWorkflowEvent,
@@ -50,9 +57,8 @@ const RecordingModal = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
   const { setStatus, clearStatus } = useProcessingStatus();
-  
-  const [inputMode, setInputMode] = useState('record'); // 'record' or 'upload'
   const [step, setStep] = useState(0); // 0: input selection/recording, 1: patient-details
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -61,8 +67,8 @@ const RecordingModal = ({
   const [error, setError] = useState(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
-  const [uploadedFile, setUploadedFile] = useState(null);
   const [processingData, setProcessingData] = useState(false);
+  const [wakeLock, setWakeLock] = useState(null);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -74,10 +80,94 @@ const RecordingModal = ({
   const isRecordingRef = useRef(false);
   const isPausedRef = useRef(false);
   const recordedMimeTypeRef = useRef(null);
+  const isMountedRef = useRef(false);
 
-  const steps = inputMode === 'record' 
-    ? ['Record Audio', 'Patient Details'] 
-    : ['Upload Audio', 'Patient Details'];
+  const steps = ['Record Audio', 'Patient Details'];
+
+  const mergedPatientDefaults = useMemo(() => {
+    const prefill = patientPrefill || {};
+    const encounterPatient = encounterData || {};
+    return {
+      patient_first_name: selectPreferredValue(
+        encounterPatient.patient_first_name,
+        prefill.first_name
+      ),
+      patient_last_name: selectPreferredValue(
+        encounterPatient.patient_last_name,
+        prefill.last_name
+      ),
+      patient_phone_number: selectPreferredValue(
+        encounterPatient.patient_phone_number,
+        encounterPatient.patient_phone,
+        prefill.phone,
+        prefill.phone_number
+      )
+    };
+  }, [encounterData, patientPrefill]);
+
+  const primaryActionSx = {
+    py: 2.5,
+    px: 5,
+    minWidth: { xs: '100%', sm: 240 },
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    textTransform: 'none',
+    boxShadow: 4
+  };
+
+  const secondaryActionSx = {
+    py: 2.5,
+    px: 5,
+    minWidth: { xs: '100%', sm: 200 },
+    fontWeight: 'bold',
+    textTransform: 'none'
+  };
+
+  const notifyProcessingFailure = (message) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Processing Failed ❌', {
+        body: message,
+        icon: '/images/logo.png',
+        requireInteraction: true
+      });
+    } else {
+      alert(`Processing Failed ❌\n\n${message}`);
+    }
+  };
+
+  const showProcessingCompleteNotification = (targetReviewId) => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification('Documentation Ready! 🎉', {
+        body: 'Click to open the completed review or close this notification to keep working.',
+        icon: '/images/logo.png',
+        tag: targetReviewId || reviewId,
+        requireInteraction: false,
+        data: {
+          reviewPath: targetReviewId ? `/reviews/${targetReviewId}` : `/reviews/${reviewId}`
+        }
+      });
+
+      notification.onclick = (event) => {
+        event.preventDefault();
+        const reviewPath = notification.data?.reviewPath || `/reviews/${reviewId}`;
+        window.focus();
+        navigate(reviewPath);
+        notification.close();
+      };
+    } else {
+      const reviewPath = targetReviewId ? `/reviews/${targetReviewId}` : `/reviews/${reviewId}`;
+      const shouldNavigate = window.confirm(
+        'Documentation Ready!\n\nYour encounter documentation has been processed. Press OK to open the review now, or Cancel to keep working.'
+      );
+      if (shouldNavigate) {
+        navigate(reviewPath);
+      }
+    }
+  };
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -87,7 +177,9 @@ const RecordingModal = ({
 
   // Cleanup on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -96,81 +188,36 @@ const RecordingModal = ({
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(() => {});
       }
+      // Release wake lock on unmount
+      releaseWakeLock();
     };
   }, []);
 
-  const testMicrophoneAccess = async () => {
-    try {
-      setError(null);
-      
-      // Check browser support
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError('Audio recording is not supported in this browser.');
-        return;
-      }
-
-      // Request microphone access
-      const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Immediately stop the test stream
-      testStream.getTracks().forEach(track => track.stop());
-      
-      setError('✅ Microphone access granted! You can now start recording.');
-      setTimeout(() => setError(null), 3000); // Clear success message after 3 seconds
-      
-    } catch (error) {
-      console.error('Microphone test failed:', error);
-      
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        setError('❌ Microphone permission denied. Please click "Allow" when prompted, or check browser settings.');
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        setError('❌ No microphone found. Please connect a microphone.');
-      } else {
-        setError(`❌ Microphone test failed: ${error.message}`);
-      }
+  useEffect(() => {
+    if (open && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
     }
-  };
+  }, [open]);
+
+  // Handle wake lock restoration when page becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isRecording && !wakeLock) {
+        console.log('Page became visible, attempting to restore wake lock');
+        await requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isRecording, wakeLock]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    // Validate file type/extension where available
-    const allowedMimeTypes = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-m4a'];
-    const allowedExtensions = ['webm', 'ogg', 'mp4', 'm4a', 'mp3', 'wav'];
-    const fileExtension = (file.name.split('.').pop() || '').toLowerCase();
-    const mimeTypeValid = file.type ? allowedMimeTypes.includes(file.type) : false;
-    const extensionValid = allowedExtensions.includes(fileExtension);
-
-    if (!mimeTypeValid && !extensionValid) {
-      setError('Please select a valid audio file (WebM, OGG, MP4, M4A, MP3, WAV)');
-      return;
-    }
-    
-    // Validate file size (max 50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      setError('File size must be less than 50MB');
-      return;
-    }
-    
-    console.log('File selected:', {
-      name: file.name,
-      size: file.size,
-      type: file.type
-    });
-    
-    setUploadedFile(file);
-    setError(null);
-    
-    // Move to patient details step and show modal for details
-    setStep(1);
-    setShowPatientModal(true);
   };
 
   const setupAudioDetection = (stream) => {
@@ -187,6 +234,37 @@ const RecordingModal = ({
     analyserRef.current.getByteFrequencyData(dataArray);
     const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
     return average > 10;
+  };
+
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        const lock = await navigator.wakeLock.request('screen');
+        setWakeLock(lock);
+        console.log('Wake lock acquired');
+        
+        lock.addEventListener('release', () => {
+          console.log('Wake lock released');
+          setWakeLock(null);
+        });
+      } catch (error) {
+        console.warn('Failed to acquire wake lock:', error);
+      }
+    } else {
+      console.warn('Wake Lock API not supported');
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    if (wakeLock) {
+      try {
+        await wakeLock.release();
+        setWakeLock(null);
+        console.log('Wake lock manually released');
+      } catch (error) {
+        console.warn('Failed to release wake lock:', error);
+      }
+    }
   };
 
   const startRecording = async () => {
@@ -287,6 +365,9 @@ const RecordingModal = ({
       setIsPaused(false);
       setPauseWarning(false);
 
+      // Request wake lock to prevent screen sleep
+      await requestWakeLock();
+
       timerRef.current = setInterval(() => {
         setTimeRemaining(prev => {
           if (prev <= 1) {
@@ -361,6 +442,9 @@ const RecordingModal = ({
       clearInterval(timerRef.current);
       clearTimeout(pauseTimerRef.current);
       
+      // Release wake lock
+      releaseWakeLock();
+      
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -373,21 +457,21 @@ const RecordingModal = ({
     }
   };
 
-  const handleUpload = async (audioBlob, patientDetails) => {
-    // Set status to 'uploading' in the global context
+  const handleUpload = async (audioBlob, patientDetails, options = {}) => {
+    const { background = false } = options;
+
     if (reviewId) {
       setStatus(reviewId, 'uploading');
     }
     if (onWorkflowEvent) {
       onWorkflowEvent('uploading');
     }
-    
+
     try {
-      // Determine file extension and format from mimeType
       const mimeType = audioBlob.type || 'audio/webm';
       let fileExtension = 'webm';
       let originalFormat = 'webm';
-      
+
       if (mimeType.includes('webm')) {
         fileExtension = 'webm';
         originalFormat = 'webm';
@@ -404,27 +488,20 @@ const RecordingModal = ({
         fileExtension = 'wav';
         originalFormat = 'wav';
       }
-      
+
       console.log('Uploading audio:', {
         size: audioBlob.size,
         type: mimeType,
         extension: fileExtension,
         format: originalFormat
       });
-      
+
       const formData = new FormData();
       formData.append('audio_file', audioBlob, `recording.${fileExtension}`);
       formData.append('original_format', originalFormat);
-      
-      // Log FormData details for debugging
-      console.log('FormData created with:', {
-        fileName: `recording.${fileExtension}`,
-        fileSize: audioBlob.size,
-        mimeType: audioBlob.type
-      });
 
       const token = await getAccessToken();
-      
+
       const response = await fetch(
         `https://service.prestigedelta.com/in-person-encounters/${encounterId}/upload-audio/`,
         {
@@ -436,45 +513,85 @@ const RecordingModal = ({
         }
       );
 
-      if (response.ok) {
-        const uploadResult = await response.json();
-        console.log('Upload result:', uploadResult);
-        // Check if uploads are complete
-        if (!uploadResult.s3_upload_pending && !uploadResult.google_upload_pending) {
-          await handleProcess(patientDetails);
-        } else {
-          setError('Audio upload is still pending. Please wait...');
-        }
-      } else {
+      if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        const message = errorData.detail || 'Upload failed. Please try again.';
         console.error('Upload failed:', errorData);
-        setError(errorData.detail || 'Upload failed. Please try again.');
+        if (!background && isMountedRef.current) {
+          setError(message);
+        }
         if (reviewId) clearStatus(reviewId);
         if (onWorkflowEvent) {
           onWorkflowEvent('error');
         }
+        if (background) {
+          notifyProcessingFailure(message);
+        }
+        return;
       }
+
+      await waitForUploads(token);
+      await handleProcess(patientDetails, token, background);
     } catch (error) {
       console.error('Upload error:', error);
-      setError('Failed to upload audio. Please try again.');
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to upload audio. Please try again.';
+      if (!background && isMountedRef.current) {
+        setError(message);
+      }
       if (reviewId) clearStatus(reviewId);
       if (onWorkflowEvent) {
         onWorkflowEvent('error');
       }
+      if (background) {
+        notifyProcessingFailure(message);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setProcessingData(false);
+      }
     }
   };
 
-  const handleProcess = async (patientDetails) => {
-    // Set status to 'processing' in the global context
+  const waitForUploads = async (token, maxAttempts = 120) => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const statusResponse = await fetch(
+        `https://service.prestigedelta.com/in-person-encounters/${encounterId}/`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!statusResponse.ok) {
+        throw new Error('Failed to verify upload status.');
+      }
+
+      const statusData = await statusResponse.json();
+
+      if (!statusData.s3_upload_pending && !statusData.google_upload_pending) {
+        console.log('Uploads finished successfully.');
+        return statusData;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    throw new Error('Upload is taking longer than expected. Please try again.');
+  };
+
+  const handleProcess = async (patientDetails, token, background = false) => {
     if (reviewId) {
       setStatus(reviewId, 'processing');
     }
     if (onWorkflowEvent) {
       onWorkflowEvent('processing');
     }
-    
+
     try {
-      const token = await getAccessToken();
+      const authToken = token || await getAccessToken();
 
       const requestBody = {
         encounter_public_id: encounterId,
@@ -492,7 +609,7 @@ const RecordingModal = ({
       if (Array.isArray(existingTranscript) && existingTranscript.length > 0) {
         requestBody.existing_transcript = existingTranscript;
       }
-      
+
       console.log('Processing audio with data:', requestBody);
 
       const response = await fetch(
@@ -500,99 +617,132 @@ const RecordingModal = ({
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(requestBody)
         }
       );
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Processing complete:', result);
-        
-        // Clear processing status
-        if (reviewId) {
-          clearStatus(reviewId);
-        }
-        
-        // Close modal and trigger completion callback
-        if (onWorkflowEvent) {
-          onWorkflowEvent('completed');
-        }
-        if (onComplete) onComplete();
-        handleClose();
-      } else {
+      if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        const message = `Processing failed: ${errorData.detail || 'Please try again.'}`;
         console.error('Processing failed:', errorData);
-        setError(`Processing failed: ${errorData.detail || 'Please try again.'}`);
+        if (!background && isMountedRef.current) {
+          setError(message);
+        }
         if (reviewId) clearStatus(reviewId);
         if (onWorkflowEvent) {
           onWorkflowEvent('error');
         }
+        if (background) {
+          notifyProcessingFailure(message);
+        }
+        return;
+      }
+
+      const result = await response.json();
+      console.log('Processing complete:', result);
+
+      const processedReviewId =
+        result?.review_public_id ||
+        result?.medical_review_public_id ||
+        result?.reviewPublicId ||
+        result?.reviewId ||
+        reviewId;
+
+      if (reviewId) {
+        clearStatus(reviewId);
+      }
+
+      if (onWorkflowEvent) {
+        onWorkflowEvent('completed');
+      }
+      if (onComplete) onComplete();
+
+      if (background) {
+        showProcessingCompleteNotification(processedReviewId);
+      } else if (isMountedRef.current) {
+        handleClose();
       }
     } catch (error) {
       console.error('Processing error:', error);
-      setError('Failed to process audio. Please try again.');
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to process audio. Please try again.';
+      if (!background && isMountedRef.current) {
+        setError(message);
+      }
       if (reviewId) clearStatus(reviewId);
       if (onWorkflowEvent) {
         onWorkflowEvent('error');
+      }
+      if (background) {
+        notifyProcessingFailure(message);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        resetState();
       }
     }
   };
 
   const handlePatientDetailsSubmit = async (patientData) => {
     setProcessingData(true);
-    
-    let audioToUpload = null;
-    
-    if (inputMode === 'record' && recordedAudioBlob) {
-      // Final validation for recorded audio
-      if (recordedAudioBlob.size === 0) {
-        setError('Audio file is empty. Please record again.');
+
+    if (!recordedAudioBlob) {
+      setError('No audio found. Please record audio.');
+      if (isMountedRef.current) {
         setProcessingData(false);
-        return;
       }
-      
-      if (recordedAudioBlob.size < 1000) {
-        setError('Audio file too small. Please record a longer message.');
-        setProcessingData(false);
-        return;
-      }
-      
-      console.log('Final audio validation passed:', {
-        size: recordedAudioBlob.size,
-        type: recordedAudioBlob.type
-      });
-      
-      audioToUpload = recordedAudioBlob;
-    } else if (inputMode === 'upload' && uploadedFile) {
-      // Convert File to Blob for consistency
-      audioToUpload = new Blob([uploadedFile], { type: uploadedFile.type });
-      console.log('Using uploaded file:', {
-        name: uploadedFile.name,
-        size: uploadedFile.size,
-        type: uploadedFile.type
-      });
-    } else {
-      setError('No audio found. Please record or upload audio.');
-      setProcessingData(false);
       return;
     }
-    
-    await handleUpload(audioToUpload, patientData);
-    setProcessingData(false);
+
+    if (recordedAudioBlob.size === 0) {
+      setError('Audio file is empty. Please record again.');
+      if (isMountedRef.current) {
+        setProcessingData(false);
+      }
+      return;
+    }
+
+    if (recordedAudioBlob.size < 1000) {
+      setError('Audio file too small. Please record a longer message.');
+      if (isMountedRef.current) {
+        setProcessingData(false);
+      }
+      return;
+    }
+
+    const sanitizedData = {
+      patient_first_name: (patientData.patient_first_name || '').trim(),
+      patient_last_name: (patientData.patient_last_name || '').trim(),
+      patient_phone_number: (patientData.patient_phone_number || '').trim()
+    };
+
+    const payload = {
+      ...sanitizedData,
+      save_documentation: sanitizedData.patient_phone_number
+        ? typeof patientData.save_documentation === 'boolean'
+          ? patientData.save_documentation
+          : true
+        : false
+    };
+
     setShowPatientModal(false);
+
+    if (onClose) {
+      onClose();
+    }
+
+    setTimeout(() => {
+      alert('Processing in the background. You can continue with other tasks and we will notify you once processing is complete.');
+    }, 0);
+
+    await handleUpload(recordedAudioBlob, payload, { background: true });
   };
 
-  const handleClose = () => {
-    // Stop recording if active
-    if (isRecording || isPaused) {
-      stopRecording();
-    }
-    
-    // Reset all states
-    setInputMode('record');
+  const resetState = () => {
     setStep(0);
     setIsRecording(false);
     setIsPaused(false);
@@ -601,9 +751,26 @@ const RecordingModal = ({
     setError(null);
     setShowPatientModal(false);
     setRecordedAudioBlob(null);
-    setUploadedFile(null);
     setProcessingData(false);
-    
+  };
+
+  const handlePatientModalCancel = () => {
+    setShowPatientModal(false);
+    setProcessingData(false);
+    setRecordedAudioBlob(null);
+    setPauseWarning(false);
+    setStep(0);
+    setTimeRemaining(15 * 60);
+    setError(null);
+  };
+
+  const handleClose = () => {
+    // Stop recording if active
+    if (isRecording || isPaused) {
+      stopRecording();
+    }
+
+    resetState();
     onClose();
   };
 
@@ -618,35 +785,6 @@ const RecordingModal = ({
           <CloseIcon />
         </IconButton>
       </Box>
-
-      {/* Input Mode Toggle */}
-      {step === 0 && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" sx={{ mb: 2 }}>Choose Input Method:</Typography>
-          <ToggleButtonGroup
-            value={inputMode}
-            exclusive
-            onChange={(event, newMode) => {
-              if (newMode) {
-                setInputMode(newMode);
-                setError(null);
-                setRecordedAudioBlob(null);
-                setUploadedFile(null);
-              }
-            }}
-            sx={{ width: '100%' }}
-          >
-            <ToggleButton value="record" sx={{ flex: 1 }}>
-              <MicIcon sx={{ mr: 1 }} />
-              Record Audio
-            </ToggleButton>
-            <ToggleButton value="upload" sx={{ flex: 1 }}>
-              <CloudUploadIcon sx={{ mr: 1 }} />
-              Upload File
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-      )}
 
       {/* Stepper */}
       <Stepper activeStep={step} sx={{ mb: 4 }}>
@@ -667,199 +805,151 @@ const RecordingModal = ({
       {/* Input Step */}
       {step === 0 && (
         <>
-          {inputMode === 'record' ? (
-            <>
-              {/* Timer Display */}
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <Typography variant="h3" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  {formatTime(timeRemaining)}
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={progress} 
-                  sx={{ 
-                    height: 8, 
-                    borderRadius: 4,
-                    backgroundColor: 'grey.200',
-                    '& .MuiLinearProgress-bar': {
-                      backgroundColor: isRecording && !isPaused ? 'error.main' : 'grey.400'
-                    }
-                  }}
-                />
-              </Box>
+          {/* Timer Display */}
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Typography variant="h3" sx={{ fontWeight: 'bold', mb: 1 }}>
+              {formatTime(timeRemaining)}
+            </Typography>
+            <LinearProgress 
+              variant="determinate" 
+              value={progress} 
+              sx={{ 
+                height: 8, 
+                borderRadius: 4,
+                backgroundColor: 'grey.200',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: isRecording && !isPaused ? 'error.main' : 'grey.400'
+                }
+              }}
+            />
+          </Box>
 
-              {/* Status Chip */}
-              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                {isRecording && !isPaused && (
-                  <Chip 
-                    label="Recording" 
-                    color="error" 
-                    icon={<MicIcon />}
-                    sx={{ animation: 'pulse 2s infinite' }}
-                  />
-                )}
-                {isPaused && (
-                  <Chip 
-                    label="Paused" 
-                    color="warning" 
-                    icon={<PauseIcon />}
-                  />
-                )}
-              </Box>
+          {/* Status Chip */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            {isRecording && !isPaused && (
+              <Chip 
+                label="Recording" 
+                color="error" 
+                icon={<MicIcon />}
+                sx={{ animation: 'pulse 2s infinite' }}
+              />
+            )}
+            {isPaused && (
+              <Chip 
+                label="Paused" 
+                color="warning" 
+                icon={<PauseIcon />}
+              />
+            )}
+            {wakeLock && (
+              <Chip 
+                label="Screen Awake" 
+                color="info" 
+                size="small"
+                sx={{ ml: 1 }}
+              />
+            )}
+          </Box>
 
-              {/* Pause Warning */}
-              {pauseWarning && (
-                <Alert severity="warning" sx={{ mb: 3 }}>
-                  Audio detected! Consider resuming recording.
-                </Alert>
-              )}
-
-              {/* Instructions */}
-              {!isRecording && (
-                <Alert severity="info" sx={{ mb: 3 }}>
-                  <Typography variant="body2">
-                    • <strong>Microphone Permission:</strong> Click "Allow" when prompted for microphone access<br />
-                    • Recording will automatically stop after 15 minutes<br />
-                    • You can pause and resume anytime<br />
-                    • Stopping will automatically upload and process
-                  </Typography>
-                </Alert>
-              )}
-
-              {/* Control Buttons */}
-              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
-                {!isRecording && !isPaused ? (
-                  <>
-                    <Button
-                      variant="outlined"
-                      size="large"
-                      onClick={testMicrophoneAccess}
-                      sx={{ py: 2, px: 4 }}
-                    >
-                      Test Microphone
-                    </Button>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      startIcon={<MicIcon />}
-                      onClick={startRecording}
-                      sx={{ py: 2, px: 4 }}
-                    >
-                      Start Recording
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {isPaused ? (
-                      <Button
-                        variant="contained"
-                        size="large"
-                        startIcon={<PlayArrowIcon />}
-                        onClick={resumeRecording}
-                        color="success"
-                        sx={{ py: 2, px: 4 }}
-                      >
-                        Resume
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="contained"
-                        size="large"
-                        startIcon={<PauseIcon />}
-                        onClick={pauseRecording}
-                        color="warning"
-                        sx={{ py: 2, px: 4 }}
-                      >
-                        Pause
-                      </Button>
-                    )}
-                    <Button
-                      variant="contained"
-                      size="large"
-                      startIcon={<StopIcon />}
-                      onClick={stopRecording}
-                      color="error"
-                      sx={{ py: 2, px: 4 }}
-                    >
-                      Stop & Continue
-                    </Button>
-                  </>
-                )}
-              </Box>
-            </>
-          ) : (
-            <>
-              {/* File Upload Section */}
-              <Box sx={{ textAlign: 'center', py: 4 }}>
-                <CloudUploadIcon sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  Upload Audio File
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  Select an audio file to upload and process
-                </Typography>
-                
-                {uploadedFile ? (
-                  <Box sx={{ mb: 3 }}>
-                    <Chip 
-                      label={`${uploadedFile.name} (${(uploadedFile.size / 1024 / 1024).toFixed(1)}MB)`}
-                      color="success"
-                      icon={<CheckCircleIcon />}
-                      sx={{ mb: 2 }}
-                    />
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        setUploadedFile(null);
-                        setStep(0);
-                      }}
-                      sx={{ mr: 1 }}
-                    >
-                      Change File
-                    </Button>
-                    <Button
-                      variant="contained"
-                      onClick={() => setStep(1)}
-                    >
-                      Continue
-                    </Button>
-                  </Box>
-                ) : (
-                  <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel htmlFor="audio-file-input" shrink>
-                      Choose Audio File
-                    </InputLabel>
-                    <Input
-                      id="audio-file-input"
-                      type="file"
-                      inputProps={{
-                        accept: 'audio/*'
-                      }}
-                      onChange={handleFileUpload}
-                    />
-                    <FormHelperText>
-                      Supported formats: WebM, OGG, MP4, MP3, WAV (max 50MB)
-                    </FormHelperText>
-                  </FormControl>
-                )}
-              </Box>
-            </>
+          {/* Pause Warning */}
+          {pauseWarning && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              Audio detected! Consider resuming recording.
+            </Alert>
           )}
+
+          {/* Instructions */}
+          {!isRecording && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                • <strong>Microphone Permission:</strong> Click "Allow" when prompted for microphone access<br />
+                • Recording will automatically stop after 15 minutes<br />
+                • You can pause and resume anytime<br />
+                • Stopping uploads and processes in the background so you can keep working
+              </Typography>
+            </Alert>
+          )}
+
+          {/* Control Buttons */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+            {!isRecording && !isPaused ? (
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<MicIcon />}
+                onClick={startRecording}
+                sx={{
+                  ...primaryActionSx,
+                  bgcolor: 'primary.main',
+                  color: 'common.white',
+                  '&:hover': { bgcolor: 'primary.dark', boxShadow: 6 }
+                }}
+              >
+                Start Recording
+              </Button>
+            ) : (
+              <>
+                {isPaused ? (
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={<PlayArrowIcon />}
+                    onClick={resumeRecording}
+                    color="success"
+                    sx={{
+                      ...secondaryActionSx,
+                      bgcolor: 'success.main',
+                      color: 'common.white',
+                      '&:hover': { bgcolor: 'success.dark' }
+                    }}
+                  >
+                    Resume
+                  </Button>
+                ) : (
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={<PauseIcon />}
+                    onClick={pauseRecording}
+                    color="warning"
+                    sx={{
+                      ...secondaryActionSx,
+                      bgcolor: 'warning.main',
+                      color: 'common.white',
+                      '&:hover': { bgcolor: 'warning.dark' }
+                    }}
+                  >
+                    Pause
+                  </Button>
+                )}
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<StopIcon />}
+                  onClick={stopRecording}
+                  color="error"
+                  sx={{
+                    ...primaryActionSx,
+                    bgcolor: 'error.main',
+                    color: 'common.white',
+                    '&:hover': { bgcolor: 'error.dark', boxShadow: 6 }
+                  }}
+                >
+                  Stop & Process
+                </Button>
+              </>
+            )}
+          </Box>
         </>
       )}      {/* Patient Details Step - info only, actual modal shown separately */}
       {step === 1 && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            {inputMode === 'record' ? 'Recording Complete!' : 'File Uploaded!'}
+            Recording Complete!
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Please provide patient details to continue...
           </Typography>
-          {uploadedFile && (
-            <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
-              File: {uploadedFile.name}
-            </Typography>
-          )}
         </Box>
       )}
     </Box>
@@ -887,10 +977,11 @@ const RecordingModal = ({
         {/* Patient Details Modal */}
         <PatientDetailsModal
           open={showPatientModal}
-          onClose={() => setShowPatientModal(false)}
+          onClose={handlePatientModalCancel}
           onSubmit={handlePatientDetailsSubmit}
-          initialData={encounterData}
+          initialData={mergedPatientDefaults}
           loading={processingData}
+          readOnly={false}
         />
       </>
     );
@@ -915,10 +1006,11 @@ const RecordingModal = ({
       {/* Patient Details Modal */}
       <PatientDetailsModal
         open={showPatientModal}
-        onClose={() => setShowPatientModal(false)}
+        onClose={handlePatientModalCancel}
         onSubmit={handlePatientDetailsSubmit}
-        initialData={encounterData}
+        initialData={mergedPatientDefaults}
         loading={processingData}
+        readOnly={false}
       />
     </>
   );

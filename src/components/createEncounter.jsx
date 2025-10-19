@@ -223,7 +223,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
             <Typography variant="body2" color="text.secondary">
               💡 <strong>What's Next?</strong>
               <br />
-              After creating the encounter, you'll be able to record audio, upload documentation, and process the medical notes.
+              After creating the encounter, you'll be able to record audio and process the medical notes.
             </Typography>
           </Box>
         </DialogContent>

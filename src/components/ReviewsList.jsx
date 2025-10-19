@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -62,32 +62,15 @@ const ReviewsList = () => {
     () => collectReviewTranscripts(activeReview),
     [activeReview]
   );
+  const lastFetchRef = useRef(0);
 
-  useEffect(() => {
-    fetchReviews();
-  }, []);
-
-  // Auto-refetch when processing statuses change
-  useEffect(() => {
-    // Check if any processing just completed (status changed to null)
-    const hasActiveProcessing = Object.values(processingStatuses).some(status => status !== null);
-    
-    if (!hasActiveProcessing && reviews.length > 0) {
-      // All processing complete, refetch after a short delay
-      const timer = setTimeout(() => {
-        fetchReviews();
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [processingStatuses, reviews.length]);
-
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     setLoading(true);
     const token = await getAccessToken();
     
     if (!token) {
       navigate('/login');
+      setLoading(false);
       return;
     }
 
@@ -102,6 +85,7 @@ const ReviewsList = () => {
       if (response.ok) {
         const data = await response.json();
         setReviews(data || []);
+        lastFetchRef.current = Date.now();
       } else {
         console.error('Failed to fetch reviews');
       }
@@ -110,7 +94,32 @@ const ReviewsList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
+
+  // Auto-refetch when processing statuses change
+  useEffect(() => {
+    // Check if any processing just completed (status changed to null)
+    const hasActiveProcessing = Object.values(processingStatuses).some(status => status !== null);
+    
+    if (!hasActiveProcessing && reviews.length > 0) {
+      const now = Date.now();
+      if (now - lastFetchRef.current < 3000) {
+        return;
+      }
+
+      // All processing complete, refetch after a short delay
+      const timer = setTimeout(() => {
+        fetchReviews();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [processingStatuses, reviews.length, fetchReviews]);
+
 
   const getStatusColor = (isFinalized) => {
     return isFinalized ? 'success' : 'warning';
@@ -160,7 +169,7 @@ const ReviewsList = () => {
       (filter === 'pending' && !review.is_finalized);
     
     const matchesSearch = !searchTerm || 
-      review.patient_full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ((review.patient_first_name || review.patient_last_name) ? `${review.patient_first_name || ''} ${review.patient_last_name || ''}`.trim() : 'Not specified').toLowerCase().includes(searchTerm.toLowerCase()) ||
       review.chief_complaint?.toLowerCase().includes(searchTerm.toLowerCase());
     
     return matchesFilter && matchesSearch;
@@ -244,6 +253,20 @@ const ReviewsList = () => {
             Follow the guided steps to capture and document a patient encounter.
           </Typography>
           <WorkflowStepper stage={workflowStage} />
+          {workflowReviewId && (
+            <Box sx={{ mb: 2 }}>
+              {getProcessingStatusChip(workflowReviewId) || (
+                workflowStage >= 4 && (
+                  <Chip
+                    icon={<CheckCircleIcon />}
+                    label="Documentation Ready"
+                    color="success"
+                    size="small"
+                  />
+                )
+              )}
+            </Box>
+          )}
           <Stack direction={isMobile ? 'column' : 'row'} spacing={2} sx={{ flexWrap: 'wrap' }}>
             <Button
               variant="contained"
@@ -264,7 +287,7 @@ const ReviewsList = () => {
               disabled={!currentEncounter}
               sx={{ flex: isMobile ? '1 1 100%' : '1 1 auto' }}
             >
-              2. Record / Upload Audio
+              2. Record Audio
             </Button>
             <Button
               variant="contained"
@@ -389,7 +412,7 @@ const ReviewsList = () => {
                         <Box flex={1}>
                           <Box display="flex" alignItems="center" gap={1} mb={1} flexWrap="wrap">
                             <Typography variant={isMobile ? "subtitle1" : "h6"} fontWeight="bold">
-                              {review.patient_full_name || 'Unknown Patient'}
+                              {(review.patient_first_name || review.patient_last_name) ? `${review.patient_first_name || ''} ${review.patient_last_name || ''}`.trim() : 'Not specified'}
                             </Typography>
                             <Chip
                               icon={getStatusIcon(review.is_finalized)}

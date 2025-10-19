@@ -20,7 +20,6 @@ import {
   Stop as StopIcon,
   Pause as PauseIcon,
   PlayArrow as PlayArrowIcon,
-  Upload as UploadIcon,
   Warning as WarningIcon,
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
@@ -34,7 +33,6 @@ const Record = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
-  const [uploading, setUploading] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(15 * 60); // 15 minutes in seconds
   const [pauseWarning, setPauseWarning] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -124,9 +122,43 @@ const Record = () => {
         chunksRef.current.push(event.data);
       };
 
-      mediaRecorderRef.current.onstop = () => {
+      mediaRecorderRef.current.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
+        
+        // Automatically upload and process the recording
+        const token = await getAccessToken();
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('audio_file', blob, 'recording.webm');
+        formData.append('original_format', 'webm');
+
+        try {
+          const response = await fetch(`https://service.prestigedelta.com/in-person-encounters/${publicId}/upload-audio/`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: formData
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            alert('Recording processed successfully!');
+            // Processing complete - no need to navigate
+          } else {
+            console.error('Upload failed');
+            alert('Upload failed. Please try again.');
+          }
+        } catch (error) {
+          console.error('Error uploading:', error);
+          alert('Upload error. Please try again.');
+        }
+        
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close().catch(err => {
             console.log('AudioContext already closed:', err);
@@ -208,7 +240,7 @@ const Record = () => {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     if (mediaRecorderRef.current && (isRecording || isPaused) && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -222,52 +254,6 @@ const Record = () => {
       }
     }
   };
-
-  const uploadAudio = async () => {
-    if (!audioBlob) return;
-
-    setUploading(true);
-    const token = await getAccessToken();
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('audio_file', audioBlob, 'recording.webm');
-    formData.append('original_format', 'webm');
-
-    try {
-      const response = await fetch(`https://service.prestigedelta.com/in-person-encounters/${publicId}/upload-audio/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        // Wait for upload to complete
-        if (result.s3_upload_pending || result.google_upload_pending) {
-          alert('Audio uploaded. Processing may take a few minutes. Please wait...');
-          // In a real app, you'd poll for status
-          setTimeout(() => navigate(`/process/${publicId}`), 10000);
-        } else {
-          navigate(`/process/${publicId}`);
-        }
-      } else {
-        console.error('Upload failed');
-        alert('Upload failed');
-      }
-    } catch (error) {
-      console.error('Error uploading:', error);
-      alert('Upload error');
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -447,17 +433,6 @@ const Record = () => {
                   fullWidth={isMobile}
                 >
                   Re-record
-                </Button>
-                <Button
-                  variant="contained"
-                  size="large"
-                  startIcon={<UploadIcon />}
-                  onClick={uploadAudio}
-                  disabled={uploading}
-                  fullWidth={isMobile}
-                  sx={{ flex: 1 }}
-                >
-                  {uploading ? 'Uploading...' : 'Upload & Process'}
                 </Button>
               </Box>
             </Box>
