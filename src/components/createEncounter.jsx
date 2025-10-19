@@ -55,7 +55,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     patient_first_name: '',
     patient_last_name: '',
-    patient_phone: ''
+    patient_phone_number: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -90,7 +90,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
 
     try {
       // Convert phone number to international format if needed
-      const convertedPhone = convertToInternationalFormat(formData.patient_phone.trim());
+      const convertedPhone = convertToInternationalFormat(formData.patient_phone_number.trim());
       
       const response = await fetch('https://service.prestigedelta.com/in-person-encounters/', {
         method: 'POST',
@@ -101,7 +101,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
         body: JSON.stringify({
           patient_first_name: formData.patient_first_name.trim(),
           patient_last_name: formData.patient_last_name.trim(),
-          patient_phone: convertedPhone,
+          patient_phone_number: convertedPhone,
           encounter_date: new Date().toISOString(),
           metadata: {}
         })
@@ -113,7 +113,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
         setFormData({
           patient_first_name: '',
           patient_last_name: '',
-          patient_phone: ''
+          patient_phone_number: ''
         });
         // Close modal and navigate
         if (onSuccess) {
@@ -138,7 +138,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
       setFormData({
         patient_first_name: '',
         patient_last_name: '',
-        patient_phone: ''
+        patient_phone_number: ''
       });
       setError('');
       onClose();
@@ -227,15 +227,15 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
 
             <TextField
               label="Phone Number"
-              name="patient_phone"
-              value={formData.patient_phone}
+              name="patient_phone_number"
+              value={formData.patient_phone_number}
               onChange={handleChange}
               onBlur={(e) => {
                 const converted = convertToInternationalFormat(e.target.value);
                 if (converted !== e.target.value) {
                   setFormData(prev => ({
                     ...prev,
-                    patient_phone: converted
+                    patient_phone_number: converted
                   }));
                 }
               }}

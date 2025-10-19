@@ -54,7 +54,7 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
   const [formData, setFormData] = useState({
     patient_first_name: '',
     patient_last_name: '',
-    patient_phone: ''
+    patient_phone_number: ''
   });
 
   const handleChange = (e) => {
@@ -87,7 +87,7 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
 
     try {
       // Convert phone number to international format if needed
-      const convertedPhone = convertToInternationalFormat(formData.patient_phone);
+      const convertedPhone = convertToInternationalFormat(formData.patient_phone_number);
       
       // Build request body based on whether we have a medical_review_id
       const requestBody = medicalReviewId 
@@ -95,7 +95,7 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
         : {
             patient_first_name: formData.patient_first_name || '',
             patient_last_name: formData.patient_last_name || '',
-            patient_phone: convertedPhone || '',
+            patient_phone_number: convertedPhone || '',
             encounter_date: new Date().toISOString(),
             metadata: {}
           };
@@ -115,7 +115,7 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
         setFormData({
           patient_first_name: '',
           patient_last_name: '',
-          patient_phone: ''
+          patient_phone_number: ''
         });
         // Call success callback with encounter data
         if (onSuccess) {
@@ -139,7 +139,7 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
       setFormData({
         patient_first_name: '',
         patient_last_name: '',
-        patient_phone: ''
+        patient_phone_number: ''
       });
       setError('');
       onClose();
@@ -221,15 +221,15 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
 
           <TextField
             label="Phone Number (Optional)"
-            name="patient_phone"
-            value={formData.patient_phone}
+            name="patient_phone_number"
+            value={formData.patient_phone_number}
             onChange={handleChange}
             onBlur={(e) => {
               const converted = convertToInternationalFormat(e.target.value);
               if (converted !== e.target.value) {
                 setFormData(prev => ({
                   ...prev,
-                  patient_phone: converted
+                  patient_phone_number: converted
                 }));
               }
             }}

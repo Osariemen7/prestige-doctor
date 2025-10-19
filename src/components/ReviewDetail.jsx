@@ -289,7 +289,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         send_summary: false,
         patient_first_name: patientData.first_name,
         patient_last_name: patientData.last_name,
-        patient_phone: convertedPhone,
+        patient_phone_number: convertedPhone,
         patient_email: patientData.email,
         patient_summary: review.patient_summary || ''
       };
@@ -408,7 +408,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         create_patient: true,
         patient_first_name: patientData.first_name || '',
         patient_last_name: patientData.last_name || '',
-        patient_phone: convertedPhone || '',
+        patient_phone_number: convertedPhone || '',
         patient_email: patientData.email || '',
         patient_summary: review.patient_summary || 'Your medical encounter has been completed. Please follow the treatment plan provided.'
       };
