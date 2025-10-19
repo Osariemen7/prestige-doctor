@@ -123,11 +123,11 @@ const ProviderDashboard = () => {
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          bgcolor: 'white',
         }}
       >
-        <CircularProgress size={60} sx={{ color: 'white', mb: 3 }} />
-        <Typography variant="h6" sx={{ color: 'white', fontWeight: 500 }}>
+        <CircularProgress size={60} sx={{ color: 'primary.main', mb: 3 }} />
+        <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 500 }}>
           Loading Dashboard...
         </Typography>
       </Box>
