@@ -28,7 +28,7 @@ const App = () => {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register/:referral_code?" element={<RegisterPage />} />
             <Route path="/doctor-register" element={<DoctorRegister />} />
             <Route path="/doctor-login" element={<DoctorLogin />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -23,6 +23,30 @@ import {
   PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
 
+const convertToInternationalFormat = (phoneNumber) => {
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return phoneNumber;
+  }
+
+  const trimmed = phoneNumber.trim();
+
+  // If already in international format (+234...), return as is
+  if (trimmed.startsWith('+')) {
+    return trimmed;
+  }
+
+  // Convert Nigerian national format (080..., 081..., 090..., 070..., etc.) to international format
+  const nigerianRegex = /^0([789]\d{9})$/;
+  const match = trimmed.match(nigerianRegex);
+
+  if (match) {
+    return `+234${match[1]}`;
+  }
+
+  // Return original if no conversion needed
+  return trimmed;
+};
+
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
@@ -65,6 +89,9 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
     }
 
     try {
+      // Convert phone number to international format if needed
+      const convertedPhone = convertToInternationalFormat(formData.patient_phone.trim());
+      
       const response = await fetch('https://service.prestigedelta.com/in-person-encounters/', {
         method: 'POST',
         headers: {
@@ -74,7 +101,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
         body: JSON.stringify({
           patient_first_name: formData.patient_first_name.trim(),
           patient_last_name: formData.patient_last_name.trim(),
-          patient_phone: formData.patient_phone.trim(),
+          patient_phone: convertedPhone,
           encounter_date: new Date().toISOString(),
           metadata: {}
         })
@@ -203,10 +230,19 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
               name="patient_phone"
               value={formData.patient_phone}
               onChange={handleChange}
+              onBlur={(e) => {
+                const converted = convertToInternationalFormat(e.target.value);
+                if (converted !== e.target.value) {
+                  setFormData(prev => ({
+                    ...prev,
+                    patient_phone: converted
+                  }));
+                }
+              }}
               fullWidth
               variant="outlined"
-              placeholder="+234..."
-              helperText="Optional - you can add this later when finalizing the encounter"
+              placeholder="+234... or 080..."
+              helperText="Optional - enter in national format (080...) or international format (+234...) - will be converted automatically"
             />
           </Stack>
 

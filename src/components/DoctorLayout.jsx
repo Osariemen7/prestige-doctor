@@ -23,7 +23,9 @@ import {
   Assessment as DashboardIcon,
   Logout as LogoutIcon,
   LocalHospital as HospitalIcon,
+  PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
+import InviteColleagueModal from './InviteColleagueModal';
 
 const drawerWidthExpanded = 280;
 const drawerWidthCollapsed = 72;
@@ -31,6 +33,7 @@ const drawerWidthCollapsed = 72;
 const DoctorLayout = ({ children }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -220,6 +223,55 @@ const DoctorLayout = ({ children }) => {
 
       <Divider />
 
+      {/* Invite Colleague Button */}
+      <Box sx={{ p: expanded ? 2 : 1 }}>
+        {expanded ? (
+          <ListItemButton
+            onClick={() => setInviteModalOpen(true)}
+            sx={{
+              borderRadius: 2,
+              py: 1.5,
+              color: 'primary.main',
+              animation: 'pulse 3s infinite',
+              willChange: 'opacity',
+              '&:hover': {
+                bgcolor: alpha(theme.palette.primary.main, 0.08),
+              },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 40, color: 'primary.main' }}>
+              <PersonAddIcon />
+            </ListItemIcon>
+            <ListItemText
+              primary="Invite Colleague"
+              primaryTypographyProps={{
+                fontWeight: 600,
+                fontSize: '0.95rem',
+              }}
+            />
+          </ListItemButton>
+        ) : (
+          <Tooltip title="Invite Colleague" placement="right" arrow>
+            <IconButton
+              onClick={() => setInviteModalOpen(true)}
+              sx={{
+                width: '100%',
+                color: 'primary.main',
+                animation: 'pulse 3s infinite',
+                willChange: 'opacity',
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.primary.main, 0.08),
+                },
+              }}
+            >
+              <PersonAddIcon />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+
+      <Divider />
+
       {/* Logout Button */}
       <Box sx={{ p: expanded ? 2 : 1 }}>
         {expanded ? (
@@ -380,6 +432,12 @@ const DoctorLayout = ({ children }) => {
       >
         {children}
       </Box>
+
+      {/* Invite Colleague Modal */}
+      <InviteColleagueModal 
+        open={inviteModalOpen} 
+        handleClose={() => setInviteModalOpen(false)} 
+      />
     </Box>
   );
 };

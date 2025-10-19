@@ -24,6 +24,30 @@ import {
   Send as SendIcon
 } from '@mui/icons-material';
 
+const convertToInternationalFormat = (phoneNumber) => {
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return phoneNumber;
+  }
+
+  const trimmed = phoneNumber.trim();
+
+  // If already in international format (+234...), return as is
+  if (trimmed.startsWith('+')) {
+    return trimmed;
+  }
+
+  // Convert Nigerian national format (080..., 081..., 090..., 070..., etc.) to international format
+  const nigerianRegex = /^0([789]\d{9})$/;
+  const match = trimmed.match(nigerianRegex);
+
+  if (match) {
+    return `+234${match[1]}`;
+  }
+
+  // Return original if no conversion needed
+  return trimmed;
+};
+
 const PatientDetailsModal = ({ 
   open, 
   onClose, 
@@ -102,10 +126,19 @@ const PatientDetailsModal = ({
   const handleSubmit = (e) => {
     e.preventDefault();
     
+    // Convert phone number to international format if needed
+    const convertedPhoneNumber = convertToInternationalFormat(formData.patient_phone_number);
+    
+    // Update form data with converted phone number
+    const updatedFormData = {
+      ...formData,
+      patient_phone_number: convertedPhoneNumber
+    };
+    
     // Validate phone number format if provided
-    if (formData.patient_phone_number.trim()) {
+    if (convertedPhoneNumber.trim()) {
       const phoneRegex = /^\+\d{1,4}\d{6,14}$/;
-      if (!phoneRegex.test(formData.patient_phone_number.trim())) {
+      if (!phoneRegex.test(convertedPhoneNumber.trim())) {
         setError('Phone number must be in international format (e.g., +1234567890)');
         return;
       }
@@ -113,7 +146,7 @@ const PatientDetailsModal = ({
     
     // Call parent submit handler
     onSubmit({
-      ...formData,
+      ...updatedFormData,
       save_documentation: saveDocumentation
     });
   };
@@ -199,13 +232,22 @@ const PatientDetailsModal = ({
           name="patient_phone_number"
           value={formData.patient_phone_number}
           onChange={handleChange}
+          onBlur={(e) => {
+            const converted = convertToInternationalFormat(e.target.value);
+            if (converted !== e.target.value) {
+              setFormData(prev => ({
+                ...prev,
+                patient_phone_number: converted
+              }));
+            }
+          }}
           fullWidth
           disabled={loading || hasExistingPhone}
           InputProps={{
             readOnly: hasExistingPhone
           }}
-          placeholder="+234XXXXXXXXXX"
-          helperText="Optional - must be in international format (e.g., +1234567890) for saving documentation"
+          placeholder="+234XXXXXXXXXX or 080XXXXXXXXX"
+          helperText="Optional - enter in national format (080...) or international format (+234...) for saving documentation"
         />
 
         {/* Save Documentation Toggle */}

@@ -38,6 +38,30 @@ import RecordingModal from './RecordingModal';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
 
+const convertToInternationalFormat = (phoneNumber) => {
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return phoneNumber;
+  }
+
+  const trimmed = phoneNumber.trim();
+
+  // If already in international format (+234...), return as is
+  if (trimmed.startsWith('+')) {
+    return trimmed;
+  }
+
+  // Convert Nigerian national format (080..., 081..., 090..., 070..., etc.) to international format
+  const nigerianRegex = /^0([789]\d{9})$/;
+  const match = trimmed.match(nigerianRegex);
+
+  if (match) {
+    return `+234${match[1]}`;
+  }
+
+  // Return original if no conversion needed
+  return trimmed;
+};
+
 const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const { publicId: urlPublicId } = useParams();
   const publicId = urlPublicId;
@@ -256,13 +280,16 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     const encounter = review.in_person_encounters[0];
 
     try {
+      // Convert phone number to international format if needed
+      const convertedPhone = convertToInternationalFormat(patientData.phone);
+      
       const finalizePayload = {
         note_payload: review.doctor_note || {},
         create_patient: true,
         send_summary: false,
         patient_first_name: patientData.first_name,
         patient_last_name: patientData.last_name,
-        patient_phone: patientData.phone,
+        patient_phone: convertedPhone,
         patient_email: patientData.email,
         patient_summary: review.patient_summary || ''
       };
@@ -312,13 +339,16 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         return;
       }
 
+      // Convert phone number to international format if needed
+      const convertedPhone = convertToInternationalFormat(patientData.phone);
+
       const updatePayload = {
         note_payload: editedNote,
         send_summary: false, // Don't send summary when just updating notes
         create_patient: false, // Don't create patient when just updating notes
         patient_first_name: patientData.first_name || '',
         patient_last_name: patientData.last_name || '',
-        patient_phone_number: patientData.phone || '',
+        patient_phone_number: convertedPhone || '',
         patient_email: patientData.email || '',
         patient_summary: review.patient_summary || ''
       };
@@ -369,13 +399,16 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     try {
       const token = await getAccessToken();
 
+      // Convert phone number to international format if needed
+      const convertedPhone = convertToInternationalFormat(patientData.phone);
+
       const finalizePayload = {
         note_payload: review.doctor_note,
         send_summary: true,
         create_patient: true,
         patient_first_name: patientData.first_name || '',
         patient_last_name: patientData.last_name || '',
-        patient_phone: patientData.phone || '',
+        patient_phone: convertedPhone || '',
         patient_email: patientData.email || '',
         patient_summary: review.patient_summary || 'Your medical encounter has been completed. Please follow the treatment plan provided.'
       };
@@ -950,7 +983,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 fullWidth
                 value={patientData.phone}
                 onChange={(e) => setPatientData({ ...patientData, phone: e.target.value })}
-                placeholder="+2347012345678"
+                onBlur={(e) => {
+                  const converted = convertToInternationalFormat(e.target.value);
+                  if (converted !== e.target.value) {
+                    setPatientData({ ...patientData, phone: converted });
+                  }
+                }}
+                placeholder="+2347012345678 or 08012345678"
+                helperText="Enter in national format (080...) or international format (+234...) - will be converted automatically"
                 required
               />
             </Grid>

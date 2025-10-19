@@ -226,8 +226,8 @@ const DoctorRegister = () => {
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#92400e', textAlign: 'left' }}>
                     • Ask a colleague who uses our platform to share their referral link<br/>
-                    • They can find their referral link in the "Get Free Credits" section<br/>
-                    • Both you and your colleague will receive bonus credits!
+                    • They can find their referral link in the "Invite Colleague" section<br/>
+                    • Your colleague earns NGN 10,000 when you reach 10 subscribing patients!
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
@@ -302,12 +302,12 @@ const DoctorRegister = () => {
                         🎉 You've been invited by Dr. {referrerDetails.first_name} {referrerDetails.last_name}!
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
-                        Join our exclusive medical professionals community and get $5 in credits when you complete your first consultation.
+                        Join our exclusive medical professionals community and practice on your terms with your own patient base, generating recurring revenue through your clinic.
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                         <StarsIcon sx={{ color: '#FFD700', fontSize: 20 }} />
                         <Typography variant="body2" sx={{ color: '#2563EB', fontWeight: 600 }}>
-                          Special Invitation Bonus: $5 Credits
+                          Build Your Practice, Own Your Revenue
                         </Typography>
                         <StarsIcon sx={{ color: '#FFD700', fontSize: 20 }} />
                       </Box>
@@ -553,7 +553,7 @@ const DoctorRegister = () => {
                 border: '1px solid #e3f2fd' 
               }}>
                 <Typography variant="body2" sx={{ color: '#2563EB', textAlign: 'center' }}>
-                  🎁 By registering through this invitation, you'll receive $5 in credits upon completing your first consultation!
+                  � Welcome to our exclusive medical professionals community! Start building your practice and patient base today.
                 </Typography>
               </Box>
             </Paper>

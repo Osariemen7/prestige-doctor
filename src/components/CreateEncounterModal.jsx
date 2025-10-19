@@ -22,6 +22,30 @@ import {
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 
+const convertToInternationalFormat = (phoneNumber) => {
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return phoneNumber;
+  }
+
+  const trimmed = phoneNumber.trim();
+
+  // If already in international format (+234...), return as is
+  if (trimmed.startsWith('+')) {
+    return trimmed;
+  }
+
+  // Convert Nigerian national format (080..., 081..., 090..., 070..., etc.) to international format
+  const nigerianRegex = /^0([789]\d{9})$/;
+  const match = trimmed.match(nigerianRegex);
+
+  if (match) {
+    return `+234${match[1]}`;
+  }
+
+  // Return original if no conversion needed
+  return trimmed;
+};
+
 const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -62,13 +86,16 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
     }
 
     try {
+      // Convert phone number to international format if needed
+      const convertedPhone = convertToInternationalFormat(formData.patient_phone);
+      
       // Build request body based on whether we have a medical_review_id
       const requestBody = medicalReviewId 
         ? { medical_review_id: medicalReviewId }
         : {
             patient_first_name: formData.patient_first_name || '',
             patient_last_name: formData.patient_last_name || '',
-            patient_phone: formData.patient_phone || '',
+            patient_phone: convertedPhone || '',
             encounter_date: new Date().toISOString(),
             metadata: {}
           };
@@ -197,11 +224,20 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
             name="patient_phone"
             value={formData.patient_phone}
             onChange={handleChange}
+            onBlur={(e) => {
+              const converted = convertToInternationalFormat(e.target.value);
+              if (converted !== e.target.value) {
+                setFormData(prev => ({
+                  ...prev,
+                  patient_phone: converted
+                }));
+              }
+            }}
             fullWidth
             type="tel"
             disabled={loading}
-            placeholder="+234..."
-            helperText="You can add this later when finalizing the encounter"
+            placeholder="+234... or 080..."
+            helperText="Enter in national format (080...) or international format (+234...) - will be converted automatically"
           />
         </Stack>
       )}
