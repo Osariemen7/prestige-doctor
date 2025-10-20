@@ -291,7 +291,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_last_name: patientData.last_name,
         patient_phone_number: convertedPhone,
         patient_email: patientData.email,
-        patient_summary: review.patient_summary || ''
+        patient_summary: review.patient_summary || '',
+        run_finalize_workflow: true
       };
 
       const response = await fetch(
@@ -350,7 +351,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_last_name: patientData.last_name || '',
         patient_phone_number: convertedPhone || '',
         patient_email: patientData.email || '',
-        patient_summary: review.patient_summary || ''
+        patient_summary: review.patient_summary || '',
+        run_finalize_workflow: false
       };
 
       const response = await fetch(
@@ -410,7 +412,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_last_name: patientData.last_name || '',
         patient_phone_number: convertedPhone || '',
         patient_email: patientData.email || '',
-        patient_summary: review.patient_summary || 'Your medical encounter has been completed. Please follow the treatment plan provided.'
+        patient_summary: review.patient_summary || 'Your medical encounter has been completed. Please follow the treatment plan provided.',
+        run_finalize_workflow: true
       };
 
       const response = await fetch(
@@ -880,6 +883,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                   startIcon={<EditIcon />}
                   onClick={handleEditNote}
                   size="small"
+                  disabled={review.is_finalized}
                 >
                   Edit Note
                 </Button>

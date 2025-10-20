@@ -452,6 +452,13 @@ const RecordingModal = ({
         audioContextRef.current.close().catch(() => {});
       }
       
+      // Check if recording is at least 60 seconds
+      const recordingDuration = (15 * 60) - timeRemaining; // 900 - timeRemaining
+      if (recordingDuration < 60) {
+        setError('Recording must be at least 60 seconds long. Please record for a longer duration.');
+        return;
+      }
+      
       // Move to patient details step instead of uploading immediately
       setStep(1);
     }
@@ -863,6 +870,7 @@ const RecordingModal = ({
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body2">
                 • <strong>Microphone Permission:</strong> Click "Allow" when prompted for microphone access<br />
+                • <strong>Minimum Duration:</strong> Recordings must be at least 60 seconds long<br />
                 • Recording will automatically stop after 15 minutes<br />
                 • You can pause and resume anytime<br />
                 • Stopping uploads and processes in the background so you can keep working
