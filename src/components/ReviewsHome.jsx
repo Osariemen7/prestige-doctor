@@ -230,7 +230,7 @@ const ReviewsHome = () => {
             fontSize: '0.9rem',
           }}
         >
-          New Encounter
+          Review New Patient
         </Button>
 
         {/* Search */}
@@ -409,7 +409,7 @@ const ReviewsHome = () => {
           px: 3,
         }}
       >
-        Create New Encounter
+        Review New Patient
       </Button>
     </Box>
   );

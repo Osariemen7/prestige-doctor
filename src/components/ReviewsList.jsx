@@ -278,7 +278,7 @@ const ReviewsList = () => {
               disabled={workflowIsActive}
               sx={{ flex: isMobile ? '1 1 100%' : '1 1 auto' }}
             >
-              {workflowIsActive ? 'Encounter In Progress' : '1. Create Encounter'}
+              {workflowIsActive ? 'Encounter In Progress' : '1. Review New Patient'}
             </Button>
             <Button
               variant="contained"
@@ -358,7 +358,7 @@ const ReviewsList = () => {
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 3 }}>
                 {filter !== 'all' 
                   ? 'Try adjusting your filters'
-                  : 'Start by creating a new encounter'}
+                  : 'Start by reviewing a new patient'}
               </Typography>
               {filter === 'all' && (
                 <Button
@@ -367,7 +367,7 @@ const ReviewsList = () => {
                   onClick={() => setShowCreateModal(true)}
                   size="large"
                 >
-                  Create Your First Encounter
+                  Review New Patient
                 </Button>
               )}
             </Box>

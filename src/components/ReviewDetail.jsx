@@ -291,7 +291,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_last_name: patientData.last_name,
         patient_phone_number: convertedPhone,
         patient_email: patientData.email,
-        patient_summary: review.patient_summary || '',
         run_finalize_workflow: true
       };
 
@@ -351,7 +350,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_last_name: patientData.last_name || '',
         patient_phone_number: convertedPhone || '',
         patient_email: patientData.email || '',
-        patient_summary: review.patient_summary || '',
         run_finalize_workflow: false
       };
 
@@ -412,7 +410,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_last_name: patientData.last_name || '',
         patient_phone_number: convertedPhone || '',
         patient_email: patientData.email || '',
-        patient_summary: review.patient_summary || 'Your medical encounter has been completed. Please follow the treatment plan provided.',
         run_finalize_workflow: true
       };
 
@@ -747,7 +744,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               {currentEncounter 
                 ? `Encounter ID: ${currentEncounter.public_id.substring(0, 8)}... - Now record the consultation`
                 : hasEncounter 
-                  ? 'This review has an encounter. You can now save it.' 
+                  ? (review.doctor_note ? 'This review has an encounter. You can now save it.' : 'This review has an encounter but no documentation. Record a new encounter to create documentation.')
                   : 'Create and process an encounter before saving this review'}
             </Typography>
             {(currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing') && (
@@ -804,7 +801,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                   variant="contained"
                   startIcon={<CheckCircleIcon />}
                   onClick={handleFinalize}
-                  disabled={saving || (!hasEncounter && !currentEncounter) || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
+                  disabled={saving || (!hasEncounter && !currentEncounter) || !review.doctor_note || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
                   fullWidth
                   sx={{ 
                     bgcolor: 'success.main',
@@ -919,24 +916,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         </Box>
       )}
 
-      {/* Patient Summary */}
-      {review.patient_summary && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
-            📋 Patient Summary
-          </Typography>
-          <Card elevation={2} sx={{ borderLeft: '4px solid', borderColor: 'secondary.main' }}>
-            <CardContent sx={{ p: { xs: 2, md: 3 }, bgcolor: 'grey.50' }}>
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
-                {review.patient_summary}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Box>
-      )}
-
       {/* No Content Warning */}
-      {!review.doctor_note && !review.patient_summary && (
+      {!review.doctor_note && (
         <Card sx={{ mb: 3, bgcolor: 'warning.lighter' }}>
           <CardContent>
             <Box display="flex" gap={2} alignItems="center">
