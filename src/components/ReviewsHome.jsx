@@ -372,6 +372,7 @@ const ReviewsHome = () => {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
+        width: '100%',
         p: 3,
         textAlign: 'center',
         px: 2,
@@ -503,6 +504,30 @@ const ReviewsHome = () => {
           maxWidth: '100%',
           overflowX: 'hidden',
         }}>
+          {/* Workflow Stepper */}
+          {workflowStage > 0 && (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              p: 2,
+              bgcolor: 'background.paper',
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+            }}>
+              <WorkflowStepper
+                stage={workflowStage}
+                reviewId={workflowReviewId}
+                onClose={resetWorkflow}
+                onNavigate={() => {
+                  if (workflowReviewId) {
+                    handleReviewSelect(workflowReviewId);
+                  }
+                  resetWorkflow();
+                }}
+              />
+            </Box>
+          )}
+
           {selectedReviewId ? (
             <ReviewDetail embedded onUpdate={fetchReviews} />
           ) : (
@@ -510,21 +535,6 @@ const ReviewsHome = () => {
           )}
         </Box>
       </Box>
-
-      {/* Workflow Stepper */}
-      {workflowStage > 0 && (
-        <WorkflowStepper
-          stage={workflowStage}
-          reviewId={workflowReviewId}
-          onClose={resetWorkflow}
-          onNavigate={() => {
-            if (workflowReviewId) {
-              handleReviewSelect(workflowReviewId);
-            }
-            resetWorkflow();
-          }}
-        />
-      )}
 
       {/* Modals */}
       <CreateEncounterModal
