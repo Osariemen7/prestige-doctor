@@ -742,7 +742,9 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             </Typography>
             <Typography variant="body2" color="white" sx={{ mb: 2, opacity: 0.9 }}>
               {currentEncounter 
-                ? `Encounter ID: ${currentEncounter.public_id.substring(0, 8)}... - Now record the consultation`
+                ? (review.doctor_note 
+                    ? `Encounter ID: ${currentEncounter.public_id.substring(0, 8)}... - Documentation ready. Record a new encounter or finalize the current one.`
+                    : `Encounter ID: ${currentEncounter.public_id.substring(0, 8)}... - Now record the consultation`)
                 : hasEncounter 
                   ? (review.doctor_note ? 'This review has an encounter. You can now save it.' : 'This review has an encounter but no documentation. Record a new encounter to create documentation.')
                   : 'Create and process an encounter before saving this review'}
