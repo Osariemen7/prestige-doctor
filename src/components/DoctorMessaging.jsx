@@ -47,6 +47,8 @@ const DoctorMessaging = () => {
   const [templatePreview, setTemplatePreview] = useState(null);
   const [activeTab, setActiveTab] = useState('all'); // 'all' or 'patients'
   const [selectedConditions, setSelectedConditions] = useState([]);
+  const [customCondition, setCustomCondition] = useState('');
+  const [clinicalHistory, setClinicalHistory] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const messagesEndRef = useRef(null);
@@ -201,21 +203,38 @@ const DoctorMessaging = () => {
       return;
     }
 
+    // Process chronic conditions - replace "Other" with custom condition if provided
+    let finalConditions = [...selectedConditions];
+    if (selectedConditions.includes('Other') && customCondition.trim()) {
+      finalConditions = finalConditions.filter(c => c !== 'Other');
+      finalConditions.push(customCondition.trim());
+    } else if (selectedConditions.includes('Other') && !customCondition.trim()) {
+      alert('Please specify the other condition');
+      return;
+    }
+
     try {
       setLoading(true);
       const patientData = {
         phone_number: formatPhoneNumber(phoneNumber),
-        chronic_conditions: selectedConditions
+        chronic_conditions: finalConditions
       };
 
       // Add names only if provided
       if (firstName) patientData.first_name = firstName;
       if (lastName) patientData.last_name = lastName;
 
+      // Add clinical history if provided
+      if (clinicalHistory.trim()) {
+        patientData.notes = clinicalHistory.trim();
+      }
+
       await createPatient(patientData);
       await loadPatients();
       setShowNewPatientModal(false);
       setSelectedConditions([]);
+      setCustomCondition('');
+      setClinicalHistory('');
       alert('Patient created successfully!');
     } catch (error) {
       console.error('Error creating patient:', error);
@@ -805,6 +824,10 @@ const DoctorMessaging = () => {
                       onClick={() => {
                         if (selectedConditions.includes(condition)) {
                           setSelectedConditions(selectedConditions.filter(c => c !== condition));
+                          // Clear custom condition if "Other" is deselected
+                          if (condition === 'Other') {
+                            setCustomCondition('');
+                          }
                         } else {
                           setSelectedConditions([...selectedConditions, condition]);
                         }
@@ -833,9 +856,52 @@ const DoctorMessaging = () => {
                 </div>
                 {selectedConditions.length > 0 && (
                   <div style={{ marginTop: '8px', fontSize: '13px', color: '#2563eb' }}>
-                    Selected: {selectedConditions.join(', ')}
+                    Selected: {selectedConditions.map(c => c === 'Other' && customCondition.trim() ? customCondition.trim() : c).join(', ')}
                   </div>
                 )}
+                {selectedConditions.includes('Other') && (
+                  <div style={{ marginTop: '12px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '4px', display: 'block' }}>
+                      Specify Other Condition *
+                    </label>
+                    <input
+                      type="text"
+                      value={customCondition}
+                      onChange={(e) => setCustomCondition(e.target.value)}
+                      placeholder="Enter the specific condition..."
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        marginTop: '4px'
+                      }}
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label>Clinical History</label>
+                <textarea
+                  value={clinicalHistory}
+                  onChange={(e) => setClinicalHistory(e.target.value)}
+                  placeholder="Describe the patient's condition in detail, treatment goals, and current medications..."
+                  style={{
+                    width: '100%',
+                    minHeight: '120px',
+                    padding: '12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <small style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                  Include condition details, care goals, and current medications to help set up the patient's care plan
+                </small>
               </div>
               <div className="form-actions">
                 <button
@@ -844,6 +910,8 @@ const DoctorMessaging = () => {
                   onClick={() => {
                     setShowNewPatientModal(false);
                     setSelectedConditions([]);
+                    setCustomCondition('');
+                    setClinicalHistory('');
                   }}
                 >
                   Cancel

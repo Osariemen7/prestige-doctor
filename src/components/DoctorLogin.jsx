@@ -25,8 +25,10 @@ import GooglePhonePrompt from './GooglePhonePrompt';
 const DoctorLogin = () => {
   const [formData, setFormData] = useState({
     email: '',
+    phone_number: '',
     password: ''
   });
+  const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'phone'
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
@@ -43,20 +45,31 @@ const DoctorLogin = () => {
     setLoading(true);
     setSnackbar({ ...snackbar, open: false });
 
-    if (!formData.email || !formData.password) {
+    const identifier = loginMethod === 'email' ? formData.email : formData.phone_number;
+    if (!identifier || !formData.password) {
       setSnackbar({ open: true, message: 'Please fill in all fields.', severity: 'warning' });
       setLoading(false);
       return;
     }
 
     try {
+      const payload = {
+        password: formData.password
+      };
+      
+      if (loginMethod === 'email') {
+        payload.email = formData.email;
+      } else {
+        payload.phone_number = formData.phone_number;
+      }
+
       const response = await fetch('https://service.prestigedelta.com/login/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
@@ -244,7 +257,7 @@ const DoctorLogin = () => {
 
             <Divider sx={{ my: 3 }}>
               <Chip 
-                label="or continue with email" 
+                label="or continue with credentials" 
                 sx={{ 
                   bgcolor: '#f8f9fa',
                   color: '#666',
@@ -253,30 +266,72 @@ const DoctorLogin = () => {
               />
             </Divider>
 
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <Button
+                variant={loginMethod === 'email' ? 'contained' : 'outlined'}
+                onClick={() => setLoginMethod('email')}
+                sx={{ mr: 1, borderRadius: 2 }}
+                size="small"
+              >
+                Email
+              </Button>
+              <Button
+                variant={loginMethod === 'phone' ? 'contained' : 'outlined'}
+                onClick={() => setLoginMethod('phone')}
+                sx={{ borderRadius: 2 }}
+                size="small"
+              >
+                Phone
+              </Button>
+            </Box>
+
             <Box component="form" onSubmit={handleSubmit} sx={{ 
               display: 'flex', 
               flexDirection: 'column', 
               gap: 2.5 
             }}>
-              <TextField
-                name="email"
-                label="Email Address"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                fullWidth
-                size="small"
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: '0 2px 8px rgba(37,99,235,0.1)'
+              {loginMethod === 'email' ? (
+                <TextField
+                  name="email"
+                  label="Email Address"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                  fullWidth
+                  size="small"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        boxShadow: '0 2px 8px rgba(37,99,235,0.1)'
+                      }
                     }
-                  }
-                }}
-              />
+                  }}
+                />
+              ) : (
+                <TextField
+                  name="phone_number"
+                  label="Phone Number"
+                  type="tel"
+                  value={formData.phone_number}
+                  onChange={handleInputChange}
+                  required
+                  fullWidth
+                  size="small"
+                  placeholder="+1234567890"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        boxShadow: '0 2px 8px rgba(37,99,235,0.1)'
+                      }
+                    }
+                  }}
+                />
+              )}
               <TextField
                 name="password"
                 label="Password"

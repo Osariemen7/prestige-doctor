@@ -72,9 +72,11 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
 
   const validatePassword = (pwd) => {
@@ -146,16 +148,32 @@ const ForgotPassword = () => {
       setForgotPasswordMessage('Password must be at least 8 characters and include lowercase, uppercase, number and special character.');
       return;
     }
+    if (newPassword !== confirmPassword) {
+      setForgotPasswordMessage('Passwords do not match.');
+      return;
+    }
     setLoading(true);
     setForgotPasswordMessage('');
     try {
+      const payload = {
+        otp_code: otp,
+        new_password: newPassword,
+        confirm_password: confirmPassword
+      };
+      
+      if (authMethod === 'phone') {
+        payload.phone_number = phoneNumber;
+      } else {
+        payload.email = email;
+      }
+      
       const response = await fetch('https://service.prestigedelta.com/resetpassword/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json'
         },
-        body: JSON.stringify({ otp, new_password: newPassword })
+        body: JSON.stringify(payload)
       });
       const result = await response.json();
       if (response.status === 200) {
@@ -355,6 +373,35 @@ const ForgotPassword = () => {
                           )
                         }}
                         helperText="Password must be at least 8 characters with lowercase, uppercase, number and special character"
+                        sx={{ mb: 2 }}
+                      />
+                      
+                      <TextField 
+                        fullWidth 
+                        label="Confirm Password" 
+                        value={confirmPassword} 
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        variant="outlined" 
+                        margin="normal" 
+                        type={showConfirmPassword ? "text" : "password"}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <KeyIcon color="primary" />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                edge="end"
+                              >
+                                {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                              </IconButton>
+                            </InputAdornment>
+                          )
+                        }}
+                        helperText="Re-enter your password to confirm"
                         sx={{ mb: 2 }}
                       />
                       

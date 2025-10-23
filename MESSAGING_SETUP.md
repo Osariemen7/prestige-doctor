@@ -29,6 +29,11 @@
 - **Chronic Conditions**: Select from predefined list (tags)
   - No manual typing required
   - Multiple selections allowed
+  - When "Other" is selected, a text field appears for custom condition entry
+  - "Other" is replaced with the custom condition before sending to backend
+- **Clinical History**: Optional detailed notes for care planning
+  - Include condition details, treatment goals, and current medications
+  - Helps set up the patient's care plan
 
 ### Key Features
 - 📱 Create and manage patients
@@ -59,10 +64,12 @@ src/
 - Smooth animations and transitions
 - Fully responsive (desktop, tablet, mobile)
 
-## � Patient Creation Features
+## 🏥 Patient Creation Features
 - ✅ Phone number validation and formatting
 - ✅ Tag-based chronic condition selection
+- ✅ Custom condition input when "Other" is selected
 - ✅ Flexible name requirements (first OR last)
+- ✅ Clinical history for care planning (condition details, goals, medications)
 - ✅ Clean, intuitive UI
 
 ## ✨ Ready to Test!
