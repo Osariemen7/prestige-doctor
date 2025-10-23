@@ -8,7 +8,8 @@ import {
   Settings,
   Search,
   LogOut,
-  Menu
+  Menu,
+  MessageSquare
 } from 'lucide-react';
 
 const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
@@ -17,6 +18,7 @@ const Sidebar = ({ onNavigate, onLogout, onToggleSidebar }) => {
   
   const menuItems = [
     { icon: <Home size={20} />, text: 'Home', path: '/dashboard' },
+    { icon: <MessageSquare size={20} />, text: 'Patient Messages', path: '/messages' },
     { icon: <Users size={20} />, text: 'Physical Consultation', path: '/consult-ai' },
     { icon: <Activity size={20} />, text: 'Virtual Consultation', path: '/virtual' },
     { icon: <Search size={20} />, text: 'Dr House AI', path: '/ask' },

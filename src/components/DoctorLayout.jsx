@@ -24,6 +24,7 @@ import {
   Logout as LogoutIcon,
   LocalHospital as HospitalIcon,
   PersonAdd as PersonAddIcon,
+  Message as MessageIcon,
 } from '@mui/icons-material';
 import InviteColleagueModal from './InviteColleagueModal';
 
@@ -57,6 +58,12 @@ const DoctorLayout = ({ children }) => {
       description: 'View and manage medical reviews',
       icon: <ReviewsIcon />,
       path: '/reviews',
+    },
+    {
+      text: 'Patient Messages',
+      description: 'Communicate with patients',
+      icon: <MessageIcon />,
+      path: '/messages',
     },
     {
       text: 'Business Dashboard',
@@ -419,14 +426,14 @@ const DoctorLayout = ({ children }) => {
         sx={{
           flexGrow: 1,
           width: '100%',
-          minHeight: '100vh',
+          height: '100vh',
           bgcolor: 'background.default',
           marginLeft: { xs: 0, md: isExpanded ? 0 : `${drawerWidthCollapsed}px` },
           transition: 'margin 0.3s ease',
           // Mobile padding to avoid floating menu button
           pt: { xs: '80px', md: 0 },
           px: { xs: 0, md: 0 },
-          overflowX: 'hidden',
+          overflow: 'hidden',
           maxWidth: '100vw',
         }}
       >

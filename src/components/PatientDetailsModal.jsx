@@ -126,12 +126,22 @@ const PatientDetailsModal = ({
   const handleSubmit = (e) => {
     e.preventDefault();
     
+    // Require at least first name or last name
+    const firstName = formData.patient_first_name.trim();
+    const lastName = formData.patient_last_name.trim();
+    if (!firstName && !lastName) {
+      setError('Please provide at least a first name or last name.');
+      return;
+    }
+    
     // Convert phone number to international format if needed
     const convertedPhoneNumber = convertToInternationalFormat(formData.patient_phone_number);
     
     // Update form data with converted phone number
     const updatedFormData = {
       ...formData,
+      patient_first_name: firstName,
+      patient_last_name: lastName,
       patient_phone_number: convertedPhoneNumber
     };
     
