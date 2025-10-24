@@ -62,7 +62,7 @@ const RecordingModal = ({
   const [step, setStep] = useState(0); // 0: input selection/recording, 1: patient-details
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(15 * 60); // 15 minutes
+  const [timeRemaining, setTimeRemaining] = useState(30 * 60); // 30 minutes
   const [pauseWarning, setPauseWarning] = useState(false);
   const [error, setError] = useState(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
@@ -453,7 +453,7 @@ const RecordingModal = ({
       }
       
       // Check if recording is at least 60 seconds
-      const recordingDuration = (15 * 60) - timeRemaining; // 900 - timeRemaining
+      const recordingDuration = (30 * 60) - timeRemaining; // 1800 - timeRemaining
       if (recordingDuration < 60) {
         setError('Recording must be at least 60 seconds long. Please record for a longer duration.');
         return;
@@ -753,7 +753,7 @@ const RecordingModal = ({
     setStep(0);
     setIsRecording(false);
     setIsPaused(false);
-    setTimeRemaining(15 * 60);
+    setTimeRemaining(30 * 60);
     setPauseWarning(false);
     setError(null);
     setShowPatientModal(false);
@@ -767,7 +767,7 @@ const RecordingModal = ({
     setRecordedAudioBlob(null);
     setPauseWarning(false);
     setStep(0);
-    setTimeRemaining(15 * 60);
+    setTimeRemaining(30 * 60);
     setError(null);
   };
 
@@ -781,7 +781,7 @@ const RecordingModal = ({
     onClose();
   };
 
-  const progress = (timeRemaining / (15 * 60)) * 100;
+  const progress = ((30 * 60 - timeRemaining) / (30 * 60)) * 100; // Progress fills as time elapses
 
   const modalContent = (
     <Box sx={{ minHeight: isMobile ? 'auto' : 400 }}>
@@ -823,7 +823,7 @@ const RecordingModal = ({
               sx={{ 
                 height: 8, 
                 borderRadius: 4,
-                backgroundColor: 'grey.200',
+                backgroundColor: 'grey.300',
                 '& .MuiLinearProgress-bar': {
                   backgroundColor: isRecording && !isPaused ? 'error.main' : 'grey.400'
                 }
@@ -871,7 +871,7 @@ const RecordingModal = ({
               <Typography variant="body2">
                 • <strong>Microphone Permission:</strong> Click "Allow" when prompted for microphone access<br />
                 • <strong>Minimum Duration:</strong> Recordings must be at least 60 seconds long<br />
-                • Recording will automatically stop after 15 minutes<br />
+                • Recording will automatically stop after 30 minutes<br />
                 • You can pause and resume anytime<br />
                 • Stopping uploads and processes in the background so you can keep working
               </Typography>

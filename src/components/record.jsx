@@ -33,7 +33,7 @@ const Record = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
-  const [timeRemaining, setTimeRemaining] = useState(15 * 60); // 15 minutes in seconds
+  const [timeRemaining, setTimeRemaining] = useState(30 * 60); // 30 minutes in seconds
   const [pauseWarning, setPauseWarning] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   
@@ -261,7 +261,7 @@ const Record = () => {
   };
 
   const getProgressPercent = () => {
-    return ((15 * 60 - timeRemaining) / (15 * 60)) * 100;
+    return ((30 * 60 - timeRemaining) / (30 * 60)) * 100;
   };
 
   return (
@@ -340,7 +340,7 @@ const Record = () => {
               {!isRecording && (
                 <Alert severity="info" sx={{ mb: 3 }}>
                   <Typography variant="body2">
-                    • Recording will automatically stop after 15 minutes<br />
+                    • Recording will automatically stop after 30 minutes<br />
                     • You can pause and resume anytime<br />
                     • A warning will show if audio is detected while paused
                   </Typography>
