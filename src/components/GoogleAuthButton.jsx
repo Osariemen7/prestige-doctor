@@ -26,7 +26,7 @@ const GoogleAuthButton = ({
           </Typography>
         </Button>
         <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
-          Please configure REACT_APP_GOOGLE_CLIENT_ID in your .env file
+          Please configure REACT_APP_GOOGLE_CLIENT_ID in your .env file with a valid Google OAuth client ID from Google Cloud Console.
         </Typography>
       </Box>
     );
@@ -43,9 +43,21 @@ const GoogleAuthButton = ({
       };
       onAuthSuccess(googleUserData);
     } catch (error) {
+      console.error('Google auth error:', error);
       onAuthError(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleError = (error) => {
+    console.error('Google OAuth error:', error);
+    
+    // Handle specific FedCM errors
+    if (error?.message?.includes('FedCM') || error?.message?.includes('NetworkError')) {
+      onAuthError(new Error('Google sign-in failed due to network or browser settings. Please check your internet connection and ensure third-party cookies are enabled for this site.'));
+    } else {
+      onAuthError(error);
     }
   };
 
@@ -53,12 +65,17 @@ const GoogleAuthButton = ({
     <Box sx={{ width: '100%' }}>
       <GoogleLogin
         onSuccess={handleGoogleSuccess}
-        onError={onAuthError}
+        onError={handleGoogleError}
         useOneTap
         theme="outline"
         shape="rectangular"
         text="continue_with"
         disabled={disabled}
+        context="signin"
+        flow="implicit"
+        ux_mode="popup"
+        auto_select={false}
+        itp_support={true}
       />
       {loading && (
         <Button
