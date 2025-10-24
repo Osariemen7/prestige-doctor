@@ -25,10 +25,8 @@ import GooglePhonePrompt from './GooglePhonePrompt';
 const DoctorLogin = () => {
   const [formData, setFormData] = useState({
     email: '',
-    phone_number: '',
     password: ''
   });
-  const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'phone'
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
@@ -45,37 +43,31 @@ const DoctorLogin = () => {
     setLoading(true);
     setSnackbar({ ...snackbar, open: false });
 
-    const identifier = loginMethod === 'email' ? formData.email : formData.phone_number;
-    if (!identifier || !formData.password) {
+    if (!formData.email || !formData.password) {
       setSnackbar({ open: true, message: 'Please fill in all fields.', severity: 'warning' });
       setLoading(false);
       return;
     }
 
     try {
-      const payload = {
-        password: formData.password
-      };
-      
-      if (loginMethod === 'email') {
-        payload.email = formData.email;
-      } else {
-        payload.phone_number = formData.phone_number;
-      }
-
       const response = await fetch('https://service.prestigedelta.com/login/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
+          'X-Organization-Domain': 'provider.prestigehealth.app'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(formData),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        setSnackbar({ open: true, message: result.detail || 'Invalid credentials.', severity: 'error' });
+        if (result.non_field_errors && result.non_field_errors.length > 0) {
+          setSnackbar({ open: true, message: result.non_field_errors[0], severity: 'error' });
+        } else {
+          setSnackbar({ open: true, message: result.detail || 'Invalid credentials.', severity: 'error' });
+        }
       } else {
         setSnackbar({ open: true, message: 'Login successful! Redirecting...', severity: 'success' });
         localStorage.setItem('user-info', JSON.stringify(result));
@@ -257,7 +249,7 @@ const DoctorLogin = () => {
 
             <Divider sx={{ my: 3 }}>
               <Chip 
-                label="or continue with credentials" 
+                label="or continue with email" 
                 sx={{ 
                   bgcolor: '#f8f9fa',
                   color: '#666',
@@ -266,72 +258,30 @@ const DoctorLogin = () => {
               />
             </Divider>
 
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-              <Button
-                variant={loginMethod === 'email' ? 'contained' : 'outlined'}
-                onClick={() => setLoginMethod('email')}
-                sx={{ mr: 1, borderRadius: 2 }}
-                size="small"
-              >
-                Email
-              </Button>
-              <Button
-                variant={loginMethod === 'phone' ? 'contained' : 'outlined'}
-                onClick={() => setLoginMethod('phone')}
-                sx={{ borderRadius: 2 }}
-                size="small"
-              >
-                Phone
-              </Button>
-            </Box>
-
             <Box component="form" onSubmit={handleSubmit} sx={{ 
               display: 'flex', 
               flexDirection: 'column', 
               gap: 2.5 
             }}>
-              {loginMethod === 'email' ? (
-                <TextField
-                  name="email"
-                  label="Email Address"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
-                  fullWidth
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        boxShadow: '0 2px 8px rgba(37,99,235,0.1)'
-                      }
+              <TextField
+                name="email"
+                label="Email Address"
+                type="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                fullWidth
+                size="small"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      boxShadow: '0 2px 8px rgba(37,99,235,0.1)'
                     }
-                  }}
-                />
-              ) : (
-                <TextField
-                  name="phone_number"
-                  label="Phone Number"
-                  type="tel"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                  required
-                  fullWidth
-                  size="small"
-                  placeholder="+1234567890"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        boxShadow: '0 2px 8px rgba(37,99,235,0.1)'
-                      }
-                    }
-                  }}
-                />
-              )}
+                  }
+                }}
+              />
               <TextField
                 name="password"
                 label="Password"

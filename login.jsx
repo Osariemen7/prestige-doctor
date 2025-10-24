@@ -23,12 +23,18 @@ const LoginPage = () => {
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
+          'X-Organization-Domain': 'provider.prestigehealth.app'
         },
         body: JSON.stringify(item),
       });
 
       if (response.status !== 200) {
-        setMessage('Invalid Username/Password');
+        const result = await response.json();
+        if (result.non_field_errors && result.non_field_errors.length > 0) {
+          setMessage(result.non_field_errors[0]);
+        } else {
+          setMessage('Invalid Username/Password');
+        }
       } else {
         const result = await response.json();
         localStorage.setItem('user-info', JSON.stringify(result)); // Use localStorage for web

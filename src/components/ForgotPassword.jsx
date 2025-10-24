@@ -118,7 +118,8 @@ const ForgotPassword = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          accept: 'application/json'
+          accept: 'application/json',
+          'X-Organization-Domain': 'provider.prestigehealth.app'
         },
         body: JSON.stringify(payload)
       });
@@ -129,7 +130,11 @@ const ForgotPassword = () => {
           : 'Reset code sent. Check your email.');
         setStep(2);
       } else {
-        setForgotPasswordMessage(result.message || 'Failed to send reset code. Please try again.');
+        if (result.non_field_errors && result.non_field_errors.length > 0) {
+          setForgotPasswordMessage(result.non_field_errors[0]);
+        } else {
+          setForgotPasswordMessage(result.message || 'Failed to send reset code. Please try again.');
+        }
       }
     } catch (error) {
       console.error(error);
@@ -171,7 +176,8 @@ const ForgotPassword = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          accept: 'application/json'
+          accept: 'application/json',
+          'X-Organization-Domain': 'provider.prestigehealth.app'
         },
         body: JSON.stringify(payload)
       });
@@ -180,7 +186,11 @@ const ForgotPassword = () => {
         setForgotPasswordMessage(result.message || 'Password reset successfully.');
         setTimeout(() => navigate('/'), 2000);
       } else {
-        setForgotPasswordMessage(result.message || 'Failed to reset password. Please try again.');
+        if (result.non_field_errors && result.non_field_errors.length > 0) {
+          setForgotPasswordMessage(result.non_field_errors[0]);
+        } else {
+          setForgotPasswordMessage(result.message || 'Failed to reset password. Please try again.');
+        }
       }
     } catch (error) {
       console.error(error);

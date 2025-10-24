@@ -39,13 +39,18 @@ const RegistrationPage = () => {
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
+          'X-Organization-Domain': 'provider.prestigehealth.app'
         },
         body: JSON.stringify(item),
       });
 
       const result = await response.json();
       if (response.status !== 201) {
-        setMessage(result.phone_number || result.email || result.password || 'An error occurred');
+        if (result.non_field_errors && result.non_field_errors.length > 0) {
+          setMessage(result.non_field_errors[0]);
+        } else {
+          setMessage(result.phone_number || result.email || result.password || 'An error occurred');
+        }
       } else {
         setMessage('Registration successful');
         localStorage.setItem('user-info', JSON.stringify(result));

@@ -102,12 +102,20 @@ const DoctorRegister = () => {
     try {
       const response = await fetch('https://service.prestigedelta.com/register/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          accept: 'application/json',
+          'X-Organization-Domain': 'provider.prestigehealth.app'
+        },
         body: JSON.stringify(item),
       });
       const result = await response.json();
       if (!response.ok) {
-        setSnackbar({ open: true, message: Object.values(result).flat().join(' ') || 'An error occurred during registration.', severity: 'error' });
+        if (result.non_field_errors && result.non_field_errors.length > 0) {
+          setSnackbar({ open: true, message: result.non_field_errors[0], severity: 'error' });
+        } else {
+          setSnackbar({ open: true, message: Object.values(result).flat().join(' ') || 'An error occurred during registration.', severity: 'error' });
+        }
       } else {
         setSnackbar({ open: true, message: 'Registration successful! Redirecting...', severity: 'success' });
         localStorage.setItem('user-info', JSON.stringify(result));
