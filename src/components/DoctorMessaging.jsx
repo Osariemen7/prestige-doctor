@@ -203,6 +203,15 @@ const DoctorMessaging = () => {
       return;
     }
 
+    // Validation: Either clinical history must be filled or chronic conditions must be selected
+    const hasClinicalHistory = clinicalHistory.trim().length > 0;
+    const hasChronicConditions = selectedConditions.length > 0;
+
+    if (!hasClinicalHistory && !hasChronicConditions) {
+      alert('Please provide either clinical history or select at least one chronic condition');
+      return;
+    }
+
     // Process chronic conditions - replace "Other" with custom condition if provided
     let finalConditions = [...selectedConditions];
     if (selectedConditions.includes('Other') && customCondition.trim()) {
@@ -495,7 +504,13 @@ const DoctorMessaging = () => {
     !conversations.some(conv => conv.patient_id === patient.patient_id)
   );
 
-  const displayList = activeTab === 'all' ? filteredConversations : patientsWithoutConversations;
+  const filteredPatients = patientsWithoutConversations.filter(patient => {
+    const matchesSearch = patient.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          patient.patient_phone?.includes(searchTerm);
+    return matchesSearch;
+  });
+
+  const displayList = activeTab === 'all' ? filteredConversations : filteredPatients;
 
   return (
     <div className="messaging-container">
@@ -506,7 +521,7 @@ const DoctorMessaging = () => {
           <div className="patient-search">
             <input
               type="text"
-              placeholder="Search patients..."
+              placeholder={activeTab === 'all' ? "Search conversations..." : "Search patients..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -782,6 +797,9 @@ const DoctorMessaging = () => {
             <div className="modal-header">
               <h2>Add New Patient</h2>
               <p>Create a new patient profile to start messaging</p>
+              <small style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                <strong>Note:</strong> You must provide either clinical history or select at least one chronic condition to create a patient.
+              </small>
             </div>
             <form onSubmit={handleCreatePatient}>
               <div className="form-group">

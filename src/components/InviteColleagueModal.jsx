@@ -67,7 +67,7 @@ const InviteColleagueModal = ({ open, handleClose }) => {
             Invite a Colleague
           </Typography>
           <Typography id="invite-colleague-modal-description" sx={{ mt: 2 }}>
-            Share your unique referral link with colleagues to invite them to join our platform.
+            Help your colleagues discover a great opportunity to make money on the side while providing healthcare services. Share your unique referral link to get them started!
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 2 }}>
             <Tooltip title={inviteLink}>
@@ -93,13 +93,13 @@ const InviteColleagueModal = ({ open, handleClose }) => {
           </Box>
           <Box sx={{ mt: 3, textAlign: 'left' }}>
             <Typography variant="body1" sx={{ mb: 1 }}>
-              <strong>How it works:</strong>
+              <strong>Why invite colleagues?</strong>
             </Typography>
             <Typography variant="body1" sx={{ mb: 1 }}>
-              • Share the link with your colleagues to invite them to join
+              • Help your colleagues join our platform and start making money on the side
             </Typography>
             <Typography variant="body1" sx={{ mb: 1 }}>
-              • When your invited colleague reaches 10 subscribing patients, you earn NGN 10,000
+              • Build your professional network with fellow healthcare providers
             </Typography>
             <Typography variant="body1" sx={{ mb: 1 }}>
               • You can later add your invited colleagues to collaborate with you on patient care
