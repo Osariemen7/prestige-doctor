@@ -145,12 +145,25 @@ const PatientDetailsModal = ({
       patient_phone_number: convertedPhoneNumber
     };
     
-    // Validate phone number format if provided
-    if (convertedPhoneNumber.trim()) {
+    // Require phone number when saving documentation
+    if (saveDocumentation) {
+      if (!convertedPhoneNumber.trim()) {
+        setError('Phone number is required when saving documentation.');
+        return;
+      }
       const phoneRegex = /^\+\d{1,4}\d{6,14}$/;
       if (!phoneRegex.test(convertedPhoneNumber.trim())) {
         setError('Phone number must be in international format (e.g., +1234567890)');
         return;
+      }
+    } else {
+      // Validate phone number format if provided
+      if (convertedPhoneNumber.trim()) {
+        const phoneRegex = /^\+\d{1,4}\d{6,14}$/;
+        if (!phoneRegex.test(convertedPhoneNumber.trim())) {
+          setError('Phone number must be in international format (e.g., +1234567890)');
+          return;
+        }
       }
     }
     
@@ -273,7 +286,7 @@ const PatientDetailsModal = ({
               <Switch
                 checked={saveDocumentation}
                 onChange={(e) => setSaveDocumentation(e.target.checked)}
-                disabled={loading}
+                disabled={true} // Always disabled - documentation always saves
                 color="primary"
               />
             }
@@ -283,9 +296,7 @@ const PatientDetailsModal = ({
                   Save Documentation
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {saveDocumentation 
-                    ? 'Documentation will be automatically processed and saved after upload'
-                    : 'Audio will be uploaded but documentation will not be processed'}
+                  Documentation will be automatically processed and saved after upload
                 </Typography>
               </Box>
             }
