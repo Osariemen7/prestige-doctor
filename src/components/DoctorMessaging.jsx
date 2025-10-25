@@ -525,9 +525,30 @@ const DoctorMessaging = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <button className="add-patient-btn" onClick={() => setShowNewPatientModal(true)}>
+            <button 
+              className="add-patient-btn" 
+              onClick={() => setShowNewPatientModal(true)}
+              style={{
+                backgroundColor: '#2563eb',
+                color: 'white',
+                border: 'none',
+                padding: isMobile ? '10px 12px' : '8px 16px',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                fontSize: isMobile ? '13px' : '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: isMobile ? 'center' : 'flex-start',
+                gap: '6px',
+                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                transition: 'all 0.2s ease',
+                width: isMobile ? '100%' : 'auto',
+                minWidth: isMobile ? '100%' : 'auto'
+              }}
+            >
               <Plus size={16} />
-              {!isMobile && <span>New</span>}
+              {isMobile ? <span>Add new patient</span> : <span>Add Patient</span>}
             </button>
           </div>
         </div>
@@ -905,7 +926,7 @@ const DoctorMessaging = () => {
                 <textarea
                   value={clinicalHistory}
                   onChange={(e) => setClinicalHistory(e.target.value)}
-                  placeholder="Describe the patient's condition in detail, treatment goals, and current medications..."
+                  placeholder="Describe the patient's condition in detail, treatment goals, and current routine medications (e.g., daily medications, dosages, frequency)..."
                   style={{
                     width: '100%',
                     minHeight: '120px',
@@ -918,7 +939,7 @@ const DoctorMessaging = () => {
                   }}
                 />
                 <small style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
-                  Include condition details, care goals, and current medications to help set up the patient's care plan
+                  Include condition details, care goals, and <strong>current routine medications</strong> to help set up the patient's care plan. This information is crucial for providing comprehensive care.
                 </small>
               </div>
               <div className="form-actions">
