@@ -368,81 +368,140 @@ const DoctorMessaging = () => {
       return;
     }
 
-    if (isTemplateMode) {
-      if (!selectedPatientForTemplate) {
-        alert('Select a patient before sending a message');
-        return;
-      }
+    // Create optimistic message object
+    const optimisticMessage = {
+      message_id: `temp-${Date.now()}`, // Temporary ID
+      message_value: messageInput.trim(),
+      role: 'assistant', // Doctor messages appear as assistant role
+      from_doctor: true,
+      created: new Date().toISOString(),
+      media_url: selectedMedia?.url,
+      media_type: selectedMedia?.type,
+      media_filename: selectedMedia?.filename,
+      media_mime_type: selectedMedia?.mime_type,
+      isOptimistic: true // Flag to identify optimistic messages
+    };
 
-      if (selectedMedia) {
-        alert('File attachments are only available after a conversation has started.');
-        return;
-      }
-
-      try {
-        setSending(true);
-        const patient = selectedPatientForTemplate;
-  await sendTemplateMessage(patient.patient_id, messageInput.trim());
-  setMessageInput('');
-  setTemplatePreview(null);
-  setSelectedMedia(null);
-        await loadPatients();
-        const conversationsData = await loadConversations();
-        setActiveTab('all');
-        setSelectedPatientForTemplate(null);
-        if (conversationsData && conversationsData.length > 0) {
-          const nextConversation = conversationsData.find(
-            (conv) => conv.patient_id === patient.patient_id
-          );
-          if (nextConversation) {
-            await handleSelectConversation(nextConversation);
-          } else {
-            setSelectedConversation(null);
-          }
-        }
-        alert('Template message sent successfully!');
-      } catch (error) {
-        console.error('Error sending template message:', error);
-        alert(error.message || 'Failed to send template message');
-      } finally {
-        setSending(false);
-      }
-      return;
+    // Add optimistic message to conversation immediately
+    if (selectedConversation) {
+      setSelectedConversation(prev => ({
+        ...prev,
+        messages: [...(prev.messages || []), optimisticMessage]
+      }));
     }
 
-    if (!selectedConversation) {
-      alert('Please select a conversation');
-      return;
-    }
+    // Clear input immediately
+    const messageToSend = messageInput.trim();
+    const mediaToSend = selectedMedia;
+    setMessageInput('');
+    setSelectedMedia(null);
 
     try {
       setSending(true);
 
-      const messageData = {
-        public_id: selectedConversation.public_id,
-      };
-
-      if (messageInput.trim()) {
-        messageData.message = messageInput.trim();
-      }
-
-      if (selectedMedia) {
-        messageData.media_url = selectedMedia.url;
-        messageData.media_type = selectedMedia.type;
-        if (selectedMedia.filename) {
-          messageData.media_filename = selectedMedia.filename;
+      if (isTemplateMode) {
+        if (!selectedPatientForTemplate) {
+          // Remove optimistic message on error
+          if (selectedConversation) {
+            setSelectedConversation(prev => ({
+              ...prev,
+              messages: prev.messages.filter(msg => msg.message_id !== optimisticMessage.message_id)
+            }));
+          }
+          alert('Select a patient before sending a message');
+          return;
         }
-        if (selectedMedia.mime_type) {
-          messageData.media_mime_type = selectedMedia.mime_type;
-        }
-      }
 
-      await sendMessage(messageData);
-      setMessageInput('');
-      setSelectedMedia(null);
-      await loadConversations();
+        if (mediaToSend) {
+          // Remove optimistic message on error
+          if (selectedConversation) {
+            setSelectedConversation(prev => ({
+              ...prev,
+              messages: prev.messages.filter(msg => msg.message_id !== optimisticMessage.message_id)
+            }));
+          }
+          alert('File attachments are only available after a conversation has started.');
+          return;
+        }
+
+        await sendTemplateMessage(selectedPatientForTemplate.patient_id, messageToSend);
+
+        // Store patient info before clearing
+        const sentPatientId = selectedPatientForTemplate.patient_id;
+        const sentPatient = selectedPatientForTemplate;
+
+        // Clear template state
+        setSelectedPatientForTemplate(null);
+        setTemplatePreview(null);
+
+        // Refresh data after successful send
+        await loadPatients();
+        const conversationsData = await loadConversations();
+        setActiveTab('all');
+
+        // Find the most recently created conversation for this patient
+        // The API returns 'patient' field, not 'patient_id'
+        const patientConversations = conversationsData.filter(
+          (conv) => conv.patient === sentPatientId
+        );
+
+        if (patientConversations.length > 0) {
+          // Conversation was created successfully, but don't auto-select it
+          // Just refresh the conversations list to show the new conversation in the sidebar
+          console.log('Template message sent successfully, conversation created');
+        } else {
+          // If no conversation found, this is unexpected since backend should create one
+          console.error('No conversation found for patient after sending template message');
+        }
+
+        // Stay in the current view (patient list) instead of selecting the conversation
+      } else {
+        if (!selectedConversation) {
+          // Remove optimistic message on error
+          setSelectedConversation(prev => ({
+            ...prev,
+            messages: prev.messages.filter(msg => msg.message_id !== optimisticMessage.message_id)
+          }));
+          alert('Please select a conversation');
+          return;
+        }
+
+        const messageData = {
+          public_id: selectedConversation.public_id,
+        };
+
+        if (messageToSend) {
+          messageData.message = messageToSend;
+        }
+
+        if (mediaToSend) {
+          messageData.media_url = mediaToSend.url;
+          messageData.media_type = mediaToSend.type;
+          if (mediaToSend.filename) {
+            messageData.media_filename = mediaToSend.filename;
+          }
+          if (mediaToSend.mime_type) {
+            messageData.media_mime_type = mediaToSend.mime_type;
+          }
+        }
+
+        await sendMessage(messageData);
+
+        // Refresh conversation data after successful send
+        const updatedConversation = await getConversation(selectedConversation.public_id);
+        setSelectedConversation(updatedConversation);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
+
+      // Remove optimistic message on error
+      if (selectedConversation) {
+        setSelectedConversation(prev => ({
+          ...prev,
+          messages: prev.messages.filter(msg => msg.message_id !== optimisticMessage.message_id)
+        }));
+      }
+
       alert(error.message || 'Failed to send message');
     } finally {
       setSending(false);
@@ -781,7 +840,7 @@ const DoctorMessaging = () => {
                         })}</span>
                       </div>
                     )}
-                    <div className={`message ${message.role}`}>
+                    <div className={`message ${message.role} ${message.isOptimistic ? 'optimistic' : ''}`}>
                       <div className="message-content">
                         {message.message_value && (
                           <div className="message-text">{message.message_value}</div>
