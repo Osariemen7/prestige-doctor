@@ -196,8 +196,18 @@ const DoctorMessaging = () => {
       setTemplatePreview(null);
       setMessageInput('');
       setSelectedMedia(null);
-      const fullConversation = await getConversation(conversation.public_id);
-      setSelectedConversation(fullConversation);
+
+      // Map API fields to component expected fields
+      const mappedConversation = {
+        ...conversation,
+        interlocutor_name: conversation.patient_name || conversation.interlocutor_name,
+        interlocutor_phone: conversation.patient_phone || conversation.interlocutor_phone,
+        patient_id: conversation.patient || conversation.patient_id,
+        // Keep all other fields as they are
+      };
+
+      setSelectedConversation(mappedConversation);
+
       // Hide sidebar on mobile when conversation is selected
       if (isMobile) {
         setShowSidebar(false);
@@ -629,14 +639,12 @@ const DoctorMessaging = () => {
   };
 
   const filteredConversations = conversations.filter(conv => {
-    const matchesSearch = conv.interlocutor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (conv.patient_name || conv.interlocutor_name)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           conv.interlocutor_phone?.includes(searchTerm);
     return matchesSearch;
   });
 
-  const patientsWithoutConversations = patients.filter(patient => 
-    !conversations.some(conv => conv.patient_id === patient.patient_id)
-  );
+  const patientsWithoutConversations = patients; // Show all patients for template conversations
 
   const filteredPatients = patientsWithoutConversations.filter(patient => {
     const matchesSearch = patient.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -721,7 +729,7 @@ const DoctorMessaging = () => {
                   onClick={() => handleSelectConversation(conv)}
                 >
                   <div className="patient-item-header">
-                    <div className="patient-name">{conv.interlocutor_name || 'Unknown'}</div>
+                    <div className="patient-name">{conv.patient_name || conv.interlocutor_name || 'Unknown'}</div>
                     {conv.responder === 'assistant' && <span className="unread-badge" />}
                   </div>
                   <div className="patient-phone">{conv.interlocutor_phone}</div>
