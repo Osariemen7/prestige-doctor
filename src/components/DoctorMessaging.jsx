@@ -41,9 +41,7 @@ const DoctorMessaging = () => {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedPatientForTemplate, setSelectedPatientForTemplate] = useState(null);
-  const [templateSnippet, setTemplateSnippet] = useState('');
   const [templatePreview, setTemplatePreview] = useState(null);
   const [activeTab, setActiveTab] = useState('all'); // 'all' or 'patients'
   const [selectedConditions, setSelectedConditions] = useState([]);
@@ -113,10 +111,13 @@ const DoctorMessaging = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Mobile detection
+  // Mobile detection with better accuracy
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
+      const isMobileDevice = window.innerWidth <= 768 || 
+                           ('ontouchstart' in window) || 
+                           (navigator.maxTouchPoints > 0);
+      setIsMobile(isMobileDevice);
       if (window.innerWidth > 768) {
         setShowSidebar(true);
       }
@@ -127,10 +128,32 @@ const DoctorMessaging = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Scroll to bottom when messages change
+  // Prevent iOS bounce scrolling and improve mobile UX
   useEffect(() => {
-    scrollToBottom();
-  }, [selectedConversation]);
+    if (isMobile) {
+      // Prevent overscroll on iOS
+      document.body.style.overscrollBehavior = 'none';
+      document.documentElement.style.overscrollBehavior = 'none';
+      
+      // Prevent zoom on double tap
+      let lastTouchEnd = 0;
+      const handleTouchEnd = (e) => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+          e.preventDefault();
+        }
+        lastTouchEnd = now;
+      };
+      
+      document.addEventListener('touchend', handleTouchEnd, false);
+      
+      return () => {
+        document.body.style.overscrollBehavior = '';
+        document.documentElement.style.overscrollBehavior = '';
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [isMobile]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -140,8 +163,10 @@ const DoctorMessaging = () => {
     try {
       const data = await getAllPatients();
       setPatients(data);
+      return data;
     } catch (error) {
       console.error('Error loading patients:', error);
+      return [];
     }
   };
 
@@ -157,14 +182,20 @@ const DoctorMessaging = () => {
           setSelectedConversation(updated);
         }
       }
+      return data;
     } catch (error) {
       console.error('Error loading conversations:', error);
+      return [];
     }
   };
 
   const handleSelectConversation = async (conversation) => {
     try {
       setLoading(true);
+      setSelectedPatientForTemplate(null);
+      setTemplatePreview(null);
+      setMessageInput('');
+      setSelectedMedia(null);
       const fullConversation = await getConversation(conversation.public_id);
       setSelectedConversation(fullConversation);
       // Hide sidebar on mobile when conversation is selected
@@ -182,6 +213,10 @@ const DoctorMessaging = () => {
   const handleBackToList = () => {
     setShowSidebar(true);
     setSelectedConversation(null);
+    setSelectedPatientForTemplate(null);
+    setTemplatePreview(null);
+    setMessageInput('');
+    setSelectedMedia(null);
   };
 
   const handleCreatePatient = async (e) => {
@@ -237,13 +272,20 @@ const DoctorMessaging = () => {
       if (clinicalHistory.trim()) {
         patientData.notes = clinicalHistory.trim();
       }
-
       await createPatient(patientData);
       await loadPatients();
+      setActiveTab('patients');
+      setSearchTerm(patientData.phone_number || '');
+      setShowSidebar(true);
       setShowNewPatientModal(false);
       setSelectedConditions([]);
       setCustomCondition('');
       setClinicalHistory('');
+      setSelectedPatientForTemplate(null);
+      setSelectedConversation(null);
+      setTemplatePreview(null);
+      setMessageInput('');
+      setSelectedMedia(null);
       alert('Patient created successfully!');
     } catch (error) {
       console.error('Error creating patient:', error);
@@ -254,14 +296,23 @@ const DoctorMessaging = () => {
   };
 
   const handleStartTemplateConversation = (patient) => {
+    setSelectedConversation(null);
     setSelectedPatientForTemplate(patient);
-    setShowTemplateModal(true);
-    setTemplateSnippet('');
     setTemplatePreview(null);
+    setMessageInput('');
+    setSelectedMedia(null);
+    if (isMobile) {
+      setShowSidebar(false);
+    }
   };
 
-  const handlePreviewTemplate = async () => {
-    if (!templateSnippet.trim()) {
+  const handleTemplatePreview = async () => {
+    if (!selectedPatientForTemplate) {
+      alert('Select a patient to preview a template message');
+      return;
+    }
+
+    if (!messageInput.trim()) {
       alert('Please enter a message');
       return;
     }
@@ -270,46 +321,26 @@ const DoctorMessaging = () => {
       setLoading(true);
       const preview = await previewTemplateMessage(
         selectedPatientForTemplate.patient_id,
-        templateSnippet
+        messageInput.trim()
       );
       setTemplatePreview(preview);
     } catch (error) {
       console.error('Error previewing template:', error);
-      alert('Failed to preview template');
+      alert(error.message || 'Failed to preview template');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSendTemplate = async () => {
-    if (!templateSnippet.trim()) {
-      alert('Please enter a message');
-      return;
-    }
-
-    try {
-      setSending(true);
-      await sendTemplateMessage(
-        selectedPatientForTemplate.patient_id,
-        templateSnippet
-      );
-      await loadConversations();
-      setShowTemplateModal(false);
-      setTemplateSnippet('');
-      setTemplatePreview(null);
-      setSelectedPatientForTemplate(null);
-      alert('Template message sent successfully!');
-    } catch (error) {
-      console.error('Error sending template:', error);
-      alert(error.message || 'Failed to send template message');
-    } finally {
-      setSending(false);
     }
   };
 
   const handleFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (!selectedConversation) {
+      alert('Please select a conversation before attaching files.');
+      e.target.value = '';
+      return;
+    }
 
     try {
       setLoading(true);
@@ -331,7 +362,51 @@ const DoctorMessaging = () => {
   };
 
   const handleSendMessage = async () => {
+    const isTemplateMode = Boolean(selectedPatientForTemplate && !selectedConversation);
+
     if (!messageInput.trim() && !selectedMedia) {
+      return;
+    }
+
+    if (isTemplateMode) {
+      if (!selectedPatientForTemplate) {
+        alert('Select a patient before sending a message');
+        return;
+      }
+
+      if (selectedMedia) {
+        alert('File attachments are only available after a conversation has started.');
+        return;
+      }
+
+      try {
+        setSending(true);
+        const patient = selectedPatientForTemplate;
+  await sendTemplateMessage(patient.patient_id, messageInput.trim());
+  setMessageInput('');
+  setTemplatePreview(null);
+  setSelectedMedia(null);
+        await loadPatients();
+        const conversationsData = await loadConversations();
+        setActiveTab('all');
+        setSelectedPatientForTemplate(null);
+        if (conversationsData && conversationsData.length > 0) {
+          const nextConversation = conversationsData.find(
+            (conv) => conv.patient_id === patient.patient_id
+          );
+          if (nextConversation) {
+            await handleSelectConversation(nextConversation);
+          } else {
+            setSelectedConversation(null);
+          }
+        }
+        alert('Template message sent successfully!');
+      } catch (error) {
+        console.error('Error sending template message:', error);
+        alert(error.message || 'Failed to send template message');
+      } finally {
+        setSending(false);
+      }
       return;
     }
 
@@ -342,7 +417,7 @@ const DoctorMessaging = () => {
 
     try {
       setSending(true);
-      
+
       const messageData = {
         public_id: selectedConversation.public_id,
       };
@@ -510,7 +585,8 @@ const DoctorMessaging = () => {
     return matchesSearch;
   });
 
-  const displayList = activeTab === 'all' ? filteredConversations : filteredPatients;
+  const isTemplateMode = Boolean(selectedPatientForTemplate && !selectedConversation);
+  const composerEnabled = Boolean(selectedConversation || selectedPatientForTemplate);
 
   return (
     <div className="messaging-container">
@@ -615,11 +691,16 @@ const DoctorMessaging = () => {
                 <User size={40} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
                 <p>All patients have conversations</p>
               </div>
+            ) : filteredPatients.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+                <Search size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+                <p>No patients match your search</p>
+              </div>
             ) : (
-              patientsWithoutConversations.map((patient) => (
+              filteredPatients.map((patient) => (
                 <div
                   key={patient.patient_id}
-                  className="patient-item"
+                  className={`patient-item ${selectedPatientForTemplate?.patient_id === patient.patient_id ? 'active' : ''}`}
                   onClick={() => handleStartTemplateConversation(patient)}
                 >
                   <div className="patient-item-header">
@@ -721,79 +802,45 @@ const DoctorMessaging = () => {
               })}
               <div ref={messagesEndRef} />
             </div>
+          </>
+        ) : isTemplateMode && selectedPatientForTemplate ? (
+          <>
+            <div className="conversation-header">
+              <div className="conversation-header-left">
+                {isMobile && (
+                  <button className="mobile-back-btn" onClick={handleBackToList}>
+                    <ArrowLeft size={18} />
+                    Back
+                  </button>
+                )}
+                <div className="patient-avatar">
+                  {getInitials(selectedPatientForTemplate.patient_name || 'Patient')}
+                </div>
+                <div className="conversation-header-info">
+                  <h3>{selectedPatientForTemplate.patient_name || 'New Patient'}</h3>
+                  <p>
+                    <Phone size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                    {selectedPatientForTemplate.patient_phone}
+                  </p>
+                </div>
+              </div>
+              <div className="conversation-actions">
+                {!isMobile && (
+                  <span className="responder-badge doctor">
+                    <MessageSquare size={14} />
+                    Template Message
+                  </span>
+                )}
+              </div>
+            </div>
 
-            <div className="message-composer">
-              {selectedMedia && (
-                <div className="composer-media-preview">
-                  <div className="media-preview-content">
-                    {selectedMedia.type === 'image' && (
-                      <img src={selectedMedia.url} alt="Preview" className="media-preview-thumbnail" />
-                    )}
-                    {selectedMedia.type !== 'image' && (
-                      <div className="media-preview-thumbnail" style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center' 
-                      }}>
-                        {selectedMedia.type === 'video' && <Video size={24} />}
-                        {selectedMedia.type === 'audio' && <Mic size={24} />}
-                        {selectedMedia.type === 'document' && <FileText size={24} />}
-                      </div>
-                    )}
-                    <div className="media-preview-info">
-                      <div className="media-preview-name">{selectedMedia.filename}</div>
-                      <div className="media-preview-meta">
-                        {selectedMedia.type} • {formatFileSize(selectedMedia.size)}
-                      </div>
-                    </div>
-                  </div>
-                  <button className="remove-media-btn" onClick={() => setSelectedMedia(null)}>
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-              
-              <div className="composer-input-area">
-                <textarea
-                  className="composer-textarea"
-                  placeholder="Type your message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  disabled={sending}
-                />
-                <div className="composer-actions">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    style={{ display: 'none' }}
-                    onChange={handleFileSelect}
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
-                  />
-                  <button 
-                    className="composer-btn"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={sending}
-                  >
-                    <Paperclip size={20} />
-                  </button>
-                  <button
-                    className="composer-btn send"
-                    onClick={handleSendMessage}
-                    disabled={sending || (!messageInput.trim() && !selectedMedia)}
-                  >
-                    {sending ? (
-                      <div className="loading-spinner" />
-                    ) : (
-                      <Send size={20} />
-                    )}
-                  </button>
-                </div>
+            <div className="messages-container">
+              <div className="template-intro">
+                <h3>Craft the first message</h3>
+                <p>
+                  Send a template introduction to kick off care for this patient. Once sent,
+                  the conversation thread will appear here.
+                </p>
               </div>
             </div>
           </>
@@ -804,17 +851,166 @@ const DoctorMessaging = () => {
             </div>
             <h3>Welcome to Patient Messaging</h3>
             <p>
-              Select a conversation from the list to view messages, or start a new conversation
-              with a patient.
+              Select a patient from the sidebar to start chatting, or add a new patient to begin.
             </p>
           </div>
         )}
+
+        <div className="message-composer">
+          {selectedMedia && (
+            <div className="composer-media-preview">
+              <div className="media-preview-content">
+                {selectedMedia.type === 'image' && (
+                  <img src={selectedMedia.url} alt="Preview" className="media-preview-thumbnail" />
+                )}
+                {selectedMedia.type !== 'image' && (
+                  <div className="media-preview-thumbnail" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}>
+                    {selectedMedia.type === 'video' && <Video size={24} />}
+                    {selectedMedia.type === 'audio' && <Mic size={24} />}
+                    {selectedMedia.type === 'document' && <FileText size={24} />}
+                  </div>
+                )}
+                <div className="media-preview-info">
+                  <div className="media-preview-name">{selectedMedia.filename}</div>
+                  <div className="media-preview-meta">
+                    {selectedMedia.type} • {formatFileSize(selectedMedia.size)}
+                  </div>
+                </div>
+              </div>
+              <button className="remove-media-btn" onClick={() => setSelectedMedia(null)}>
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {isTemplateMode && templatePreview && (
+            <div className="template-preview">
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>
+                PREVIEW
+              </div>
+              <div style={{ fontSize: '14px', color: '#1e293b', lineHeight: '1.6' }}>
+                {templatePreview.preview?.message || 'Preview unavailable'}
+              </div>
+            </div>
+          )}
+
+          <div className="composer-input-area">
+            <textarea
+              className="composer-textarea"
+              placeholder={
+                isTemplateMode
+                  ? `Write the first message for ${selectedPatientForTemplate?.patient_name || 'this patient'}...`
+                  : composerEnabled
+                    ? 'Type your message...'
+                    : 'Select or add a patient to start messaging...'
+              }
+              value={messageInput}
+              onChange={(e) => {
+                setMessageInput(e.target.value);
+                if (isTemplateMode && templatePreview) {
+                  setTemplatePreview(null);
+                }
+              }}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && composerEnabled) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              onFocus={(e) => {
+                // Prevent iOS zoom on focus and scroll into view
+                if (isMobile) {
+                  setTimeout(() => {
+                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }, 300);
+                }
+              }}
+              disabled={!composerEnabled || sending}
+              autoComplete="off"
+              autoCorrect="on"
+              autoCapitalize="sentences"
+              spellCheck="true"
+            />
+            <div className="composer-actions">
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={handleFileSelect}
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+              />
+              <button 
+                className="composer-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || !selectedConversation}
+                title={selectedConversation ? 'Attach file' : 'Attachments available after starting a conversation'}
+              >
+                <Paperclip size={20} />
+              </button>
+              {isTemplateMode && (
+                <button
+                  className="composer-btn"
+                  onClick={handleTemplatePreview}
+                  disabled={sending || loading || !messageInput.trim()}
+                  title="Preview template message"
+                >
+                  {loading ? <div className="loading-spinner" /> : <Check size={20} />}
+                </button>
+              )}
+              <button
+                className="composer-btn send"
+                onClick={handleSendMessage}
+                disabled={
+                  sending ||
+                  (!messageInput.trim() && !selectedMedia) ||
+                  !composerEnabled
+                }
+              >
+                {sending ? (
+                  <div className="loading-spinner" />
+                ) : (
+                  <Send size={20} />
+                )}
+              </button>
+            </div>
+          </div>
+          {!composerEnabled && (
+            <p className="composer-hint">
+              Select a conversation or patient from the sidebar to begin messaging.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* New Patient Modal */}
       {showNewPatientModal && (
-        <div className="modal-overlay" onClick={() => setShowNewPatientModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div 
+          className="modal-overlay" 
+          onClick={() => setShowNewPatientModal(false)}
+          style={{
+            alignItems: isMobile ? 'flex-end' : 'center',
+            padding: isMobile ? '0' : '20px'
+          }}
+        >
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: isMobile ? '100%' : '500px',
+              maxWidth: isMobile ? '100%' : '500px',
+              height: isMobile ? 'auto' : 'auto',
+              maxHeight: isMobile ? '90vh' : '90vh',
+              borderRadius: isMobile ? '20px 20px 0 0' : '12px',
+              margin: isMobile ? '0' : 'auto',
+              position: isMobile ? 'relative' : 'relative',
+              bottom: isMobile ? '0' : 'auto',
+              animation: isMobile ? 'slideUp 0.3s ease-out' : 'fadeIn 0.3s ease-out'
+            }}
+          >
             <div className="modal-header">
               <h2>Add New Patient</h2>
               <p>Create a new patient profile to start messaging</p>
@@ -960,73 +1156,6 @@ const DoctorMessaging = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Template Message Modal */}
-      {showTemplateModal && selectedPatientForTemplate && (
-        <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Start Conversation</h2>
-              <p>Send a template message to {selectedPatientForTemplate.patient_name}</p>
-            </div>
-            <div className="form-group">
-              <label>Your Message</label>
-              <textarea
-                value={templateSnippet}
-                onChange={(e) => setTemplateSnippet(e.target.value)}
-                placeholder="Enter your message here..."
-                style={{ minHeight: '120px' }}
-              />
-            </div>
-            
-            {templatePreview && (
-              <div style={{
-                padding: '16px',
-                background: '#f8fafc',
-                borderRadius: '10px',
-                marginBottom: '16px',
-                border: '1px solid #e2e8f0'
-              }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>
-                  PREVIEW:
-                </div>
-                <div style={{ fontSize: '14px', color: '#1e293b', lineHeight: '1.6' }}>
-                  {templatePreview.preview.message}
-                </div>
-              </div>
-            )}
-
-            <div className="form-actions">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => {
-                  setShowTemplateModal(false);
-                  setTemplatePreview(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handlePreviewTemplate}
-                disabled={loading || !templateSnippet.trim()}
-              >
-                {loading ? <div className="loading-spinner" /> : 'Preview'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleSendTemplate}
-                disabled={sending || !templateSnippet.trim()}
-              >
-                {sending ? <div className="loading-spinner" /> : 'Send Message'}
-              </button>
-            </div>
           </div>
         </div>
       )}

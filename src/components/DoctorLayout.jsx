@@ -426,14 +426,14 @@ const DoctorLayout = ({ children }) => {
         sx={{
           flexGrow: 1,
           width: '100%',
-          height: '100vh',
+          minHeight: '100vh',
           bgcolor: 'background.default',
           marginLeft: { xs: 0, md: isExpanded ? 0 : `${drawerWidthCollapsed}px` },
           transition: 'margin 0.3s ease',
           // Mobile padding to avoid floating menu button
           pt: { xs: '80px', md: 0 },
           px: { xs: 0, md: 0 },
-          overflow: 'hidden',
+          overflow: 'visible',
           maxWidth: '100vw',
         }}
       >

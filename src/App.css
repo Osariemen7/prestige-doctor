@@ -15,7 +15,7 @@ html, body, #root {
 .app-container {
   display: flex;
   flex-direction: column;
-  height: 100%; /* Full height */
+  min-height: 100vh; /* Allow content to grow beyond viewport */
   width: 100%;  /* Full width */
   box-sizing: border-box; /* Include padding/borders in size */
 }
