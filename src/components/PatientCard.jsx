@@ -49,7 +49,12 @@ const PatientCard = ({ patient, status, onClick }) => {
 
   const config = statusConfig[status] || statusConfig.active;
   const profile = patient?.profile_data || {};
+  const demographics = profile?.demographics || {};
+  const clinicalStatus = profile?.clinical_status || {};
   const lastReview = patient?.last_medical_review || {};
+
+  // Construct full name from first and last name
+  const fullName = `${demographics.first_name || ''} ${demographics.last_name || ''}`.trim() || 'Unknown Patient';
 
   const getHealthScoreColor = (score) => {
     if (score >= 80) return theme.palette.success.main;
@@ -139,7 +144,7 @@ const PatientCard = ({ patient, status, onClick }) => {
               fontWeight: 700,
             }}
           >
-            {profile.full_name?.[0]?.toUpperCase() || 'P'}
+            {fullName?.[0]?.toUpperCase() || 'P'}
           </Avatar>
           <Box sx={{ flex: 1, pt: 0.5 }}>
             <Typography
@@ -151,19 +156,19 @@ const PatientCard = ({ patient, status, onClick }) => {
                 lineHeight: 1.2,
               }}
             >
-              {profile.full_name || 'Unknown Patient'}
+              {fullName}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
               <Chip
                 icon={<PhoneIcon sx={{ fontSize: 14 }} />}
-                label={profile.phone_number || 'No phone'}
+                label={demographics.phone_number || 'No phone'}
                 size="small"
                 variant="outlined"
                 sx={{ height: 24, fontSize: '0.75rem' }}
               />
               <Chip
                 icon={<CakeIcon sx={{ fontSize: 14 }} />}
-                label={`${calculateAge(profile.date_of_birth)} yrs`}
+                label={`${calculateAge(demographics.date_of_birth)} yrs`}
                 size="small"
                 variant="outlined"
                 sx={{ height: 24, fontSize: '0.75rem' }}
@@ -235,7 +240,7 @@ const PatientCard = ({ patient, status, onClick }) => {
           )}
 
           {/* Chronic Conditions */}
-          {profile.chronic_conditions && profile.chronic_conditions.length > 0 && (
+          {clinicalStatus.chronic_conditions && clinicalStatus.chronic_conditions.length > 0 && (
             <Box>
               <Typography
                 variant="caption"
@@ -251,7 +256,7 @@ const PatientCard = ({ patient, status, onClick }) => {
                 Chronic Conditions
               </Typography>
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                {profile.chronic_conditions.slice(0, 3).map((condition, index) => (
+                {clinicalStatus.chronic_conditions.slice(0, 3).map((condition, index) => (
                   <Chip
                     key={index}
                     label={condition}
@@ -264,9 +269,9 @@ const PatientCard = ({ patient, status, onClick }) => {
                     }}
                   />
                 ))}
-                {profile.chronic_conditions.length > 3 && (
+                {clinicalStatus.chronic_conditions.length > 3 && (
                   <Chip
-                    label={`+${profile.chronic_conditions.length - 3} more`}
+                    label={`+${clinicalStatus.chronic_conditions.length - 3} more`}
                     size="small"
                     sx={{
                       bgcolor: alpha(theme.palette.grey[500], 0.1),
