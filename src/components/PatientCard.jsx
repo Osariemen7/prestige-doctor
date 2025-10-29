@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -10,6 +11,9 @@ import {
   Divider,
   alpha,
   useTheme,
+  IconButton,
+  Button,
+  Tooltip,
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -20,11 +24,26 @@ import {
   Schedule as ScheduleIcon,
   Warning as WarningIcon,
   LocalHospital as HospitalIcon,
+  Message as MessageIcon,
+  Call as CallIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 
 const PatientCard = ({ patient, status, onClick }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
+
+  const handleMessagePatient = (e) => {
+    e.stopPropagation(); // Prevent card click
+    navigate(`/messages/${patient.id}`);
+  };
+
+  const handleCallPatient = (e, phoneNumber) => {
+    e.stopPropagation(); // Prevent card click
+    if (phoneNumber) {
+      window.location.href = `tel:${phoneNumber}`;
+    }
+  };
 
   const statusConfig = {
     active: {
@@ -158,14 +177,45 @@ const PatientCard = ({ patient, status, onClick }) => {
             >
               {fullName}
             </Typography>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Chip
-                icon={<PhoneIcon sx={{ fontSize: 14 }} />}
-                label={demographics.phone_number || 'No phone'}
-                size="small"
-                variant="outlined"
-                sx={{ height: 24, fontSize: '0.75rem' }}
-              />
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              {demographics.phone_number && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    px: 1,
+                    py: 0.25,
+                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                  }}
+                >
+                  <PhoneIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                    {demographics.phone_number}
+                  </Typography>
+                  <Tooltip title="Call Patient">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleCallPatient(e, demographics.phone_number)}
+                      sx={{
+                        ml: 0.5,
+                        width: 24,
+                        height: 24,
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        '&:hover': {
+                          bgcolor: 'primary.dark',
+                        },
+                      }}
+                    >
+                      <CallIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
               <Chip
                 icon={<CakeIcon sx={{ fontSize: 14 }} />}
                 label={`${calculateAge(demographics.date_of_birth)} yrs`}
@@ -176,6 +226,27 @@ const PatientCard = ({ patient, status, onClick }) => {
             </Stack>
           </Box>
         </Stack>
+
+        {/* Message Patient Button */}
+        <Button
+          variant="contained"
+          startIcon={<MessageIcon />}
+          onClick={handleMessagePatient}
+          fullWidth
+          sx={{
+            mt: 2,
+            mb: 2,
+            borderRadius: 2,
+            textTransform: 'none',
+            fontWeight: 600,
+            bgcolor: 'primary.main',
+            '&:hover': {
+              bgcolor: 'primary.dark',
+            },
+          }}
+        >
+          Message Patient
+        </Button>
 
         <Divider sx={{ my: 2 }} />
 

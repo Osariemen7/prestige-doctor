@@ -32,12 +32,11 @@ import {
   ArrowDownward as ArrowDownIcon,
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
+import { getProviderDashboard, getPatientDetails } from '../services/providerDashboardApi';
 import PatientCard from './PatientCard';
-import PatientDetailModal from './PatientDetailModal';
 
 const ProviderDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
-  const [selectedPatient, setSelectedPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
@@ -54,64 +53,25 @@ const ProviderDashboard = () => {
 
   const fetchDashboardData = async () => {
     setLoading(true);
-    const token = await getAccessToken();
-    
-    if (!token) {
-      navigate('/login');
-      return;
-    }
 
     try {
-      const response = await fetch('https://service.prestigedelta.com/providerdashboard/', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setDashboardData(data);
-      } else if (response.status === 403) {
+      const data = await getProviderDashboard();
+      setDashboardData(data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      if (error.message.includes('provider access')) {
         showSnackbar('You do not have provider access.', 'error');
         navigate('/login');
       } else {
-        throw new Error('Failed to fetch dashboard data');
+        showSnackbar('Failed to load dashboard data. Please try again.', 'error');
       }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      showSnackbar('Failed to load dashboard data. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPatientDetails = async (patientId) => {
-    const token = await getAccessToken();
-    
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
-    try {
-      const response = await fetch(`https://service.prestigedelta.com/providerdashboard/${patientId}/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSelectedPatient(data);
-      } else {
-        throw new Error('Failed to fetch patient details');
-      }
-    } catch (error) {
-      console.error('Error fetching patient details:', error);
-      showSnackbar('Failed to load patient details. Please try again.', 'error');
-    }
+  const fetchPatientDetails = (patientId) => {
+    navigate(`/patient/${patientId}`);
   };
 
   if (loading) {
@@ -167,6 +127,7 @@ const ProviderDashboard = () => {
     active_subscribed_patients_count: provider_info?.active_subscribed_patients_count ?? 0,
     pending_subscribed_patients_count: provider_info?.pending_subscribed_patients_count ?? 0,
     churned_patients_count: provider_info?.churned_patients_count ?? 0,
+    added_patients_count: provider_info?.added_patients_count ?? 0,
   };
 
   // Add null checks and default values for patients
@@ -174,6 +135,7 @@ const ProviderDashboard = () => {
     active: patients?.active ?? [],
     pending: patients?.pending ?? [],
     churned: patients?.churned ?? [],
+    added: patients?.added ?? [],
   };
 
   const MetricCard = ({ title, value, subtitle, icon: Icon, gradient, trend }) => (
@@ -288,7 +250,7 @@ const ProviderDashboard = () => {
             Business Overview
           </Typography>
           <Grid container spacing={{ xs: 2, md: 3 }}>
-            <Grid item xs={12} sm={6} lg={3}>
+            <Grid item xs={12} sm={6} lg={2.4}>
               <MetricCard
                 title="Consultation Rate"
                 value={`${safeProviderInfo.consultation_rate.toFixed(1)}%`}
@@ -298,7 +260,7 @@ const ProviderDashboard = () => {
                 trend={safeProviderInfo.consultation_rate > 70 ? 1 : -1}
               />
             </Grid>
-            <Grid item xs={12} sm={6} lg={3}>
+            <Grid item xs={12} sm={6} lg={2.4}>
               <MetricCard
                 title="Expected Monthly Payout"
                 value={`${safeProviderInfo.currency} ${safeProviderInfo.expected_monthly_payout.toLocaleString()}`}
@@ -307,7 +269,7 @@ const ProviderDashboard = () => {
                 gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
               />
             </Grid>
-            <Grid item xs={12} sm={6} lg={3}>
+            <Grid item xs={12} sm={6} lg={2.4}>
               <MetricCard
                 title="Active Patients"
                 value={safeProviderInfo.active_subscribed_patients_count}
@@ -316,7 +278,16 @@ const ProviderDashboard = () => {
                 gradient="linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
               />
             </Grid>
-            <Grid item xs={12} sm={6} lg={3}>
+            <Grid item xs={12} sm={6} lg={2.4}>
+              <MetricCard
+                title="Added Patients"
+                value={safeProviderInfo.added_patients_count}
+                subtitle="Manually added"
+                icon={PeopleIcon}
+                gradient="linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={2.4}>
               <MetricCard
                 title="Pending / Churned"
                 value={`${safeProviderInfo.pending_subscribed_patients_count} / ${safeProviderInfo.churned_patients_count}`}
@@ -399,6 +370,22 @@ const ProviderDashboard = () => {
                       sx={{
                         bgcolor: alpha(theme.palette.error.main, 0.1),
                         color: 'error.main',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </Stack>
+                }
+              />
+              <Tab
+                label={
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <span>Added Patients</span>
+                    <Chip
+                      label={safePatients.added.length}
+                      size="small"
+                      sx={{
+                        bgcolor: alpha(theme.palette.info.main, 0.1),
+                        color: 'info.main',
                         fontWeight: 600,
                       }}
                     />
@@ -505,17 +492,44 @@ const ProviderDashboard = () => {
                 )}
               </Box>
             )}
+
+            {/* Added Patients */}
+            {selectedTab === 3 && (
+              <Box>
+                {safePatients.added.length === 0 ? (
+                  <Box
+                    sx={{
+                      textAlign: 'center',
+                      py: 8,
+                      color: 'text.secondary',
+                    }}
+                  >
+                    <PeopleIcon sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+                    <Typography variant="h6" color="text.secondary">
+                      No added patients
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Patients you add will appear here
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Grid container spacing={3}>
+                    {safePatients.added.map(patient => (
+                      <Grid item xs={12} lg={6} key={patient.id}>
+                        <PatientCard
+                          patient={patient}
+                          status="added"
+                          onClick={() => fetchPatientDetails(patient.id)}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                )}
+              </Box>
+            )}
           </Box>
         </Paper>
       </Container>
-
-      {/* Patient Detail Modal */}
-      {selectedPatient && (
-        <PatientDetailModal
-          patient={selectedPatient}
-          onClose={() => setSelectedPatient(null)}
-        />
-      )}
     </Box>
   );
 };

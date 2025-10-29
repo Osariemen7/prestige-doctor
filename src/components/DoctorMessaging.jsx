@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   MessageSquare,
   Search,
@@ -32,6 +33,7 @@ import {
 } from '../services/messagingApi';
 
 const DoctorMessaging = () => {
+  const { patientId } = useParams(); // Get patient ID from URL
   const [patients, setPatients] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -110,6 +112,17 @@ const DoctorMessaging = () => {
     const interval = setInterval(loadConversations, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-select patient when patientId is provided in URL
+  useEffect(() => {
+    if (patientId && patients.length > 0) {
+      const patient = patients.find(p => p.patient_id === parseInt(patientId));
+      if (patient) {
+        handleStartTemplateConversation(patient);
+        setActiveTab('patients'); // Switch to patients tab
+      }
+    }
+  }, [patientId, patients]);
 
   // Mobile detection with better accuracy
   useEffect(() => {
@@ -671,27 +684,9 @@ const DoctorMessaging = () => {
             <button 
               className="add-patient-btn" 
               onClick={() => setShowNewPatientModal(true)}
-              style={{
-                backgroundColor: '#2563eb',
-                color: 'white',
-                border: 'none',
-                padding: isMobile ? '10px 12px' : '8px 16px',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                fontSize: isMobile ? '13px' : '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: isMobile ? 'center' : 'flex-start',
-                gap: '6px',
-                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
-                transition: 'all 0.2s ease',
-                width: isMobile ? '100%' : 'auto',
-                minWidth: isMobile ? '100%' : 'auto'
-              }}
             >
               <Plus size={16} />
-              {isMobile ? <span>Add new patient</span> : <span>Add Patient</span>}
+              <span>{isMobile ? 'Add new patient' : 'Add Patient'}</span>
             </button>
           </div>
         </div>

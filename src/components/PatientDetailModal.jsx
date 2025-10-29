@@ -45,8 +45,17 @@ const PatientDetailModal = ({ patient, onClose }) => {
   const [selectedTab, setSelectedTab] = useState(0);
   const theme = useTheme();
 
-  const profile = patient?.profile_data || {};
+  // Extract data from the correct structure
+  const profileData = patient?.profile_data || {};
+  const demographics = profileData.demographics || {};
+  const geneticProxies = profileData.genetic_proxies || {};
+  const environment = profileData.environment || {};
+  const lifestyle = profileData.lifestyle || {};
+  const clinicalStatus = profileData.clinical_status || {};
   const carePlan = patient?.remote_care_plan || {};
+  const medicalReviews = patient?.medical_reviews || {};
+  const fullMedicalReviews = patient?.full_medical_reviews || [];
+  const metrics = patient?.metrics || [];
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -129,15 +138,15 @@ const PatientDetailModal = ({ patient, onClose }) => {
                 fontWeight: 700,
               }}
             >
-              {profile.full_name?.[0]?.toUpperCase() || 'P'}
+              {demographics.first_name?.[0]?.toUpperCase() || 'P'}
             </Avatar>
             <Box>
               <Typography variant="h5" fontWeight={700}>
-                {profile.full_name || 'Unknown Patient'}
+                {`${demographics.first_name || ''} ${demographics.last_name || ''}`.trim() || 'Unknown Patient'}
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  {calculateAge(profile.date_of_birth)} years old • {profile.gender || 'N/A'}
+                  {calculateAge(demographics.date_of_birth)} years old • {demographics.gender || 'N/A'}
                 </Typography>
                 <Chip
                   icon={<StatusIcon sx={{ fontSize: 16 }} />}
@@ -177,9 +186,9 @@ const PatientDetailModal = ({ patient, onClose }) => {
               label={
                 <Stack direction="row" spacing={1} alignItems="center">
                   <span>Medical Reviews</span>
-                  {patient.medical_reviews && (
+                  {medicalReviews.medical_history && (
                     <Chip
-                      label={patient.medical_reviews.total_reviews}
+                      label={medicalReviews.medical_history.length}
                       size="small"
                       sx={{
                         bgcolor: alpha(theme.palette.primary.main, 0.1),
@@ -215,13 +224,13 @@ const PatientDetailModal = ({ patient, onClose }) => {
               label={
                 <Stack direction="row" spacing={1} alignItems="center">
                   <span>Metrics</span>
-                  {patient.metrics && (
+                  {metrics && (
                     <Chip
-                      label={patient.metrics.filter(m => m.is_active).length}
+                      label={metrics.filter(m => m.is_active).length}
                       size="small"
                       sx={{
-                        bgcolor: alpha(theme.palette.info.main, 0.1),
-                        color: 'info.main',
+                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                        color: 'primary.main',
                         height: 20,
                         fontSize: '0.7rem',
                       }}
@@ -252,7 +261,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                             Phone Number
                           </Typography>
                           <Typography variant="body2" fontWeight={600}>
-                            {profile.phone_number || 'N/A'}
+                            {demographics.phone_number || 'N/A'}
                           </Typography>
                         </Box>
                       </Stack>
@@ -265,7 +274,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                             Date of Birth
                           </Typography>
                           <Typography variant="body2" fontWeight={600}>
-                            {formatDate(profile.date_of_birth)}
+                            {formatDate(demographics.date_of_birth)}
                           </Typography>
                         </Box>
                       </Stack>
@@ -278,12 +287,12 @@ const PatientDetailModal = ({ patient, onClose }) => {
                             Blood Group
                           </Typography>
                           <Typography variant="body2" fontWeight={600}>
-                            {profile.blood_group || 'N/A'}
+                            {geneticProxies.blood_type || 'N/A'}
                           </Typography>
                         </Box>
                       </Stack>
                     </Grid>
-                    {profile.email && (
+                    {demographics.email && (
                       <Grid item xs={12} sm={6}>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <EmailIcon sx={{ fontSize: 20, color: 'primary.main' }} />
@@ -292,7 +301,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                               Email
                             </Typography>
                             <Typography variant="body2" fontWeight={600}>
-                              {profile.email}
+                              {demographics.email}
                             </Typography>
                           </Box>
                         </Stack>
@@ -303,7 +312,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
               </Card>
 
               {/* Health Summary */}
-              {patient.medical_reviews && (
+              {medicalReviews && Object.keys(medicalReviews).length > 0 && (
                 <Card elevation={1} sx={{ borderRadius: 2 }}>
                   <CardContent>
                     <Typography variant="h6" fontWeight={600} gutterBottom>
@@ -323,7 +332,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                             Total Reviews
                           </Typography>
                           <Typography variant="h4" fontWeight={700} color="primary.main">
-                            {patient.medical_reviews.total_reviews}
+                            {fullMedicalReviews.length}
                           </Typography>
                         </Box>
                       </Grid>
@@ -340,7 +349,12 @@ const PatientDetailModal = ({ patient, onClose }) => {
                             Last 30 Days
                           </Typography>
                           <Typography variant="h4" fontWeight={700} color="success.main">
-                            {patient.medical_reviews.last_30_days}
+                            {fullMedicalReviews.filter(review => {
+                              const reviewDate = new Date(review.created);
+                              const thirtyDaysAgo = new Date();
+                              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                              return reviewDate >= thirtyDaysAgo;
+                            }).length}
                           </Typography>
                         </Box>
                       </Grid>
@@ -367,14 +381,14 @@ const PatientDetailModal = ({ patient, onClose }) => {
               )}
 
               {/* Chronic Conditions */}
-              {profile.chronic_conditions && profile.chronic_conditions.length > 0 && (
+              {clinicalStatus.chronic_conditions && clinicalStatus.chronic_conditions.length > 0 && (
                 <Card elevation={1} sx={{ borderRadius: 2 }}>
                   <CardContent>
                     <Typography variant="h6" fontWeight={600} gutterBottom>
                       Chronic Conditions
                     </Typography>
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      {profile.chronic_conditions.map((condition, index) => (
+                      {clinicalStatus.chronic_conditions.map((condition, index) => (
                         <Chip
                           key={index}
                           label={condition}
@@ -395,18 +409,18 @@ const PatientDetailModal = ({ patient, onClose }) => {
           {/* Medical Reviews Tab */}
           {selectedTab === 1 && (
             <Stack spacing={3}>
-              {patient.full_medical_reviews && patient.full_medical_reviews.length > 0 ? (
-                patient.full_medical_reviews.map((review, idx) => (
+              {fullMedicalReviews && fullMedicalReviews.length > 0 ? (
+                fullMedicalReviews.map((review, idx) => (
                   <Accordion key={idx} sx={{ borderRadius: 2, '&:before': { display: 'none' } }}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
                         <HospitalIcon color="primary" />
                         <Box sx={{ flex: 1 }}>
                           <Typography fontWeight={600}>
-                            Review #{patient.full_medical_reviews.length - idx}
+                            Review #{fullMedicalReviews.length - idx}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {formatDateTime(review.created_at)}
+                            {formatDateTime(review.created)}
                           </Typography>
                         </Box>
                         {review.review_status && (
@@ -485,12 +499,12 @@ const PatientDetailModal = ({ patient, onClose }) => {
                           <Typography variant="body2">{carePlan.objective}</Typography>
                         </Box>
                       )}
-                      {patient.remote_care_plan_objective && (
+                      {carePlan.prevention_focus && (
                         <Box>
                           <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                            Care Plan Objective
+                            Prevention Focus
                           </Typography>
-                          <Typography variant="body2">{patient.remote_care_plan_objective}</Typography>
+                          <Typography variant="body2">{carePlan.prevention_focus}</Typography>
                         </Box>
                       )}
                     </Stack>
@@ -510,14 +524,14 @@ const PatientDetailModal = ({ patient, onClose }) => {
           {/* Metrics Tab */}
           {selectedTab === 3 && (
             <Stack spacing={3}>
-              {patient.metrics && patient.metrics.length > 0 ? (
-                patient.metrics.filter(m => m.is_active).map((metric, idx) => (
+              {metrics && metrics.length > 0 ? (
+                metrics.filter(m => m.is_active).map((metric, idx) => (
                   <Card key={idx} elevation={1} sx={{ borderRadius: 2 }}>
                     <CardContent>
                       <Typography variant="h6" fontWeight={600} gutterBottom>
-                        {metric.metric_name || 'Health Metric'}
+                        {metric.name || 'Health Metric'}
                       </Typography>
-                      {metric.data && metric.data.length > 0 && (
+                      {metric.records && metric.records.length > 0 && (
                         <Box sx={{ mt: 2 }}>
                           <MetricChart metricData={metric} />
                         </Box>

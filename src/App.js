@@ -21,6 +21,7 @@ import ReviewsHome from './components/ReviewsHome';
 import DoctorLayout from './components/DoctorLayout';
 import AdminDashboard from './components/AdminDashboard';
 import DoctorMessaging from './components/DoctorMessaging';
+import PatientDetailsPage from './components/PatientDetailsPage';
 
 const App = () => {
   return (
@@ -40,8 +41,10 @@ const App = () => {
             <Route path="/reviews/:publicId" element={<DoctorLayout><ReviewsHome /></DoctorLayout>} />
             <Route path="/review/:publicId" element={<DoctorLayout><ReviewDetail /></DoctorLayout>} />
             <Route path="/provider-dashboard" element={<DoctorLayout><ProviderDashboard /></DoctorLayout>} />
+            <Route path="/patient/:patientId" element={<DoctorLayout><PatientDetailsPage /></DoctorLayout>} />
             <Route path="/admin-dashboard" element={<DoctorLayout><AdminDashboard /></DoctorLayout>} />
             <Route path="/messages" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
+            <Route path="/messages/:patientId" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
             
             {/* Legacy Routes */}
             <Route path="/dashboard" element={<Dashboard />} />

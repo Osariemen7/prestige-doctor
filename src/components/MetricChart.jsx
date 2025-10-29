@@ -79,15 +79,15 @@ const MetricChart = ({ metric }) => {
 
   const records = metric.records || [];
   const sortedRecords = [...records].sort((a, b) => 
-    new Date(a.recorded_at) - new Date(b.recorded_at)
+    new Date(a.timestamp || a.recorded_at) - new Date(b.timestamp || b.recorded_at)
   );
 
   const latestValue = sortedRecords.length > 0 
-    ? sortedRecords[sortedRecords.length - 1].recorded_value 
+    ? sortedRecords[sortedRecords.length - 1].value || sortedRecords[sortedRecords.length - 1].recorded_value
     : null;
 
   const previousValue = sortedRecords.length > 1 
-    ? sortedRecords[sortedRecords.length - 2].recorded_value 
+    ? sortedRecords[sortedRecords.length - 2].value || sortedRecords[sortedRecords.length - 2].recorded_value 
     : null;
 
   const trend = latestValue !== null && previousValue !== null
@@ -113,11 +113,11 @@ const MetricChart = ({ metric }) => {
   };
 
   const chartData = {
-    labels: sortedRecords.map(r => formatDate(r.recorded_at)),
+    labels: sortedRecords.map(r => formatDate(r.timestamp || r.recorded_at)),
     datasets: [
       {
         label: `${metric.name} (${metric.unit})`,
-        data: sortedRecords.map(r => r.recorded_value),
+        data: sortedRecords.map(r => r.value || r.recorded_value),
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         borderWidth: 3,
