@@ -161,11 +161,12 @@ const RecordingModal = ({
     } else {
       const reviewPath = targetReviewId ? `/reviews/${targetReviewId}` : `/reviews/${reviewId}`;
       const shouldNavigate = window.confirm(
-        'Documentation Ready!\n\nYour encounter documentation has been processed. Press OK to open the review now, or Cancel to keep working.'
+        'Documentation Ready!\n\nYour encounter documentation has been processed. Click OK to view the documentation, or Cancel to continue with your current task.'
       );
-      if (shouldNavigate) {
+      if (shouldNavigate === true) {
         navigate(reviewPath);
       }
+      // If shouldNavigate is false (Cancel clicked), do nothing - stay on current page
     }
   };
 
