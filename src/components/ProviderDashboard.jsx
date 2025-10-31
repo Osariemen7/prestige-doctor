@@ -30,6 +30,7 @@ import {
   FavoriteBorder as HeartIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
+  LocalPharmacy as PharmacyIcon,
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import { getProviderDashboard, getPatientDetails } from '../services/providerDashboardApi';
@@ -123,7 +124,10 @@ const ProviderDashboard = () => {
   const safeProviderInfo = {
     consultation_rate: provider_info?.consultation_rate ?? 0,
     currency: provider_info?.currency ?? 'NGN',
-    expected_monthly_payout: provider_info?.expected_monthly_payout ?? 0,
+    expected_monthly_subscription_payout: provider_info?.expected_monthly_subscription_payout ?? 0,
+    monthly_prescription_commission: provider_info?.monthly_prescription_commission ?? 0,
+    total_expected_monthly_payout: provider_info?.total_expected_monthly_payout ?? 0,
+    prescription_sales_this_month: provider_info?.prescription_sales_this_month ?? 0,
     active_subscribed_patients_count: provider_info?.active_subscribed_patients_count ?? 0,
     pending_subscribed_patients_count: provider_info?.pending_subscribed_patients_count ?? 0,
     churned_patients_count: provider_info?.churned_patients_count ?? 0,
@@ -250,7 +254,7 @@ const ProviderDashboard = () => {
             Business Overview
           </Typography>
           <Grid container spacing={{ xs: 2, md: 3 }}>
-            <Grid item xs={12} sm={6} lg={2.4}>
+            <Grid item xs={12} sm={6} lg={2}>
               <MetricCard
                 title="Consultation Rate"
                 value={`${safeProviderInfo.consultation_rate.toFixed(1)}%`}
@@ -260,16 +264,25 @@ const ProviderDashboard = () => {
                 trend={safeProviderInfo.consultation_rate > 70 ? 1 : -1}
               />
             </Grid>
-            <Grid item xs={12} sm={6} lg={2.4}>
+            <Grid item xs={12} sm={6} lg={2}>
               <MetricCard
-                title="Expected Monthly Payout"
-                value={`${safeProviderInfo.currency} ${safeProviderInfo.expected_monthly_payout.toLocaleString()}`}
-                subtitle="70% of subscription revenue"
+                title="Total Monthly Payout"
+                value={`${safeProviderInfo.currency} ${safeProviderInfo.total_expected_monthly_payout.toLocaleString()}`}
+                subtitle={`Subscriptions: ${safeProviderInfo.currency} ${safeProviderInfo.expected_monthly_subscription_payout.toLocaleString()}`}
                 icon={MoneyIcon}
                 gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
               />
             </Grid>
-            <Grid item xs={12} sm={6} lg={2.4}>
+            <Grid item xs={12} sm={6} lg={2}>
+              <MetricCard
+                title="Prescription Sales"
+                value={`${safeProviderInfo.currency} ${safeProviderInfo.prescription_sales_this_month.toLocaleString()}`}
+                subtitle={`Commission: ${safeProviderInfo.currency} ${safeProviderInfo.monthly_prescription_commission.toLocaleString()}`}
+                icon={PharmacyIcon}
+                gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={2}>
               <MetricCard
                 title="Active Patients"
                 value={safeProviderInfo.active_subscribed_patients_count}
@@ -278,7 +291,7 @@ const ProviderDashboard = () => {
                 gradient="linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
               />
             </Grid>
-            <Grid item xs={12} sm={6} lg={2.4}>
+            <Grid item xs={12} sm={6} lg={2}>
               <MetricCard
                 title="Added Patients"
                 value={safeProviderInfo.added_patients_count}
@@ -287,13 +300,13 @@ const ProviderDashboard = () => {
                 gradient="linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)"
               />
             </Grid>
-            <Grid item xs={12} sm={6} lg={2.4}>
+            <Grid item xs={12} sm={6} lg={2}>
               <MetricCard
                 title="Pending / Churned"
                 value={`${safeProviderInfo.pending_subscribed_patients_count} / ${safeProviderInfo.churned_patients_count}`}
                 subtitle="Requires attention"
                 icon={ScheduleIcon}
-                gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+                gradient="linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
               />
             </Grid>
           </Grid>
