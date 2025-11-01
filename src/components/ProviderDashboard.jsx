@@ -20,6 +20,8 @@ import {
   Stack,
   alpha,
   useTheme,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -31,13 +33,17 @@ import {
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
   LocalPharmacy as PharmacyIcon,
+  SmartToy as SmartToyIcon,
+  CheckCircle as CheckCircleIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
-import { getProviderDashboard, getPatientDetails } from '../services/providerDashboardApi';
+import { getProviderDashboard, getPatientDetails, getProviderReviews } from '../services/providerDashboardApi';
 import PatientCard from './PatientCard';
 
 const ProviderDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
@@ -56,8 +62,13 @@ const ProviderDashboard = () => {
     setLoading(true);
 
     try {
-      const data = await getProviderDashboard();
-      setDashboardData(data);
+      const [dashboardResponse, reviewsResponse] = await Promise.all([
+        getProviderDashboard(),
+        getProviderReviews()
+      ]);
+      
+      setDashboardData(dashboardResponse);
+      setReviews(reviewsResponse || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       if (error.message.includes('provider access')) {
@@ -73,6 +84,31 @@ const ProviderDashboard = () => {
 
   const fetchPatientDetails = (patientId) => {
     navigate(`/patient/${patientId}`);
+  };
+
+  const handleFinalizeReview = async (reviewId) => {
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`https://service.prestigedelta.com/provider-reviews/${reviewId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ is_finalized: true })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to finalize review');
+      }
+
+      showSnackbar('Review finalized successfully', 'success');
+      // Refresh the data
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error finalizing review:', error);
+      showSnackbar('Failed to finalize review. Please try again.', 'error');
+    }
   };
 
   if (loading) {
@@ -141,6 +177,13 @@ const ProviderDashboard = () => {
     churned: patients?.churned ?? [],
     added: patients?.added ?? [],
   };
+
+  // Filter pending AI-conducted reviews that have no encounter
+  const pendingAIReviews = reviews.filter(review => 
+    review.is_finalized === false && 
+    review.conducted_by_ai === true && 
+    (!review.in_person_encounters || review.in_person_encounters.length === 0)
+  );
 
   const MetricCard = ({ title, value, subtitle, icon: Icon, gradient, trend }) => (
     <Card
@@ -311,6 +354,113 @@ const ProviderDashboard = () => {
             </Grid>
           </Grid>
         </Box>
+
+        {/* Pending AI Reviews */}
+        {pendingAIReviews.length > 0 && (
+          <Box sx={{ mb: { xs: 3, md: 5 } }}>
+            <Typography variant="h6" sx={{ 
+              mb: { xs: 2, md: 3 }, 
+              fontWeight: 600, 
+              color: 'text.primary',
+              fontSize: { xs: '1.1rem', md: '1.25rem' }
+            }}>
+              Pending AI Reviews
+            </Typography>
+            <Grid container spacing={3}>
+              {pendingAIReviews.map(review => (
+                <Grid item xs={12} lg={6} key={review.id}>
+                  <Card
+                    sx={{
+                      borderRadius: 3,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                      },
+                    }}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar
+                            sx={{
+                              bgcolor: alpha(theme.palette.primary.main, 0.1),
+                              width: 40,
+                              height: 40,
+                            }}
+                          >
+                            <SmartToyIcon sx={{ color: theme.palette.primary.main }} />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1rem' }}>
+                              {review.patient_first_name} {review.patient_last_name}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {review.patient_phone_number}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <Chip
+                          label="AI Reviewed"
+                          size="small"
+                          sx={{
+                            bgcolor: alpha(theme.palette.info.main, 0.1),
+                            color: 'info.main',
+                            fontWeight: 600,
+                          }}
+                        />
+                      </Box>
+                      
+                      {review.chief_complaint && (
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
+                            Chief Complaint:
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {review.chief_complaint}
+                          </Typography>
+                        </Box>
+                      )}
+                      
+                      {review.assessment_diagnosis && (
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
+                            Diagnosis:
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {review.assessment_diagnosis}
+                          </Typography>
+                        </Box>
+                      )}
+                      
+                      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<EditIcon />}
+                          onClick={() => navigate(`/reviews/${review.public_id}`)}
+                          sx={{ flex: 1 }}
+                        >
+                          Review
+                        </Button>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<CheckCircleIcon />}
+                          onClick={() => handleFinalizeReview(review.id)}
+                          sx={{ flex: 1 }}
+                        >
+                          Finalize
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
 
         {/* Patient Categories */}
         <Paper
@@ -542,6 +692,22 @@ const ProviderDashboard = () => {
             )}
           </Box>
         </Paper>
+
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={() => setSnackbar({ ...snackbar, open: false })} 
+            severity={snackbar.severity}
+            sx={{ width: '100%' }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Container>
     </Box>
   );

@@ -65,3 +65,22 @@ export const getAllPatients = async () => {
 
   return response.json();
 };
+
+/**
+ * Fetch provider reviews
+ * @param {number} hours - Number of hours to look back (default 168 = 7 days)
+ * @returns {Promise<Array>} Array of review objects
+ */
+export const getProviderReviews = async (hours = 168) => {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${BASE_URL}/provider-reviews/?hours=${hours}`, {
+    headers
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch provider reviews');
+  }
+
+  return response.json();
+};

@@ -353,6 +353,9 @@ const ReviewsHome = () => {
                         </Typography>
                       </Box>
                     }
+                    secondaryTypographyProps={{
+                      component: 'div'
+                    }}
                   />
                 </ListItemButton>
                 {index < filteredReviews.length - 1 && <Divider />}

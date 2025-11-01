@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -16,7 +16,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Alert
+  Alert,
+  IconButton
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -29,7 +30,9 @@ import {
   Autorenew as AutorenewIcon,
   Edit as EditIcon,
   ContentCopy as ContentCopyIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  SmartToy as SmartToyIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import { useTheme, useMediaQuery } from '@mui/material';
@@ -85,6 +88,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   });
   const [editingNote, setEditingNote] = useState(false);
   const [editedNote, setEditedNote] = useState(null);
+  const [editingPrescriptions, setEditingPrescriptions] = useState(false);
+  const [editingInvestigations, setEditingInvestigations] = useState(false);
   const previousStatusRef = useRef(null);
   const lastFetchRef = useRef(0);
 
@@ -271,7 +276,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
   const handleFinalizeEncounter = async () => {
     if (!review || !review.in_person_encounters || review.in_person_encounters.length === 0) {
-      alert('No encounter found to finalize');
+      alert('No review found to finalize');
       return;
     }
 
@@ -295,7 +300,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       };
 
       const response = await fetch(
-        `https://service.prestigedelta.com/in-person-encounters/${encounter.public_id}/finalize/`,
+        `https://service.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -307,7 +312,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       );
 
       if (response.ok) {
-        alert('Encounter finalized successfully!');
+        alert('Review finalized successfully!');
         setShowFinalizeDialog(false);
         fetchReviewDetail(); // Refresh to show updated status
       } else {
@@ -325,73 +330,24 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const handleSaveNote = async () => {
     if (!review || !editedNote) return;
 
-    setSaving(true);
-    const token = await getAccessToken();
+    console.log('Saving edited note to local state:', editedNote);
 
-    try {
-      // Find the encounter to update
-      const encounter = review.in_person_encounters && review.in_person_encounters.length > 0
-        ? review.in_person_encounters[0]
-        : null;
+    // Update the review state with the edited note so changes persist
+    setReview(prev => ({
+      ...prev,
+      doctor_note: editedNote
+    }));
 
-      if (!encounter) {
-        alert('No encounter found to update');
-        return;
-      }
-
-      // Convert phone number to international format if needed
-      const convertedPhone = convertToInternationalFormat(patientData.phone);
-
-      const updatePayload = {
-        note_payload: editedNote,
-        send_summary: false, // Don't send summary when just updating notes
-        create_patient: false, // Don't create patient when just updating notes
-        patient_first_name: patientData.first_name || '',
-        patient_last_name: patientData.last_name || '',
-        patient_phone_number: convertedPhone || '',
-        patient_email: patientData.email || '',
-        run_finalize_workflow: false
-      };
-
-      const response = await fetch(
-        `https://service.prestigedelta.com/in-person-encounters/${encounter.public_id}/finalize/`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(updatePayload)
-        }
-      );
-
-      if (response.ok) {
-        setEditingNote(false);
-        setEditedNote(null);
-        fetchReviewDetail(); // Refresh to show updated note
-      } else {
-        const error = await response.json();
-        alert(`Failed to save note: ${JSON.stringify(error)}`);
-      }
-    } catch (error) {
-      console.error('Error saving note:', error);
-      alert('An error occurred while saving the note');
-    } finally {
-      setSaving(false);
-    }
+    // Exit edit mode
+    setEditingNote(false);
+    setEditedNote(null);
   };
 
   const handleFinalize = async () => {
     if (!review) return;
-    
-    const encounterId = currentEncounter?.public_id || encounter?.public_id;
-    if (!encounterId) {
-      alert('No encounter found to finalize');
-      return;
-    }
 
     if (!review.doctor_note) {
-      alert('Please ensure the encounter has been documented before finalizing');
+      alert('Please ensure the review has been documented before finalizing');
       return;
     }
 
@@ -414,7 +370,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       };
 
       const response = await fetch(
-        `https://service.prestigedelta.com/in-person-encounters/${encounterId}/finalize/`,
+        `https://service.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -427,29 +383,106 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
       if (response.ok) {
         const result = await response.json();
-        alert('Encounter finalized successfully!');
+        alert('Review finalized successfully!');
         fetchReviewDetail(); // Refresh to show updated status
       } else {
         const error = await response.json();
-        alert(`Failed to finalize encounter: ${JSON.stringify(error)}`);
+        alert(`Failed to finalize review: ${JSON.stringify(error)}`);
       }
     } catch (error) {
-      console.error('Error finalizing encounter:', error);
-      alert('An error occurred while finalizing the encounter');
+      console.error('Error finalizing review:', error);
+      alert('An error occurred while finalizing the review');
     } finally {
       setSaving(false);
     }
   };
 
   const handleEditNote = () => {
+    console.log('handleEditNote called');
     setEditingNote(true);
-    setEditedNote(review.doctor_note ? { ...review.doctor_note } : {});
+    const initialNote = review.doctor_note ? JSON.parse(JSON.stringify(review.doctor_note)) : {};
+    // Ensure prescriptions and investigations arrays exist
+    if (!initialNote.prescription) initialNote.prescription = [];
+    if (!initialNote.investigation) initialNote.investigation = [];
+    setEditedNote(initialNote);
+    console.log('editedNote initialized:', initialNote);
   };
 
   const handleCancelEdit = () => {
     setEditingNote(false);
     setEditedNote(null);
   };
+
+  // Optimized change handlers to prevent performance issues
+  const updatePrescriptionField = useCallback((index, field, value) => {
+    setEditedNote(prev => {
+      const updatedPrescriptions = [...(prev?.prescription || [])];
+      if (updatedPrescriptions[index]) {
+        updatedPrescriptions[index] = { ...updatedPrescriptions[index], [field]: value };
+      }
+      return {
+        ...prev,
+        prescription: updatedPrescriptions
+      };
+    });
+  }, []);
+
+  const updateInvestigationField = useCallback((index, field, value) => {
+    setEditedNote(prev => {
+      const updatedInvestigations = [...(prev?.investigation || [])];
+      if (updatedInvestigations[index]) {
+        updatedInvestigations[index] = { ...updatedInvestigations[index], [field]: value };
+      }
+      return {
+        ...prev,
+        investigation: updatedInvestigations
+      };
+    });
+  }, []);
+
+  const addPrescription = useCallback(() => {
+    const newPrescription = {
+      medication_name: '',
+      dosage: '',
+      route: 'oral',
+      interval: 8,
+      end_date: '',
+      instructions: '',
+      is_otc: false
+    };
+    setEditedNote(prev => ({
+      ...prev,
+      prescription: [...(prev?.prescription || []), newPrescription]
+    }));
+  }, []);
+
+  const addInvestigation = useCallback(() => {
+    const newInvestigation = {
+      test_type: '',
+      reason: '',
+      instructions: '',
+      interval: 0,
+      scheduled_time: ''
+    };
+    setEditedNote(prev => ({
+      ...prev,
+      investigation: [...(prev?.investigation || []), newInvestigation]
+    }));
+  }, []);
+
+  const deletePrescription = useCallback((index) => {
+    setEditedNote(prev => ({
+      ...prev,
+      prescription: (prev?.prescription || []).filter((_, i) => i !== index)
+    }));
+  }, []);
+
+  const deleteInvestigation = useCallback((index) => {
+    setEditedNote(prev => ({
+      ...prev,
+      investigation: (prev?.investigation || []).filter((_, i) => i !== index)
+    }));
+  }, []);
 
   const handleEncounterSuccess = (encounter) => {
     setCurrentEncounter(encounter);
@@ -556,38 +589,173 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   );
 };
 
-  const renderPrescriptions = (prescriptions) => {
-    if (!prescriptions || prescriptions.length === 0) return null;
+  const renderPrescriptions = (prescriptions, isEditing = false) => {
+    if (!prescriptions || prescriptions.length === 0) {
+      if (isEditing) {
+        return (
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
+                💊 Prescriptions
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={addPrescription}
+                size="small"
+              >
+                Add Prescription
+              </Button>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              No prescriptions added yet. Click "Add Prescription" to add one.
+            </Typography>
+          </Box>
+        );
+      }
+      return null;
+    }
 
     return (
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
-          💊 Prescriptions
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
+            💊 Prescriptions
+          </Typography>
+          {isEditing && (
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={addPrescription}
+              size="small"
+            >
+              Add Prescription
+            </Button>
+          )}
+        </Box>
         <Grid container spacing={2}>
           {prescriptions.map((prescription, index) => (
             <Grid item xs={12} md={6} key={index}>
               <Card elevation={2} sx={{ height: '100%', borderLeft: '4px solid', borderColor: 'success.main' }}>
                 <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                  <Typography variant="subtitle1" fontWeight="bold" color="success.dark" gutterBottom>
-                    {prescription.medication_name}
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                    {isEditing ? (
+                      <TextField
+                        label="Medication Name"
+                        value={prescription.medication_name || ''}
+                        onChange={(e) => updatePrescriptionField(index, 'medication_name', e.target.value)}
+                        size="small"
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Typography variant="subtitle1" fontWeight="bold" color="success.dark" gutterBottom>
+                        {prescription.medication_name}
+                      </Typography>
+                    )}
+                    {isEditing && (
+                      <IconButton
+                        size="small"
+                        onClick={() => deletePrescription(index)}
+                        color="error"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
                   <Divider sx={{ my: 1 }} />
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Dosage:</strong> {prescription.dosage}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Route:</strong> {prescription.route}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Interval:</strong> Every {prescription.interval} hours
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>End Date:</strong> {prescription.end_date}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
-                    <strong>Instructions:</strong> {prescription.instructions}
-                  </Typography>
+                  <Grid container spacing={1}>
+                    <Grid item xs={12} sm={6}>
+                      {isEditing ? (
+                        <TextField
+                          label="Dosage"
+                          value={prescription.dosage || ''}
+                          onChange={(e) => updatePrescriptionField(index, 'dosage', e.target.value)}
+                          size="small"
+                          fullWidth
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Dosage:</strong> {prescription.dosage}
+                        </Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {isEditing ? (
+                        <TextField
+                          select
+                          label="Route"
+                          value={prescription.route || 'oral'}
+                          onChange={(e) => updatePrescriptionField(index, 'route', e.target.value)}
+                          size="small"
+                          fullWidth
+                          SelectProps={{ native: true }}
+                        >
+                          <option value="oral">Oral</option>
+                          <option value="intravenous">Intravenous</option>
+                          <option value="intramuscular">Intramuscular</option>
+                          <option value="subcutaneous">Subcutaneous</option>
+                          <option value="topical">Topical</option>
+                          <option value="inhalation">Inhalation</option>
+                          <option value="rectal">Rectal</option>
+                          <option value="vaginal">Vaginal</option>
+                        </TextField>
+                      ) : (
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Route:</strong> {prescription.route}
+                        </Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {isEditing ? (
+                        <TextField
+                          label="Interval (hours)"
+                          type="number"
+                          value={prescription.interval || 8}
+                          onChange={(e) => updatePrescriptionField(index, 'interval', parseInt(e.target.value) || 0)}
+                          size="small"
+                          fullWidth
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Interval:</strong> Every {prescription.interval} hours
+                        </Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {isEditing ? (
+                        <TextField
+                          label="End Date"
+                          type="date"
+                          value={prescription.end_date || ''}
+                          onChange={(e) => updatePrescriptionField(index, 'end_date', e.target.value)}
+                          size="small"
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>End Date:</strong> {prescription.end_date}
+                        </Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12}>
+                      {isEditing ? (
+                        <TextField
+                          label="Instructions"
+                          value={prescription.instructions || ''}
+                          onChange={(e) => updatePrescriptionField(index, 'instructions', e.target.value)}
+                          size="small"
+                          fullWidth
+                          multiline
+                          rows={2}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                          <strong>Instructions:</strong> {prescription.instructions}
+                        </Typography>
+                      )}
+                    </Grid>
+                  </Grid>
                 </CardContent>
               </Card>
             </Grid>
@@ -597,34 +765,147 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     );
   };
 
-  const renderInvestigations = (investigations) => {
-    if (!investigations || investigations.length === 0) return null;
+  const renderInvestigations = (investigations, isEditing = false) => {
+    if (!investigations || investigations.length === 0) {
+      if (isEditing) {
+        return (
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
+                🔬 Investigations
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={addInvestigation}
+                size="small"
+              >
+                Add Investigation
+              </Button>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              No investigations added yet. Click "Add Investigation" to add one.
+            </Typography>
+          </Box>
+        );
+      }
+      return null;
+    }
 
     return (
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
-          🔬 Investigations
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
+            🔬 Investigations
+          </Typography>
+          {isEditing && (
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={addInvestigation}
+              size="small"
+            >
+              Add Investigation
+            </Button>
+          )}
+        </Box>
         <Grid container spacing={2}>
           {investigations.map((investigation, index) => (
             <Grid item xs={12} md={6} key={index}>
               <Card elevation={2} sx={{ height: '100%', borderLeft: '4px solid', borderColor: 'info.main' }}>
                 <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                  <Typography variant="subtitle1" fontWeight="bold" color="info.dark" gutterBottom>
-                    {investigation.test_type}
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                    {isEditing ? (
+                      <TextField
+                        label="Test Type"
+                        value={investigation.test_type || ''}
+                        onChange={(e) => updateInvestigationField(index, 'test_type', e.target.value)}
+                        size="small"
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Typography variant="subtitle1" fontWeight="bold" color="info.dark" gutterBottom>
+                        {investigation.test_type}
+                      </Typography>
+                    )}
+                    {isEditing && (
+                      <IconButton
+                        size="small"
+                        onClick={() => deleteInvestigation(index)}
+                        color="error"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
                   <Divider sx={{ my: 1 }} />
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Reason:</strong> {investigation.reason}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Instructions:</strong> {investigation.instructions}
-                  </Typography>
-                  {investigation.scheduled_time && (
-                    <Typography variant="body2" sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
-                      <strong>Scheduled:</strong> {new Date(investigation.scheduled_time).toLocaleString()}
-                    </Typography>
-                  )}
+                  <Grid container spacing={1}>
+                    <Grid item xs={12}>
+                      {isEditing ? (
+                        <TextField
+                          label="Reason"
+                          value={investigation.reason || ''}
+                          onChange={(e) => updateInvestigationField(index, 'reason', e.target.value)}
+                          size="small"
+                          fullWidth
+                          multiline
+                          rows={2}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Reason:</strong> {investigation.reason}
+                        </Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12}>
+                      {isEditing ? (
+                        <TextField
+                          label="Instructions"
+                          value={investigation.instructions || ''}
+                          onChange={(e) => updateInvestigationField(index, 'instructions', e.target.value)}
+                          size="small"
+                          fullWidth
+                          multiline
+                          rows={2}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Instructions:</strong> {investigation.instructions}
+                        </Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {isEditing ? (
+                        <TextField
+                          label="Interval (days)"
+                          type="number"
+                          value={investigation.interval || 0}
+                          onChange={(e) => updateInvestigationField(index, 'interval', parseInt(e.target.value) || 0)}
+                          size="small"
+                          fullWidth
+                        />
+                      ) : null}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {isEditing ? (
+                        <TextField
+                          label="Scheduled Time"
+                          type="datetime-local"
+                          value={investigation.scheduled_time || ''}
+                          onChange={(e) => updateInvestigationField(index, 'scheduled_time', e.target.value)}
+                          size="small"
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      ) : (
+                        investigation.scheduled_time && (
+                          <Typography variant="body2" sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                            <strong>Scheduled:</strong> {new Date(investigation.scheduled_time).toLocaleString()}
+                          </Typography>
+                        )
+                      )}
+                    </Grid>
+                  </Grid>
                 </CardContent>
               </Card>
             </Grid>
@@ -685,6 +966,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 variant="outlined"
               />
             )}
+            {review.conducted_by_ai && (
+              <Chip
+                icon={<SmartToyIcon />}
+                label="AI Generated"
+                color="info"
+                variant="outlined"
+              />
+            )}
           </Box>
           
         </Box>
@@ -738,7 +1027,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         }}>
           <CardContent>
             <Typography variant="h6" color="white" gutterBottom fontWeight="bold">
-              {(hasEncounter || currentEncounter) ? 'Review Workflow' : 'Complete These Steps'}
+              {(hasEncounter || currentEncounter) ? 'Review Workflow' : 
+               review.conducted_by_ai ? 'AI Review - Ready for Finalization' : 'Complete These Steps'}
             </Typography>
             <Typography variant="body2" color="white" sx={{ mb: 2, opacity: 0.9 }}>
               {currentEncounter 
@@ -747,7 +1037,9 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                     : `Encounter ID: ${currentEncounter.public_id.substring(0, 8)}... - Now record the consultation`)
                 : hasEncounter 
                   ? (review.doctor_note ? 'This review has an encounter. You can now save it.' : 'This review has an encounter but no documentation. Record a new encounter to create documentation.')
-                  : 'Create and process an encounter before saving this review'}
+                  : review.conducted_by_ai 
+                    ? 'This review was generated by AI. Review the documentation and finalize when ready.'
+                    : 'Create and process an encounter before saving this review'}
             </Typography>
             {(currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing') && (
               <Chip
@@ -803,7 +1095,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                   variant="contained"
                   startIcon={<CheckCircleIcon />}
                   onClick={handleFinalize}
-                  disabled={saving || (!hasEncounter && !currentEncounter) || !review.doctor_note || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
+                  disabled={saving || !review.doctor_note || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
                   fullWidth
                   sx={{ 
                     bgcolor: 'success.main',
@@ -893,15 +1185,13 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                   variant="contained"
                   startIcon={<SaveIcon />}
                   onClick={handleSaveNote}
-                  disabled={saving}
                   size="small"
                 >
-                  {saving ? 'Saving...' : 'Save'}
+                  Save
                 </Button>
                 <Button
                   variant="outlined"
                   onClick={handleCancelEdit}
-                  disabled={saving}
                   size="small"
                 >
                   Cancel
@@ -913,8 +1203,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           {renderSOAPSection('Objective', review.doctor_note.objective, 'objective', editingNote)}
           {renderSOAPSection('Assessment', review.doctor_note.assessment, 'assessment', editingNote)}
           {renderSOAPSection('Plan', review.doctor_note.plan, 'plan', editingNote)}
-          {renderPrescriptions(review.doctor_note.prescription)}
-          {renderInvestigations(review.doctor_note.investigation)}
+          {renderPrescriptions(editingNote ? (editedNote?.prescription || []) : (review.doctor_note?.prescription || []), editingNote)}
+          {renderInvestigations(editingNote ? (editedNote?.investigation || []) : (review.doctor_note?.investigation || []), editingNote)}
         </Box>
       )}
 
@@ -1039,17 +1329,23 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   }
 
   return (
-    <Container 
-      maxWidth="lg" 
-      sx={{ 
-        py: { xs: 2, md: 4 }, 
-        px: { xs: 1, sm: 2, md: 3 },
-        maxWidth: '100%',
-        width: '100%',
-      }}
-    >
-      {content}
-    </Container>
+    <>
+      <Container 
+        maxWidth="lg" 
+        sx={{ 
+          py: { xs: 2, md: 4 }, 
+          px: { xs: 1, sm: 2, md: 3 },
+          maxWidth: '100%',
+          width: '100%',
+        }}
+      >
+        {content}
+      </Container>
+
+
+
+
+    </>
   );
 };
 
