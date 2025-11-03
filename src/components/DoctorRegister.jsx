@@ -234,8 +234,7 @@ const DoctorRegister = () => {
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#92400e', textAlign: 'left' }}>
                     • Ask a colleague who uses our platform to share their referral link<br/>
-                    • They can find their referral link in the "Invite Colleague" section<br/>
-                    • Your colleague earns NGN 10,000 when you reach 10 subscribing patients!
+                    • They can find their referral link in the "Invite Colleague" section
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>

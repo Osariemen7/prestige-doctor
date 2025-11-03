@@ -115,7 +115,7 @@ export const sendMessage = async (messageData) => {
 // Responder Switching
 export const switchResponder = async (publicId, responderConfig) => {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${BASE_URL}/patientthread/${publicId}/switch-responder/`, {
+  const response = await fetch(`${BASE_URL}/gptthreads/${publicId}/switch-responder/`, {
     method: 'POST',
     headers,
     body: JSON.stringify(responderConfig)
