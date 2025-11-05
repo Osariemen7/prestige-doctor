@@ -68,6 +68,8 @@ const RecordingModal = ({
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
   const [processingData, setProcessingData] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [wakeLock, setWakeLock] = useState(null);
   
   const mediaRecorderRef = useRef(null);
@@ -81,6 +83,7 @@ const RecordingModal = ({
   const isPausedRef = useRef(false);
   const recordedMimeTypeRef = useRef(null);
   const isMountedRef = useRef(false);
+  const activeOperationsRef = useRef(0);
 
   const steps = ['Record Audio', 'Patient Details'];
 
@@ -189,6 +192,7 @@ const RecordingModal = ({
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(() => {});
       }
+      activeOperationsRef.current = 0;
       // Release wake lock on unmount
       releaseWakeLock();
     };
@@ -203,9 +207,19 @@ const RecordingModal = ({
   // Handle wake lock restoration when page becomes visible again
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && isRecording && !wakeLock) {
+      if (document.visibilityState === 'visible' && (isRecording || activeOperationsRef.current > 0) && !wakeLock) {
         console.log('Page became visible, attempting to restore wake lock');
         await requestWakeLock();
+      } else if (document.visibilityState === 'hidden' && isMobile && (isRecording || activeOperationsRef.current > 0)) {
+        // On mobile, warn user when page becomes hidden during active operations
+        console.log('Page hidden on mobile during active operation');
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Page Hidden ⚠️', {
+            body: 'Recording/processing may be interrupted. Return to this page to continue.',
+            icon: '/images/logo.png',
+            requireInteraction: true
+          });
+        }
       }
     };
 
@@ -213,7 +227,28 @@ const RecordingModal = ({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isRecording, wakeLock]);
+  }, [isRecording, wakeLock, isMobile]);
+
+  // Handle beforeunload warning for ongoing operations
+  useEffect(() => {
+    const handleBeforeUnload = (event) => {
+      if (isRecording || activeOperationsRef.current > 0) {
+        const operation = isRecording ? 'recording' : activeOperationsRef.current > 0 ? 'uploading/processing' : 'operation';
+        event.preventDefault();
+        const mobileWarning = isMobile ? ' On mobile, this may interrupt the process.' : '';
+        event.returnValue = `Warning: ${operation} is in progress. If you leave this page, you will lose your data.${mobileWarning} Are you sure you want to continue?`;
+        return event.returnValue;
+      }
+    };
+
+    if (isRecording || activeOperationsRef.current > 0) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isRecording, isMobile]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -247,12 +282,38 @@ const RecordingModal = ({
         lock.addEventListener('release', () => {
           console.log('Wake lock released');
           setWakeLock(null);
+          
+          // On mobile, warn user if wake lock is lost during active operations
+          if (isMobile && (isRecording || activeOperationsRef.current > 0)) {
+            const operation = isRecording ? 'recording' : 'processing';
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('Screen Lock Released ⚠️', {
+                body: `Screen may turn off during ${operation}. Keep this page visible to prevent interruptions.`,
+                icon: '/images/logo.png',
+                requireInteraction: true
+              });
+            } else {
+              alert(`Screen lock released. Screen may turn off during ${operation}. Keep this page visible to prevent interruptions.`);
+            }
+          }
         });
       } catch (error) {
         console.warn('Failed to acquire wake lock:', error);
+        
+        // On mobile, provide specific guidance for wake lock failures
+        if (isMobile && (isRecording || activeOperationsRef.current > 0)) {
+          const operation = isRecording ? 'recording' : 'processing';
+          setError(`Screen lock failed. On mobile devices, keep this page visible and avoid locking your screen during ${operation} to prevent interruptions.`);
+        }
       }
     } else {
       console.warn('Wake Lock API not supported');
+      
+      // On mobile without wake lock support, provide guidance
+      if (isMobile && (isRecording || activeOperationsRef.current > 0)) {
+        const operation = isRecording ? 'recording' : 'processing';
+        setError(`Screen lock not supported. On mobile devices, keep this page visible and avoid locking your screen during ${operation} to prevent interruptions.`);
+      }
     }
   };
 
@@ -369,6 +430,18 @@ const RecordingModal = ({
       // Request wake lock to prevent screen sleep
       await requestWakeLock();
 
+      // Mobile-specific warning
+      if (isMobile) {
+        setTimeout(() => {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Recording Started 📱', {
+              body: 'Keep this page visible and don\'t lock your screen. Recording will continue in background.',
+              icon: '/images/logo.png'
+            });
+          }
+        }, 1000);
+      }
+
       timerRef.current = setInterval(() => {
         setTimeRemaining(prev => {
           if (prev <= 1) {
@@ -443,8 +516,10 @@ const RecordingModal = ({
       clearInterval(timerRef.current);
       clearTimeout(pauseTimerRef.current);
       
-      // Release wake lock
-      releaseWakeLock();
+      // Release wake lock only if no other operations are active
+      if (activeOperationsRef.current === 0) {
+        releaseWakeLock();
+      }
       
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -467,6 +542,13 @@ const RecordingModal = ({
 
   const handleUpload = async (audioBlob, patientDetails, options = {}) => {
     const { background = false } = options;
+
+    setIsUploading(true);
+    activeOperationsRef.current += 1;
+    // Request wake lock for upload if not already held
+    if (!wakeLock) {
+      await requestWakeLock();
+    }
 
     if (reviewId) {
       setStatus(reviewId, 'uploading');
@@ -545,17 +627,36 @@ const RecordingModal = ({
       const message = error instanceof Error && error.message
         ? error.message
         : 'Failed to upload audio. Please try again.';
-      if (!background && isMountedRef.current) {
-        setError(message);
+      
+      // Mobile-specific network error handling
+      if (isMobile && (error.name === 'NetworkError' || error.message?.includes('network') || error.message?.includes('fetch'))) {
+        const networkMessage = `${message} Mobile networks can be unreliable - try connecting to WiFi or ensure stable cellular connection.`;
+        if (!background && isMountedRef.current) {
+          setError(networkMessage);
+        }
+        if (background) {
+          notifyProcessingFailure(networkMessage);
+        }
+      } else {
+        if (!background && isMountedRef.current) {
+          setError(message);
+        }
+        if (background) {
+          notifyProcessingFailure(message);
+        }
       }
+      
       if (reviewId) clearStatus(reviewId);
       if (onWorkflowEvent) {
         onWorkflowEvent('error');
       }
-      if (background) {
-        notifyProcessingFailure(message);
-      }
     } finally {
+      setIsUploading(false);
+      activeOperationsRef.current -= 1;
+      // Release wake lock if no operations are active
+      if (activeOperationsRef.current === 0 && isMountedRef.current) {
+        releaseWakeLock();
+      }
       if (isMountedRef.current) {
         setProcessingData(false);
       }
@@ -591,6 +692,13 @@ const RecordingModal = ({
   };
 
   const handleProcess = async (patientDetails, token, background = false) => {
+    setIsProcessing(true);
+    activeOperationsRef.current += 1;
+    // Ensure wake lock is maintained during processing
+    if (!wakeLock) {
+      await requestWakeLock();
+    }
+
     if (reviewId) {
       setStatus(reviewId, 'processing');
     }
@@ -678,17 +786,36 @@ const RecordingModal = ({
       const message = error instanceof Error && error.message
         ? error.message
         : 'Failed to process audio. Please try again.';
-      if (!background && isMountedRef.current) {
-        setError(message);
+      
+      // Mobile-specific network error handling
+      if (isMobile && (error.name === 'NetworkError' || error.message?.includes('network') || error.message?.includes('fetch'))) {
+        const networkMessage = `${message} Mobile networks can be unreliable - try connecting to WiFi or ensure stable cellular connection.`;
+        if (!background && isMountedRef.current) {
+          setError(networkMessage);
+        }
+        if (background) {
+          notifyProcessingFailure(networkMessage);
+        }
+      } else {
+        if (!background && isMountedRef.current) {
+          setError(message);
+        }
+        if (background) {
+          notifyProcessingFailure(message);
+        }
       }
+      
       if (reviewId) clearStatus(reviewId);
       if (onWorkflowEvent) {
         onWorkflowEvent('error');
       }
-      if (background) {
-        notifyProcessingFailure(message);
-      }
     } finally {
+      setIsProcessing(false);
+      activeOperationsRef.current -= 1;
+      // Release wake lock if no operations are active
+      if (activeOperationsRef.current === 0 && isMountedRef.current) {
+        releaseWakeLock();
+      }
       if (isMountedRef.current) {
         resetState();
       }
@@ -745,6 +872,21 @@ const RecordingModal = ({
 
     setTimeout(() => {
       alert('Processing in the background. You can continue with other tasks and we will notify you once processing is complete.');
+      
+      // Mobile-specific additional warning
+      if (isMobile) {
+        setTimeout(() => {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Processing Started 📱', {
+              body: 'Keep this page open or check notifications for completion. Don\'t close the browser.',
+              icon: '/images/logo.png',
+              requireInteraction: true
+            });
+          } else {
+            alert('Mobile: Keep this browser tab open and check for completion notifications. Don\'t close the browser while processing.');
+          }
+        }, 2000);
+      }
     }, 0);
 
     await handleUpload(recordedAudioBlob, payload, { background: true });
@@ -760,6 +902,9 @@ const RecordingModal = ({
     setShowPatientModal(false);
     setRecordedAudioBlob(null);
     setProcessingData(false);
+    setIsUploading(false);
+    setIsProcessing(false);
+    activeOperationsRef.current = 0;
   };
 
   const handlePatientModalCancel = () => {
@@ -773,6 +918,14 @@ const RecordingModal = ({
   };
 
   const handleClose = () => {
+    // Prevent closing if uploading or processing is active
+    if (isUploading || isProcessing) {
+      const operation = isUploading ? 'uploading' : 'processing';
+      if (!window.confirm(`Warning: ${operation} is in progress. If you close this modal, the operation will continue in the background, but you won't see progress updates. Are you sure you want to close?`)) {
+        return;
+      }
+    }
+
     // Stop recording if active
     if (isRecording || isPaused) {
       stopRecording();
@@ -849,10 +1002,32 @@ const RecordingModal = ({
                 icon={<PauseIcon />}
               />
             )}
+            {isUploading && (
+              <Chip 
+                label="Uploading" 
+                color="info" 
+                sx={{ animation: 'pulse 2s infinite' }}
+              />
+            )}
+            {isProcessing && (
+              <Chip 
+                label="Processing" 
+                color="secondary" 
+                sx={{ animation: 'pulse 2s infinite' }}
+              />
+            )}
             {wakeLock && (
               <Chip 
                 label="Screen Awake" 
                 color="info" 
+                size="small"
+                sx={{ ml: 1 }}
+              />
+            )}
+            {isMobile && (isRecording || activeOperationsRef.current > 0) && !wakeLock && (
+              <Chip 
+                label="Screen May Sleep" 
+                color="warning" 
                 size="small"
                 sx={{ ml: 1 }}
               />
@@ -874,6 +1049,13 @@ const RecordingModal = ({
                 • <strong>Minimum Duration:</strong> Recordings must be at least 60 seconds long<br />
                 • Recording will automatically stop after 30 minutes<br />
                 • You can pause and resume anytime<br />
+                • Screen stays awake during recording, uploading, and processing<br />
+                {isMobile && (
+                  <>
+                    • <strong>Mobile:</strong> Keep this page visible and avoid locking your screen<br />
+                    • <strong>Mobile:</strong> Don't switch apps during recording/uploading/processing<br />
+                  </>
+                )}
                 • Stopping uploads and processes in the background so you can keep working
               </Typography>
             </Alert>

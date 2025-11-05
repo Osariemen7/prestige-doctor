@@ -31,6 +31,7 @@ import {
   switchResponder,
   previewTemplateMessage
 } from '../services/messagingApi';
+import { getProviderInfo } from '../services/providerDashboardApi';
 
 const DoctorMessaging = () => {
   const { patientId } = useParams(); // Get patient ID from URL
@@ -51,6 +52,7 @@ const DoctorMessaging = () => {
   const [clinicalHistory, setClinicalHistory] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [providerId, setProviderId] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -108,6 +110,7 @@ const DoctorMessaging = () => {
   useEffect(() => {
     loadPatients();
     loadConversations();
+    fetchProviderId();
     // Poll for new messages every 30 seconds
     const interval = setInterval(loadConversations, 30000);
     return () => clearInterval(interval);
@@ -199,6 +202,17 @@ const DoctorMessaging = () => {
     } catch (error) {
       console.error('Error loading conversations:', error);
       return [];
+    }
+  };
+
+  const fetchProviderId = async () => {
+    try {
+      const providerData = await getProviderInfo();
+      if (providerData && Array.isArray(providerData) && providerData.length > 0) {
+        setProviderId(providerData[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching provider ID:', error);
     }
   };
 
@@ -532,13 +546,13 @@ const DoctorMessaging = () => {
   };
 
   const handleSwitchToDoctor = async () => {
-    if (!selectedConversation) return;
+    if (!selectedConversation || !providerId) return;
 
     try {
       setLoading(true);
       await switchResponder(selectedConversation.public_id, {
         responder: 'doctor',
-        provider_id: selectedConversation.doctor_id,
+        provider_id: providerId,
         send_handoff_message: true,
         handoff_message: "I'm taking over this conversation to provide personalized care."
       });
@@ -812,7 +826,11 @@ const DoctorMessaging = () => {
                   </button>
                 )}
                 {selectedConversation.responder === 'assistant' ? (
-                  <button className="action-btn primary" onClick={handleSwitchToDoctor}>
+                  <button 
+                    className="action-btn primary" 
+                    onClick={handleSwitchToDoctor}
+                    disabled={!providerId || loading}
+                  >
                     <ArrowLeftRight size={16} />
                     {!isMobile && 'Take Over'}
                   </button>
