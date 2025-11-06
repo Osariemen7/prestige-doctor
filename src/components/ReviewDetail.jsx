@@ -71,7 +71,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { getStatus, processingStatuses } = useProcessingStatus();
+  const { getStatus, processingStatuses, startEncounterPolling } = useProcessingStatus();
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -225,6 +225,35 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     previousStatusRef.current = getStatus(publicId);
   }, [publicId, getStatus]);
 
+  // Start polling if there's an active processing status
+  useEffect(() => {
+    if (!review || !publicId) return;
+
+    const encounter = review.in_person_encounters?.[0];
+    if (!encounter) return;
+
+    const encounterId = encounter.public_id;
+    const currentStatus = getStatus(publicId);
+
+    // Only start polling if actively processing or queued; skip if already failed
+    if (currentStatus === 'processing' || currentStatus === 'queued') {
+      startEncounterPolling({
+        reviewId: publicId,
+        encounterId,
+        initialState: currentStatus,
+        onStatus: () => {}, // No specific status handling needed here
+        onComplete: () => {
+          // Refetch review data when processing completes
+          // This will be called after polling completes
+          setLoading(true);
+        },
+        onError: (message) => {
+          console.error('Polling error:', message);
+        }
+      });
+    }
+  }, [publicId, getStatus, startEncounterPolling, review]);
+
   const fetchReviewDetail = async () => {
     setLoading(true);
     const token = await getAccessToken();
@@ -330,17 +359,44 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const handleSaveNote = async () => {
     if (!review || !editedNote) return;
 
-    console.log('Saving edited note to local state:', editedNote);
+    setSaving(true);
+    try {
+      const token = await getAccessToken();
 
-    // Update the review state with the edited note so changes persist
-    setReview(prev => ({
-      ...prev,
-      doctor_note: editedNote
-    }));
+      const response = await fetch(
+        `https://service.prestigedelta.com/medical-reviews/${publicId}/save-note/`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            note: editedNote
+          })
+        }
+      );
 
-    // Exit edit mode
-    setEditingNote(false);
-    setEditedNote(null);
+      if (response.ok) {
+        // Update the review state with the edited note
+        setReview(prev => ({
+          ...prev,
+          doctor_note: editedNote
+        }));
+
+        // Exit edit mode
+        setEditingNote(false);
+        setEditedNote(null);
+      } else {
+        const error = await response.json().catch(() => ({}));
+        alert(`Failed to save note: ${error.detail || 'Please try again.'}`);
+      }
+    } catch (error) {
+      console.error('Error saving note:', error);
+      alert('An error occurred while saving the note');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleFinalize = async () => {

@@ -49,7 +49,7 @@ const ReviewsList = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { getStatus, processingStatuses } = useProcessingStatus();
+  const { getStatus, processingStatuses, startEncounterPolling } = useProcessingStatus();
   const activeReview = useMemo(() => {
     if (!workflowReviewId) {
       return null;
@@ -63,6 +63,7 @@ const ReviewsList = () => {
     [activeReview]
   );
   const lastFetchRef = useRef(0);
+  const pollingTrackerRef = useRef(new Set()); // Track which reviews are already polling
 
   const fetchReviews = useCallback(async () => {
     setLoading(true);
@@ -120,6 +121,41 @@ const ReviewsList = () => {
     }
   }, [processingStatuses, reviews.length, fetchReviews]);
 
+  // Start polling for reviews that are actively processing
+  useEffect(() => {
+    reviews.forEach(review => {
+      const reviewId = review.public_id;
+      const status = getStatus(reviewId);
+      const encounter = review.in_person_encounters?.[0];
+
+      // Only start polling if status is active AND we haven't already started for this review
+      if ((status === 'processing' || status === 'queued') && encounter && !pollingTrackerRef.current.has(reviewId)) {
+        const encounterId = encounter.public_id;
+        pollingTrackerRef.current.add(reviewId); // Mark as polling
+        
+        startEncounterPolling({
+          reviewId,
+          encounterId,
+          initialState: status,
+          onStatus: () => {},
+          onComplete: () => {
+            pollingTrackerRef.current.delete(reviewId); // Clean up when done
+            fetchReviews();
+          },
+          onError: (message) => {
+            console.error('Polling error for review', reviewId, ':', message);
+            pollingTrackerRef.current.delete(reviewId); // Clean up on error
+          }
+        });
+      }
+      
+      // Clean up tracking for reviews that are no longer processing
+      if (status === 'failed' || status === 'completed' || !status) {
+        pollingTrackerRef.current.delete(reviewId);
+      }
+    });
+  }, [reviews, getStatus, startEncounterPolling, fetchReviews]);
+
 
   const getStatusColor = (isFinalized) => {
     return isFinalized ? 'success' : 'warning';
@@ -148,7 +184,7 @@ const ReviewsList = () => {
       );
     }
     
-    if (status === 'processing') {
+    if (status === 'processing' || status === 'queued') {
       return (
         <Chip
           icon={<AutorenewIcon />}

@@ -58,7 +58,7 @@ const RecordingModal = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
-  const { setStatus, clearStatus } = useProcessingStatus();
+  const { getStatus, startEncounterPolling } = useProcessingStatus();
   const [step, setStep] = useState(0); // 0: input selection/recording, 1: patient-details
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -68,6 +68,8 @@ const RecordingModal = ({
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
   const [processingData, setProcessingData] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState(null);
   const [wakeLock, setWakeLock] = useState(null);
   
   const mediaRecorderRef = useRef(null);
@@ -200,6 +202,30 @@ const RecordingModal = ({
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!reviewId) {
+      return;
+    }
+
+    const status = getStatus(reviewId);
+    if (!status) {
+      if (!open) {
+        setIsProcessing(false);
+        setProcessingStatus(null);
+      }
+      return;
+    }
+
+    if (status === 'processing' || status === 'queued') {
+      setIsProcessing(true);
+      setProcessingStatus(status === 'queued' ? 'processing' : status);
+      return;
+    }
+
+    setProcessingStatus(status);
+    setIsProcessing(false);
+  }, [reviewId, open, getStatus]);
+
   // Handle wake lock restoration when page becomes visible again
   useEffect(() => {
     const handleVisibilityChange = async () => {
@@ -219,6 +245,23 @@ const RecordingModal = ({
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatProcessingStatus = (status) => {
+    if (!status) {
+      return 'Processing';
+    }
+
+    const normalized = String(status).trim();
+    if (!normalized) {
+      return 'Processing';
+    }
+
+    if (normalized === 'queued' || normalized === 'processing') {
+      return 'Processing';
+    }
+
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   };
 
   const setupAudioDetection = (stream) => {
@@ -468,13 +511,6 @@ const RecordingModal = ({
   const handleUpload = async (audioBlob, patientDetails, options = {}) => {
     const { background = false } = options;
 
-    if (reviewId) {
-      setStatus(reviewId, 'uploading');
-    }
-    if (onWorkflowEvent) {
-      onWorkflowEvent('uploading');
-    }
-
     try {
       const mimeType = audioBlob.type || 'audio/webm';
       let fileExtension = 'webm';
@@ -497,7 +533,7 @@ const RecordingModal = ({
         originalFormat = 'wav';
       }
 
-      console.log('Uploading audio:', {
+      console.log('Queueing audio for processing:', {
         size: audioBlob.size,
         type: mimeType,
         extension: fileExtension,
@@ -507,11 +543,30 @@ const RecordingModal = ({
       const formData = new FormData();
       formData.append('audio_file', audioBlob, `recording.${fileExtension}`);
       formData.append('original_format', originalFormat);
+      formData.append('query', 'Create a concise note');
+
+      const trimmedFirstName = (patientDetails.patient_first_name || '').trim();
+      const trimmedLastName = (patientDetails.patient_last_name || '').trim();
+      const trimmedPhone = (patientDetails.patient_phone_number || '').trim();
+
+      if (trimmedFirstName) formData.append('patient_first_name', trimmedFirstName);
+      if (trimmedLastName) formData.append('patient_last_name', trimmedLastName);
+      if (trimmedPhone) formData.append('patient_phone_number', trimmedPhone);
+
+      formData.append('save_documentation', patientDetails.save_documentation ? 'true' : 'false');
+
+      if (existingNote && Object.keys(existingNote).length > 0) {
+        formData.append('existing_note', JSON.stringify(existingNote));
+      }
+
+      if (Array.isArray(existingTranscript) && existingTranscript.length > 0) {
+        formData.append('existing_transcript', JSON.stringify(existingTranscript));
+      }
 
       const token = await getAccessToken();
 
       const response = await fetch(
-        `https://service.prestigedelta.com/in-person-encounters/${encounterId}/upload-audio/`,
+        `https://service.prestigedelta.com/in-person-encounters/${encounterId}/queue-processing/`,
         {
           method: 'POST',
           headers: {
@@ -521,176 +576,103 @@ const RecordingModal = ({
         }
       );
 
+      const responseData = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const message = errorData.detail || 'Upload failed. Please try again.';
-        console.error('Upload failed:', errorData);
-        if (!background && isMountedRef.current) {
-          setError(message);
-        }
-        if (reviewId) clearStatus(reviewId);
+        const message = responseData.detail || responseData.error || 'Failed to start processing. Please try again.';
+        console.error('Queue processing failed:', responseData);
         if (onWorkflowEvent) {
           onWorkflowEvent('error');
         }
         if (background) {
           notifyProcessingFailure(message);
+        } else if (isMountedRef.current) {
+          setError(message);
         }
         return;
       }
 
-      await waitForUploads(token);
-      await handleProcess(patientDetails, token, background);
+      const initialState = responseData.state || 'queued';
+      const normalizedInitialState = initialState === 'queued' ? 'processing' : initialState;
+
+      if (onWorkflowEvent) {
+        onWorkflowEvent('processing');
+      }
+
+      if (isMountedRef.current) {
+        setIsProcessing(true);
+        setProcessingStatus(normalizedInitialState);
+      }
+
+      if (reviewId) {
+        startEncounterPolling({
+          reviewId,
+          encounterId,
+          initialState: normalizedInitialState,
+          onStatus: (state) => {
+            if (isMountedRef.current) {
+              const normalizedState = state === 'queued' ? 'processing' : state;
+              setProcessingStatus(normalizedState);
+            }
+          },
+          onComplete: (statusData) => {
+            const processedReviewId =
+              statusData?.result?.review_public_id ||
+              statusData?.result?.medical_review_public_id ||
+              statusData?.result?.reviewPublicId ||
+              statusData?.result?.reviewId ||
+              reviewId;
+
+            if (onWorkflowEvent) {
+              onWorkflowEvent('completed');
+            }
+            if (onComplete) onComplete();
+
+            if (background) {
+              showProcessingCompleteNotification(processedReviewId);
+            } else {
+              handleClose();
+            }
+
+            if (isMountedRef.current) {
+              setIsProcessing(false);
+              setProcessingStatus('completed');
+            }
+          },
+          onError: (message) => {
+            if (onWorkflowEvent) {
+              onWorkflowEvent('error');
+            }
+
+            if (background) {
+              notifyProcessingFailure(message);
+            } else if (isMountedRef.current) {
+              setError(message);
+            }
+
+            if (isMountedRef.current) {
+              setIsProcessing(false);
+              setProcessingStatus('failed');
+            }
+          }
+        });
+      }
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Queue processing error:', error);
       const message = error instanceof Error && error.message
         ? error.message
-        : 'Failed to upload audio. Please try again.';
-      if (!background && isMountedRef.current) {
-        setError(message);
-      }
-      if (reviewId) clearStatus(reviewId);
+        : 'Failed to start processing. Please try again.';
       if (onWorkflowEvent) {
         onWorkflowEvent('error');
       }
       if (background) {
         notifyProcessingFailure(message);
+      } else if (isMountedRef.current) {
+        setError(message);
       }
     } finally {
       if (isMountedRef.current) {
         setProcessingData(false);
-      }
-    }
-  };
-
-  const waitForUploads = async (token, maxAttempts = 120) => {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const statusResponse = await fetch(
-        `https://service.prestigedelta.com/in-person-encounters/${encounterId}/`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-
-      if (!statusResponse.ok) {
-        throw new Error('Failed to verify upload status.');
-      }
-
-      const statusData = await statusResponse.json();
-
-      if (!statusData.s3_upload_pending && !statusData.google_upload_pending) {
-        console.log('Uploads finished successfully.');
-        return statusData;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-
-    throw new Error('Upload is taking longer than expected. Please try again.');
-  };
-
-  const handleProcess = async (patientDetails, token, background = false) => {
-    if (reviewId) {
-      setStatus(reviewId, 'processing');
-    }
-    if (onWorkflowEvent) {
-      onWorkflowEvent('processing');
-    }
-
-    try {
-      const authToken = token || await getAccessToken();
-
-      const requestBody = {
-        encounter_public_id: encounterId,
-        query: 'Create a concise note',
-        patient_first_name: patientDetails.patient_first_name,
-        patient_last_name: patientDetails.patient_last_name,
-        patient_phone_number: patientDetails.patient_phone_number,
-        save_documentation: patientDetails.save_documentation
-      };
-
-      if (existingNote && Object.keys(existingNote).length > 0) {
-        requestBody.existing_note = existingNote;
-      }
-
-      if (Array.isArray(existingTranscript) && existingTranscript.length > 0) {
-        requestBody.existing_transcript = existingTranscript;
-      }
-
-      console.log('Processing audio with data:', requestBody);
-
-      const response = await fetch(
-        'https://service.prestigedelta.com/ai-processing/process-audio/',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody)
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const message = `Processing failed: ${errorData.detail || 'Please try again.'}`;
-        console.error('Processing failed:', errorData);
-        if (!background && isMountedRef.current) {
-          setError(message);
-        }
-        if (reviewId) clearStatus(reviewId);
-        if (onWorkflowEvent) {
-          onWorkflowEvent('error');
-        }
-        if (background) {
-          notifyProcessingFailure(message);
-        }
-        return;
-      }
-
-      const result = await response.json();
-      console.log('Processing complete:', result);
-
-      const processedReviewId =
-        result?.review_public_id ||
-        result?.medical_review_public_id ||
-        result?.reviewPublicId ||
-        result?.reviewId ||
-        reviewId;
-
-      if (reviewId) {
-        clearStatus(reviewId);
-      }
-
-      if (onWorkflowEvent) {
-        onWorkflowEvent('completed');
-      }
-      if (onComplete) onComplete();
-
-      if (background) {
-        showProcessingCompleteNotification(processedReviewId);
-      } else if (isMountedRef.current) {
-        handleClose();
-      }
-    } catch (error) {
-      console.error('Processing error:', error);
-      const message = error instanceof Error && error.message
-        ? error.message
-        : 'Failed to process audio. Please try again.';
-      if (!background && isMountedRef.current) {
-        setError(message);
-      }
-      if (reviewId) clearStatus(reviewId);
-      if (onWorkflowEvent) {
-        onWorkflowEvent('error');
-      }
-      if (background) {
-        notifyProcessingFailure(message);
-      }
-    } finally {
-      if (isMountedRef.current) {
-        resetState();
       }
     }
   };
@@ -744,13 +726,15 @@ const RecordingModal = ({
     }
 
     setTimeout(() => {
-      alert('Processing in the background. You can continue with other tasks and we will notify you once processing is complete.');
+      alert('Recording is processing in the background. You can keep working and we will notify you once it is complete.');
     }, 0);
 
     await handleUpload(recordedAudioBlob, payload, { background: true });
+    resetState({ preserveProcessing: true });
   };
 
-  const resetState = () => {
+  const resetState = (options = {}) => {
+    const { preserveProcessing = false } = options;
     setStep(0);
     setIsRecording(false);
     setIsPaused(false);
@@ -760,16 +744,14 @@ const RecordingModal = ({
     setShowPatientModal(false);
     setRecordedAudioBlob(null);
     setProcessingData(false);
+    if (!preserveProcessing) {
+      setIsProcessing(false);
+      setProcessingStatus(null);
+    }
   };
 
   const handlePatientModalCancel = () => {
-    setShowPatientModal(false);
-    setProcessingData(false);
-    setRecordedAudioBlob(null);
-    setPauseWarning(false);
-    setStep(0);
-    setTimeRemaining(30 * 60);
-    setError(null);
+    resetState();
   };
 
   const handleClose = () => {
@@ -807,6 +789,22 @@ const RecordingModal = ({
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {isProcessing && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ flexGrow: 1 }}>
+              Recording is processing. You can keep working — we will notify you once it is ready.
+            </Typography>
+            <Chip
+              label={formatProcessingStatus(processingStatus)}
+              color="primary"
+              variant="outlined"
+              size="small"
+            />
+          </Box>
         </Alert>
       )}
 
