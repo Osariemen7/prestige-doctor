@@ -84,3 +84,21 @@ export const getProviderReviews = async (hours = 168) => {
 
   return response.json();
 };
+
+/**
+ * Fetch current provider information
+ * @returns {Promise<Object>} Provider data including id, user info, clinic details, etc.
+ */
+export const getProviderInfo = async () => {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${BASE_URL}/provider/`, {
+    headers
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch provider information');
+  }
+
+  return response.json();
+};
