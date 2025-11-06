@@ -834,10 +834,9 @@ const RecordingModal = ({
   };
 
   const handleClose = () => {
-    // Prevent closing if uploading or processing is active
-    if (isUploading || isProcessing) {
-      const operation = isUploading ? 'uploading' : 'processing';
-      if (!window.confirm(`Warning: ${operation} is in progress. If you close this modal, the operation will continue in the background, but you won't see progress updates. Are you sure you want to close?`)) {
+    // Prevent closing if processing is active
+    if (isProcessing) {
+      if (!window.confirm(`Warning: processing is in progress. If you close this modal, the operation will continue in the background, but you won't see progress updates. Are you sure you want to close?`)) {
         return;
       }
     }
@@ -932,13 +931,6 @@ const RecordingModal = ({
                 label="Paused" 
                 color="warning" 
                 icon={<PauseIcon />}
-              />
-            )}
-            {isUploading && (
-              <Chip 
-                label="Uploading" 
-                color="info" 
-                sx={{ animation: 'pulse 2s infinite' }}
               />
             )}
             {isProcessing && (
