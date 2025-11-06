@@ -372,16 +372,17 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            note: editedNote
+            note_payload: editedNote
           })
         }
       );
 
       if (response.ok) {
-        // Update the review state with the edited note
+        // Update the review state with the edited note payload
         setReview(prev => ({
           ...prev,
-          doctor_note: editedNote
+          doctor_note: editedNote,
+          note_payload: editedNote
         }));
 
         // Exit edit mode
@@ -389,7 +390,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         setEditedNote(null);
       } else {
         const error = await response.json().catch(() => ({}));
-        alert(`Failed to save note: ${error.detail || 'Please try again.'}`);
+        alert(`Failed to save note: ${error.detail || JSON.stringify(error) || 'Please try again.'}`);
       }
     } catch (error) {
       console.error('Error saving note:', error);
