@@ -25,6 +25,7 @@ import {
   LocalHospital as HospitalIcon,
   PersonAdd as PersonAddIcon,
   Message as MessageIcon,
+  Science as ScienceIcon,
 } from '@mui/icons-material';
 import InviteColleagueModal from './InviteColleagueModal';
 
@@ -64,6 +65,12 @@ const DoctorLayout = ({ children }) => {
       description: 'Communicate with patients',
       icon: <MessageIcon />,
       path: '/messages',
+    },
+    {
+      text: 'Investigations',
+      description: 'Manage patient lab tests',
+      icon: <ScienceIcon />,
+      path: '/investigations',
     },
     {
       text: 'Business Dashboard',

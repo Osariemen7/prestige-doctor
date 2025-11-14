@@ -22,6 +22,8 @@ import DoctorLayout from './components/DoctorLayout';
 import AdminDashboard from './components/AdminDashboard';
 import DoctorMessaging from './components/DoctorMessaging';
 import PatientDetailsPage from './components/PatientDetailsPage';
+import InvestigationsMain from './components/InvestigationsMain';
+import InvestigationDetailPage from './components/InvestigationDetailPage';
 
 const App = () => {
   return (
@@ -45,6 +47,10 @@ const App = () => {
             <Route path="/admin-dashboard" element={<DoctorLayout><AdminDashboard /></DoctorLayout>} />
             <Route path="/messages" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
             <Route path="/messages/:patientId" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
+            
+            {/* Investigation Management Routes */}
+            <Route path="/investigations" element={<DoctorLayout><InvestigationsMain /></DoctorLayout>} />
+            <Route path="/investigations/:type/:id" element={<DoctorLayout><InvestigationDetailPage /></DoctorLayout>} />
             
             {/* Legacy Routes */}
             <Route path="/dashboard" element={<Dashboard />} />
