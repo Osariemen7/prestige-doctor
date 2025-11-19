@@ -161,9 +161,9 @@ const ProviderDashboard = () => {
     consultation_rate: provider_info?.consultation_rate ?? 0,
     currency: provider_info?.currency ?? 'NGN',
     expected_monthly_subscription_payout: provider_info?.expected_monthly_subscription_payout ?? 0,
-    monthly_prescription_commission: provider_info?.monthly_prescription_commission ?? 0,
+    monthly_patient_onboarding_commission: provider_info?.monthly_patient_onboarding_commission ?? 0,
     total_expected_monthly_payout: provider_info?.total_expected_monthly_payout ?? 0,
-    prescription_sales_this_month: provider_info?.prescription_sales_this_month ?? 0,
+    patients_onboarded_this_month: provider_info?.patients_onboarded_this_month ?? 0,
     active_subscribed_patients_count: provider_info?.active_subscribed_patients_count ?? 0,
     pending_subscribed_patients_count: provider_info?.pending_subscribed_patients_count ?? 0,
     churned_patients_count: provider_info?.churned_patients_count ?? 0,
@@ -318,10 +318,10 @@ const ProviderDashboard = () => {
             </Grid>
             <Grid item xs={12} sm={6} lg={2}>
               <MetricCard
-                title="Prescription Sales"
-                value={`${safeProviderInfo.currency} ${safeProviderInfo.prescription_sales_this_month.toLocaleString()}`}
-                subtitle={`Commission: ${safeProviderInfo.currency} ${safeProviderInfo.monthly_prescription_commission.toLocaleString()}`}
-                icon={PharmacyIcon}
+                title="Patients Onboarded"
+                value={safeProviderInfo.patients_onboarded_this_month}
+                subtitle={`Commission: ${safeProviderInfo.currency} ${(safeProviderInfo.patients_onboarded_this_month * safeProviderInfo.monthly_patient_onboarding_commission).toLocaleString()} (${safeProviderInfo.currency} ${safeProviderInfo.monthly_patient_onboarding_commission.toLocaleString()}/patient)`}
+                icon={PeopleIcon}
                 gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
               />
             </Grid>
