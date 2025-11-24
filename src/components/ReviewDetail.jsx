@@ -38,6 +38,7 @@ import { getAccessToken } from '../api';
 import { useTheme, useMediaQuery } from '@mui/material';
 import CreateEncounterModal from './CreateEncounterModal';
 import RecordingModal from './RecordingModal';
+import AiConsultationChat from './AiConsultationChat';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
 
@@ -90,6 +91,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const [editedNote, setEditedNote] = useState(null);
   const [editingPrescriptions, setEditingPrescriptions] = useState(false);
   const [editingInvestigations, setEditingInvestigations] = useState(false);
+  const [chatRefreshTrigger, setChatRefreshTrigger] = useState(0);
   const previousStatusRef = useRef(null);
   const lastFetchRef = useRef(0);
 
@@ -275,6 +277,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         const data = await response.json();
         setReview(data);
         lastFetchRef.current = Date.now();
+        setChatRefreshTrigger(prev => prev + 1);
         
         // Pre-fill patient data from review level, fallback to encounter level
         setPatientData({
@@ -1373,6 +1376,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         onComplete={fetchReviewDetail}
         existingNote={existingNote}
         existingTranscript={existingTranscript}
+      />
+
+      {/* AI Consultation Chat */}
+      <AiConsultationChat
+        key={chatRefreshTrigger}
+        reviewPublicId={publicId}
+        enabled={true}
+        requireExistingThread={true}
       />
     </>
   );

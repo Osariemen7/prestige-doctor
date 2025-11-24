@@ -64,7 +64,7 @@ const PatientDetailsModal = ({
     patient_last_name: '',
     patient_phone_number: ''
   });
-  const [saveDocumentation, setSaveDocumentation] = useState(true);
+  const [consultAi, setConsultAi] = useState(false);
   const [error, setError] = useState('');
 
   const primaryActionSx = {
@@ -145,32 +145,20 @@ const PatientDetailsModal = ({
       patient_phone_number: convertedPhoneNumber
     };
     
-    // Require phone number when saving documentation
-    if (saveDocumentation) {
-      if (!convertedPhoneNumber.trim()) {
-        setError('Phone number is required when saving documentation.');
-        return;
-      }
+    // Validate phone number format if provided
+    if (convertedPhoneNumber.trim()) {
       const phoneRegex = /^\+\d{1,4}\d{6,14}$/;
       if (!phoneRegex.test(convertedPhoneNumber.trim())) {
         setError('Phone number must be in international format (e.g., +1234567890)');
         return;
-      }
-    } else {
-      // Validate phone number format if provided
-      if (convertedPhoneNumber.trim()) {
-        const phoneRegex = /^\+\d{1,4}\d{6,14}$/;
-        if (!phoneRegex.test(convertedPhoneNumber.trim())) {
-          setError('Phone number must be in international format (e.g., +1234567890)');
-          return;
-        }
       }
     }
     
     // Call parent submit handler
     onSubmit({
       ...updatedFormData,
-      save_documentation: saveDocumentation
+      save_documentation: true,
+      consult_ai: consultAi
     });
   };
 
@@ -273,7 +261,7 @@ const PatientDetailsModal = ({
           helperText="Optional - enter in national format (080...) or international format (+234...) for saving documentation"
         />
 
-        {/* Save Documentation Toggle */}
+        {/* Consult AI Toggle */}
         <Box sx={{ 
           p: 2, 
           bgcolor: 'primary.50', 
@@ -284,19 +272,18 @@ const PatientDetailsModal = ({
           <FormControlLabel
             control={
               <Switch
-                checked={saveDocumentation}
-                onChange={(e) => setSaveDocumentation(e.target.checked)}
-                disabled={true} // Always disabled - documentation always saves
+                checked={consultAi}
+                onChange={(e) => setConsultAi(e.target.checked)}
                 color="primary"
               />
             }
             label={
               <Box>
                 <Typography variant="subtitle1" fontWeight="bold">
-                  Save Documentation
+                  Consult AI for Independent Assessment
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Documentation will be automatically processed and saved after upload
+                  Get an independent AI expert opinion on the recording including assessment and management plan
                 </Typography>
               </Box>
             }

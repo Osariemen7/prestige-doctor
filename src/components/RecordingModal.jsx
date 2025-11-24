@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import PatientDetailsModal from './PatientDetailsModal';
+import AiConsultationChat from './AiConsultationChat';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 
 const selectPreferredValue = (...values) => {
@@ -71,6 +72,8 @@ const RecordingModal = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState(null);
   const [wakeLock, setWakeLock] = useState(null);
+  const [consultAiEnabled, setConsultAiEnabled] = useState(false);
+  const [currentReviewPublicId, setCurrentReviewPublicId] = useState(null);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -626,7 +629,8 @@ const RecordingModal = ({
       if (trimmedLastName) formData.append('patient_last_name', trimmedLastName);
       if (trimmedPhone) formData.append('patient_phone_number', trimmedPhone);
 
-      formData.append('save_documentation', patientDetails.save_documentation ? 'true' : 'false');
+      formData.append('save_documentation', 'true');
+      formData.append('consult_ai', patientDetails.consult_ai ? 'true' : 'false');
 
       if (existingNote && Object.keys(existingNote).length > 0) {
         formData.append('existing_note', JSON.stringify(existingNote));
@@ -695,6 +699,11 @@ const RecordingModal = ({
               statusData?.result?.reviewPublicId ||
               statusData?.result?.reviewId ||
               reviewId;
+
+            // Store the review public ID for AI consultation
+            if (isMountedRef.current && processedReviewId) {
+              setCurrentReviewPublicId(processedReviewId);
+            }
 
             if (onWorkflowEvent) {
               onWorkflowEvent('completed');
@@ -791,12 +800,12 @@ const RecordingModal = ({
 
     const payload = {
       ...sanitizedData,
-      save_documentation: sanitizedData.patient_phone_number
-        ? typeof patientData.save_documentation === 'boolean'
-          ? patientData.save_documentation
-          : true
-        : false
+      save_documentation: true,
+      consult_ai: patientData.consult_ai || false
     };
+
+    // Store consult_ai flag for enabling the chat
+    setConsultAiEnabled(patientData.consult_ai || false);
 
     setShowPatientModal(false);
 
@@ -1098,6 +1107,12 @@ const RecordingModal = ({
           loading={processingData}
           readOnly={false}
         />
+
+        {/* AI Consultation Chat */}
+        <AiConsultationChat
+          reviewPublicId={currentReviewPublicId}
+          enabled={consultAiEnabled && !!currentReviewPublicId}
+        />
       </>
     );
   }
@@ -1126,6 +1141,12 @@ const RecordingModal = ({
         initialData={mergedPatientDefaults}
         loading={processingData}
         readOnly={false}
+      />
+
+      {/* AI Consultation Chat */}
+      <AiConsultationChat
+        reviewPublicId={currentReviewPublicId}
+        enabled={consultAiEnabled && !!currentReviewPublicId}
       />
     </>
   );
