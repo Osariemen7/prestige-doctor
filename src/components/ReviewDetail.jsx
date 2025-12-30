@@ -1384,6 +1384,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         reviewPublicId={publicId}
         enabled={true}
         requireExistingThread={true}
+        patientId={review?.patient || review?.patient_id}
       />
     </>
   );

@@ -24,6 +24,7 @@ import DoctorMessaging from './components/DoctorMessaging';
 import PatientDetailsPage from './components/PatientDetailsPage';
 import InvestigationsMain from './components/InvestigationsMain';
 import InvestigationDetailPage from './components/InvestigationDetailPage';
+import PatientMediaGallery from './components/PatientMediaGallery';
 
 const App = () => {
   return (
@@ -44,6 +45,7 @@ const App = () => {
             <Route path="/review/:publicId" element={<DoctorLayout><ReviewDetail /></DoctorLayout>} />
             <Route path="/provider-dashboard" element={<DoctorLayout><ProviderDashboard /></DoctorLayout>} />
             <Route path="/patient/:patientId" element={<DoctorLayout><PatientDetailsPage /></DoctorLayout>} />
+            <Route path="/patient/:patientId/media" element={<DoctorLayout><PatientMediaGallery /></DoctorLayout>} />
             <Route path="/admin-dashboard" element={<DoctorLayout><AdminDashboard /></DoctorLayout>} />
             <Route path="/messages" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
             <Route path="/messages/:patientId" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />

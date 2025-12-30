@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -55,8 +56,9 @@ function parseSSEText(sseText, onChunk) {
   });
 }
 
-const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingThread = false }) => {
+const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingThread = false, patientId }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const [isExpanded, setIsExpanded] = useState(false);
@@ -299,7 +301,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
       public_id: publicId,
       query,
       google_file_ids: googleFileIds || [],
-      planner_role: 'doctor',
+      planner_role: 'doctor_copilot',
       store_conversation: true
     };
 
@@ -745,9 +747,21 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
                 )}
               </Box>
             </Box>
-            <IconButton onClick={() => setIsExpanded(false)} size="small">
-              <CloseIcon />
-            </IconButton>
+            <Box>
+              {patientId && (
+                <IconButton 
+                  onClick={() => navigate(`/patient/${patientId}/media`)} 
+                  size="small" 
+                  sx={{ mr: 1 }}
+                  title="View Patient Media"
+                >
+                  <ImageIcon />
+                </IconButton>
+              )}
+              <IconButton onClick={() => setIsExpanded(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
 
           {/* Messages */}
@@ -873,13 +887,25 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
                 )}
               </Box>
             </Box>
-            <IconButton
-              onClick={() => setIsExpanded(false)}
-              size="small"
-              sx={{ color: 'white' }}
-            >
-              <CloseIcon />
-            </IconButton>
+            <Box>
+              {patientId && (
+                <IconButton 
+                  onClick={() => navigate(`/patient/${patientId}/media`)} 
+                  size="small" 
+                  sx={{ color: 'white', mr: 1 }}
+                  title="View Patient Media"
+                >
+                  <ImageIcon />
+                </IconButton>
+              )}
+              <IconButton
+                onClick={() => setIsExpanded(false)}
+                size="small"
+                sx={{ color: 'white' }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
 
           {/* Messages */}
