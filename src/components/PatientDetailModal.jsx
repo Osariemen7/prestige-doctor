@@ -37,6 +37,11 @@ import {
   ExpandMore as ExpandMoreIcon,
   Person as PersonIcon,
   CalendarToday as CalendarIcon,
+  SentimentSatisfiedAlt as MoodIcon,
+  FlashOn as EnergyIcon,
+  Bedtime as SleepIcon,
+  ReportProblem as PainIcon,
+  Notes as NoteIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import MetricChart from './MetricChart';
@@ -56,6 +61,8 @@ const PatientDetailModal = ({ patient, onClose }) => {
   const medicalReviews = patient?.medical_reviews || {};
   const fullMedicalReviews = patient?.full_medical_reviews || [];
   const metrics = patient?.metrics || [];
+  const wellnessLogs = patient?.wellness_logs || [];
+  const latestWellnessLog = wellnessLogs.length > 0 ? wellnessLogs[0] : null;
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -402,6 +409,136 @@ const PatientDetailModal = ({ patient, onClose }) => {
                     </Stack>
                   </CardContent>
                 </Card>
+              )}
+
+              {/* Wellness Monitoring */}
+              {latestWellnessLog && (
+                <Accordion 
+                  elevation={1} 
+                  sx={{ 
+                    borderRadius: '8px !important',
+                    '&:before': { display: 'none' },
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                    overflow: 'hidden'
+                  }}
+                >
+                  <AccordionSummary 
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{ 
+                      bgcolor: alpha(theme.palette.primary.main, 0.02),
+                      '&.Mui-expanded': {
+                        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                      }
+                    }}
+                  >
+                    <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
+                      <TrendingUpIcon color="primary" />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          Latest Wellness Monitoring
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Last updated: {formatDateTime(latestWellnessLog.created_at)}
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        label={`Score: ${latestWellnessLog.wellness_score}/100`}
+                        color={latestWellnessLog.wellness_score >= 70 ? "success" : latestWellnessLog.wellness_score >= 40 ? "warning" : "error"}
+                        size="small"
+                        sx={{ fontWeight: 700 }}
+                      />
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 3 }}>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={4}>
+                        <Stack spacing={2}>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <MoodIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Mood
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body1" fontWeight={500}>
+                              {latestWellnessLog.mood_label || 'Not reported'}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <EnergyIcon sx={{ fontSize: 18, color: 'warning.main' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Energy
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body1" fontWeight={500}>
+                              {latestWellnessLog.energy_label || 'Not reported'}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={4}>
+                        <Stack spacing={2}>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <SleepIcon sx={{ fontSize: 18, color: 'info.main' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Sleep
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body1" fontWeight={500}>
+                              {latestWellnessLog.sleep_label || 'Not reported'} 
+                              {latestWellnessLog.sleep_hours ? ` (${latestWellnessLog.sleep_hours} hrs)` : ''}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <PainIcon sx={{ fontSize: 18, color: 'error.main' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Pain Level
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body1" fontWeight={500}>
+                              {latestWellnessLog.pain_level !== undefined ? `${latestWellnessLog.pain_level}/10` : 'Not reported'}
+                              {latestWellnessLog.pain_location ? ` - ${latestWellnessLog.pain_location}` : ''}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </Grid>
+
+                      <Grid item xs={12} md={4}>
+                        <Stack spacing={2}>
+                          {latestWellnessLog.symptoms && latestWellnessLog.symptoms.length > 0 && (
+                            <Box>
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+                                Symptoms
+                              </Typography>
+                              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                {latestWellnessLog.symptoms.map((s, i) => (
+                                  <Chip key={i} label={s} size="small" variant="outlined" />
+                                ))}
+                              </Stack>
+                            </Box>
+                          )}
+                          {latestWellnessLog.notes && (
+                            <Box>
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                                <NoteIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                                <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                  Notes
+                                </Typography>
+                              </Stack>
+                              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                                "{latestWellnessLog.notes}"
+                              </Typography>
+                            </Box>
+                          )}
+                        </Stack>
+                      </Grid>
+                    </Grid>
+                  </AccordionDetails>
+                </Accordion>
               )}
             </Stack>
           )}

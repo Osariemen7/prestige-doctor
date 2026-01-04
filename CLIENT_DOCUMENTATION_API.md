@@ -147,16 +147,33 @@ GET /accounts/google/login/callback/
 ```
 
 ##### Description
-Handles the callback from Google OAuth. Automatically creates provider profiles and doctor listings for users authenticating from provider.prestigehealth.app.
+Handles the callback from Google OAuth. Automatically creates provider profiles and doctor listings for users authenticating from doctor.prestigehealth.app.
 
 ##### Headers (sent by client in initial request)
 ```
-X-Organization-Domain: provider.prestigehealth.app  # REQUIRED for doctor subdomain access
+X-Organization-Domain: provider.prestigehealth.app  # REQUIRED for provider subdomain access
+```
+
+##### Request Body
+```json
+{
+  "access_token": "google_oauth_credential_token",
+  "backend": "google-oauth2",
+  "grant_type": "convert_token",
+  "is_provider": true,
+  "phone_number": "+2347012345678",  // Optional: Required for registration, optional for login
+  "invite_code": "optional_referral_code"
+}
 ```
 
 ##### Notes
-- **IMPORTANT**: For doctor subdomain access, include `X-Organization-Domain: provider.prestigehealth.app` in the initial request to `/auth/google/start`
-- Google OAuth automatically detects doctor subdomains and creates provider profiles with doctor listings (NGN 5,000 consultation fee)
+- **IMPORTANT**: For provider subdomain access, include `X-Organization-Domain: provider.prestigehealth.app` in the initial request to `/auth/google/`
+- Google OAuth automatically detects provider subdomains and creates provider profiles with doctor listings (NGN 5,000 consultation fee)
+- **Phone Number**: 
+  - Required for new user registration
+  - Optional for existing user login (if missing, frontend should prompt user to provide it)
+  - Must be in international format (e.g., +2347012345678)
+  - Must be unique across all users
 - Users are redirected back to the specified redirect URL with JWT tokens set as HttpOnly cookies
 - Organization assignment follows the same logic as regular authentication endpoints
 
@@ -4275,11 +4292,35 @@ Retrieves a comprehensive dashboard for the authenticated provider, including co
       "recent_metric_records_count": 12,
       "pending_ai_review_count": 1,
       "subscription_status": "active",
-      "last_encounter_date": "2024-01-15T10:00:00Z"
+      "last_encounter_date": "2024-01-15T10:00:00Z",
+      "wellness_logs": [
+        {
+          "date": "2026-01-04",
+          "wellness_score": 85,
+          "mood_label": "Very Good"
+        }
+      ]
     }
   ]
 }
 ```
+
+### Subjective Wellness Monitoring
+The Provider Dashboard now includes **Subjective Wellness Monitoring**. This feature allows doctors to track how patients are feeling between clinical consultations.
+
+#### 14-Day Wellness Trends
+When viewing a patient's detailed profile (`GET /providerdashboard/{id}/`), you will see a `wellness_logs` array containing the last 14 days of patient check-ins.
+
+**Key Data Points:**
+- **Wellness Score (0-100)**: AI-calculated aggregate of mood, energy, and sleep quality.
+- **Mood & Energy**: Subjective levels (1-5) with descriptive labels.
+- **Sleep Quality**: Tracking perceived quality and actual hours slept.
+- **Pain Tracking**: Numeric pain scale (0-10) and specific locations.
+- **Symptom Journaling**: List of specific symptoms reported.
+- **Patient Notes**: Free-text journal entries.
+
+#### AI-Synthesized Weekly Reports
+The **Weekly Health Report** automatically incorporates these wellness logs, analyzing correlations between clinical metrics and subjective data to provide insights and risk assessments.
 
 ### Field Descriptions
 - `provider_info.consultation_rate`: Provider's consultation fee
@@ -4290,6 +4331,7 @@ Retrieves a comprehensive dashboard for the authenticated provider, including co
 - `patients[].active_care_plan_metrics_count`: Active metrics in remote care plan
 - `patients[].recent_metric_records_count`: Metric readings in last 30 days
 - `patients[].pending_ai_review_count`: Pending AI-generated reviews
+- `patients[].wellness_logs`: Last 14 days of subjective wellness logs. See [Provider Wellness Guide](API_DOCS/PROVIDER_DASHBOARD_WELLNESS_GUIDE.md) for clinical details.
 
 ---
 
@@ -4345,6 +4387,106 @@ GET /provider/patients/?subscription_status=active
 - `subscription_status` can be: `active` (is_active=True), `pending` (is_active=False), `both`, or `all`
 - Results are ordered by most recent patient ID
 - Includes patient profile information and subscription details
+
+---
+
+## 11. Daily Wellness Logs
+
+### Overview
+The Daily Wellness Log API allows patients to track subjective health indicators like mood, energy, sleep, and pain. This data is used by the AI to provide more context-aware health advice and is visible to providers in their dashboard.
+
+### Get Today's Log
+**Endpoint:** `GET /wellness-logs/today/`
+**Description:** Retrieves today's wellness log for the authenticated patient. If one doesn't exist, it creates a blank one.
+
+**Response:**
+```json
+{
+  "id": 1,
+  "date": "2026-01-04",
+  "mood": 4,
+  "mood_label": "Good",
+  "energy_level": 3,
+  "energy_label": "Moderate",
+  "sleep_quality": 4,
+  "sleep_label": "Good",
+  "sleep_hours": "7.5",
+  "pain_level": 0,
+  "pain_location": null,
+  "symptoms": ["headache"],
+  "notes": "Feeling okay today.",
+  "wellness_score": 75,
+  "created_at": "2026-01-04T10:00:00Z"
+}
+```
+
+### Create/Update Log
+**Endpoint:** `POST /wellness-logs/` or `PATCH /wellness-logs/{id}/`
+**Description:** Create a new log or update an existing one.
+
+**Request Body:**
+```json
+{
+  "mood": 5,
+  "energy_level": 4,
+  "sleep_quality": 5,
+  "sleep_hours": 8.0,
+  "pain_level": 0,
+  "symptoms": [],
+  "notes": "Great day!"
+}
+```
+
+### Get Wellness Streak
+**Endpoint:** `GET /wellness-logs/streak/`
+**Description:** Returns the number of consecutive days the patient has logged their wellness.
+
+**Response:**
+```json
+{
+  "streak": 5
+}
+```
+
+---
+
+## 12. Patient Dashboard
+
+### Endpoint
+```
+GET /dashboard/
+```
+
+### Description
+Retrieves a comprehensive dashboard for the authenticated patient, including profile data, current health goals, time-series analytics, and recent wellness logs.
+
+### Response
+```json
+{
+  "profile_data": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "age": 35,
+    "gender": "Male"
+  },
+  "health_goal": {
+    "title": "Weight Loss",
+    "target": "Lose 5kg",
+    "progress": 20
+  },
+  "time_series": {
+    "metrics": {},
+    "actions": {}
+  },
+  "wellness_logs": [
+    {
+      "date": "2026-01-04",
+      "wellness_score": 85,
+      "mood_label": "Very Good"
+    }
+  ]
+}
+```
 
 ---
 
