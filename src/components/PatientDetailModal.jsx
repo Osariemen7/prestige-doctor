@@ -42,6 +42,12 @@ import {
   Bedtime as SleepIcon,
   ReportProblem as PainIcon,
   Notes as NoteIcon,
+  Psychology as StressIcon,
+  SelfImprovement as ClarityIcon,
+  Restaurant as AppetiteIcon,
+  Healing as DigestionIcon,
+  DirectionsRun as ActivityIcon,
+  Groups as SocialIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import MetricChart from './MetricChart';
@@ -234,6 +240,25 @@ const PatientDetailModal = ({ patient, onClose }) => {
                   {metrics && (
                     <Chip
                       label={metrics.filter(m => m.is_active).length}
+                      size="small"
+                      sx={{
+                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                        color: 'primary.main',
+                        height: 20,
+                        fontSize: '0.7rem',
+                      }}
+                    />
+                  )}
+                </Stack>
+              }
+            />
+            <Tab 
+              label={
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <span>Wellness</span>
+                  {wellnessLogs.length > 0 && (
+                    <Chip
+                      label={wellnessLogs.length}
                       size="small"
                       sx={{
                         bgcolor: alpha(theme.palette.primary.main, 0.1),
@@ -451,7 +476,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                   </AccordionSummary>
                   <AccordionDetails sx={{ p: 3 }}>
                     <Grid container spacing={3}>
-                      <Grid item xs={12} md={4}>
+                      <Grid item xs={12} md={3}>
                         <Stack spacing={2}>
                           <Box>
                             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
@@ -460,7 +485,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                                 Mood
                               </Typography>
                             </Stack>
-                            <Typography variant="body1" fontWeight={500}>
+                            <Typography variant="body2" fontWeight={500}>
                               {latestWellnessLog.mood_label || 'Not reported'}
                             </Typography>
                           </Box>
@@ -471,14 +496,25 @@ const PatientDetailModal = ({ patient, onClose }) => {
                                 Energy
                               </Typography>
                             </Stack>
-                            <Typography variant="body1" fontWeight={500}>
+                            <Typography variant="body2" fontWeight={500}>
                               {latestWellnessLog.energy_label || 'Not reported'}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <StressIcon sx={{ fontSize: 18, color: 'secondary.main' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Stress
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" fontWeight={500}>
+                              {latestWellnessLog.stress_label || 'Not reported'}
                             </Typography>
                           </Box>
                         </Stack>
                       </Grid>
                       
-                      <Grid item xs={12} md={4}>
+                      <Grid item xs={12} md={3}>
                         <Stack spacing={2}>
                           <Box>
                             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
@@ -487,7 +523,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                                 Sleep
                               </Typography>
                             </Stack>
-                            <Typography variant="body1" fontWeight={500}>
+                            <Typography variant="body2" fontWeight={500}>
                               {latestWellnessLog.sleep_label || 'Not reported'} 
                               {latestWellnessLog.sleep_hours ? ` (${latestWellnessLog.sleep_hours} hrs)` : ''}
                             </Typography>
@@ -499,16 +535,76 @@ const PatientDetailModal = ({ patient, onClose }) => {
                                 Pain Level
                               </Typography>
                             </Stack>
-                            <Typography variant="body1" fontWeight={500}>
+                            <Typography variant="body2" fontWeight={500}>
                               {latestWellnessLog.pain_level !== undefined ? `${latestWellnessLog.pain_level}/10` : 'Not reported'}
                               {latestWellnessLog.pain_location ? ` - ${latestWellnessLog.pain_location}` : ''}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <ClarityIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Clarity
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" fontWeight={500}>
+                              {latestWellnessLog.mental_clarity_label || 'Not reported'}
                             </Typography>
                           </Box>
                         </Stack>
                       </Grid>
 
-                      <Grid item xs={12} md={4}>
+                      <Grid item xs={12} md={3}>
                         <Stack spacing={2}>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <AppetiteIcon sx={{ fontSize: 18, color: 'orange' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Appetite
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" fontWeight={500}>
+                              {latestWellnessLog.appetite_label || 'Not reported'}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <DigestionIcon sx={{ fontSize: 18, color: 'brown' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Digestion
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" fontWeight={500}>
+                              {latestWellnessLog.digestion_label || 'Not reported'}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <ActivityIcon sx={{ fontSize: 18, color: 'blue' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Activity
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" fontWeight={500}>
+                              {latestWellnessLog.lifestyle_label || 'Not reported'}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </Grid>
+
+                      <Grid item xs={12} md={3}>
+                        <Stack spacing={2}>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <SocialIcon sx={{ fontSize: 18, color: 'purple' }} />
+                              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                Social
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" fontWeight={500}>
+                              {latestWellnessLog.social_label || 'Not reported'}
+                            </Typography>
+                          </Box>
                           {latestWellnessLog.symptoms && latestWellnessLog.symptoms.length > 0 && (
                             <Box>
                               <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
@@ -529,7 +625,7 @@ const PatientDetailModal = ({ patient, onClose }) => {
                                   Notes
                                 </Typography>
                               </Stack>
-                              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary', fontSize: '0.75rem' }}>
                                 "{latestWellnessLog.notes}"
                               </Typography>
                             </Box>
@@ -681,6 +777,128 @@ const PatientDetailModal = ({ patient, onClose }) => {
                   <TrendingUpIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
                   <Typography variant="h6" color="text.secondary">
                     No metrics available
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+          )}
+
+          {/* Wellness Tab */}
+          {selectedTab === 4 && (
+            <Stack spacing={3} sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h6" fontWeight={600}>
+                  Wellness Trends & History
+                </Typography>
+                {wellnessLogs.length > 0 && (
+                  <Chip 
+                    label={`14-Day Avg: ${Math.round(wellnessLogs.slice(0, 14).reduce((acc, log) => acc + log.wellness_score, 0) / Math.min(wellnessLogs.length, 14))}/100`}
+                    color="primary"
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                )}
+              </Box>
+
+              {wellnessLogs && wellnessLogs.length > 0 ? (
+                <>
+                  <Card elevation={1} sx={{ borderRadius: 2 }}>
+                    <CardContent>
+                      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                        Wellness Score History
+                      </Typography>
+                      <Box sx={{ height: 300, mt: 2 }}>
+                        <MetricChart 
+                          metricData={{
+                            name: 'Wellness Score',
+                            records: wellnessLogs.slice(0, 14).map(log => ({
+                              timestamp: log.created_at,
+                              value: log.wellness_score
+                            })).reverse(),
+                            normal_range_min: 70,
+                            normal_range_max: 100,
+                            unit: ''
+                          }} 
+                        />
+                      </Box>
+                    </CardContent>
+                  </Card>
+
+                  <Stack spacing={2}>
+                    {wellnessLogs.slice(0, 14).map((log, idx) => (
+                      <Card key={idx} elevation={1} sx={{ borderRadius: 2 }}>
+                        <CardContent>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" fontWeight={700}>
+                              {formatDateTime(log.created_at)}
+                            </Typography>
+                            <Chip 
+                              label={`Score: ${log.wellness_score}/100`}
+                              color={log.wellness_score >= 70 ? "success" : log.wellness_score >= 40 ? "warning" : "error"}
+                              size="small"
+                              sx={{ fontWeight: 700 }}
+                            />
+                          </Stack>
+                          
+                          <Grid container spacing={2}>
+                            <Grid item xs={6} sm={2.4}>
+                              <Stack spacing={0.5}>
+                                <Typography variant="caption" color="text.secondary">Mood & Energy</Typography>
+                                <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.mood_label} / {log.energy_label}</Typography>
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={6} sm={2.4}>
+                              <Stack spacing={0.5}>
+                                <Typography variant="caption" color="text.secondary">Sleep Quality</Typography>
+                                <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.sleep_label} ({log.sleep_hours}h)</Typography>
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={6} sm={2.4}>
+                              <Stack spacing={0.5}>
+                                <Typography variant="caption" color="text.secondary">Stress & Clarity</Typography>
+                                <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.stress_label || 'Normal'} / {log.mental_clarity_label || 'Clear'}</Typography>
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={6} sm={2.4}>
+                              <Stack spacing={0.5}>
+                                <Typography variant="caption" color="text.secondary">Appetite & Digestion</Typography>
+                                <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.appetite_label || 'Normal'} / {log.digestion_label || 'Normal'}</Typography>
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={6} sm={2.4}>
+                              <Stack spacing={0.5}>
+                                <Typography variant="caption" color="text.secondary">Activity & Social</Typography>
+                                <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.lifestyle_label || 'Active'} / {log.social_label || 'Social'}</Typography>
+                              </Stack>
+                            </Grid>
+                          </Grid>
+
+                          {(log.notes || (log.symptoms && log.symptoms.length > 0)) && (
+                            <Box sx={{ mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+                              {log.symptoms && log.symptoms.length > 0 && (
+                                <Stack direction="row" spacing={0.5} sx={{ mb: 1 }} flexWrap="wrap">
+                                  {log.symptoms.map((s, i) => (
+                                    <Chip key={i} label={s} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
+                                  ))}
+                                </Stack>
+                              )}
+                              {log.notes && (
+                                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontSize: '0.8rem' }}>
+                                  "{log.notes}"
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                </>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 8 }}>
+                  <MoodIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary">
+                    No wellness logs available
                   </Typography>
                 </Box>
               )}

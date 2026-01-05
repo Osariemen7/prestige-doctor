@@ -44,6 +44,12 @@ import {
   Bedtime as SleepIcon,
   ReportProblem as PainIcon,
   Notes as NoteIcon,
+  Psychology as StressIcon,
+  SelfImprovement as ClarityIcon,
+  Restaurant as AppetiteIcon,
+  Healing as DigestionIcon,
+  DirectionsRun as ActivityIcon,
+  Groups as SocialIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import MetricChart from './MetricChart';
@@ -404,8 +410,25 @@ const PatientDetailsPage = () => {
                     )}
                   </Stack>
                 }
-              />
-            </Tabs>
+              />              <Tab
+                label={
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <span>Wellness</span>
+                    {wellnessLogs.length > 0 && (
+                      <Chip
+                        label={wellnessLogs.length}
+                        size="small"
+                        sx={{
+                          height: 18,
+                          fontSize: '0.65rem',
+                          bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          color: 'primary.main',
+                        }}
+                      />
+                    )}
+                  </Stack>
+                }
+              />            </Tabs>
           </Box>
 
           {/* Tab Content */}
@@ -627,25 +650,82 @@ const PatientDetailsPage = () => {
                         </AccordionSummary>
                         <AccordionDetails>
                           <Divider sx={{ mb: 2 }} />
-                          <Stack spacing={2}>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <SleepIcon sx={{ fontSize: 14 }} /> Sleep Duration
-                              </Typography>
-                              <Typography variant="body2">{latestWellnessLog.sleep_hours} hours</Typography>
-                            </Box>
-                            
-                            {latestWellnessLog.pain_location && (
-                              <Box>
-                                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <PainIcon sx={{ fontSize: 14 }} /> Pain Location
-                                </Typography>
-                                <Typography variant="body2">{latestWellnessLog.pain_location}</Typography>
-                              </Box>
-                            )}
-                            
+                          <Grid container spacing={2}>
+                            <Grid item xs={12} sm={6}>
+                              <Stack spacing={2}>
+                                {latestWellnessLog.stress_label && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <StressIcon sx={{ fontSize: 14 }} /> Stress Level
+                                    </Typography>
+                                    <Typography variant="body2">{latestWellnessLog.stress_label}</Typography>
+                                  </Box>
+                                )}
+                                {latestWellnessLog.mental_clarity_label && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <ClarityIcon sx={{ fontSize: 14 }} /> Mental Clarity
+                                    </Typography>
+                                    <Typography variant="body2">{latestWellnessLog.mental_clarity_label}</Typography>
+                                  </Box>
+                                )}
+                                {latestWellnessLog.appetite_label && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <AppetiteIcon sx={{ fontSize: 14 }} /> Appetite
+                                    </Typography>
+                                    <Typography variant="body2">{latestWellnessLog.appetite_label}</Typography>
+                                  </Box>
+                                )}
+                                {latestWellnessLog.digestion_label && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <DigestionIcon sx={{ fontSize: 14 }} /> Digestion
+                                    </Typography>
+                                    <Typography variant="body2">{latestWellnessLog.digestion_label}</Typography>
+                                  </Box>
+                                )}
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                              <Stack spacing={2}>
+                                {latestWellnessLog.lifestyle_label && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <ActivityIcon sx={{ fontSize: 14 }} /> Lifestyle Activity
+                                    </Typography>
+                                    <Typography variant="body2">{latestWellnessLog.lifestyle_label}</Typography>
+                                  </Box>
+                                )}
+                                {latestWellnessLog.social_label && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <SocialIcon sx={{ fontSize: 14 }} /> Social Engagement
+                                    </Typography>
+                                    <Typography variant="body2">{latestWellnessLog.social_label}</Typography>
+                                  </Box>
+                                )}
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <SleepIcon sx={{ fontSize: 14 }} /> Sleep Duration
+                                  </Typography>
+                                  <Typography variant="body2">{latestWellnessLog.sleep_hours} hours</Typography>
+                                </Box>
+                                {latestWellnessLog.pain_location && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <PainIcon sx={{ fontSize: 14 }} /> Pain Location
+                                    </Typography>
+                                    <Typography variant="body2">{latestWellnessLog.pain_location}</Typography>
+                                  </Box>
+                                )}
+                              </Stack>
+                            </Grid>
+                          </Grid>
+                          
+                          <Box sx={{ mt: 2 }}>
                             {latestWellnessLog.symptoms && latestWellnessLog.symptoms.length > 0 && (
-                              <Box>
+                              <Box sx={{ mb: 2 }}>
                                 <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                   <WarningIcon sx={{ fontSize: 14 }} /> Reported Symptoms
                                 </Typography>
@@ -668,12 +748,21 @@ const PatientDetailsPage = () => {
                               </Box>
                             )}
                             
-                            <Typography variant="caption" color="text.disabled" sx={{ textAlign: 'right', display: 'block' }}>
+                            <Typography variant="caption" color="text.disabled" sx={{ textAlign: 'right', display: 'block', mt: 2 }}>
                               Logged on {formatDateTime(latestWellnessLog.created_at)}
                             </Typography>
-                          </Stack>
+                          </Box>
                         </AccordionDetails>
                       </Accordion>
+                      <Button 
+                        fullWidth 
+                        variant="outlined" 
+                        size="small" 
+                        sx={{ mt: 2, textTransform: 'none' }}
+                        onClick={() => setSelectedTab(4)}
+                      >
+                        View 14-Day Wellness Trends
+                      </Button>
                     </CardContent>
                   </Card>
                 )}
@@ -845,6 +934,207 @@ const PatientDetailsPage = () => {
                     <TrendingUpIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
                     <Typography variant="h6" color="text.secondary">
                       No metrics available
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            )}
+
+            {/* Wellness Tab */}
+            {selectedTab === 4 && (
+              <Stack spacing={3}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6" fontWeight={600}>
+                    Subjective Wellness Monitoring
+                  </Typography>
+                  {wellnessLogs.length > 0 && (
+                    <Chip 
+                      label={`Average Score: ${Math.round(wellnessLogs.slice(0, 14).reduce((acc, log) => acc + log.wellness_score, 0) / Math.min(wellnessLogs.length, 14))}/100`}
+                      color="primary"
+                      variant="outlined"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  )}
+                </Box>
+                
+                {wellnessLogs && wellnessLogs.length > 0 ? (
+                  <>
+                    <Card elevation={0} sx={{ borderRadius: 2, border: 1, borderColor: 'divider' }}>
+                      <CardContent>
+                        <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                          Wellness Score Trend (Last 14 Logs)
+                        </Typography>
+                        <Box sx={{ height: 300, mt: 2 }}>
+                          <MetricChart 
+                            metricData={{
+                              name: 'Wellness Score',
+                              records: wellnessLogs.slice(0, 14).map(log => ({
+                                timestamp: log.created_at,
+                                value: log.wellness_score
+                              })).reverse(),
+                              normal_range_min: 70,
+                              normal_range_max: 100,
+                              unit: ''
+                            }} 
+                          />
+                        </Box>
+                      </CardContent>
+                    </Card>
+
+                    <Typography variant="subtitle1" fontWeight={600} sx={{ mt: 2 }}>
+                      Check-in History
+                    </Typography>
+                    
+                    <Stack spacing={2}>
+                      {wellnessLogs.slice(0, 14).map((log, idx) => (
+                        <Card key={idx} elevation={0} sx={{ borderRadius: 2, border: 1, borderColor: 'divider' }}>
+                          <CardContent>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                              <Box>
+                                <Typography variant="subtitle2" fontWeight={700}>
+                                  {formatDateTime(log.created_at)}
+                                </Typography>
+                              </Box>
+                              <Chip 
+                                label={`Score: ${log.wellness_score}/100`}
+                                color={log.wellness_score > 70 ? "success" : log.wellness_score > 40 ? "warning" : "error"}
+                                size="small"
+                                sx={{ fontWeight: 700 }}
+                              />
+                            </Stack>
+                            
+                            <Grid container spacing={2}>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <MoodIcon sx={{ color: 'warning.main', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Mood</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.mood_label}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <EnergyIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Energy</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.energy_label}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <SleepIcon sx={{ color: 'info.main', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Sleep</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.sleep_label}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <StressIcon sx={{ color: 'secondary.main', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Stress</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.stress_label || 'Normal'}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <ClarityIcon sx={{ color: 'success.main', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Clarity</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.mental_clarity_label || 'Clear'}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Box>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <PainIcon sx={{ color: log.pain_level > 0 ? 'error.main' : 'success.main', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Pain</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.pain_level}/10</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                            </Grid>
+
+                            <Grid container spacing={2} sx={{ mt: 1 }}>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <AppetiteIcon sx={{ color: 'orange', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Appetite</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.appetite_label || 'Normal'}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <DigestionIcon sx={{ color: 'brown', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Digestion</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.digestion_label || 'Normal'}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <ActivityIcon sx={{ color: 'blue', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Activity</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.lifestyle_label || 'Active'}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                              <Grid item xs={6} sm={4} md={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <SocialIcon sx={{ color: 'purple', fontSize: 20 }} />
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">Social</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.social_label || 'Social'}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Grid>
+                            </Grid>
+                            
+                            {(log.notes || (log.symptoms && log.symptoms.length > 0)) && (
+                              <Box sx={{ mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+                                {log.symptoms && log.symptoms.length > 0 && (
+                                  <Box sx={{ mb: 1 }}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+                                      Reported Symptoms:
+                                    </Typography>
+                                    <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                                      {log.symptoms.map((s, i) => (
+                                        <Chip key={i} label={s} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
+                                      ))}
+                                    </Stack>
+                                  </Box>
+                                )}
+                                {log.notes && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+                                      Patient Notes:
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontSize: '0.8rem' }}>
+                                      "{log.notes}"
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </Box>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Stack>
+                  </>
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <MoodIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                    <Typography variant="h6" color="text.secondary">
+                      No wellness logs available for the last 14 days
                     </Typography>
                   </Box>
                 )}
