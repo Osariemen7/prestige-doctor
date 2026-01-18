@@ -54,6 +54,7 @@ import {
 import { format } from 'date-fns';
 import MetricChart from './MetricChart';
 import { getPatientDetails } from '../services/providerDashboardApi';
+import BookAppointmentModal from './BookAppointmentModal';
 
 const PatientDetailsPage = () => {
   const { patientId } = useParams();
@@ -63,6 +64,7 @@ const PatientDetailsPage = () => {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
   const handleMessagePatient = () => {
     navigate(`/messages/${patientId}`);
@@ -198,6 +200,16 @@ const PatientDetailsPage = () => {
         pb: { xs: 2, md: 4 },
       }}
     >
+      <BookAppointmentModal 
+        open={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        patientId={patientId}
+        patientName={`${demographics.first_name || ''} ${demographics.last_name || ''}`.trim()}
+        onSuccess={(data) => {
+          console.log('Booking successful:', data);
+          // Potential: show success toast or refresh data
+        }}
+      />
       {/* Header */}
       <Paper
         elevation={0}
@@ -267,6 +279,22 @@ const PatientDetailsPage = () => {
             </Box>
             {/* Action Buttons */}
             <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', sm: 'flex' } }}>
+              <Button
+                variant="contained"
+                startIcon={<ScheduleIcon />}
+                onClick={() => setIsBookingModalOpen(true)}
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.3)',
+                  },
+                }}
+              >
+                Schedule
+              </Button>
               {demographics.phone_number && (
                 <Tooltip title="Call Patient">
                   <IconButton
@@ -301,6 +329,21 @@ const PatientDetailsPage = () => {
           </Stack>
           {/* Mobile Action Buttons */}
           <Stack direction="row" spacing={1} sx={{ mt: 2, display: { xs: 'flex', sm: 'none' } }}>
+            <Button
+              variant="contained"
+              startIcon={<ScheduleIcon />}
+              onClick={() => setIsBookingModalOpen(true)}
+              fullWidth
+              sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+              }}
+            >
+              Schedule
+            </Button>
             {demographics.phone_number && (
               <Button
                 variant="contained"

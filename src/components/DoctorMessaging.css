@@ -317,17 +317,76 @@
   font-size: 18px;
 }
 
+.conversation-header-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.patient-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .conversation-header-info h3 {
   font-size: 18px;
   font-weight: 600;
   color: #1e293b;
-  margin: 0 0 4px 0;
+  margin: 0;
+}
+
+.responder-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.responder-status-pill.doctor {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  position: relative;
+}
+
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: inherit;
+  border-radius: 50%;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+.responder-name-text {
+  margin-left: 8px;
+  color: #64748b;
+  font-weight: 400;
 }
 
 .conversation-header-info p {
   font-size: 13px;
   color: #64748b;
-  margin: 0;
+  margin: 4px 0 0 0;
 }
 
 .conversation-actions {
@@ -451,7 +510,8 @@
 }
 
 .message.assistant,
-.message.doctor {
+.message.doctor,
+.message.ai-assistant {
   justify-content: flex-end;
 }
 
@@ -468,8 +528,17 @@
   border-bottom-left-radius: 4px;
 }
 
-.message.assistant .message-content,
-.message.doctor .message-content {
+/* AI Assistant Messages - Softer gray/blue */
+.message.ai-assistant .message-content {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  border-bottom-right-radius: 4px;
+}
+
+/* Doctor Messages - Traditional Blue */
+.message.doctor .message-content,
+.message.assistant:not(.ai-assistant) .message-content {
   background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
   color: white;
   border-bottom-right-radius: 4px;

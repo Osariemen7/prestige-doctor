@@ -32,13 +32,15 @@ import {
   ContentCopy as ContentCopyIcon,
   CloudUpload as CloudUploadIcon,
   SmartToy as SmartToyIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import { useTheme, useMediaQuery } from '@mui/material';
 import CreateEncounterModal from './CreateEncounterModal';
 import RecordingModal from './RecordingModal';
 import AiConsultationChat from './AiConsultationChat';
+import BookAppointmentModal from './BookAppointmentModal';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
 
@@ -92,6 +94,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const [editingPrescriptions, setEditingPrescriptions] = useState(false);
   const [editingInvestigations, setEditingInvestigations] = useState(false);
   const [chatRefreshTrigger, setChatRefreshTrigger] = useState(0);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const previousStatusRef = useRef(null);
   const lastFetchRef = useRef(0);
 
@@ -1035,7 +1038,36 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               />
             )}
           </Box>
-          
+          <Box display="flex" gap={1}>
+            <Button
+              variant="outlined"
+              startIcon={<ScheduleIcon />}
+              onClick={() => setIsBookingModalOpen(true)}
+              size="small"
+            >
+              Schedule Follow-up
+            </Button>
+            {review.is_finalized && (
+              <Button
+                variant="outlined"
+                startIcon={<ContentCopyIcon />}
+                onClick={handleCopyNote}
+                size="small"
+              >
+                {copySuccess ? 'Copied!' : 'Copy Note'}
+              </Button>
+            )}
+            {!review.is_finalized && (
+              <Button
+                variant="contained"
+                startIcon={<CheckCircleIcon />}
+                onClick={() => setShowFinalizeDialog(true)}
+                size="small"
+              >
+                Finalize Review
+              </Button>
+            )}
+          </Box>
         </Box>
       </Box>
 
@@ -1356,6 +1388,17 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Book Appointment Modal */}
+      <BookAppointmentModal
+        open={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        patientId={review?.patient || review?.patient_id}
+        patientName={`${patientData.first_name || ''} ${patientData.last_name || ''}`.trim() || 'Patient'}
+        onSuccess={(data) => {
+          console.log('Follow-up scheduled:', data);
+        }}
+      />
 
       {/* Create Encounter Modal */}
       <CreateEncounterModal

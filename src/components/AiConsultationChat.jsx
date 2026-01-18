@@ -439,14 +439,19 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
 
   // Render message
   const renderMessage = (message) => {
-    const isAi = message.role !== 'user';
+    const isAi = message.role === 'assistant' && !message.from_doctor;
+    const isDoctor = message.from_doctor;
+    const fromMe = message.role === 'user'; // Fixed context: in AiConsultationChat (Patient View or Doctor View?)
+    
+    // In this component, usually user (Doctor/Patient) is on the right, AI/Other on the left
+    const onRight = fromMe;
     
     return (
       <Box
-        key={message.id}
+        key={message.id || message.message_id}
         sx={{
           display: 'flex',
-          justifyContent: isAi ? 'flex-start' : 'flex-end',
+          justifyContent: onRight ? 'flex-end' : 'flex-start',
           mb: 2,
         }}
       >
@@ -454,7 +459,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
           sx={{
             maxWidth: '75%',
             display: 'flex',
-            flexDirection: isAi ? 'row' : 'row-reverse',
+            flexDirection: onRight ? 'row-reverse' : 'row',
             gap: 1,
           }}
         >
@@ -462,20 +467,26 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
             sx={{
               width: 32,
               height: 32,
-              bgcolor: isAi ? 'primary.main' : 'grey.400',
+              bgcolor: isAi ? 'primary.main' : isDoctor ? 'primary.dark' : 'grey.400',
+              fontSize: 16
             }}
           >
-            {isAi ? <AiIcon sx={{ fontSize: 18 }} /> : 'D'}
+            {isAi ? <AiIcon sx={{ fontSize: 18 }} /> : isDoctor ? 'D' : 'P'}
           </Avatar>
           <Box>
             <Paper
               elevation={0}
               sx={{
                 p: 1.5,
-                bgcolor: isAi ? alpha(theme.palette.primary.main, 0.08) : 'grey.100',
+                bgcolor: isAi 
+                  ? alpha(theme.palette.primary.main, 0.08) 
+                  : isDoctor 
+                    ? theme.palette.primary.main 
+                    : 'grey.100',
+                color: isDoctor ? 'white' : 'inherit',
                 borderRadius: 2,
                 border: '1px solid',
-                borderColor: isAi ? alpha(theme.palette.primary.main, 0.2) : 'grey.300',
+                borderColor: isAi ? alpha(theme.palette.primary.main, 0.2) : isDoctor ? 'transparent' : 'grey.300',
               }}
             >
               <Typography
@@ -483,17 +494,18 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
                 sx={{
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
+                  fontWeight: isDoctor ? 500 : 400
                 }}
               >
-                {message.message}
+                {message.message || message.message_value}
               </Typography>
             </Paper>
             <Typography
               variant="caption"
               color="text.secondary"
-              sx={{ mt: 0.5, px: 1, display: 'block' }}
+              sx={{ mt: 0.5, px: 1, display: 'block', textAlign: onRight ? 'right' : 'left' }}
             >
-              {formatTime(message.created)}
+              {(isDoctor ? 'Doctor • ' : isAi ? 'AI • ' : 'Patient • ') + formatTime(message.created)}
             </Typography>
           </Box>
         </Box>

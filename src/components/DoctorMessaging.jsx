@@ -811,10 +811,23 @@ const DoctorMessaging = () => {
                   {getInitials(selectedConversation.interlocutor_name || 'U')}
                 </div>
                 <div className="conversation-header-info">
-                  <h3>{selectedConversation.interlocutor_name || 'Unknown Patient'}</h3>
+                  <div className="patient-header-main">
+                    <h3>{selectedConversation.interlocutor_name || 'Unknown Patient'}</h3>
+                    {selectedConversation.responder === 'doctor' && (
+                      <span className="responder-status-pill doctor">
+                        <span className="pulse-dot"></span>
+                        Doctor Active
+                      </span>
+                    )}
+                  </div>
                   <p>
                     <Phone size={12} style={{ display: 'inline', marginRight: '4px' }} />
                     {selectedConversation.interlocutor_phone}
+                    {selectedConversation.responder === 'doctor' && (
+                      <span className="responder-name-text">
+                        • Talking to {selectedConversation.responder_provider_name || 'you'}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -861,7 +874,7 @@ const DoctorMessaging = () => {
                         })}</span>
                       </div>
                     )}
-                    <div className={`message ${message.role} ${message.isOptimistic ? 'optimistic' : ''}`}>
+                    <div className={`message ${message.role} ${message.from_doctor ? 'doctor' : message.role === 'assistant' ? 'ai-assistant' : ''} ${message.isOptimistic ? 'optimistic' : ''}`}>
                       <div className="message-content">
                         {message.message_value && (
                           <div className="message-text">{message.message_value}</div>
