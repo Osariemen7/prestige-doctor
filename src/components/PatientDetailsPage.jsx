@@ -1091,7 +1091,7 @@ const PatientDetailsPage = () => {
                                     <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{log.mental_clarity_label || 'Clear'}</Typography>
                                   </Box>
                                 </Stack>
-                              </Box>
+                              </Grid>
                               <Grid item xs={6} sm={4} md={2}>
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <PainIcon sx={{ color: log.pain_level > 0 ? 'error.main' : 'success.main', fontSize: 20 }} />
