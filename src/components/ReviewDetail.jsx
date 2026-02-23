@@ -463,7 +463,11 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const handleEditNote = () => {
     console.log('handleEditNote called');
     setEditingNote(true);
-    const initialNote = review.doctor_note ? JSON.parse(JSON.stringify(review.doctor_note)) : {};
+    // doctor_note may be a JSON string (legacy) or already an object (new API behaviour)
+    const rawNote = typeof review.doctor_note === 'string'
+      ? JSON.parse(review.doctor_note)
+      : review.doctor_note;
+    const initialNote = rawNote ? JSON.parse(JSON.stringify(rawNote)) : {};
     // Ensure prescriptions and investigations arrays exist
     if (!initialNote.prescription) initialNote.prescription = [];
     if (!initialNote.investigation) initialNote.investigation = [];

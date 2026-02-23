@@ -4,10 +4,14 @@ export const getExistingNote = (review) => {
   }
 
   try {
-    return JSON.parse(JSON.stringify(review.doctor_note));
+    // doctor_note may be a JSON string (legacy) or already an object (new API behaviour)
+    const note = typeof review.doctor_note === 'string'
+      ? JSON.parse(review.doctor_note)
+      : review.doctor_note;
+    return JSON.parse(JSON.stringify(note));
   } catch (error) {
     // Fallback to shallow copy if deep clone fails
-    return { ...review.doctor_note };
+    return typeof review.doctor_note === 'object' ? { ...review.doctor_note } : {};
   }
 };
 
