@@ -114,7 +114,7 @@ const ForgotPassword = () => {
         ? { phone_number: phoneNumber }
         : { email };
 
-      const response = await fetch('https://service.prestigedelta.com/emailotp/', {
+      const response = await fetch('https://api.prestigedelta.com/emailotp/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ const ForgotPassword = () => {
         payload.email = email;
       }
       
-      const response = await fetch('https://service.prestigedelta.com/resetpassword/', {
+      const response = await fetch('https://api.prestigedelta.com/resetpassword/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

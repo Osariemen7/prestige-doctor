@@ -100,7 +100,7 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
             metadata: {}
           };
 
-      const response = await fetch('https://service.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

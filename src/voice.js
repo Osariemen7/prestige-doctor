@@ -89,7 +89,7 @@ const Voice = () => {
     
             const accessToken = await getAccessToken();
             const response = await axios.post(
-                `https://service.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
+                `https://api.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
                 suggestionPayload,
                 {
                     headers: { Authorization: `Bearer ${accessToken}` },
@@ -415,7 +415,7 @@ const Voice = () => {
             try {
                 const token = await getAccessToken();
                 const response = await fetch(
-                    "https://service.prestigedelta.com/assemblyai/generate-token/",
+                    "https://api.prestigedelta.com/assemblyai/generate-token/",
                     {
                         headers: {
                             "Content-Type": "application/json",

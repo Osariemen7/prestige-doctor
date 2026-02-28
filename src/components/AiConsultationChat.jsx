@@ -111,7 +111,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `https://service.prestigedelta.com/medical-reviews/${reviewPublicId}/doctor-thread/`,
+        `https://api.prestigedelta.com/medical-reviews/${reviewPublicId}/doctor-thread/`,
         {
           method: 'GET',
           headers: {
@@ -278,7 +278,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
     else if (file.type.startsWith('video/')) category = 'video';
     formData.append('file_category', category);
 
-    const resp = await fetch('https://service.prestigedelta.com/ai-processing/upload-file/', {
+    const resp = await fetch('https://api.prestigedelta.com/ai-processing/upload-file/', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -305,7 +305,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
       store_conversation: true
     };
 
-    const res = await fetch('https://service.prestigedelta.com/health-diary/agent-process-stream/', {
+    const res = await fetch('https://api.prestigedelta.com/health-diary/agent-process-stream/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

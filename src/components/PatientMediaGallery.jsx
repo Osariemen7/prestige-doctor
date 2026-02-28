@@ -60,7 +60,7 @@ const PatientMediaGallery = () => {
         return;
       }
 
-      const response = await fetch(`https://service.prestigedelta.com/provider/patient-media/?patient_id=${patientId}`, {
+      const response = await fetch(`https://api.prestigedelta.com/provider/patient-media/?patient_id=${patientId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

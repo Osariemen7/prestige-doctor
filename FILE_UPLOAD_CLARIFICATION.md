@@ -200,7 +200,7 @@ curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
   -F "audio_file=@/path/to/test.webm" \
   -F "original_format=webm" \
-  https://service.prestigedelta.com/in-person-encounters/{id}/upload-audio/
+  https://api.prestigedelta.com/in-person-encounters/{id}/upload-audio/
 ```
 
 If this fails with the same error, it confirms the validation issue.

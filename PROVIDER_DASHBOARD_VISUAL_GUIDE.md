@@ -274,7 +274,7 @@ Documentation/
 
 ### 1. Dashboard List
 ```http
-GET https://service.prestigedelta.com/providerdashboard/
+GET https://api.prestigedelta.com/providerdashboard/
 Authorization: Bearer {token}
 ```
 
@@ -296,7 +296,7 @@ Authorization: Bearer {token}
 
 ### 2. Patient Detail
 ```http
-GET https://service.prestigedelta.com/providerdashboard/{patient_id}/
+GET https://api.prestigedelta.com/providerdashboard/{patient_id}/
 Authorization: Bearer {token}
 ```
 
@@ -421,7 +421,7 @@ import { getAccessToken } from '../api';
 const fetchData = async () => {
   const token = await getAccessToken();
   const response = await fetch(
-    'https://service.prestigedelta.com/providerdashboard/',
+    'https://api.prestigedelta.com/providerdashboard/',
     {
       headers: {
         'Authorization': `Bearer ${token}`,

@@ -106,7 +106,7 @@ const fetchDashboardData = async () => {
   
   try {
     const response = await fetch(
-      'https://service.prestigedelta.com/providerdashboard/',
+      'https://api.prestigedelta.com/providerdashboard/',
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,
@@ -142,7 +142,7 @@ const fetchPatientDetails = async (patientId) => {
   
   try {
     const response = await fetch(
-      \`https://service.prestigedelta.com/providerdashboard/\${patientId}/\`,
+      \`https://api.prestigedelta.com/providerdashboard/\${patientId}/\`,
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,
@@ -195,7 +195,7 @@ function MyComponent() {
     }
 
     const response = await fetch(
-      'https://service.prestigedelta.com/providerdashboard/',
+      'https://api.prestigedelta.com/providerdashboard/',
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,
@@ -211,7 +211,7 @@ function MyComponent() {
   const viewPatient = async (patientId) => {
     const token = await getAccessToken();
     const response = await fetch(
-      \`https://service.prestigedelta.com/providerdashboard/\${patientId}/\`,
+      \`https://api.prestigedelta.com/providerdashboard/\${patientId}/\`,
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,

@@ -50,7 +50,7 @@ const DoctorLogin = () => {
     }
 
     try {
-      const response = await fetch('https://service.prestigedelta.com/login/', {
+      const response = await fetch('https://api.prestigedelta.com/login/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +94,7 @@ const DoctorLogin = () => {
       }
       
       // Try to login first without phone number
-      const response = await fetch('https://service.prestigedelta.com/auth/google/', {
+      const response = await fetch('https://api.prestigedelta.com/auth/google/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ const DoctorLogin = () => {
       setLoading(true);
       const token = pendingGoogleData.access_token || pendingGoogleData.token || pendingGoogleData.credential;
       
-      const response = await fetch('https://service.prestigedelta.com/auth/google/', {
+      const response = await fetch('https://api.prestigedelta.com/auth/google/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

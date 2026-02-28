@@ -92,7 +92,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
       // Convert phone number to international format if needed
       const convertedPhone = convertToInternationalFormat(formData.patient_phone_number.trim());
       
-      const response = await fetch('https://service.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

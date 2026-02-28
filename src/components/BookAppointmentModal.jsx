@@ -63,7 +63,7 @@ const BookAppointmentModal = ({ open, onClose, patientId, patientName, onSuccess
     }
 
     try {
-      const response = await fetch('https://service.prestigedelta.com/appointments/book-patient/', {
+      const response = await fetch('https://api.prestigedelta.com/appointments/book-patient/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

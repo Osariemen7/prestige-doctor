@@ -6,7 +6,7 @@ This guide provides comprehensive documentation for client-side integration with
 
 ## Base URL
 ```
-https://service.prestigedelta.com/
+https://api.prestigedelta.com/
 ```
 
 ## Authentication Endpoints
@@ -3524,7 +3524,7 @@ GET /in-person-encounters/?status=transcribed&limit=10
 ```json
 {
   "count": 25,
-  "next": "https://service.prestigedelta.com/in-person-encounters/?limit=10&offset=10",
+  "next": "https://api.prestigedelta.com/in-person-encounters/?limit=10&offset=10",
   "previous": null,
   "results": [
     {

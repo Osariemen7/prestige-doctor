@@ -158,7 +158,7 @@ I've successfully created a comprehensive, elegant Provider Dashboard system for
 2. **Fetch dashboard data:**
    ```javascript
    const token = await getAccessToken();
-   const response = await fetch('https://service.prestigedelta.com/providerdashboard/', {
+   const response = await fetch('https://api.prestigedelta.com/providerdashboard/', {
      headers: {
        'Authorization': `Bearer ${token}`,
        'Content-Type': 'application/json'

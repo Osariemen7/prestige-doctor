@@ -269,7 +269,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     }
 
     try {
-      const response = await fetch(`https://service.prestigedelta.com/provider-reviews/${publicId}/`, {
+      const response = await fetch(`https://api.prestigedelta.com/provider-reviews/${publicId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -335,7 +335,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       };
 
       const response = await fetch(
-        `https://service.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
+        `https://api.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -370,7 +370,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const token = await getAccessToken();
 
       const response = await fetch(
-        `https://service.prestigedelta.com/medical-reviews/${publicId}/save-note/`,
+        `https://api.prestigedelta.com/medical-reviews/${publicId}/save-note/`,
         {
           method: 'POST',
           headers: {
@@ -433,7 +433,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       };
 
       const response = await fetch(
-        `https://service.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
+        `https://api.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -575,7 +575,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     const token = await getAccessToken();
 
     try {
-      const response = await fetch('https://service.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

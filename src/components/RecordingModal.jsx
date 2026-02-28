@@ -643,7 +643,7 @@ const RecordingModal = ({
       const token = await getAccessToken();
 
       const response = await fetch(
-        `https://service.prestigedelta.com/in-person-encounters/${encounterId}/queue-processing/`,
+        `https://api.prestigedelta.com/in-person-encounters/${encounterId}/queue-processing/`,
         {
           method: 'POST',
           headers: {

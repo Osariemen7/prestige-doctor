@@ -76,7 +76,7 @@ const ReviewsList = () => {
     }
 
     try {
-      const response = await fetch('https://service.prestigedelta.com/provider-reviews/?hours=168', {
+      const response = await fetch('https://api.prestigedelta.com/provider-reviews/?hours=168', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

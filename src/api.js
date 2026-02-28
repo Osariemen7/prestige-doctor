@@ -34,7 +34,7 @@ export const getAccessToken = async () => {
   }
 
   try {
-    const response = await fetch('https://service.prestigedelta.com/tokenrefresh/', {
+    const response = await fetch('https://api.prestigedelta.com/tokenrefresh/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

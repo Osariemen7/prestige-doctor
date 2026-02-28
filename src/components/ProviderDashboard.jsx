@@ -89,7 +89,7 @@ const ProviderDashboard = () => {
   const handleFinalizeReview = async (reviewId) => {
     try {
       const token = await getAccessToken();
-      const response = await fetch(`https://service.prestigedelta.com/provider-reviews/${reviewId}/`, {
+      const response = await fetch(`https://api.prestigedelta.com/provider-reviews/${reviewId}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,

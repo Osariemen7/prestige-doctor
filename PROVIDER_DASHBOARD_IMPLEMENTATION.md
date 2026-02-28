@@ -115,7 +115,7 @@ handleLogout()           // User logout
 
 #### 1. Get Dashboard Data
 ```javascript
-GET https://service.prestigedelta.com/providerdashboard/
+GET https://api.prestigedelta.com/providerdashboard/
 
 Response:
 {
@@ -137,7 +137,7 @@ Response:
 
 #### 2. Get Patient Details
 ```javascript
-GET https://service.prestigedelta.com/providerdashboard/{patient_id}/
+GET https://api.prestigedelta.com/providerdashboard/{patient_id}/
 
 Response:
 {
@@ -385,7 +385,7 @@ import { useInfiniteScroll } from 'react-infinite-scroll-hook';
 ```javascript
 // Real-time updates with WebSocket
 useEffect(() => {
-  const ws = new WebSocket('wss://service.prestigedelta.com/ws/dashboard');
+  const ws = new WebSocket('wss://api.prestigedelta.com/ws/dashboard');
   
   ws.onmessage = (event) => {
     const update = JSON.parse(event.data);

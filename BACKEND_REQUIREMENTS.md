@@ -224,7 +224,7 @@ If `invite_code` is present in the request:
 
 ### Registration Request
 ```bash
-curl -X POST https://service.prestigedelta.com/auth/google/ \
+curl -X POST https://api.prestigedelta.com/auth/google/ \
   -H "Content-Type: application/json" \
   -H "X-Organization-Domain: provider.prestigehealth.app" \
   -d '{
@@ -239,7 +239,7 @@ curl -X POST https://service.prestigedelta.com/auth/google/ \
 
 ### Login Request (with phone)
 ```bash
-curl -X POST https://service.prestigedelta.com/auth/google/ \
+curl -X POST https://api.prestigedelta.com/auth/google/ \
   -H "Content-Type: application/json" \
   -H "X-Organization-Domain: provider.prestigehealth.app" \
   -d '{

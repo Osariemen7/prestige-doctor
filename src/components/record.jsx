@@ -138,7 +138,7 @@ const Record = () => {
         formData.append('original_format', 'webm');
 
         try {
-          const response = await fetch(`https://service.prestigedelta.com/in-person-encounters/${publicId}/upload-audio/`, {
+          const response = await fetch(`https://api.prestigedelta.com/in-person-encounters/${publicId}/upload-audio/`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`

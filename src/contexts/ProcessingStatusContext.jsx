@@ -168,7 +168,7 @@ export const ProcessingStatusProvider = ({ children }) => {
 
       try {
         const response = await fetch(
-          `https://service.prestigedelta.com/in-person-encounters/${encounterId}/processing-status/`,
+          `https://api.prestigedelta.com/in-person-encounters/${encounterId}/processing-status/`,
           {
             headers: {
               'Authorization': `Bearer ${token}`

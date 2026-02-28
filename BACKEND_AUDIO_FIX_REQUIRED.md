@@ -342,7 +342,7 @@ def upload_audio(self, request, public_id=None):
      -H "Authorization: Bearer $TOKEN" \
      -F "audio_file=@test.webm" \
      -F "original_format=webm" \
-     https://service.prestigedelta.com/in-person-encounters/{id}/upload-audio/
+     https://api.prestigedelta.com/in-person-encounters/{id}/upload-audio/
    ```
 
 4. **Verify Google Upload** - Google Files API should accept the file

@@ -209,13 +209,13 @@ handleLogout()              // User logout
 
 #### 1. Dashboard List
 ```
-GET https://service.prestigedelta.com/providerdashboard/
+GET https://api.prestigedelta.com/providerdashboard/
 ```
 **Returns:** Provider metrics and categorized patient lists
 
 #### 2. Patient Detail
 ```
-GET https://service.prestigedelta.com/providerdashboard/{patient_id}/
+GET https://api.prestigedelta.com/providerdashboard/{patient_id}/
 ```
 **Returns:** Complete patient information
 
