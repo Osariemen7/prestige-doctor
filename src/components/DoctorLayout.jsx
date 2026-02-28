@@ -50,6 +50,8 @@ const DoctorLayout = ({ children }) => {
 
   const handleLogout = () => {
     localStorage.removeItem('user-info');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     navigate('/login');
   };
 

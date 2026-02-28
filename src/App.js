@@ -1,15 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ProcessingStatusProvider } from './contexts/ProcessingStatusContext';
+import { tryRestoreSession, isAuthenticated } from './api';
 
 // Import your components
-import RegisterPage from './components/DoctorRegister';
-import LoginPage from './components/DoctorLogin';
-import DoctorRegister from './components/DoctorRegister';
-import DoctorLogin from './components/DoctorLogin';
+import DoctorAuth from './components/DoctorAuth';
+import CompleteProfile from './components/CompleteProfile';
 import ForgotPassword from './components/ForgotPassword';
-import GoogleAuthButton from './components/GoogleAuthButton';
 import Dashboard from './components/dashboard';
 import ProviderDashboard from './components/ProviderDashboard';
 import ProviderDashboardDocs from './components/ProviderDashboardDocs';
@@ -27,17 +25,35 @@ import InvestigationDetailPage from './components/InvestigationDetailPage';
 import PatientMediaGallery from './components/PatientMediaGallery';
 
 const App = () => {
+  const [sessionReady, setSessionReady] = useState(false);
+
+  // On launch, try to restore a valid session from the persisted refresh token
+  useEffect(() => {
+    const restore = async () => {
+      await tryRestoreSession();
+      setSessionReady(true);
+    };
+    restore();
+  }, []);
+
+  if (!sessionReady) {
+    // Optionally render a splash / spinner while checking the refresh token
+    return null;
+  }
+
   return (
     <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID}>
       <ProcessingStatusProvider>
         <div className="app-container">
           <Routes>
             {/* Public Routes */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register/:referral_code?" element={<RegisterPage />} />
-            <Route path="/doctor-register" element={<DoctorRegister />} />
-            <Route path="/doctor-login" element={<DoctorLogin />} />
+            <Route path="/login" element={<DoctorAuth />} />
+            <Route path="/register" element={<DoctorAuth />} />
+            <Route path="/register/:referral_code" element={<DoctorAuth />} />
+            <Route path="/doctor-register" element={<DoctorAuth />} />
+            <Route path="/doctor-login" element={<DoctorAuth />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/complete-profile" element={<CompleteProfile />} />
             
             {/* Protected Routes with Sidebar Layout */}
             <Route path="/reviews" element={<DoctorLayout><ReviewsHome /></DoctorLayout>} />
