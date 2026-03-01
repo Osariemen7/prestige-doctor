@@ -1,7 +1,7 @@
 // Authentication utility functions for JWT with refresh tokens
 // WhatsApp OTP tokens: access = 10 min, refresh = 7 days
 
-const TOKEN_REFRESH_URL = 'https://api.prestigehealth.app/api/tokenrefresh/';
+const TOKEN_REFRESH_URL = 'https://api.prestigedelta.com/api/tokenrefresh/';
 
 // ── Storage helpers ────────────────────────────────────────────────────
 

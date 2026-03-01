@@ -21,7 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { storeAuthData } from '../api';
 
-const API_BASE = 'https://api.prestigehealth.app/api';
+const API_BASE = 'https://api.prestigedelta.com/api';
 
 const SPECIALTIES = [
   { value: 'general_practice', label: 'General Practice' },
