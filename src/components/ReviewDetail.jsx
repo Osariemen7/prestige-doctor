@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -22,10 +22,10 @@ import {
 import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
+  Call as CallIcon,
   CheckCircle as CheckCircleIcon,
   Add as AddIcon,
   Mic as MicIcon,
-  PlayArrow as PlayArrowIcon,
   Warning as WarningIcon,
   Autorenew as AutorenewIcon,
   Edit as EditIcon,
@@ -33,7 +33,9 @@ import {
   CloudUpload as CloudUploadIcon,
   SmartToy as SmartToyIcon,
   Delete as DeleteIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  PhotoCamera as PhotoCameraIcon,
+  VideoCall as VideoCallIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import { useTheme, useMediaQuery } from '@mui/material';
@@ -68,10 +70,142 @@ const convertToInternationalFormat = (phoneNumber) => {
   return trimmed;
 };
 
+const formatDisplayLabel = (value) => {
+  if (!value) return 'Unknown';
+  return String(value)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const getEntryTimestampValue = (entry) => {
+  const rawValue = entry?.time || entry?.at;
+  const parsedValue = rawValue ? Date.parse(rawValue) : NaN;
+  return Number.isNaN(parsedValue) ? 0 : parsedValue;
+};
+
+const formatEntryTimestamp = (value) => {
+  if (!value) {
+    return 'Time unavailable';
+  }
+
+  const parsedValue = new Date(value);
+  if (Number.isNaN(parsedValue.getTime())) {
+    return String(value);
+  }
+
+  return parsedValue.toLocaleString();
+};
+
+const formatScheduledMoment = (value) => {
+  if (!value) {
+    return 'Not scheduled';
+  }
+
+  const parsedValue = new Date(value);
+  if (Number.isNaN(parsedValue.getTime())) {
+    return String(value);
+  }
+
+  return parsedValue.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+};
+
+const getCallbackStatusConfig = (status) => {
+  switch (status) {
+    case 'booking_requested':
+      return { label: 'Awaiting Patient Booking', severity: 'info', chipColor: 'info' };
+    case 'payment_pending':
+      return { label: 'Callback Awaiting Payment', severity: 'warning', chipColor: 'warning' };
+    case 'scheduled':
+      return { label: 'Callback Scheduled', severity: 'success', chipColor: 'success' };
+    case 'completed':
+      return { label: 'Callback Completed', severity: 'success', chipColor: 'success' };
+    case 'cancelled':
+      return { label: 'Callback Cancelled', severity: 'error', chipColor: 'error' };
+    case 'missed':
+      return { label: 'Callback Missed', severity: 'error', chipColor: 'error' };
+    case 'planned':
+      return { label: 'Follow-up Planned', severity: 'info', chipColor: 'info' };
+    case 'ai_follow_up':
+      return { label: 'AI Follow-up Planned', severity: 'info', chipColor: 'info' };
+    default:
+      return { label: null, severity: 'info', chipColor: 'default' };
+  }
+};
+
+const getLiveVisitReadinessConfig = (readiness, callbackStatus) => {
+  switch (readiness) {
+    case 'awaiting_patient_booking':
+      return { label: 'Awaiting Patient Booking', severity: 'info', chipColor: 'info' };
+    case 'callback_scheduled':
+      return callbackStatus === 'payment_pending'
+        ? { label: 'Callback Awaiting Payment', severity: 'warning', chipColor: 'warning' }
+        : { label: 'Callback Scheduled', severity: 'success', chipColor: 'success' };
+    case 'follow_up_planned':
+      return { label: 'Follow-up Planned', severity: 'info', chipColor: 'info' };
+    case 'review_completed':
+      return { label: 'Review Completed', severity: 'success', chipColor: 'success' };
+    case 'closed':
+      return { label: 'Closed', severity: 'info', chipColor: 'default' };
+    case 'ready_for_review':
+      return { label: 'Ready for Review', severity: 'warning', chipColor: 'warning' };
+    default:
+      return { label: null, severity: 'info', chipColor: 'default' };
+  }
+};
+
+const buildMockLiveVisitEntries = () => {
+  const now = Date.now();
+
+  return [
+    {
+      id: 'mock-transcript-1',
+      source: 'live_visit',
+      kind: 'transcript',
+      time: new Date(now - 1000 * 60 * 12).toISOString(),
+      content: 'Patient describes intermittent abdominal pain that worsens after meals and shared prior imaging during the live session.',
+    },
+    {
+      id: 'mock-tool-1',
+      source: 'live_visit',
+      kind: 'tool_activity',
+      time: new Date(now - 1000 * 60 * 8).toISOString(),
+      title: 'Clinical summary refreshed',
+      stage: 'completed',
+      message: 'AI updated the rolling summary after reviewing symptom timeline and medication history.',
+    },
+    {
+      id: 'mock-capture-1',
+      source: 'live_visit',
+      kind: 'visual_capture',
+      time: new Date(now - 1000 * 60 * 6).toISOString(),
+      asset_url: '/images/doctor-ai-platform.png',
+      label: 'Abdominal scan snapshot',
+      purpose: 'supporting_document',
+      note: 'Mock preview artifact for localhost verification of the live visual capture gallery.',
+      upload_status: 'shared',
+      sent_to_model: true,
+      mime_type: 'image/png',
+    },
+    {
+      id: 'mock-tool-2',
+      source: 'live_visit',
+      kind: 'tool_activity',
+      time: new Date(now - 1000 * 60 * 4).toISOString(),
+      title: 'Urgency review',
+      stage: 'pending',
+      message: 'Clinician review still required before finalizing the recommendation.',
+    },
+  ];
+};
+
 const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const { publicId: urlPublicId } = useParams();
   const publicId = urlPublicId;
   const navigate = useNavigate();
+  const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { getStatus, processingStatuses, startEncounterPolling } = useProcessingStatus();
@@ -91,10 +225,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   });
   const [editingNote, setEditingNote] = useState(false);
   const [editedNote, setEditedNote] = useState(null);
-  const [editingPrescriptions, setEditingPrescriptions] = useState(false);
-  const [editingInvestigations, setEditingInvestigations] = useState(false);
   const [chatRefreshTrigger, setChatRefreshTrigger] = useState(0);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [bookingPreset, setBookingPreset] = useState({
+    initialReason: '',
+    initialChannel: 'audio',
+    title: 'Schedule Appointment',
+    description: null,
+  });
   const previousStatusRef = useRef(null);
   const lastFetchRef = useRef(0);
 
@@ -102,6 +240,178 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const existingTranscript = useMemo(() => collectReviewTranscripts(review), [review]);
   const [copySuccess, setCopySuccess] = useState(false);
   const currentProcessingStatus = getStatus(publicId);
+  const liveVisitEntries = useMemo(() => {
+    const conversation = Array.isArray(review?.session_conversation)
+      ? review.session_conversation
+      : [];
+
+    return [...conversation]
+      .filter(
+        (entry) =>
+          entry &&
+          typeof entry === 'object' &&
+          entry.source === 'live_visit'
+      )
+      .sort((left, right) => getEntryTimestampValue(left) - getEntryTimestampValue(right));
+  }, [review]);
+  const mockLiveVisitPreviewEnabled = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.location.hostname === 'localhost'
+      && new URLSearchParams(location.search).get('mockLiveVisit') === '1';
+  }, [location.search]);
+  const mockLiveVisitEntries = useMemo(
+    () => (mockLiveVisitPreviewEnabled ? buildMockLiveVisitEntries() : []),
+    [mockLiveVisitPreviewEnabled]
+  );
+  const effectiveLiveVisitEntries = useMemo(
+    () => (liveVisitEntries.length > 0 ? liveVisitEntries : mockLiveVisitEntries),
+    [liveVisitEntries, mockLiveVisitEntries]
+  );
+  const usingMockLiveVisitPreview = mockLiveVisitPreviewEnabled && liveVisitEntries.length === 0 && mockLiveVisitEntries.length > 0;
+  const liveVisualCaptures = useMemo(
+    () => effectiveLiveVisitEntries.filter((entry) => entry.kind === 'visual_capture' && entry.asset_url),
+    [effectiveLiveVisitEntries]
+  );
+  const liveToolActivity = useMemo(
+    () => effectiveLiveVisitEntries.filter((entry) => entry.kind === 'tool_activity'),
+    [effectiveLiveVisitEntries]
+  );
+  const liveTranscriptCount = useMemo(
+    () => effectiveLiveVisitEntries.filter((entry) => entry.kind === 'transcript').length,
+    [effectiveLiveVisitEntries]
+  );
+  const recentLiveActivity = useMemo(
+    () => [...effectiveLiveVisitEntries.filter((entry) => entry.kind === 'tool_activity' || entry.kind === 'visual_capture')].reverse().slice(0, 5),
+    [effectiveLiveVisitEntries]
+  );
+  const liveVisualCaptureCount = useMemo(
+    () => Math.max(review?.live_visual_capture_count || 0, liveVisualCaptures.length),
+    [review, liveVisualCaptures.length]
+  );
+  const callbackStatus = review?.callback_status || 'none';
+  const callbackAppointment = review?.callback_appointment || null;
+  const callbackBookingRequest = review?.callback_booking_request || null;
+  const callbackStatusConfig = useMemo(
+    () => getCallbackStatusConfig(callbackStatus),
+    [callbackStatus]
+  );
+  const liveVisitReadiness = review?.live_visit_readiness || (effectiveLiveVisitEntries.length > 0 ? 'ready_for_review' : 'not_started');
+  const liveVisitReadinessConfig = useMemo(
+    () => getLiveVisitReadinessConfig(liveVisitReadiness, callbackStatus),
+    [liveVisitReadiness, callbackStatus]
+  );
+  const callbackSummaryText = useMemo(() => {
+    if (callbackStatus === 'booking_requested' && callbackBookingRequest) {
+      return `A patient booking request for a ${formatDisplayLabel(callbackBookingRequest.channel)} follow-up was sent on ${formatScheduledMoment(callbackBookingRequest.requested_at)}. The patient should choose the time themselves from the doctor detail page or reply in chat for help.`;
+    }
+
+    if (callbackStatus === 'payment_pending' && callbackAppointment) {
+      return `A ${formatDisplayLabel(callbackAppointment.channel)} callback was booked for ${formatScheduledMoment(callbackAppointment.start_time)}. Payment is still pending before that time becomes confirmed.`;
+    }
+
+    if (callbackStatus === 'scheduled' && callbackAppointment) {
+      return `A ${formatDisplayLabel(callbackAppointment.channel)} callback is scheduled for ${formatScheduledMoment(callbackAppointment.start_time)}.`;
+    }
+
+    if (callbackStatus === 'completed' && callbackAppointment) {
+      return `The latest linked callback was completed on ${formatScheduledMoment(callbackAppointment.start_time)}.`;
+    }
+
+    if (callbackStatus === 'cancelled' && callbackAppointment) {
+      return `The latest linked callback was cancelled after being booked for ${formatScheduledMoment(callbackAppointment.start_time)}.`;
+    }
+
+    if (callbackStatus === 'missed' && callbackAppointment) {
+      return `The latest linked callback was missed after being booked for ${formatScheduledMoment(callbackAppointment.start_time)}.`;
+    }
+
+    if (callbackStatus === 'planned' && review?.follow_up) {
+      return `Doctor follow-up is planned for ${formatScheduledMoment(review.follow_up)}, but there is no linked callback appointment on this review yet.`;
+    }
+
+    if (callbackStatus === 'ai_follow_up' && review?.follow_up_at) {
+      return `An AI follow-up reminder is scheduled for ${formatScheduledMoment(review.follow_up_at)}.`;
+    }
+
+    if (liveVisitReadiness === 'ready_for_review') {
+      return 'Live visit transcripts, tool activity, or captures are available and this case is ready for doctor action.';
+    }
+
+    return null;
+  }, [
+    callbackBookingRequest,
+    callbackAppointment,
+    callbackStatus,
+    liveVisitReadiness,
+    review?.follow_up,
+    review?.follow_up_at,
+  ]);
+  const openBookingModal = useCallback((preset = {}) => {
+    const patientName = `${patientData.first_name || ''} ${patientData.last_name || ''}`.trim() || 'this patient';
+
+    setBookingPreset({
+      initialReason: preset.initialReason || '',
+      initialChannel: preset.initialChannel || 'audio',
+      title: preset.title || 'Request Patient Booking',
+      description: preset.description || `Send ${patientName} a booking link so they can choose a convenient time themselves.`,
+    });
+    setIsBookingModalOpen(true);
+  }, [patientData.first_name, patientData.last_name]);
+  const followUpRecommendations = useMemo(() => {
+    if (!review || (!review.patient_summary && effectiveLiveVisitEntries.length === 0)) {
+      return [];
+    }
+
+    const complaint = review.chief_complaint || 'recent live visit concerns';
+    const contextBits = [];
+    if (liveVisualCaptureCount > 0) {
+      contextBits.push(`${liveVisualCaptureCount} visual ${liveVisualCaptureCount === 1 ? 'capture' : 'captures'} available for review`);
+    }
+    if (liveTranscriptCount > 0) {
+      contextBits.push(`${liveTranscriptCount} transcript ${liveTranscriptCount === 1 ? 'entry' : 'entries'}`);
+    }
+    if (liveToolActivity.length > 0) {
+      contextBits.push(`${liveToolActivity.length} tool ${liveToolActivity.length === 1 ? 'update' : 'updates'}`);
+    }
+    const contextSuffix = contextBits.length ? ` Context: ${contextBits.join(', ')}.` : '';
+
+    const actions = [
+      {
+        key: 'audio-callback',
+        icon: <CallIcon />,
+        title: 'Request Audio Callback Booking',
+        description: review.is_finalized
+          ? 'Ask the patient to choose a time for a clinician audio callback if they still need direct review after this live visit.'
+          : 'Ask the patient to choose a time for an audio callback if the live visit needs clinician clarification before closure.',
+        severity: 'warning',
+        channel: 'audio',
+        reason: `Audio follow-up requested after live visit review for ${complaint}.${contextSuffix}`,
+      },
+    ];
+
+    if (liveVisualCaptureCount > 0) {
+      actions.unshift({
+        key: 'video-follow-up',
+        icon: <VideoCallIcon />,
+        title: 'Request Video Follow-up Booking',
+        description: 'Ask the patient to choose a time for a video follow-up when the clinician needs to inspect findings beyond the stored captures.',
+        severity: 'info',
+        channel: 'video',
+        reason: `Video follow-up requested to review live visit visual findings for ${complaint}.${contextSuffix}`,
+      });
+    }
+
+    return actions;
+  }, [
+    review,
+    effectiveLiveVisitEntries.length,
+    liveToolActivity.length,
+    liveTranscriptCount,
+    liveVisualCaptureCount,
+  ]);
 
   const handleCopyNote = async () => {
     if (!review.doctor_note) return;
@@ -317,7 +627,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
     setSaving(true);
     const token = await getAccessToken();
-    const encounter = review.in_person_encounters[0];
 
     try {
       // Convert phone number to international format if needed
@@ -445,7 +754,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       );
 
       if (response.ok) {
-        const result = await response.json();
+        await response.json();
         alert('Review finalized successfully!');
         fetchReviewDetail(); // Refresh to show updated status
       } else {
@@ -1041,15 +1350,42 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 variant="outlined"
               />
             )}
+            {liveVisualCaptureCount > 0 && (
+              <Chip
+                icon={<PhotoCameraIcon />}
+                label={`${liveVisualCaptureCount} Live ${liveVisualCaptureCount === 1 ? 'Capture' : 'Captures'}`}
+                color="info"
+                variant="outlined"
+              />
+            )}
+            {liveVisitReadinessConfig.label && (effectiveLiveVisitEntries.length > 0 || callbackStatus !== 'none') && (
+              <Chip
+                icon={<ScheduleIcon />}
+                label={liveVisitReadinessConfig.label}
+                color={liveVisitReadinessConfig.chipColor}
+                variant="outlined"
+              />
+            )}
           </Box>
           <Box display="flex" gap={1}>
             <Button
               variant="outlined"
               startIcon={<ScheduleIcon />}
-              onClick={() => setIsBookingModalOpen(true)}
+              onClick={() => openBookingModal({
+                initialChannel: callbackBookingRequest?.channel || callbackAppointment?.channel || 'audio',
+                initialReason: callbackBookingRequest?.reason || callbackAppointment?.reason || '',
+                title: callbackStatus === 'booking_requested'
+                  ? 'Re-send Booking Request'
+                  : 'Request Patient Booking',
+                description: callbackStatus === 'booking_requested'
+                  ? 'Re-send the self-booking link if the patient still needs it or you want to change the preferred channel.'
+                  : callbackStatus === 'payment_pending' || callbackStatus === 'scheduled'
+                    ? 'Ask the patient to choose a new time themselves if the current callback should be changed.'
+                    : 'Send the patient a booking link so they can choose a convenient time themselves.',
+              })}
               size="small"
             >
-              Schedule Follow-up
+              {callbackStatus === 'booking_requested' ? 'Re-send Booking Request' : 'Request Patient Booking'}
             </Button>
             {review.is_finalized && (
               <Button
@@ -1059,16 +1395,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 size="small"
               >
                 {copySuccess ? 'Copied!' : 'Copy Note'}
-              </Button>
-            )}
-            {!review.is_finalized && (
-              <Button
-                variant="contained"
-                startIcon={<CheckCircleIcon />}
-                onClick={() => setShowFinalizeDialog(true)}
-                size="small"
-              >
-                Finalize Review
               </Button>
             )}
           </Box>
@@ -1247,6 +1573,312 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         </CardContent>
       </Card>
 
+      {(review.patient_summary || effectiveLiveVisitEntries.length > 0) && (
+        <Card sx={{ mb: 3 }} elevation={3}>
+          <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+            <Box
+              display="flex"
+              flexDirection={isMobile ? 'column' : 'row'}
+              justifyContent="space-between"
+              alignItems={isMobile ? 'flex-start' : 'center'}
+              gap={1.5}
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="h6" fontWeight="bold" color="primary">
+                Live Visit Context
+              </Typography>
+              <Box display="flex" gap={1} flexWrap="wrap">
+                {liveTranscriptCount > 0 && (
+                  <Chip
+                    label={`${liveTranscriptCount} Transcript ${liveTranscriptCount === 1 ? 'Entry' : 'Entries'}`}
+                    size="small"
+                    variant="outlined"
+                  />
+                )}
+                {liveToolActivity.length > 0 && (
+                  <Chip
+                    label={`${liveToolActivity.length} Tool ${liveToolActivity.length === 1 ? 'Update' : 'Updates'}`}
+                    size="small"
+                    variant="outlined"
+                  />
+                )}
+                {liveVisualCaptures.length > 0 && (
+                  <Chip
+                    icon={<PhotoCameraIcon />}
+                    label={`${liveVisualCaptures.length} Visual ${liveVisualCaptures.length === 1 ? 'Capture' : 'Captures'}`}
+                    size="small"
+                    color="info"
+                    variant="outlined"
+                  />
+                )}
+              </Box>
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+
+            {usingMockLiveVisitPreview && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 0.5 }}>
+                  Mock Live Visit Preview
+                </Typography>
+                <Typography variant="body2">
+                  Showing localhost-only seeded live-visit artifacts because this review does not currently have production visual captures.
+                </Typography>
+              </Alert>
+            )}
+
+            {(liveVisitReadinessConfig.label || callbackSummaryText) && (
+              <Alert
+                severity={callbackStatusConfig.label ? callbackStatusConfig.severity : liveVisitReadinessConfig.severity}
+                sx={{ mb: 2 }}
+              >
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: callbackSummaryText ? 0.5 : 0 }}>
+                  {callbackStatusConfig.label || liveVisitReadinessConfig.label}
+                </Typography>
+                {callbackSummaryText && (
+                  <Typography variant="body2">
+                    {callbackSummaryText}
+                  </Typography>
+                )}
+                {callbackAppointment && (
+                  <Box display="flex" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
+                    {callbackAppointment.channel && (
+                      <Chip
+                        label={formatDisplayLabel(callbackAppointment.channel)}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
+                    {callbackAppointment.status && (
+                      <Chip
+                        label={formatDisplayLabel(callbackAppointment.status)}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
+                    {callbackAppointment.payment_status && (
+                      <Chip
+                        label={`Payment ${formatDisplayLabel(callbackAppointment.payment_status)}`}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
+                  </Box>
+                )}
+                            {callbackBookingRequest && !callbackAppointment && (
+                              <Box display="flex" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
+                                {callbackBookingRequest.channel && (
+                                  <Chip
+                                    label={`Preferred ${formatDisplayLabel(callbackBookingRequest.channel)}`}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                )}
+                                {callbackBookingRequest.delivery_mode && (
+                                  <Chip
+                                    label={`Sent via ${formatDisplayLabel(callbackBookingRequest.delivery_mode)}`}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                )}
+                              </Box>
+                            )}
+              </Alert>
+            )}
+
+            {review.patient_summary && (
+              <Alert severity="info" sx={{ mb: liveVisualCaptures.length > 0 || recentLiveActivity.length > 0 ? 2 : 0 }}>
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 0.5 }}>
+                  Patient Summary
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {review.patient_summary}
+                </Typography>
+              </Alert>
+            )}
+
+            {liveVisualCaptures.length > 0 && (
+              <Box sx={{ mb: recentLiveActivity.length > 0 ? 3 : 0 }}>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                  Visual Captures
+                </Typography>
+                <Grid container spacing={2}>
+                  {liveVisualCaptures.map((capture, index) => {
+                    const captureTime = capture.time || capture.at;
+                    const captureStatus = capture.upload_status || capture.status || 'saved';
+                    return (
+                      <Grid item xs={12} md={6} key={capture.id || capture.asset_url || index}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <Box
+                            sx={{
+                              height: 220,
+                              bgcolor: 'grey.100',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <Box
+                              component="img"
+                              src={capture.asset_url}
+                              alt={capture.label || 'Live visual capture'}
+                              sx={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                display: 'block',
+                              }}
+                            />
+                          </Box>
+                          <CardContent>
+                            <Box display="flex" gap={1} flexWrap="wrap" sx={{ mb: 1.5 }}>
+                              {capture.purpose && (
+                                <Chip
+                                  label={formatDisplayLabel(capture.purpose)}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
+                              <Chip
+                                label={formatDisplayLabel(captureStatus)}
+                                size="small"
+                                color={captureStatus === 'shared' ? 'success' : 'default'}
+                              />
+                              {capture.sent_to_model && (
+                                <Chip
+                                  label="Shared With Model"
+                                  size="small"
+                                  color="info"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {capture.label || 'Visual exam capture'}
+                            </Typography>
+                            {capture.note && (
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ mt: 1, mb: 1.5, whiteSpace: 'pre-wrap' }}
+                              >
+                                {capture.note}
+                              </Typography>
+                            )}
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+                              Captured {formatEntryTimestamp(captureTime)}
+                            </Typography>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              href={capture.asset_url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Open Image
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </Box>
+            )}
+
+            {recentLiveActivity.length > 0 && (
+              <Box>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                  Recent Live Session Activity
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {recentLiveActivity.map((entry, index) => {
+                    const timestamp = entry.time || entry.at;
+                    const title = entry.kind === 'visual_capture'
+                      ? (entry.label || 'Visual capture')
+                      : (entry.title || formatDisplayLabel(entry.name) || 'Tool activity');
+                    const detail = entry.message || entry.content || entry.note || 'No additional detail provided.';
+                    const badgeLabel = entry.kind === 'visual_capture'
+                      ? 'Visual'
+                      : formatDisplayLabel(entry.stage || entry.level || 'info');
+
+                    return (
+                      <Card key={entry.id || `${entry.kind}-${index}`} variant="outlined">
+                        <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                            <Box>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                {title}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}
+                              >
+                                {detail}
+                              </Typography>
+                            </Box>
+                            <Chip label={badgeLabel} size="small" variant="outlined" />
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            {formatEntryTimestamp(timestamp)}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </Box>
+              </Box>
+            )}
+
+            {followUpRecommendations.length > 0 && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                  Follow-up Actions
+                </Typography>
+                <Alert severity={review.is_finalized ? 'info' : 'warning'} sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    {callbackStatus === 'payment_pending' || callbackStatus === 'scheduled'
+                      ? 'A linked callback appointment is already on record. Send a new booking request only if the patient should choose a different time themselves.'
+                      : callbackStatus === 'booking_requested'
+                        ? 'A booking request has already been sent. Re-send it only if the patient still needs the link or you want to change the preferred channel.'
+                        : 'Use the live summary and artifacts above to decide whether the patient should self-book a follow-up after this review.'}
+                  </Typography>
+                </Alert>
+                <Grid container spacing={2}>
+                  {followUpRecommendations.map((action) => (
+                    <Grid item xs={12} md={6} key={action.key}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%' }}>
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {action.title}
+                            </Typography>
+                            <Chip label={formatDisplayLabel(action.channel)} size="small" color={action.severity} variant="outlined" />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+                            {action.description}
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            startIcon={action.icon}
+                            onClick={() => openBookingModal({
+                              initialChannel: action.channel,
+                              initialReason: action.reason,
+                              title: action.title,
+                              description: action.description,
+                            })}
+                          >
+                            {action.title}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Doctor's Note */}
       {review.doctor_note && (
         <Box>
@@ -1267,7 +1899,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 </Button>
                 <Button
                   variant="outlined"
-                  startIcon={<EditIcon />}
                   onClick={handleEditNote}
                   size="small"
                   disabled={review.is_finalized}
@@ -1328,7 +1959,17 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         <DialogTitle>Finalize Encounter</DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 3 }}>
-            Please confirm or update patient information before finalizing.
+            <Typography variant="body2">
+              Please confirm or update patient information before finalizing.
+            </Typography>
+            {(review.patient_summary || liveVisualCaptures.length > 0) && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                {liveVisualCaptures.length > 0
+                  ? `This live visit includes ${liveVisualCaptures.length} visual ${liveVisualCaptures.length === 1 ? 'capture' : 'captures'}. `
+                  : ''}
+                Review the live visit summary and artifacts on this page before completing finalization.
+              </Typography>
+            )}
           </Alert>
           
           <Grid container spacing={2}>
@@ -1398,9 +2039,19 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         open={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         patientId={review?.patient || review?.patient_id}
+        reviewId={review?.id}
+        reviewPublicId={publicId}
         patientName={`${patientData.first_name || ''} ${patientData.last_name || ''}`.trim() || 'Patient'}
+        initialReason={bookingPreset.initialReason}
+        initialChannel={bookingPreset.initialChannel}
+        title={bookingPreset.title}
+        description={bookingPreset.description}
         onSuccess={(data) => {
-          console.log('Follow-up scheduled:', data);
+          console.log('Patient booking request sent:', data);
+          fetchReviewDetail();
+          if (onUpdate) {
+            onUpdate();
+          }
         }}
       />
 

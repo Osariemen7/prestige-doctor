@@ -1,0 +1,25 @@
+{
+  "short_name": "Prestige",
+  "name": "Prestige Customer",
+  "icons": [
+    {
+      "src": "Group.png",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "any maskable"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "Group.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
