@@ -157,7 +157,7 @@ export const getAccessToken = async () => {
 
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
-    if (currentAccessToken && isTokenValid(currentAccessToken)) {
+    if (currentAccessToken) {
       return currentAccessToken;
     }
     logout();
@@ -177,6 +177,11 @@ export const getAccessToken = async () => {
       });
 
       if (!response.ok) {
+        if (response.status >= 500 && currentAccessToken) {
+          console.warn(`Token refresh returned ${response.status}; reusing the current access token.`);
+          return currentAccessToken;
+        }
+
         // Refresh token expired or rotated out – user must re-authenticate
         logout();
         return null;
@@ -186,10 +191,11 @@ export const getAccessToken = async () => {
       updateStoredTokenFields(data);
       return getAccessValue(data);
     } catch (error) {
-      console.error('Error refreshing token:', error);
-      if (currentAccessToken && isTokenValid(currentAccessToken)) {
+      if (currentAccessToken) {
+        console.warn('Token refresh request failed; reusing the current access token.');
         return currentAccessToken;
       }
+      console.error('Error refreshing token:', error);
       return null;
     } finally {
       refreshRequest = null;
