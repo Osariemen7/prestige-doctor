@@ -2,6 +2,81 @@
 // WhatsApp OTP tokens: access = 10 min, refresh = 7 days
 
 const TOKEN_REFRESH_URL = 'https://api.prestigedelta.com/api/tokenrefresh/';
+const ACCESS_TOKEN_KEY = 'access_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
+const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 30 * 1000;
+
+let refreshRequest = null;
+
+const getAccessValue = (data) => data?.access || data?.access_token || null;
+
+const getRefreshValue = (data) => data?.refresh || data?.refresh_token || null;
+
+const decodeTokenPayload = (token) => {
+  if (!token || typeof token !== 'string' || typeof atob !== 'function') {
+    return null;
+  }
+
+  const tokenParts = token.split('.');
+  if (tokenParts.length < 2) {
+    return null;
+  }
+
+  try {
+    const normalizedPayload = tokenParts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
+    return JSON.parse(atob(paddedPayload));
+  } catch {
+    return null;
+  }
+};
+
+const isTokenValid = (token, leewayMs = 0) => {
+  const payload = decodeTokenPayload(token);
+  if (!payload?.exp) {
+    return false;
+  }
+
+  return (payload.exp * 1000) > (Date.now() + leewayMs);
+};
+
+const updateStoredTokenFields = (data) => {
+  const accessToken = getAccessValue(data);
+  const refreshToken = getRefreshValue(data);
+
+  if (accessToken) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  }
+
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
+
+  if (!accessToken && !refreshToken) {
+    return;
+  }
+
+  try {
+    const storedInfo = localStorage.getItem('user-info');
+    const parsedInfo = storedInfo ? JSON.parse(storedInfo) : {};
+    const nextInfo = parsedInfo && typeof parsedInfo === 'object' ? { ...parsedInfo } : {};
+
+    if (accessToken) {
+      nextInfo.access = accessToken;
+    }
+
+    if (refreshToken) {
+      nextInfo.refresh = refreshToken;
+    }
+
+    localStorage.setItem('user-info', JSON.stringify(nextInfo));
+  } catch {
+    localStorage.setItem('user-info', JSON.stringify({
+      ...(accessToken ? { access: accessToken } : {}),
+      ...(refreshToken ? { refresh: refreshToken } : {}),
+    }));
+  }
+};
 
 // ── Storage helpers ────────────────────────────────────────────────────
 
@@ -12,25 +87,49 @@ const TOKEN_REFRESH_URL = 'https://api.prestigedelta.com/api/tokenrefresh/';
  * for backward-compat.
  */
 export const storeAuthData = (data) => {
-  if (data.access) localStorage.setItem('access_token', data.access);
-  if (data.refresh) localStorage.setItem('refresh_token', data.refresh);
+  const accessToken = getAccessValue(data);
+  const refreshToken = getRefreshValue(data);
+
+  if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem('user-info', JSON.stringify(data));
 };
 
 // ── Read helpers ───────────────────────────────────────────────────────
 
 export const isAuthenticated = () => {
-  return !!localStorage.getItem('refresh_token');
+  return !!getRefreshToken() || !!getStoredAccessToken();
 };
 
-export const getRefreshToken = () => {
-  // Prefer the standalone key; fall back to user-info blob
-  const standalone = localStorage.getItem('refresh_token');
+export const getStoredAccessToken = () => {
+  const standalone = localStorage.getItem(ACCESS_TOKEN_KEY);
   if (standalone) return standalone;
 
   const userInfo = localStorage.getItem('user-info');
   if (userInfo) {
-    try { return JSON.parse(userInfo).refresh || null; } catch { return null; }
+    try {
+      const parsed = JSON.parse(userInfo);
+      return getAccessValue(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+};
+
+export const getRefreshToken = () => {
+  // Prefer the standalone key; fall back to user-info blob
+  const standalone = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (standalone) return standalone;
+
+  const userInfo = localStorage.getItem('user-info');
+  if (userInfo) {
+    try {
+      return getRefreshValue(JSON.parse(userInfo));
+    } catch {
+      return null;
+    }
   }
   return null;
 };
@@ -51,36 +150,53 @@ export const getUser = () => {
  * token itself has expired (>7 days since last OTP auth).
  */
 export const getAccessToken = async () => {
+  const currentAccessToken = getStoredAccessToken();
+  if (currentAccessToken && isTokenValid(currentAccessToken, ACCESS_TOKEN_REFRESH_LEEWAY_MS)) {
+    return currentAccessToken;
+  }
+
   const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
-
-  try {
-    const response = await fetch(TOKEN_REFRESH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh: refreshToken }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      // Persist the fresh access token
-      localStorage.setItem('access_token', data.access);
-      // Keep user-info blob in sync
-      try {
-        const info = JSON.parse(localStorage.getItem('user-info') || '{}');
-        info.access = data.access;
-        localStorage.setItem('user-info', JSON.stringify(info));
-      } catch { /* non-critical */ }
-      return data.access;
-    } else {
-      // Refresh token expired – user must re-authenticate
-      logout();
-      return null;
+  if (!refreshToken) {
+    if (currentAccessToken && isTokenValid(currentAccessToken)) {
+      return currentAccessToken;
     }
-  } catch (error) {
-    console.error('Error refreshing token:', error);
+    logout();
     return null;
   }
+
+  if (refreshRequest) {
+    return refreshRequest;
+  }
+
+  refreshRequest = (async () => {
+    try {
+      const response = await fetch(TOKEN_REFRESH_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+
+      if (!response.ok) {
+        // Refresh token expired or rotated out – user must re-authenticate
+        logout();
+        return null;
+      }
+
+      const data = await response.json();
+      updateStoredTokenFields(data);
+      return getAccessValue(data);
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      if (currentAccessToken && isTokenValid(currentAccessToken)) {
+        return currentAccessToken;
+      }
+      return null;
+    } finally {
+      refreshRequest = null;
+    }
+  })();
+
+  return refreshRequest;
 };
 
 // ── Session restore (call on app launch) ───────────────────────────────
@@ -100,7 +216,7 @@ export const tryRestoreSession = async () => {
 // ── Logout ─────────────────────────────────────────────────────────────
 
 export const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem('user-info');
 };
