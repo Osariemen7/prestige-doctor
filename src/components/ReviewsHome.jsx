@@ -501,9 +501,14 @@ const ReviewsHome = () => {
   const handleEncounterSuccess = (encounter) => {
     setCurrentEncounter(encounter);
     setWorkflowReviewId(encounter.medical_review_public_id);
-    setWorkflowStage(1);
     setShowCreateModal(false);
-    setShowRecordingModal(true);
+    
+    // Smoothly transition the clinician directly to the newly created review detail screen
+    // and automatically boot up the world-class AI Live Copilot
+    navigate(`/reviews/${encounter.medical_review_public_id}?startCopilot=1`);
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
   };
 
   const handleWorkflowEvent = (event) => {

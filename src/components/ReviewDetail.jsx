@@ -531,6 +531,22 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     fetchReviewDetail();
   }, [publicId]);
 
+  // Auto-open copilot if query param is set
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('startCopilot') === '1' && review && !review.is_finalized) {
+      setShowCopilotDashboard(true);
+      // Clean up the URL search params so it doesn't open again on page refresh
+      const nextSearch = new URLSearchParams(location.search);
+      nextSearch.delete('startCopilot');
+      const searchString = nextSearch.toString();
+      navigate({
+        pathname: location.pathname,
+        search: searchString ? `?${searchString}` : ''
+      }, { replace: true });
+    }
+  }, [location.search, review, navigate, location.pathname]);
+
   // Auto-refetch when processing completes
   useEffect(() => {
     const currentStatus = getStatus(publicId);
