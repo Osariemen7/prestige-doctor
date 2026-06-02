@@ -498,12 +498,15 @@ const ReviewsHome = () => {
     }
   };
 
-  const handleEncounterSuccess = (encounter) => {
+  const handleEncounterSuccess = async (encounter) => {
     setCurrentEncounter(encounter);
     setWorkflowReviewId(encounter.medical_review_public_id);
     setShowCreateModal(false);
     
-    // Smoothly transition the clinician directly to the newly created review detail screen
+    // 1. Refetch the reviews list from the server so the new review is in our local state
+    await fetchReviews({ showLoading: true });
+    
+    // 2. Smoothly transition the clinician directly to the newly created review detail screen
     // and automatically boot up the world-class AI Live Copilot
     navigate(`/reviews/${encounter.medical_review_public_id}?startCopilot=1`);
     if (isMobile) {
