@@ -35,7 +35,8 @@ import {
   Delete as DeleteIcon,
   Schedule as ScheduleIcon,
   PhotoCamera as PhotoCameraIcon,
-  VideoCall as VideoCallIcon
+  VideoCall as VideoCallIcon,
+  PlaylistAddCheck as ActionsIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
 import { useTheme, useMediaQuery } from '@mui/material';
@@ -43,6 +44,7 @@ import CreateEncounterModal from './CreateEncounterModal';
 import RecordingModal from './RecordingModal';
 import AiConsultationChat from './AiConsultationChat';
 import BookAppointmentModal from './BookAppointmentModal';
+import LiveCopilotDashboard from './LiveCopilotDashboard';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
 
@@ -215,6 +217,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const [showFinalizeDialog, setShowFinalizeDialog] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRecordingModal, setShowRecordingModal] = useState(false);
+  const [showCopilotDashboard, setShowCopilotDashboard] = useState(false);
   const [currentEncounter, setCurrentEncounter] = useState(null);
   const [creatingEncounter, setCreatingEncounter] = useState(false);
   const [patientData, setPatientData] = useState({
@@ -498,6 +501,22 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         }
       }
 
+      // Add other clinical actions if available
+      if (review.doctor_note.other_actions && Array.isArray(review.doctor_note.other_actions) && review.doctor_note.other_actions.length > 0) {
+        const otherActions = review.doctor_note.other_actions
+          .filter(a => a && typeof a === 'object')
+          .map(a => {
+            const actionType = (a.action_type || 'action').toUpperCase();
+            const actionName = a.name || 'Unknown Action';
+            const notes = a.notes ? `\n  Notes: ${a.notes}` : '';
+            return `• [${actionType}] ${actionName}${notes}`;
+          })
+          .join('\n\n');
+        if (otherActions.trim()) {
+          soapText += `\n\nOTHER CLINICAL ACTIONS (COUNSELLING, PROCEDURES, REFERRALS):\n${otherActions}`;
+        }
+      }
+
       await navigator.clipboard.writeText(soapText);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000); // Hide success message after 2 seconds
@@ -671,6 +690,107 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     }
   };
 
+  const handleSyncCopilotOrders = async (orders) => {
+    const { prescriptions, investigations, otherActions, soapNote } = orders;
+    
+    // Check if we are currently editing the note
+    if (editingNote) {
+      setEditedNote(prev => {
+        const currentPrescriptions = prev?.prescription || [];
+        const currentInvestigations = prev?.investigation || [];
+        const currentOtherActions = prev?.other_actions || [];
+
+        const newPrescriptions = prescriptions ? prescriptions.filter(
+          np => !currentPrescriptions.some(cp => cp.medication_name && cp.medication_name.toLowerCase() === np.medication_name.toLowerCase())
+        ) : [];
+        const newInvestigations = investigations ? investigations.filter(
+          ni => !currentInvestigations.some(ci => ci.test_type && ci.test_type.toLowerCase() === ni.test_type.toLowerCase())
+        ) : [];
+        const newOtherActions = otherActions ? otherActions.filter(
+          na => !currentOtherActions.some(ca => ca.name && ca.name.toLowerCase() === na.name.toLowerCase())
+        ) : [];
+
+        return {
+          ...prev,
+          subjective: soapNote?.subjective || prev?.subjective || '',
+          objective: soapNote?.objective || prev?.objective || '',
+          assessment: soapNote?.assessment || prev?.assessment || '',
+          plan: soapNote?.plan || prev?.plan || '',
+          prescription: [...currentPrescriptions, ...newPrescriptions],
+          investigation: [...currentInvestigations, ...newInvestigations],
+          other_actions: [...currentOtherActions, ...newOtherActions]
+        };
+      });
+      alert('Copilot documentation and recommendations successfully merged into your note draft! Please review and click "Save" to persist.');
+    } else {
+      // Not in edit mode: load the current note, merge, and save immediately to backend!
+      const rawNote = typeof review.doctor_note === 'string'
+        ? JSON.parse(review.doctor_note)
+        : review.doctor_note;
+      const currentNote = rawNote ? JSON.parse(JSON.stringify(rawNote)) : {};
+      
+      const currentPrescriptions = currentNote.prescription || [];
+      const currentInvestigations = currentNote.investigation || [];
+      const currentOtherActions = currentNote.other_actions || [];
+
+      const newPrescriptions = prescriptions ? prescriptions.filter(
+        np => !currentPrescriptions.some(cp => cp.medication_name && cp.medication_name.toLowerCase() === np.medication_name.toLowerCase())
+      ) : [];
+      const newInvestigations = investigations ? investigations.filter(
+        ni => !currentInvestigations.some(ci => ci.test_type && ci.test_type.toLowerCase() === ni.test_type.toLowerCase())
+      ) : [];
+      const newOtherActions = otherActions ? otherActions.filter(
+        na => !currentOtherActions.some(ca => ca.name && ca.name.toLowerCase() === na.name.toLowerCase())
+      ) : [];
+
+      const mergedNote = {
+        ...currentNote,
+        subjective: soapNote?.subjective || currentNote?.subjective || '',
+        objective: soapNote?.objective || currentNote?.objective || '',
+        assessment: soapNote?.assessment || currentNote?.assessment || '',
+        plan: soapNote?.plan || currentNote?.plan || '',
+        prescription: [...currentPrescriptions, ...newPrescriptions],
+        investigation: [...currentInvestigations, ...newInvestigations],
+        other_actions: [...currentOtherActions, ...newOtherActions]
+      };
+
+      setSaving(true);
+      try {
+        const token = await getAccessToken();
+        const response = await fetch(
+          `https://api.prestigedelta.com/medical-reviews/${publicId}/save-note/`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              note_payload: mergedNote
+            })
+          }
+        );
+
+        if (response.ok) {
+          setReview(prev => ({
+            ...prev,
+            doctor_note: mergedNote,
+            note_payload: mergedNote
+          }));
+          alert('Copilot EMR documentation successfully generated, synced and saved to EMR! 🏥');
+        } else {
+          const error = await response.json().catch(() => ({}));
+          alert(`Failed to save synced EMR orders: ${error.detail || JSON.stringify(error) || 'Please try again.'}`);
+        }
+      } catch (error) {
+        console.error('Error saving synced note:', error);
+        alert('An error occurred while saving the synced EMR orders');
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
   const handleSaveNote = async () => {
     if (!review || !editedNote) return;
 
@@ -780,6 +900,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     // Ensure prescriptions and investigations arrays exist
     if (!initialNote.prescription) initialNote.prescription = [];
     if (!initialNote.investigation) initialNote.investigation = [];
+    if (!initialNote.other_actions) initialNote.other_actions = [];
     setEditedNote(initialNote);
     console.log('editedNote initialized:', initialNote);
   };
@@ -857,6 +978,39 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     setEditedNote(prev => ({
       ...prev,
       investigation: (prev?.investigation || []).filter((_, i) => i !== index)
+    }));
+  }, []);
+
+  const updateOtherActionField = useCallback((index, field, value) => {
+    setEditedNote(prev => {
+      const updatedActions = [...(prev?.other_actions || [])];
+      if (updatedActions[index]) {
+        updatedActions[index] = { ...updatedActions[index], [field]: value };
+      }
+      return {
+        ...prev,
+        other_actions: updatedActions
+      };
+    });
+  }, []);
+
+  const addOtherAction = useCallback(() => {
+    const newAction = {
+      action_type: 'counselling',
+      name: '',
+      notes: '',
+      scheduled_time: ''
+    };
+    setEditedNote(prev => ({
+      ...prev,
+      other_actions: [...(prev?.other_actions || []), newAction]
+    }));
+  }, []);
+
+  const deleteOtherAction = useCallback((index) => {
+    setEditedNote(prev => ({
+      ...prev,
+      other_actions: (prev?.other_actions || []).filter((_, i) => i !== index)
     }));
   }, []);
 
@@ -1291,6 +1445,188 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     );
   };
 
+  const renderOtherActions = (otherActions, isEditing = false) => {
+    if (!otherActions || otherActions.length === 0) {
+      if (isEditing) {
+        return (
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" fontWeight="bold" gutterBottom color="secondary.main" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ActionsIcon /> Other Clinical Actions
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={addOtherAction}
+                size="small"
+                color="secondary"
+              >
+                Add Action
+              </Button>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              No other actions (counselling, procedures, referrals) added yet. Click "Add Action" to add one.
+            </Typography>
+          </Box>
+        );
+      }
+      return null;
+    }
+
+    return (
+      <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" fontWeight="bold" gutterBottom color="secondary.main" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ActionsIcon /> Other Clinical Actions
+          </Typography>
+          {isEditing && (
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={addOtherAction}
+              size="small"
+              color="secondary"
+            >
+              Add Action
+            </Button>
+          )}
+        </Box>
+        <Grid container spacing={2}>
+          {otherActions.map((action, index) => {
+            let label = 'Action';
+            if (action.action_type === 'counselling') label = 'Counselling';
+            else if (action.action_type === 'procedure' || action.action_type === 'procedures') label = 'Procedure';
+            else if (action.action_type === 'referral') label = 'Referral';
+
+            return (
+              <Grid item xs={12} md={6} key={index}>
+                <Card 
+                  elevation={2} 
+                  sx={{ 
+                    height: '100%', 
+                    borderLeft: '4px solid', 
+                    borderColor: action.action_type === 'counselling' 
+                      ? '#ec4899' 
+                      : action.action_type === 'procedure' || action.action_type === 'procedures'
+                      ? '#8b5cf6' 
+                      : action.action_type === 'referral'
+                      ? '#fbbf24'
+                      : 'grey.400'
+                  }}
+                >
+                  <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      {isEditing ? (
+                        <Box sx={{ display: 'flex', gap: 1, flex: 1, mr: 1 }}>
+                          <TextField
+                            select
+                            label="Type"
+                            value={action.action_type || 'counselling'}
+                            onChange={(e) => updateOtherActionField(index, 'action_type', e.target.value)}
+                            size="small"
+                            sx={{ minWidth: 120 }}
+                            SelectProps={{ native: true }}
+                          >
+                            <option value="counselling">Counselling</option>
+                            <option value="procedure">Procedure</option>
+                            <option value="referral">Referral</option>
+                          </TextField>
+                          <TextField
+                            label="Action Name"
+                            value={action.name || ''}
+                            onChange={(e) => updateOtherActionField(index, 'name', e.target.value)}
+                            size="small"
+                            fullWidth
+                          />
+                        </Box>
+                      ) : (
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip 
+                            label={label} 
+                            size="small" 
+                            sx={{ 
+                              height: 20, 
+                              fontSize: '0.7rem', 
+                              fontWeight: '700',
+                              bgcolor: action.action_type === 'counselling' 
+                                ? 'rgba(236, 72, 153, 0.12)' 
+                                : action.action_type === 'procedure' || action.action_type === 'procedures'
+                                ? 'rgba(139, 92, 246, 0.12)' 
+                                : 'rgba(245, 158, 11, 0.12)',
+                              color: action.action_type === 'counselling' 
+                                ? '#ec4899' 
+                                : action.action_type === 'procedure' || action.action_type === 'procedures'
+                                ? '#8b5cf6' 
+                                : '#d97706',
+                              border: `1px solid ${action.action_type === 'counselling' ? 'rgba(236, 72, 153, 0.2)' : action.action_type === 'procedure' || action.action_type === 'procedures' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
+                            }} 
+                          />
+                          <Typography variant="subtitle1" fontWeight="bold" sx={{ color: 'text.primary' }}>
+                            {action.name}
+                          </Typography>
+                        </Box>
+                      )}
+                      {isEditing && (
+                        <IconButton
+                          size="small"
+                          onClick={() => deleteOtherAction(index)}
+                          color="error"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Grid container spacing={1}>
+                      <Grid item xs={12}>
+                        {isEditing ? (
+                          <TextField
+                            label="Notes / Description"
+                            value={action.notes || ''}
+                            onChange={(e) => updateOtherActionField(index, 'notes', e.target.value)}
+                            size="small"
+                            fullWidth
+                            multiline
+                            rows={2}
+                          />
+                        ) : (
+                          action.notes && (
+                            <Typography variant="body2" sx={{ mb: 0.5 }}>
+                              <strong>Notes:</strong> {action.notes}
+                            </Typography>
+                          )
+                        )}
+                      </Grid>
+                      <Grid item xs={12}>
+                        {isEditing ? (
+                          <TextField
+                            label="Scheduled Time"
+                            type="datetime-local"
+                            value={action.scheduled_time || ''}
+                            onChange={(e) => updateOtherActionField(index, 'scheduled_time', e.target.value)}
+                            size="small"
+                            fullWidth
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        ) : (
+                          action.scheduled_time && (
+                            <Typography variant="body2" sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, mt: 1 }}>
+                              <strong>Scheduled:</strong> {new Date(action.scheduled_time).toLocaleString()}
+                            </Typography>
+                          )
+                        )}
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
+      </Box>
+    );
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -1368,6 +1704,25 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             )}
           </Box>
           <Box display="flex" gap={1}>
+            <Button
+              variant="contained"
+              startIcon={<SmartToyIcon />}
+              onClick={() => setShowCopilotDashboard(true)}
+              size="small"
+              sx={{
+                background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)',
+                boxShadow: '0 4px 14px rgba(79, 70, 229, 0.4)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #4338ca 0%, #2563eb 100%)',
+                  boxShadow: '0 6px 20px rgba(79, 70, 229, 0.6)'
+                },
+                textTransform: 'none',
+                fontWeight: 'bold',
+                borderRadius: 2
+              }}
+            >
+              AI Live Copilot
+            </Button>
             <Button
               variant="outlined"
               startIcon={<ScheduleIcon />}
@@ -1932,6 +2287,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           {renderSOAPSection('Plan', review.doctor_note.plan, 'plan', editingNote)}
           {renderPrescriptions(editingNote ? (editedNote?.prescription || []) : (review.doctor_note?.prescription || []), editingNote)}
           {renderInvestigations(editingNote ? (editedNote?.investigation || []) : (review.doctor_note?.investigation || []), editingNote)}
+          {renderOtherActions(editingNote ? (editedNote?.other_actions || []) : (review.doctor_note?.other_actions || []), editingNote)}
         </Box>
       )}
 
@@ -2083,6 +2439,18 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         enabled={true}
         requireExistingThread={true}
         patientId={review?.patient || review?.patient_id}
+      />
+
+      {/* Live Copilot Dashboard Overlay */}
+      <LiveCopilotDashboard
+        open={showCopilotDashboard}
+        onClose={() => setShowCopilotDashboard(false)}
+        patientName={(review?.patient_first_name || review?.patient_last_name) ? `${review.patient_first_name || ''} ${review.patient_last_name || ''}`.trim() : 'Jane Doe'}
+        chiefComplaint={review?.chief_complaint || 'General consultation'}
+        continuityBrief={review?.patient_summary || review?.post_call_continuity_capsule || review?.live_call_brief || 'No prior visit summaries in EMR.'}
+        patientAge={review?.patient_age || review?.age || 'Unspecified'}
+        publicId={publicId}
+        onSync={handleSyncCopilotOrders}
       />
     </>
   );
