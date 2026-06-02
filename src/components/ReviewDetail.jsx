@@ -218,6 +218,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRecordingModal, setShowRecordingModal] = useState(false);
   const [showCopilotDashboard, setShowCopilotDashboard] = useState(false);
+  const [showLegacyFallback, setShowLegacyFallback] = useState(false);
   const [currentEncounter, setCurrentEncounter] = useState(null);
   const [creatingEncounter, setCreatingEncounter] = useState(false);
   const [patientData, setPatientData] = useState({
@@ -1832,59 +1833,114 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 }}
               />
             )}
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
+            <Grid container spacing={2} sx={{ mb: 1 }}>
+              <Grid item xs={12} sm={review.doctor_note ? 6 : 12}>
                 <Button
                   variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setShowCreateModal(true)}
-                  disabled={hasEncounter || currentEncounter}
+                  startIcon={<SmartToyIcon />}
+                  onClick={() => setShowCopilotDashboard(true)}
                   fullWidth
                   sx={{ 
-                    bgcolor: (hasEncounter || currentEncounter) ? 'rgba(255,255,255,0.2)' : 'white',
-                    color: (hasEncounter || currentEncounter) ? 'white' : 'primary.main',
-                    '&:hover': { bgcolor: (hasEncounter || currentEncounter) ? 'rgba(255,255,255,0.3)' : 'grey.100' }
+                    background: 'linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%)',
+                    color: '#4f46e5',
+                    fontWeight: 'bold',
+                    textTransform: 'none',
+                    py: 1.2,
+                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%)',
+                      boxShadow: '0 6px 18px rgba(0, 0, 0, 0.15)'
+                    }
                   }}
                 >
-                  {(hasEncounter || currentEncounter) ? '✓ Created' : '1. Create'}
+                  Start Real-Time AI Copilot (Recommended)
                 </Button>
               </Grid>
-              <Grid item xs={12} sm={4}>
-                <Button
-                  variant="contained"
-                  startIcon={creatingEncounter ? <CircularProgress size={20} color="inherit" /> : <MicIcon />}
-                  onClick={handleRecordClick}
-                  disabled={creatingEncounter || review.is_finalized || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
-                  fullWidth
-                  sx={{ 
-                    bgcolor: (currentEncounter || hasEncounter) ? 'white' : 'rgba(255,255,255,0.2)',
-                    color: (currentEncounter || hasEncounter) ? 'primary.main' : 'white',
-                    '&:hover': { bgcolor: (currentEncounter || hasEncounter) ? 'grey.100' : 'rgba(255,255,255,0.3)' },
-                    '&:disabled': { opacity: 0.5 }
-                  }}
-                >
-                  {creatingEncounter ? 'Creating...' : 
-                   review.in_person_encounters && review.in_person_encounters.length > 0 ? '2. Record New Encounter' : '2. Record'}
-                </Button>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Button
-                  variant="contained"
-                  startIcon={<CheckCircleIcon />}
-                  onClick={handleFinalize}
-                  disabled={saving || !review.doctor_note || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
-                  fullWidth
-                  sx={{ 
-                    bgcolor: 'success.main',
-                    color: 'white',
-                    '&:hover': { bgcolor: 'success.dark' },
-                    '&:disabled': { bgcolor: 'grey.400' }
-                  }}
-                >
-                  {saving ? 'Finalizing...' : '3. Finalize'}
-                </Button>
-              </Grid>
+              {review.doctor_note && (
+                <Grid item xs={12} sm={6}>
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircleIcon />}
+                    onClick={handleFinalize}
+                    disabled={saving}
+                    fullWidth
+                    sx={{ 
+                      bgcolor: 'success.main',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      textTransform: 'none',
+                      py: 1.2,
+                      '&:hover': { bgcolor: 'success.dark' },
+                      '&:disabled': { bgcolor: 'rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.7)' }
+                    }}
+                  >
+                    {saving ? 'Finalizing...' : 'Finalize & Save Review'}
+                  </Button>
+                </Grid>
+              )}
             </Grid>
+
+            <Box display="flex" mt={1.5}>
+              <Button
+                variant="text"
+                color="inherit"
+                size="small"
+                onClick={() => setShowLegacyFallback(!showLegacyFallback)}
+                sx={{ 
+                  color: 'rgba(255,255,255,0.85)', 
+                  textTransform: 'none',
+                  fontSize: '0.8rem',
+                  '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.1)' }
+                }}
+                startIcon={<MicIcon sx={{ transform: showLegacyFallback ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+              >
+                {showLegacyFallback ? 'Hide Offline / Dictation Fallbacks' : 'Show Offline / Dictation Fallbacks (Record Audio)'}
+              </Button>
+            </Box>
+
+            {showLegacyFallback && (
+              <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed rgba(255,255,255,0.2)' }}>
+                <Typography variant="caption" color="white" sx={{ display: 'block', mb: 2, opacity: 0.85, lineHeight: 1.4 }}>
+                  <strong>Offline Mode:</strong> Allows you to create an encounter file and record audio locally on your device (or upload an existing audio file) when hospital internet is unstable or if you prefer post-visit dictation.
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={() => setShowCreateModal(true)}
+                      disabled={hasEncounter || currentEncounter}
+                      fullWidth
+                      sx={{ 
+                        bgcolor: (hasEncounter || currentEncounter) ? 'rgba(255,255,255,0.2)' : 'white',
+                        color: (hasEncounter || currentEncounter) ? 'white' : 'primary.main',
+                        '&:hover': { bgcolor: (hasEncounter || currentEncounter) ? 'rgba(255,255,255,0.3)' : 'grey.100' }
+                      }}
+                    >
+                      {(hasEncounter || currentEncounter) ? '✓ Encounter File Created' : '1. Create Encounter File'}
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Button
+                      variant="contained"
+                      startIcon={creatingEncounter ? <CircularProgress size={20} color="inherit" /> : <MicIcon />}
+                      onClick={handleRecordClick}
+                      disabled={creatingEncounter || review.is_finalized || currentProcessingStatus === 'uploading' || currentProcessingStatus === 'processing'}
+                      fullWidth
+                      sx={{ 
+                        bgcolor: (currentEncounter || hasEncounter) ? 'white' : 'rgba(255,255,255,0.2)',
+                        color: (currentEncounter || hasEncounter) ? 'primary.main' : 'white',
+                        '&:hover': { bgcolor: (currentEncounter || hasEncounter) ? 'grey.100' : 'rgba(255,255,255,0.3)' },
+                        '&:disabled': { opacity: 0.5 }
+                      }}
+                    >
+                      {creatingEncounter ? 'Creating...' : 
+                       review.in_person_encounters && review.in_person_encounters.length > 0 ? '2. Record / Upload New Audio' : '2. Record / Upload Audio'}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
           </CardContent>
         </Card>
       )}
