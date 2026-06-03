@@ -605,6 +605,91 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     }
   }, [publicId, getStatus, startEncounterPolling, review]);
 
+  const attemptFallbackEncounterFetch = async (token) => {
+    try {
+      // 1. Try to fetch specific encounter directly if publicId matches an encounter ID
+      const directEncounterRes = await fetch(`https://api.prestigedelta.com/in-person-encounters/${publicId}/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (directEncounterRes.ok) {
+        const match = await directEncounterRes.json();
+        console.log('Found matching encounter directly:', match);
+        const draftReview = {
+          id: match.medical_review_id,
+          public_id: match.medical_review_public_id || publicId,
+          patient_first_name: match.patient_first_name,
+          patient_last_name: match.patient_last_name,
+          patient_phone_number: match.patient_phone || match.patient_phone_number || '',
+          patient_email: match.patient_email || '',
+          chief_complaint: match.metadata?.chief_complaint || '',
+          doctor_note: null,
+          is_finalized: false,
+          in_person_encounters: [match]
+        };
+        setReview(draftReview);
+        setPatientData({
+          first_name: draftReview.patient_first_name || '',
+          last_name: draftReview.patient_last_name || '',
+          phone: draftReview.patient_phone_number || '',
+          email: draftReview.patient_email || ''
+        });
+        if (onUpdate) onUpdate();
+        return true;
+      }
+    } catch (e) {
+      console.warn('Direct encounter check failed:', e);
+    }
+
+    try {
+      // 2. Fallback to list search
+      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const encountersData = await response.json();
+        const list = Array.isArray(encountersData)
+          ? encountersData
+          : Array.isArray(encountersData?.results)
+            ? encountersData.results
+            : [];
+        const match = list.find(enc => enc.medical_review_public_id === publicId || enc.public_id === publicId);
+        if (match) {
+          console.log('Found matching encounter in list search:', match);
+          const draftReview = {
+            id: match.medical_review_id,
+            public_id: match.medical_review_public_id || publicId,
+            patient_first_name: match.patient_first_name,
+            patient_last_name: match.patient_last_name,
+            patient_phone_number: match.patient_phone || match.patient_phone_number || '',
+            patient_email: match.patient_email || '',
+            chief_complaint: match.metadata?.chief_complaint || '',
+            doctor_note: null,
+            is_finalized: false,
+            in_person_encounters: [match]
+          };
+          setReview(draftReview);
+          setPatientData({
+            first_name: draftReview.patient_first_name || '',
+            last_name: draftReview.patient_last_name || '',
+            phone: draftReview.patient_phone_number || '',
+            email: draftReview.patient_email || ''
+          });
+          if (onUpdate) onUpdate();
+          return true;
+        }
+      }
+    } catch (e) {
+      console.error('Error during list fallback encounter fetch:', e);
+    }
+    return false;
+  };
+
   const fetchReviewDetail = async () => {
     setLoading(true);
     const token = await getAccessToken();
@@ -640,14 +725,16 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           onUpdate();
         }
       } else {
-        console.error('Failed to fetch review');
-        if (!embedded) {
+        console.warn('Failed to fetch review directly, trying fallback encounter check');
+        const fallbackSuccess = await attemptFallbackEncounterFetch(token);
+        if (!fallbackSuccess && !embedded) {
           navigate('/reviews');
         }
       }
     } catch (error) {
-      console.error('Error fetching review:', error);
-      if (!embedded) {
+      console.error('Error fetching review directly, trying fallback encounter check:', error);
+      const fallbackSuccess = await attemptFallbackEncounterFetch(token);
+      if (!fallbackSuccess && !embedded) {
         navigate('/reviews');
       }
     } finally {
