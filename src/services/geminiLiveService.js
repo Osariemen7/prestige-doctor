@@ -185,19 +185,23 @@ export async function createCustomInstructions(instructionPayload, { signal } = 
   return parseJsonResponse(response, 'Failed to create custom system instructions');
 }
 
-export async function forceClinicalDocumentation({ publicId, transcript, signal } = {}) {
-  const url = resolveEndpoint(ENDPOINTS.forceDocumentation);
-  const response = await authenticatedFetch(url, {
+export async function forceClinicalDocumentation(argumentsPayload, { signal } = {}) {
+  const requestBody = {
+    function_name: 'document_medical_review',
+    arguments: argumentsPayload
+  };
+
+  const response = await authenticatedFetch(resolveEndpoint(ENDPOINTS.toolCalls), {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      medical_review_public_id: publicId,
-      transcript: transcript
-    }),
+    body: JSON.stringify(requestBody),
     signal
   });
-  return parseJsonResponse(response, 'Failed to generate forced EMR documentation');
+
+  const payload = await parseJsonResponse(response, 'Failed to execute document_medical_review function call');
+  return payload?.result ?? payload ?? null;
 }
+

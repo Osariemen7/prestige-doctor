@@ -43,6 +43,8 @@ import {
 } from '@mui/icons-material';
 
 import { forceClinicalDocumentation } from '../services/geminiLiveService';
+import { getUser } from '../api';
+
 
 const MOCK_DIALOGUE_FLOW = [
   {
@@ -156,6 +158,7 @@ const LiveCopilotDashboard = ({
   continuityBrief = null,
   patientAge = null,
   publicId = "demo",
+  patientId = null,
   onSync
 }) => {
   const theme = useTheme();
@@ -168,11 +171,6 @@ const LiveCopilotDashboard = ({
   const [isDocumenting, setIsDocumenting] = useState(false);
 
   const handleForceDocumentation = async () => {
-    if (transcripts.length === 0) {
-      alert("Consultation transcript is empty. Please speak or capture dialogue before generating documentation.");
-      return;
-    }
-
     setIsDocumenting(true);
     try {
       const transcriptText = transcripts.map(t => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n');
@@ -218,13 +216,77 @@ const LiveCopilotDashboard = ({
       });
 
       let documentationResult;
+      const user = getUser();
+      const providerProfileId = user?.provider_profile_id || null;
+      const organizationId = user?.organization_id || 1;
+
+      const nextDate = new Date();
+      nextDate.setDate(nextDate.getDate() + 7);
+      const nextReviewStr = nextDate.toISOString().replace('T', ' ').substring(0, 16); // YYYY-MM-DD HH:MM
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const prescriptionEndDate = new Date();
+      prescriptionEndDate.setDate(prescriptionEndDate.getDate() + 7);
+      const prescriptionEndDateStr = prescriptionEndDate.toISOString().split('T')[0];
+
+      const mappedPrescriptions = prescriptions.filter(p => p.selected).map(p => ({
+        medication_name: p.name,
+        dosage: p.dosage || '1 tablet',
+        route: p.name.toLowerCase().includes('iv') ? 'intravenous' : 'oral',
+        interval: p.interval ? (p.interval.includes('Q8h') ? 8 : p.interval.includes('Q12h') ? 12 : p.interval.includes('Q24h') ? 24 : 8) : 8,
+        start_date: todayStr,
+        end_date: prescriptionEndDateStr,
+        instructions: `Take ${p.dosage || '1 tablet'} every ${p.interval || '8 hours'}.`,
+        is_otc: false
+      }));
+
+      const mappedInvestigations = investigations.filter(i => i.selected).map(i => ({
+        test_type: i.name,
+        reason: i.reason || 'Clinical evaluation',
+        instructions: 'Walk-in laboratory.',
+        interval: 0
+      }));
+
+      const soapArguments = {
+        medical_review_public_id: publicId && publicId !== 'demo' ? publicId : null,
+        patient_id: patientId,
+        provider_profile_id: providerProfileId,
+        organization_id: organizationId,
+        review_context: 'live_visit',
+        patient_name: patientName,
+        subjective: {
+          chief_complaint: chiefComplaint || "General consultation",
+          history_of_present_illness: transcripts.filter(t => t.speaker === 'patient').map(t => t.text).join(' ') || "Patient presents for clinical evaluation. Symptoms onset, duration, and aggravating factors: [edit here].",
+          review_of_systems: transcripts.length > 0 ? "Gastrointestinal and constitutional systems reviewed." : "Constitutional: [edit]. Cardiovascular: [edit]. Respiratory: [edit]. Gastrointestinal: [edit]. Neurological: [edit]."
+        },
+        objective: {
+          examination_findings: transcripts.length > 0 ? "Physical exam findings: alert and oriented, localized tenderness as noted in dialogue." : "Vitals: Stable. General appearance: Alert, oriented, in no acute distress. Heart: RRR, no murmurs. Lungs: Clear to auscultation. Abdomen: Soft, non-tender, active bowel sounds. Skin: Warm and dry.",
+          investigations: transcripts.length > 0 ? "Prior investigations reviewed." : "Prior or external lab/imaging reports: None available."
+        },
+        assessment: {
+          primary_diagnosis: differentials[0]?.name || "Unspecified clinical concern",
+          differential_diagnosis: differentials.slice(1).map(d => `${d.name} (${d.probability}%)`).join(', ') || "None.",
+          diagnosis_reasoning: differentials[0]?.logic || "Clinical evaluation and differential diagnoses reasoning pending.",
+          status: "unknown"
+        },
+        plan: {
+          management: "Clinical Management: " + (otherActions.filter(a => a.selected).map(a => a.name).join(', ') || "Awaiting clinical orders."),
+          lifestyle_advice: otherActions.filter(a => a.selected && a.type === 'counselling').map(a => a.name).join('. ') || "Rest and maintain adequate hydration. Avoid strenuous activities.",
+          follow_up: "Follow up as recommended.",
+          patient_education: "Discussed warning signs and symptoms.",
+          treatment_goal: "Recovery and stabilization.",
+          plan_reasoning: "Clinical guidelines for primary diagnosis."
+        },
+        next_review: nextReviewStr,
+        prescription: mappedPrescriptions,
+        investigation: mappedInvestigations
+      };
+
       if (publicId && publicId !== 'demo') {
         // Real mode: execute function call securely via backend EMR toolCalls router!
         // This invokes the exact `/runfunction/` execution endpoint used by both Doctor and Patient apps.
-        documentationResult = await forceClinicalDocumentation({ 
-          publicId, 
-          transcript: transcriptText 
-        });
+        await forceClinicalDocumentation(soapArguments);
+        documentationResult = soapArguments;
 
         // Log toolResponse sent back to WebSocket
         console.log("WebSocket TX (Gemini Live API): Send forced toolResponse", {
@@ -246,40 +308,58 @@ const LiveCopilotDashboard = ({
         // Demo/Simulated mode fallback: immediately generate high-fidelity simulated SOAP note!
         await new Promise(resolve => setTimeout(resolve, 1500)); // simulate network delay
         
-        documentationResult = {
-          subjective: "Patient presents with sudden-onset severe abdominal pain starting yesterday near navel, migrating lower right quadrant. Worsens with movement/walking. Negative for diarrhea. Denies similar prior attacks.",
-          objective: "T: 38.2 C. HR: 95 bpm. RLQ tenderness present. Positive rebound tenderness and McBurney point hyperalgesia noted.",
-          assessment: "Acute migrative appendicitis with localized peritoneal irritation.",
-          plan: "Strict NPO. Monitor vitals hourly. Prep for urgent General Surgery consult and appendectomy. Start empiric broad-spectrum antibiotics post-cultures.",
-          prescription: prescriptions.filter(p => p.selected),
-          investigation: investigations.filter(i => i.selected),
-          other_actions: otherActions.filter(a => a.selected)
-        };
+        documentationResult = transcripts.length > 0 ? {
+          subjective: {
+            chief_complaint: chiefComplaint || "General consultation",
+            history_of_present_illness: "Patient presents with sudden-onset severe abdominal pain starting yesterday near navel, migrating lower right quadrant. Worsens with movement/walking. Negative for diarrhea. Denies similar prior attacks.",
+            review_of_systems: "Gastrointestinal and constitutional systems reviewed."
+          },
+          objective: {
+            examination_findings: "T: 38.2 C. HR: 95 bpm. RLQ tenderness present. Positive rebound tenderness and McBurney point hyperalgesia noted.",
+            investigations: "Prior investigations reviewed."
+          },
+          assessment: {
+            primary_diagnosis: "Acute migrative appendicitis with localized peritoneal irritation.",
+            differential_diagnosis: differentials.slice(1).map(d => `${d.name} (${d.probability}%)`).join(', ') || "None.",
+            diagnosis_reasoning: "Based on patient report and history.",
+            status: "unknown"
+          },
+          plan: {
+            management: "Strict NPO. Monitor vitals hourly. Prep for urgent General Surgery consult and appendectomy. Start empiric broad-spectrum antibiotics post-cultures.",
+            lifestyle_advice: "Rest and hydration advice. Maintain NPO until surgical review.",
+            follow_up: "Follow up as recommended.",
+            patient_education: "Discussed warning signs and symptoms.",
+            treatment_goal: "Recovery and stabilization.",
+            plan_reasoning: "Clinical guidelines for primary diagnosis."
+          },
+          prescription: mappedPrescriptions,
+          investigation: mappedInvestigations
+        } : soapArguments;
       }
 
       // Sync back to EMR Note Editor
       if (onSync) {
         // Map any medications/investigations/otherActions from the documentation payload
-        const syncedPrescriptions = (documentationResult.prescription || prescriptions.filter(p => p.selected))
+        const syncedPrescriptions = (documentationResult.prescription || mappedPrescriptions)
           .map(p => ({
-            medication_name: p.name || p.medication_name,
+            medication_name: p.medication_name,
             dosage: p.dosage || '1g',
             route: p.route || 'oral',
-            interval: p.interval ? parseInt(p.interval) : 8,
+            interval: p.interval ? (typeof p.interval === 'string' ? parseInt(p.interval) : p.interval) : 8,
             instructions: p.instructions || `Take as recommended by clinical advisor.`,
-            end_date: ''
+            end_date: p.end_date || ''
           }));
 
-        const syncedInvestigations = (documentationResult.investigation || investigations.filter(i => i.selected))
+        const syncedInvestigations = (documentationResult.investigation || mappedInvestigations)
           .map(i => ({
-            test_type: i.name || i.test_type,
+            test_type: i.test_type,
             reason: i.reason || 'Symptom investigation',
-            instructions: '',
-            interval: 0,
+            instructions: i.instructions || '',
+            interval: i.interval || 0,
             scheduled_time: ''
           }));
 
-        const syncedOtherActions = (documentationResult.other_actions || otherActions.filter(a => a.selected))
+        const syncedOtherActions = otherActions.filter(a => a.selected)
           .map(a => ({
             action_type: a.type === 'procedures' ? 'procedure' : a.type || a.action_type,
             name: a.name,
@@ -310,6 +390,7 @@ const LiveCopilotDashboard = ({
       setIsDocumenting(false);
     }
   };
+
   
   // Mobile Tab Navigation State: 0 = Mic & Chat, 1 = AI Diagnosis, 2 = EMR Orders
   const [activeMobileTab, setActiveMobileTab] = useState(0);
@@ -668,31 +749,29 @@ const LiveCopilotDashboard = ({
                     </>
                   )}
                 </Box>
-                {transcripts.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      startIcon={isDocumenting ? <CircularProgress size={20} color="inherit" /> : <ActionsIcon />}
-                      onClick={handleForceDocumentation}
-                      disabled={isDocumenting}
-                      sx={{
-                        borderRadius: 2,
-                        py: 1,
-                        fontWeight: 'bold',
-                        textTransform: 'none',
-                        background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
-                        boxShadow: '0 4px 14px rgba(139, 92, 246, 0.4)',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
-                          boxShadow: '0 6px 18px rgba(139, 92, 246, 0.6)'
-                        }
-                      }}
-                    >
-                      {isDocumenting ? 'Generating EMR Documentation...' : 'Force AI SOAP Documentation'}
-                    </Button>
-                  </Box>
-                )}
+                <Box sx={{ mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    startIcon={isDocumenting ? <CircularProgress size={20} color="inherit" /> : <ActionsIcon />}
+                    onClick={handleForceDocumentation}
+                    disabled={isDocumenting}
+                    sx={{
+                      borderRadius: 2,
+                      py: 1,
+                      fontWeight: 'bold',
+                      textTransform: 'none',
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                      boxShadow: '0 4px 14px rgba(139, 92, 246, 0.4)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
+                        boxShadow: '0 6px 18px rgba(139, 92, 246, 0.6)'
+                      }
+                    }}
+                  >
+                    {isDocumenting ? 'Generating Consultation Note...' : 'Generate Consultation Note'}
+                  </Button>
+                </Box>
               </Box>
 
               {/* Scrolling Transcription */}
@@ -1098,7 +1177,6 @@ const LiveCopilotDashboard = ({
                         </>
                       )}
                     </Box>
-                    {transcripts.length > 0 && (
                       <Box sx={{ mt: 1.5 }}>
                         <Button
                           variant="contained"
@@ -1115,10 +1193,9 @@ const LiveCopilotDashboard = ({
                             background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
                           }}
                         >
-                          {isDocumenting ? 'Documenting...' : 'Force AI SOAP Documentation'}
+                          {isDocumenting ? 'Generating...' : 'Generate Consultation Note'}
                         </Button>
                       </Box>
-                    )}
                   </Box>
 
                   <Typography variant="subtitle2" sx={{ color: '#9ca3af', fontWeight: 'bold', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>

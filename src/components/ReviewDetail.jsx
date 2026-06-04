@@ -2609,6 +2609,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         continuityBrief={review?.patient_summary || review?.post_call_continuity_capsule || review?.live_call_brief || 'No prior visit summaries in EMR.'}
         patientAge={review?.patient_age || review?.age || 'Unspecified'}
         publicId={publicId}
+        patientId={review?.patient || review?.patient_id}
         onSync={handleSyncCopilotOrders}
       />
     </>
