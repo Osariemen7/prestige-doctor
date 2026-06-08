@@ -17,18 +17,23 @@ import {
   DialogContent,
   DialogActions,
   Alert,
-  IconButton
+  IconButton,
+  Rating,
+  MenuItem,
+  Stack,
+  Autocomplete
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Call as CallIcon,
   CheckCircle as CheckCircleIcon,
+  Edit as EditIcon,
+  HelpOutline as HelpOutlineIcon,
   Add as AddIcon,
   Mic as MicIcon,
   Warning as WarningIcon,
   Autorenew as AutorenewIcon,
-  Edit as EditIcon,
   ContentCopy as ContentCopyIcon,
   CloudUpload as CloudUploadIcon,
   SmartToy as SmartToyIcon,
@@ -45,8 +50,39 @@ import RecordingModal from './RecordingModal';
 import AiConsultationChat from './AiConsultationChat';
 import BookAppointmentModal from './BookAppointmentModal';
 import LiveCopilotDashboard from './LiveCopilotDashboard';
+import AiTriageApprovalCockpit from './AiTriageApprovalCockpit';
+import DoctorWorkflowAuditTrail from './DoctorWorkflowAuditTrail';
+import PatientFollowThroughPanel from './PatientFollowThroughPanel';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
+import {
+  buildMoreInfoQuestions,
+  getCaregiverContext,
+  getAiGovernanceSignals,
+  getDoctorApprovalReadiness,
+  filterEvidenceForSoapField,
+  getEvidenceConfidenceLabel,
+  getEvidenceEntries,
+  getGeneratedNote,
+  getPatientStory,
+  getReviewOrigin,
+  getRiskFlags,
+  getSourceLabel,
+  getUrgencyConfig,
+  isAiTriageReview,
+  summarizeEvidenceSources,
+} from '../utils/aiReviewWorkflow';
+import {
+  requestPatientInformation,
+  submitDoctorDecision,
+} from '../services/doctorWorkflowApi';
+import {
+  approveAllCopilotDraftActions,
+  buildCopilotDraftSyncPayload,
+  getPendingCopilotDraftActions,
+  isCopilotActionDoctorApproved,
+  isCopilotDraftPendingApproval,
+} from '../utils/liveCopilotWorkflow';
 
 const convertToInternationalFormat = (phoneNumber) => {
   if (!phoneNumber || typeof phoneNumber !== 'string') {
@@ -77,6 +113,363 @@ const formatDisplayLabel = (value) => {
   return String(value)
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const clinicalScoreFields = [
+  { key: 'safety_score', label: 'Safety' },
+  { key: 'diagnostic_quality_score', label: 'Diagnosis' },
+  { key: 'management_quality_score', label: 'Plan' },
+  { key: 'patient_communication_score', label: 'Communication' },
+  { key: 'local_feasibility_score', label: 'Feasibility' },
+];
+
+const clinicalCorrectionSeverityOptions = [
+  { value: '', label: 'Not set' },
+  { value: 'none', label: 'None' },
+  { value: 'minor', label: 'Minor' },
+  { value: 'moderate', label: 'Moderate' },
+  { value: 'major', label: 'Major' },
+  { value: 'critical', label: 'Critical' },
+];
+
+const clinicalCorrectionCategories = [
+  { value: 'diagnosis_correction', label: 'Diagnosis' },
+  { value: 'missed_red_flag', label: 'Red flag' },
+  { value: 'unsafe_management', label: 'Safety' },
+  { value: 'medication_or_prescription', label: 'Medication' },
+  { value: 'investigation_or_referral', label: 'Tests/referral' },
+  { value: 'follow_up_or_safety_net', label: 'Follow-up' },
+  { value: 'local_feasibility', label: 'Feasibility' },
+  { value: 'patient_communication', label: 'Communication' },
+  { value: 'documentation_quality', label: 'Documentation' },
+  { value: 'prognosis_correction', label: 'Prognosis' },
+];
+
+const emptyClinicalFeedback = {
+  accepted_ai_diagnosis: '',
+  accepted_ai_plan: '',
+  correction_categories: [],
+  correction_severity: '',
+  safety_score: null,
+  diagnostic_quality_score: null,
+  management_quality_score: null,
+  patient_communication_score: null,
+  local_feasibility_score: null,
+  edit_reason: '',
+};
+
+const outcomeBooleanOptions = [
+  { value: '', label: 'Not sure' },
+  { value: 'true', label: 'Yes' },
+  { value: 'false', label: 'No' },
+];
+
+const outcomeActionOptions = [
+  { value: 'reviewed', label: 'Reviewed' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'revised', label: 'Revised' },
+  { value: 'escalated', label: 'Escalated' },
+];
+
+const soapQuickTemplates = {
+  subjective: [
+    {
+      label: 'Focused HPI',
+      value: 'Chief concern:\nOnset:\nDuration:\nCharacter:\nAssociated symptoms:\nRed flags endorsed/denied:\nPatient goal:',
+    },
+    {
+      label: 'Medication and allergy history',
+      value: 'Current medications:\nRecent changes:\nAdherence:\nAllergies/adverse reactions:',
+    },
+    {
+      label: 'Follow-up update',
+      value: 'Since last review:\nSymptoms now:\nCompleted patient tasks:\nBarriers:\nSafety-net symptoms:',
+    },
+  ],
+  objective: [
+    {
+      label: 'Vitals and general exam',
+      value: 'Vitals:\nGeneral appearance:\nHydration:\nRespiratory effort:\nPain score:',
+    },
+    {
+      label: 'Remote objective review',
+      value: 'Observed over video/audio:\nPatient-reported measurements:\nUploaded media reviewed:\nLimitations:',
+    },
+    {
+      label: 'AI triage evidence check',
+      value: 'AI-suggested objective findings reviewed:\nSource-labeled evidence verified:\nFindings needing confirmation:',
+    },
+  ],
+  assessment: [
+    {
+      label: 'Problem list',
+      value: '1.\nMost likely diagnosis:\nDifferentials:\nClinical uncertainty:\nRisk level:',
+    },
+    {
+      label: 'AI triage review',
+      value: 'AI triage reviewed.\nUseful evidence:\nCorrections made:\nUnresolved risks:\nDoctor assessment:',
+    },
+    {
+      label: 'Red flag screen',
+      value: 'Red flags present:\nRed flags absent:\nEscalation threshold:\nReasoning:',
+    },
+  ],
+  plan: [
+    {
+      label: 'Treatment plan',
+      value: 'Medications:\nInvestigations:\nPatient education:\nSafety-net advice:\nFollow-up:',
+    },
+    {
+      label: 'WhatsApp follow-through',
+      value: 'Patient task:\nWhatsApp completion phrase:\nBarrier plan:\nEscalation triggers:\nReview date:',
+    },
+    {
+      label: 'Referral or escalation',
+      value: 'Referral destination:\nReason:\nUrgency:\nInformation sent:\nPatient instructions:',
+    },
+  ],
+};
+
+const prescriptionQuickOptions = [
+  {
+    label: 'Paracetamol / Acetaminophen',
+    medication_name: 'Paracetamol',
+    route: 'oral',
+    interval: 6,
+    instructions: 'Confirm age/weight-appropriate dose, liver disease risk, alcohol use, and total daily acetaminophen exposure.',
+    is_otc: true,
+  },
+  {
+    label: 'Ibuprofen',
+    medication_name: 'Ibuprofen',
+    route: 'oral',
+    interval: 8,
+    instructions: 'Confirm no NSAID allergy, pregnancy risk, kidney disease, peptic ulcer disease, anticoagulant use, or uncontrolled hypertension.',
+    is_otc: true,
+  },
+  {
+    label: 'Amoxicillin',
+    medication_name: 'Amoxicillin',
+    route: 'oral',
+    interval: 8,
+    instructions: 'Verify indication, allergy history, local antimicrobial guidance, renal function, and planned duration before signing.',
+  },
+  {
+    label: 'Cetirizine',
+    medication_name: 'Cetirizine',
+    route: 'oral',
+    interval: 24,
+    instructions: 'Confirm sedation risk, renal considerations, and patient counselling for drowsiness where relevant.',
+    is_otc: true,
+  },
+  {
+    label: 'ORS',
+    medication_name: 'Oral rehydration solution',
+    route: 'oral',
+    interval: 0,
+    instructions: 'Counsel on frequent small sips, dehydration warning signs, and when to seek urgent care.',
+    is_otc: true,
+  },
+  {
+    label: 'Amlodipine',
+    medication_name: 'Amlodipine',
+    route: 'oral',
+    interval: 24,
+    instructions: 'Confirm BP readings, edema history, pregnancy considerations, interactions, and follow-up BP monitoring plan.',
+  },
+  {
+    label: 'Metformin',
+    medication_name: 'Metformin',
+    route: 'oral',
+    interval: 12,
+    instructions: 'Confirm renal function, GI tolerance, acute illness status, and diabetes follow-up plan.',
+  },
+];
+
+const dosageQuickOptions = [
+  'Per age/weight protocol',
+  'Per renal-adjusted protocol',
+  'Per hospital guideline',
+  'As directed',
+  'Start low and titrate per response',
+];
+
+const routeQuickOptions = [
+  'oral',
+  'intravenous',
+  'intramuscular',
+  'subcutaneous',
+  'topical',
+  'inhalation',
+  'sublingual',
+  'rectal',
+  'vaginal',
+  'ophthalmic',
+  'otic',
+];
+
+const prescriptionIntervalQuickOptions = [
+  { label: 'As needed / PRN', value: 0 },
+  { label: 'Every 4 hours', value: 4 },
+  { label: 'Every 6 hours', value: 6 },
+  { label: 'Every 8 hours', value: 8 },
+  { label: 'Every 12 hours', value: 12 },
+  { label: 'Once daily', value: 24 },
+];
+
+const investigationQuickOptions = [
+  {
+    label: 'Full blood count / CBC',
+    test_type: 'Full blood count',
+    reason: 'Assess infection, anemia, platelet count, or inflammatory pattern.',
+    instructions: 'Review alongside symptoms, vitals, and clinical context.',
+  },
+  {
+    label: 'Urea, electrolytes, creatinine',
+    test_type: 'Urea, electrolytes, creatinine',
+    reason: 'Assess hydration status, renal function, and electrolyte disturbance.',
+    instructions: 'Use for medication safety checks where renal dosing may matter.',
+  },
+  {
+    label: 'Liver function tests',
+    test_type: 'Liver function tests',
+    reason: 'Assess hepatobiliary disease or medication safety concerns.',
+    instructions: 'Interpret with alcohol use, hepatitis risk, pregnancy status, and medication history.',
+  },
+  {
+    label: 'Urinalysis',
+    test_type: 'Urinalysis',
+    reason: 'Screen for UTI, protein, glucose, ketones, blood, or hydration clues.',
+    instructions: 'Use clean-catch sample where possible and correlate with symptoms.',
+  },
+  {
+    label: 'Malaria test',
+    test_type: 'Malaria rapid test or microscopy',
+    reason: 'Evaluate fever or malaria-compatible symptoms in an endemic context.',
+    instructions: 'Escalate if danger signs, severe anemia, altered mental status, or persistent vomiting.',
+  },
+  {
+    label: 'Pregnancy test',
+    test_type: 'Pregnancy test',
+    reason: 'Clarify pregnancy status before medication, imaging, or abdominal/pelvic assessment.',
+    instructions: 'Confirm consent and privacy-sensitive handling.',
+  },
+  {
+    label: 'ECG',
+    test_type: 'ECG',
+    reason: 'Assess chest pain, palpitations, syncope, dyspnea, electrolyte risk, or medication effect.',
+    instructions: 'Escalate urgently if ischemic symptoms, unstable vitals, or concerning tracing.',
+  },
+  {
+    label: 'Chest X-ray',
+    test_type: 'Chest X-ray',
+    reason: 'Evaluate respiratory symptoms, chest pain, suspected pneumonia, heart failure, or TB concern.',
+    instructions: 'Confirm pregnancy status where relevant and correlate with oxygen saturation and exam.',
+  },
+  {
+    label: 'HbA1c / fasting glucose',
+    test_type: 'HbA1c / fasting glucose',
+    reason: 'Assess glycemic control or screen for diabetes risk.',
+    instructions: 'Plan follow-up for abnormal values and medication review.',
+  },
+];
+
+const investigationIntervalQuickOptions = [
+  { label: 'One time', value: 0 },
+  { label: 'Repeat tomorrow', value: 1 },
+  { label: 'Repeat in 3 days', value: 3 },
+  { label: 'Repeat in 1 week', value: 7 },
+  { label: 'Repeat in 2 weeks', value: 14 },
+  { label: 'Repeat in 1 month', value: 30 },
+];
+
+const otherActionQuickOptions = [
+  {
+    label: 'Safety-net counselling',
+    action_type: 'counselling',
+    name: 'Safety-net counselling',
+    notes: 'Explain warning signs, what to do if symptoms worsen, and when to seek urgent care.',
+  },
+  {
+    label: 'Medication adherence check',
+    action_type: 'counselling',
+    name: 'Medication adherence check',
+    notes: 'Confirm understanding, dosing schedule, side effects, affordability, and barriers.',
+  },
+  {
+    label: 'WhatsApp symptom diary',
+    action_type: 'counselling',
+    name: 'WhatsApp symptom diary',
+    notes: 'Ask patient to report symptom trend and completion status through the AI WhatsApp agent.',
+  },
+  {
+    label: 'BP log review',
+    action_type: 'counselling',
+    name: 'BP log review',
+    notes: 'Patient to send home BP readings with date, time, and symptoms.',
+  },
+  {
+    label: 'Wound/photo review',
+    action_type: 'procedure',
+    name: 'Wound/photo review',
+    notes: 'Review uploaded photo, compare with prior image, and document signs of infection or healing.',
+  },
+  {
+    label: 'Specialist referral',
+    action_type: 'referral',
+    name: 'Specialist referral',
+    notes: 'State destination, urgency, reason for referral, and information sent with the patient.',
+  },
+  {
+    label: 'Emergency escalation',
+    action_type: 'referral',
+    name: 'Emergency escalation',
+    notes: 'Document red flag, destination, transport advice, and who was informed.',
+  },
+];
+
+const getQuickOptionLabel = (option) => {
+  if (!option) return '';
+  if (typeof option === 'string') return option;
+  return option.label || option.name || option.medication_name || option.test_type || String(option.value ?? '');
+};
+
+const parseQuickNumber = (value) => {
+  if (typeof value === 'number') return value;
+  const textValue = String(value || '').toLowerCase();
+  if (textValue.includes('prn') || textValue.includes('as needed') || textValue.includes('one time')) return 0;
+  const match = textValue.match(/\d+/);
+  return match ? parseInt(match[0], 10) : null;
+};
+
+const getQuickNumberValue = (value, options, unitLabel) => {
+  const numericValue = parseQuickNumber(value);
+  if (numericValue === null) return '';
+  const matchedOption = options.find((option) => option.value === numericValue);
+  if (matchedOption) return matchedOption;
+  return numericValue > 0 ? `${numericValue} ${unitLabel}` : '';
+};
+
+const getSoapSectionObject = (sectionValue, fallbackKey = 'summary') => {
+  if (sectionValue && typeof sectionValue === 'object' && !Array.isArray(sectionValue)) {
+    return sectionValue;
+  }
+  if (sectionValue) {
+    return { [fallbackKey]: sectionValue };
+  }
+  return {};
+};
+
+const toBooleanOrNull = (value) => {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return null;
+};
+
+const toSelectBooleanValue = (value) => {
+  if (value === true) return 'true';
+  if (value === false) return 'false';
+  return '';
 };
 
 const getEntryTimestampValue = (entry) => {
@@ -158,6 +551,13 @@ const getLiveVisitReadinessConfig = (readiness, callbackStatus) => {
   }
 };
 
+const getEvidenceExcerpt = (entry, maxLength = 180) => {
+  const raw = entry?.quote || entry?.text || entry?.value || entry?.description || entry?.finding || entry?.claim || '';
+  if (!raw) return '';
+  const text = typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+  return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
+};
+
 const buildMockLiveVisitEntries = () => {
   const now = Date.now();
 
@@ -229,6 +629,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   });
   const [editingNote, setEditingNote] = useState(false);
   const [editedNote, setEditedNote] = useState(null);
+  const [clinicalFeedback, setClinicalFeedback] = useState(emptyClinicalFeedback);
+  const [outcomeFeedback, setOutcomeFeedback] = useState({});
+  const [savingOutcomeId, setSavingOutcomeId] = useState(null);
+  const [decisionBusyAction, setDecisionBusyAction] = useState(null);
+  const [decisionError, setDecisionError] = useState('');
+  const [showMoreInfoDialog, setShowMoreInfoDialog] = useState(false);
+  const [moreInfoQuestions, setMoreInfoQuestions] = useState([]);
+  const [liveCopilotMode, setLiveCopilotMode] = useState('live_encounter');
   const [chatRefreshTrigger, setChatRefreshTrigger] = useState(0);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingPreset, setBookingPreset] = useState({
@@ -240,10 +648,395 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const previousStatusRef = useRef(null);
   const lastFetchRef = useRef(0);
 
+  useEffect(() => {
+    setClinicalFeedback(emptyClinicalFeedback);
+    setOutcomeFeedback({});
+    setDecisionBusyAction(null);
+    setDecisionError('');
+    setShowMoreInfoDialog(false);
+    setMoreInfoQuestions([]);
+    setLiveCopilotMode('live_encounter');
+  }, [publicId]);
+
   const existingNote = useMemo(() => getExistingNote(review), [review]);
   const existingTranscript = useMemo(() => collectReviewTranscripts(review), [review]);
+  const sourceEvidenceEntries = useMemo(() => getEvidenceEntries(review), [review]);
+  const approvalReadiness = useMemo(() => getDoctorApprovalReadiness(review, patientData), [review, patientData]);
+  const caregiverContext = useMemo(() => getCaregiverContext(review), [review]);
+  const aiGovernanceSignals = useMemo(() => getAiGovernanceSignals(review, {
+    patient: patientData,
+    feedback: clinicalFeedback,
+    notePayload: editingNote && editedNote ? editedNote : review?.doctor_note,
+  }), [review, patientData, clinicalFeedback, editingNote, editedNote]);
   const [copySuccess, setCopySuccess] = useState(false);
   const currentProcessingStatus = getStatus(publicId);
+  const getClinicalTrainingFeedbackPayload = useCallback((context = {}) => {
+    const feedback = { ...clinicalFeedback };
+    if (context.decision === 'approve_as_is') {
+      clinicalScoreFields.forEach(({ key }) => {
+        if (!Number.isInteger(feedback[key])) {
+          feedback[key] = 5;
+        }
+      });
+      if (!feedback.accepted_ai_diagnosis) {
+        feedback.accepted_ai_diagnosis = 'true';
+      }
+      if (!feedback.accepted_ai_plan) {
+        feedback.accepted_ai_plan = 'true';
+      }
+    }
+
+    const payload = {};
+
+    clinicalScoreFields.forEach(({ key }) => {
+      const value = feedback[key];
+      if (Number.isInteger(value) && value >= 1 && value <= 5) {
+        payload[key] = value;
+      }
+    });
+
+    const acceptedDiagnosis = toBooleanOrNull(feedback.accepted_ai_diagnosis);
+    const acceptedPlan = toBooleanOrNull(feedback.accepted_ai_plan);
+    if (acceptedDiagnosis !== null) {
+      payload.accepted_ai_diagnosis = acceptedDiagnosis;
+    }
+    if (acceptedPlan !== null) {
+      payload.accepted_ai_plan = acceptedPlan;
+    }
+
+    const editReason = feedback.edit_reason?.trim();
+    if (editReason) {
+      payload.edit_reason = editReason;
+    }
+
+    const correctionCategories = Array.isArray(feedback.correction_categories)
+      ? feedback.correction_categories.filter(Boolean)
+      : [];
+    if (correctionCategories.length > 0) {
+      payload.correction_categories = correctionCategories;
+    }
+
+    if (feedback.correction_severity) {
+      payload.correction_severity = feedback.correction_severity;
+    }
+
+    if (context.decision) {
+      payload.workflow_decision = context.decision;
+    }
+
+    return Object.keys(payload).length > 0 ? payload : null;
+  }, [clinicalFeedback]);
+
+  const updateOutcomeFeedback = (outcomeId, patch) => {
+    setOutcomeFeedback((prev) => ({
+      ...prev,
+      [outcomeId]: {
+        ...(prev[outcomeId] || {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const getOutcomeFieldValue = (outcome, field, fallback = '') => {
+    const local = outcomeFeedback[outcome.id] || {};
+    if (Object.prototype.hasOwnProperty.call(local, field)) {
+      return local[field];
+    }
+    const latest = outcome.latest_adjudication || {};
+    if (field in latest && latest[field] !== null && latest[field] !== undefined) {
+      return latest[field];
+    }
+    return fallback;
+  };
+
+  const handleSaveOutcomeAdjudication = async (outcome) => {
+    if (!outcome?.id) return;
+    setSavingOutcomeId(outcome.id);
+    try {
+      const token = await getAccessToken();
+      const payload = {
+        outcome_event_id: outcome.id,
+        action: getOutcomeFieldValue(outcome, 'action', 'reviewed') || 'reviewed',
+        outcome_matches_expected: toBooleanOrNull(getOutcomeFieldValue(outcome, 'outcome_matches_expected')),
+        diagnosis_still_correct: toBooleanOrNull(getOutcomeFieldValue(outcome, 'diagnosis_still_correct')),
+        plan_still_appropriate: toBooleanOrNull(getOutcomeFieldValue(outcome, 'plan_still_appropriate')),
+        preventable_event: toBooleanOrNull(getOutcomeFieldValue(outcome, 'preventable_event')),
+        prognosis_accuracy_score: getOutcomeFieldValue(outcome, 'prognosis_accuracy_score') || null,
+        management_outcome_score: getOutcomeFieldValue(outcome, 'management_outcome_score') || null,
+        outcome_severity: getOutcomeFieldValue(outcome, 'outcome_severity', outcome.severity || '') || '',
+        clinician_notes: getOutcomeFieldValue(outcome, 'clinician_notes', '') || '',
+        next_steps: getOutcomeFieldValue(outcome, 'next_steps', '') || '',
+        metadata: {
+          surface: 'doctor_review_detail',
+          review_public_id: review?.public_id,
+        },
+      };
+
+      const response = await fetch('https://api.prestigedelta.com/clinician-outcome-adjudications/', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || data.error || 'Failed to save outcome review');
+      }
+      await fetchReviewDetail();
+    } catch (error) {
+      console.error('Failed to save outcome adjudication:', error);
+      alert(error.message || 'Failed to save outcome review');
+    } finally {
+      setSavingOutcomeId(null);
+    }
+  };
+
+  const parseNotePayload = (note) => {
+    if (!note) return {};
+    if (typeof note === 'string') {
+      try {
+        return JSON.parse(note);
+      } catch {
+        return {};
+      }
+    }
+    return JSON.parse(JSON.stringify(note));
+  };
+
+  const getDecisionNotePayload = () => {
+    if (editingNote && editedNote) {
+      return parseNotePayload(editedNote);
+    }
+    return parseNotePayload(review?.doctor_note || getGeneratedNote(review));
+  };
+
+  const currentNoteForDraftApproval = useMemo(() => {
+    if (editingNote && editedNote) {
+      return parseNotePayload(editedNote);
+    }
+    return parseNotePayload(review?.doctor_note || getGeneratedNote(review));
+  }, [editingNote, editedNote, review]);
+
+  const pendingCopilotDraftActions = useMemo(
+    () => getPendingCopilotDraftActions(currentNoteForDraftApproval),
+    [currentNoteForDraftApproval]
+  );
+
+  const blockPendingCopilotDraftActions = (actionLabel = 'continue') => {
+    const pendingActions = getPendingCopilotDraftActions(getDecisionNotePayload());
+    if (pendingActions.length === 0) return false;
+    const message = `Approve ${pendingActions.length} realtime draft clinical ${pendingActions.length === 1 ? 'action' : 'actions'} in the doctor note before you ${actionLabel}.`;
+    setDecisionError(message);
+    alert(message);
+    return true;
+  };
+
+  const buildDoctorDecisionPayload = (decision, extras = {}) => {
+    const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload({ decision });
+    const origin = getReviewOrigin(review);
+    const urgency = getUrgencyConfig(review);
+    const {
+      metadata: extraMetadata = {},
+      note_payload: extraNotePayload,
+      patient_summary: extraPatientSummary,
+      send_summary: extraSendSummary,
+      ...restExtras
+    } = extras;
+    const notePayload = extraNotePayload || getDecisionNotePayload();
+    const governanceSignals = getAiGovernanceSignals(review, {
+      patient: patientData,
+      feedback: clinicalTrainingFeedback || clinicalFeedback,
+      decision,
+      notePayload,
+    });
+    const pendingDraftActions = getPendingCopilotDraftActions(notePayload);
+    const approvalMetadata = {
+      quality_risk: governanceSignals.qualityRisk,
+      acceptance_state: governanceSignals.acceptanceState,
+      governance_reasons: governanceSignals.reasons,
+      approval_blocker_count: governanceSignals.approvalBlockerCount,
+      approval_warning_count: governanceSignals.approvalWarningCount,
+      evidence_anchor_count: governanceSignals.evidenceAnchorCount,
+      source_verification_count: governanceSignals.sourceVerificationCount,
+      edit_burden_level: governanceSignals.editBurden.level,
+      edit_burden_percent: governanceSignals.editBurden.percentChanged,
+      pending_copilot_draft_count: pendingDraftActions.length,
+      pending_copilot_draft_actions: pendingDraftActions.map((item) => ({
+        section: item.section,
+        kind: item.kind,
+        label: item.label,
+      })),
+    };
+
+    return {
+      ...restExtras,
+      decision,
+      note_payload: notePayload,
+      patient_summary: extraPatientSummary || review?.patient_summary || review?.summary || '',
+      patient: {
+        first_name: patientData.first_name,
+        last_name: patientData.last_name,
+        phone: convertToInternationalFormat(patientData.phone),
+        email: patientData.email,
+      },
+      send_summary: extraSendSummary ?? false,
+      metadata: {
+        surface: 'doctor_review_detail',
+        review_public_id: publicId,
+        origin,
+        urgency_level: urgency.value,
+        ai_governance: approvalMetadata,
+        ...extraMetadata,
+      },
+      approval_metadata: approvalMetadata,
+      doctor_edit_diff: governanceSignals.editBurden,
+      ...(clinicalTrainingFeedback
+        ? {
+            clinical_training_feedback: {
+              ...clinicalTrainingFeedback,
+              governance_signals: approvalMetadata,
+            },
+            doctor_feedback: clinicalTrainingFeedback,
+          }
+        : {}),
+    };
+  };
+
+  const handleDoctorDecision = async (decision, extras = {}) => {
+    if (!publicId) return null;
+    setDecisionBusyAction(decision);
+    setDecisionError('');
+
+    try {
+      const payload = buildDoctorDecisionPayload(decision, extras);
+      const result = await submitDoctorDecision(publicId, payload);
+
+      if (result?.local_fallback) {
+        alert(result.message || 'Workflow action captured locally while backend support is pending.');
+      } else if (result?.legacy_fallback) {
+        alert(result.message || 'Review saved through legacy workflow.');
+      } else {
+        alert(result?.message || 'Doctor decision saved successfully.');
+      }
+
+      await fetchReviewDetail();
+      if (onUpdate) {
+        onUpdate();
+      }
+      return result;
+    } catch (error) {
+      console.error('Doctor decision failed:', error);
+      const message = error.message || 'Doctor decision failed';
+      setDecisionError(message);
+      alert(message);
+      return null;
+    } finally {
+      setDecisionBusyAction(null);
+    }
+  };
+
+  const handleApproveCopilotDraftActions = () => {
+    const notePayload = getDecisionNotePayload();
+    const pendingActions = getPendingCopilotDraftActions(notePayload);
+    if (pendingActions.length === 0) {
+      setDecisionError('');
+      return;
+    }
+
+    const approvedNote = approveAllCopilotDraftActions(notePayload, {
+      approved_by: 'doctor_review_detail',
+      approval_note: 'Doctor approved realtime draft clinical actions in review detail.',
+    });
+    setEditedNote(approvedNote);
+    setEditingNote(true);
+    setDecisionError(`${pendingActions.length} realtime draft ${pendingActions.length === 1 ? 'action is' : 'actions are'} marked doctor-approved. Review and save the note before patient follow-through.`);
+  };
+
+  const handleApproveAiTriageAsIs = () => {
+    if (blockPendingCopilotDraftActions('approve this review')) return;
+    handleDoctorDecision('approve_as_is');
+  };
+
+  const handleEditAiTriageDraft = () => {
+    const generatedNote = getGeneratedNote(review);
+    const note = parseNotePayload(review?.doctor_note || generatedNote);
+    setEditedNote(note);
+    setEditingNote(true);
+    setDecisionError('Draft opened for editing below. Save your changes, then finalize or approve.');
+  };
+
+  const handleOpenMoreInfoDialog = (questions = null) => {
+    const nextQuestions = Array.isArray(questions) && questions.length > 0
+      ? questions
+      : buildMoreInfoQuestions(review);
+    setMoreInfoQuestions(nextQuestions.map((item) => ({
+      question: item.question || item.label || '',
+      reason: item.reason || '',
+    })));
+    setShowMoreInfoDialog(true);
+  };
+
+  const handleSubmitMoreInfoRequest = async () => {
+    const questions = moreInfoQuestions
+      .map((item) => ({
+        question: item.question.trim(),
+        reason: item.reason.trim(),
+      }))
+      .filter((item) => item.question);
+
+    if (questions.length === 0) {
+      setDecisionError('Add at least one question to send.');
+      return;
+    }
+
+    setDecisionBusyAction('request_more_info');
+    setDecisionError('');
+    try {
+      const result = await requestPatientInformation(publicId, {
+        questions,
+        delivery_channel: 'chat',
+        patient: {
+          first_name: patientData.first_name,
+          last_name: patientData.last_name,
+          phone: convertToInternationalFormat(patientData.phone),
+          email: patientData.email,
+        },
+      });
+      await handleDoctorDecision('request_more_info', {
+        questions,
+        delivery_channel: 'chat',
+        metadata: { request_result: result?.local_fallback ? 'local_fallback' : 'sent' },
+      });
+      setShowMoreInfoDialog(false);
+    } catch (error) {
+      console.error('More info request failed:', error);
+      const message = error.message || 'Failed to request patient information';
+      setDecisionError(message);
+      alert(message);
+    } finally {
+      setDecisionBusyAction(null);
+    }
+  };
+
+  const handleStartLiveClarification = async () => {
+    setLiveCopilotMode('triage_clarification');
+    await handleDoctorDecision('convert_to_live_encounter', {
+      metadata: { requested_mode: 'triage_clarification' },
+    });
+    setShowCopilotDashboard(true);
+  };
+
+  const handleEscalateAiTriage = () => {
+    handleDoctorDecision('escalate', {
+      metadata: {
+        escalation_source: 'ai_triage_cockpit',
+      },
+    });
+  };
+
   const liveVisitEntries = useMemo(() => {
     const conversation = Array.isArray(review?.session_conversation)
       ? review.session_conversation
@@ -747,6 +1540,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       alert('No review found to finalize');
       return;
     }
+    if (blockPendingCopilotDraftActions('finalize this encounter')) return;
 
     setSaving(true);
     const token = await getAccessToken();
@@ -754,9 +1548,10 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     try {
       // Convert phone number to international format if needed
       const convertedPhone = convertToInternationalFormat(patientData.phone);
+      const notePayload = getDecisionNotePayload();
       
       const finalizePayload = {
-        note_payload: review.doctor_note || {},
+        note_payload: notePayload,
         create_patient: true,
         send_summary: false,
         patient_first_name: patientData.first_name,
@@ -765,6 +1560,10 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_email: patientData.email,
         run_finalize_workflow: true
       };
+      const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload();
+      if (clinicalTrainingFeedback) {
+        finalizePayload.clinical_training_feedback = clinicalTrainingFeedback;
+      }
 
       const response = await fetch(
         `https://api.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
@@ -795,7 +1594,31 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   };
 
   const handleSyncCopilotOrders = async (orders) => {
+    if (orders?.liveArtifactsSaved) {
+      if (orders.review) {
+        setReview(orders.review);
+      } else {
+        await fetchReviewDetail();
+      }
+      if (onUpdate) {
+        onUpdate();
+      }
+      return;
+    }
+
     const { prescriptions, investigations, otherActions, soapNote } = orders;
+    const draftOrders = buildCopilotDraftSyncPayload({
+      prescriptions,
+      investigations,
+      otherActions,
+      soapNote,
+      mode: orders?.source_mode || orders?.mode || 'live_encounter',
+      reviewOrigin: orders?.review_origin || getReviewOrigin(review),
+      selectedOnly: false,
+    });
+    const draftPrescriptions = draftOrders.prescriptions || [];
+    const draftInvestigations = draftOrders.investigations || [];
+    const draftOtherActions = draftOrders.otherActions || [];
     
     // Check if we are currently editing the note
     if (editingNote) {
@@ -804,15 +1627,15 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         const currentInvestigations = prev?.investigation || [];
         const currentOtherActions = prev?.other_actions || [];
 
-        const newPrescriptions = prescriptions ? prescriptions.filter(
+        const newPrescriptions = draftPrescriptions.filter(
           np => !currentPrescriptions.some(cp => cp.medication_name && cp.medication_name.toLowerCase() === np.medication_name.toLowerCase())
-        ) : [];
-        const newInvestigations = investigations ? investigations.filter(
+        );
+        const newInvestigations = draftInvestigations.filter(
           ni => !currentInvestigations.some(ci => ci.test_type && ci.test_type.toLowerCase() === ni.test_type.toLowerCase())
-        ) : [];
-        const newOtherActions = otherActions ? otherActions.filter(
+        );
+        const newOtherActions = draftOtherActions.filter(
           na => !currentOtherActions.some(ca => ca.name && ca.name.toLowerCase() === na.name.toLowerCase())
-        ) : [];
+        );
 
         return {
           ...prev,
@@ -825,7 +1648,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           other_actions: [...currentOtherActions, ...newOtherActions]
         };
       });
-      alert('Copilot documentation and recommendations successfully merged into your note draft! Please review and click "Save" to persist.');
+      alert('Copilot documentation and draft recommendations were merged into your note. Please review and approve before saving.');
     } else {
       // Not in edit mode: load the current note, merge, and save immediately to backend!
       const rawNote = typeof review.doctor_note === 'string'
@@ -837,15 +1660,15 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const currentInvestigations = currentNote.investigation || [];
       const currentOtherActions = currentNote.other_actions || [];
 
-      const newPrescriptions = prescriptions ? prescriptions.filter(
+      const newPrescriptions = draftPrescriptions.filter(
         np => !currentPrescriptions.some(cp => cp.medication_name && cp.medication_name.toLowerCase() === np.medication_name.toLowerCase())
-      ) : [];
-      const newInvestigations = investigations ? investigations.filter(
+      );
+      const newInvestigations = draftInvestigations.filter(
         ni => !currentInvestigations.some(ci => ci.test_type && ci.test_type.toLowerCase() === ni.test_type.toLowerCase())
-      ) : [];
-      const newOtherActions = otherActions ? otherActions.filter(
+      );
+      const newOtherActions = draftOtherActions.filter(
         na => !currentOtherActions.some(ca => ca.name && ca.name.toLowerCase() === na.name.toLowerCase())
-      ) : [];
+      );
 
       const mergedNote = {
         ...currentNote,
@@ -881,14 +1704,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             doctor_note: mergedNote,
             note_payload: mergedNote
           }));
-          alert('Copilot EMR documentation successfully generated, synced and saved to EMR! 🏥');
+          alert('Copilot documentation and draft recommendations were saved for doctor review.');
         } else {
           const error = await response.json().catch(() => ({}));
-          alert(`Failed to save synced EMR orders: ${error.detail || JSON.stringify(error) || 'Please try again.'}`);
+          alert(`Failed to save synced draft recommendations: ${error.detail || JSON.stringify(error) || 'Please try again.'}`);
         }
       } catch (error) {
         console.error('Error saving synced note:', error);
-        alert('An error occurred while saving the synced EMR orders');
+        alert('An error occurred while saving the synced draft recommendations');
       } finally {
         setSaving(false);
       }
@@ -901,6 +1724,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     setSaving(true);
     try {
       const token = await getAccessToken();
+      const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload();
 
       const response = await fetch(
         `https://api.prestigedelta.com/medical-reviews/${publicId}/save-note/`,
@@ -911,7 +1735,10 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            note_payload: editedNote
+            note_payload: editedNote,
+            ...(clinicalTrainingFeedback
+              ? { clinical_training_feedback: clinicalTrainingFeedback }
+              : {})
           })
         }
       );
@@ -942,10 +1769,12 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const handleFinalize = async () => {
     if (!review) return;
 
-    if (!review.doctor_note) {
+    const notePayload = getDecisionNotePayload();
+    if (!review.doctor_note && Object.keys(notePayload).length === 0) {
       alert('Please ensure the review has been documented before finalizing');
       return;
     }
+    if (blockPendingCopilotDraftActions('finalize this review')) return;
 
     setSaving(true);
     try {
@@ -955,7 +1784,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const convertedPhone = convertToInternationalFormat(patientData.phone);
 
       const finalizePayload = {
-        note_payload: review.doctor_note,
+        note_payload: notePayload,
         send_summary: true,
         create_patient: true,
         patient_first_name: patientData.first_name || '',
@@ -964,6 +1793,10 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patient_email: patientData.email || '',
         run_finalize_workflow: true
       };
+      const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload();
+      if (clinicalTrainingFeedback) {
+        finalizePayload.clinical_training_feedback = clinicalTrainingFeedback;
+      }
 
       const response = await fetch(
         `https://api.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
@@ -1041,6 +1874,64 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     });
   }, []);
 
+  const applyPrescriptionQuickOption = useCallback((index, option) => {
+    if (!option) return;
+
+    if (typeof option === 'string') {
+      updatePrescriptionField(index, 'medication_name', option);
+      return;
+    }
+
+    setEditedNote(prev => {
+      const updatedPrescriptions = [...(prev?.prescription || [])];
+      if (!updatedPrescriptions[index]) return prev;
+
+      const currentPrescription = updatedPrescriptions[index];
+      updatedPrescriptions[index] = {
+        ...currentPrescription,
+        medication_name: option.medication_name || option.label || currentPrescription.medication_name || '',
+        dosage: currentPrescription.dosage || option.dosage || '',
+        route: option.route || currentPrescription.route || 'oral',
+        interval: option.interval ?? currentPrescription.interval ?? 0,
+        instructions: currentPrescription.instructions || option.instructions || '',
+        is_otc: typeof option.is_otc === 'boolean' ? option.is_otc : currentPrescription.is_otc,
+      };
+
+      return {
+        ...prev,
+        prescription: updatedPrescriptions
+      };
+    });
+  }, [updatePrescriptionField]);
+
+  const applyInvestigationQuickOption = useCallback((index, option) => {
+    if (!option) return;
+
+    if (typeof option === 'string') {
+      updateInvestigationField(index, 'test_type', option);
+      return;
+    }
+
+    setEditedNote(prev => {
+      const updatedInvestigations = [...(prev?.investigation || [])];
+      if (!updatedInvestigations[index]) return prev;
+
+      const currentInvestigation = updatedInvestigations[index];
+      updatedInvestigations[index] = {
+        ...currentInvestigation,
+        test_type: option.test_type || option.label || currentInvestigation.test_type || '',
+        reason: currentInvestigation.reason || option.reason || '',
+        instructions: currentInvestigation.instructions || option.instructions || '',
+        interval: option.interval ?? currentInvestigation.interval ?? 0,
+      };
+
+      return {
+        ...prev,
+        investigation: updatedInvestigations
+      };
+    });
+  }, [updateInvestigationField]);
+
   const addPrescription = useCallback(() => {
     const newPrescription = {
       medication_name: '',
@@ -1094,6 +1985,55 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       return {
         ...prev,
         other_actions: updatedActions
+      };
+    });
+  }, []);
+
+  const applyOtherActionQuickOption = useCallback((index, option) => {
+    if (!option) return;
+
+    if (typeof option === 'string') {
+      updateOtherActionField(index, 'name', option);
+      return;
+    }
+
+    setEditedNote(prev => {
+      const updatedActions = [...(prev?.other_actions || [])];
+      if (!updatedActions[index]) return prev;
+
+      const currentAction = updatedActions[index];
+      updatedActions[index] = {
+        ...currentAction,
+        action_type: option.action_type || currentAction.action_type || 'counselling',
+        name: option.name || option.label || currentAction.name || '',
+        notes: currentAction.notes || option.notes || '',
+      };
+
+      return {
+        ...prev,
+        other_actions: updatedActions
+      };
+    });
+  }, [updateOtherActionField]);
+
+  const appendSoapTemplate = useCallback((sectionKey, fieldKey, option) => {
+    const templateText = typeof option === 'string' ? option : option?.value;
+    if (!templateText) return;
+
+    setEditedNote(prev => {
+      const currentSection = getSoapSectionObject(prev?.[sectionKey], fieldKey);
+      const currentValue = currentSection[fieldKey];
+      const currentText = typeof currentValue === 'object'
+        ? JSON.stringify(currentValue, null, 2)
+        : (currentValue || '');
+      const nextValue = currentText ? `${currentText}\n\n${templateText}` : templateText;
+
+      return {
+        ...prev,
+        [sectionKey]: {
+          ...currentSection,
+          [fieldKey]: nextValue,
+        }
       };
     });
   }, []);
@@ -1170,10 +2110,473 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     }
   };
 
+  const applyClinicalFeedbackPreset = (preset) => {
+    setClinicalFeedback((prev) => {
+      if (preset === 'accepted') {
+        return {
+          ...prev,
+          accepted_ai_diagnosis: 'true',
+          accepted_ai_plan: 'true',
+          safety_score: prev.safety_score || 5,
+          diagnostic_quality_score: prev.diagnostic_quality_score || 5,
+          management_quality_score: prev.management_quality_score || 5,
+          patient_communication_score: prev.patient_communication_score || 5,
+          local_feasibility_score: prev.local_feasibility_score || 5,
+          correction_categories: [],
+          correction_severity: 'none',
+        };
+      }
+
+      return {
+        ...prev,
+        accepted_ai_diagnosis: prev.accepted_ai_diagnosis || 'false',
+        accepted_ai_plan: prev.accepted_ai_plan || 'false',
+        safety_score: prev.safety_score || 3,
+        diagnostic_quality_score: prev.diagnostic_quality_score || 3,
+        management_quality_score: prev.management_quality_score || 3,
+        correction_severity: prev.correction_severity || 'moderate',
+      };
+    });
+  };
+
+  const toggleClinicalCorrectionCategory = (category) => {
+    setClinicalFeedback((prev) => {
+      const selected = Array.isArray(prev.correction_categories) ? prev.correction_categories : [];
+      const next = selected.includes(category)
+        ? selected.filter((value) => value !== category)
+        : [...selected, category];
+      return {
+        ...prev,
+        correction_categories: next,
+        correction_severity: next.length > 0 && !prev.correction_severity ? 'moderate' : prev.correction_severity,
+      };
+    });
+  };
+
+  const renderClinicalFeedbackPanel = () => {
+    if (!review?.conducted_by_ai || review?.is_finalized) {
+      return null;
+    }
+
+    const training = review?.clinical_training || {};
+
+    return (
+      <Card variant="outlined" sx={{ mb: 3, borderColor: 'divider' }}>
+        <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+            <Typography variant="subtitle1" fontWeight="bold">
+              AI Review Feedback
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+              <Chip
+                size="small"
+                variant="outlined"
+                color={training.has_model_draft ? 'success' : 'default'}
+                label={training.has_model_draft ? 'Draft captured' : 'Awaiting draft'}
+              />
+              <Chip
+                size="small"
+                color={aiGovernanceSignals.color}
+                variant={aiGovernanceSignals.variant}
+                label={aiGovernanceSignals.shortLabel}
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                color={aiGovernanceSignals.editBurden.color}
+                label={`${aiGovernanceSignals.editBurden.percentChanged}% edits`}
+              />
+            </Stack>
+          </Box>
+          {aiGovernanceSignals.reasons.length > 0 && (
+            <Alert severity={aiGovernanceSignals.qualityRisk === 'high' ? 'warning' : 'info'} sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                {aiGovernanceSignals.reasons.slice(0, 2).join(' - ')}
+              </Typography>
+            </Alert>
+          )}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<CheckCircleIcon />}
+              onClick={() => applyClinicalFeedbackPreset('accepted')}
+            >
+              AI Note Accepted
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AutorenewIcon />}
+              onClick={() => applyClinicalFeedbackPreset('corrected')}
+            >
+              I Made Corrections
+            </Button>
+          </Stack>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Accepted diagnosis"
+                value={clinicalFeedback.accepted_ai_diagnosis}
+                onChange={(event) => {
+                  setClinicalFeedback((prev) => ({
+                    ...prev,
+                    accepted_ai_diagnosis: event.target.value,
+                  }));
+                }}
+              >
+                {outcomeBooleanOptions.map((option) => (
+                  <MenuItem key={option.value || 'blank'} value={option.value}>{option.label}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Accepted plan"
+                value={clinicalFeedback.accepted_ai_plan}
+                onChange={(event) => {
+                  setClinicalFeedback((prev) => ({
+                    ...prev,
+                    accepted_ai_plan: event.target.value,
+                  }));
+                }}
+              >
+                {outcomeBooleanOptions.map((option) => (
+                  <MenuItem key={option.value || 'blank'} value={option.value}>{option.label}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Correction severity"
+                value={clinicalFeedback.correction_severity}
+                onChange={(event) => {
+                  setClinicalFeedback((prev) => ({
+                    ...prev,
+                    correction_severity: event.target.value,
+                  }));
+                }}
+              >
+                {clinicalCorrectionSeverityOptions.map((option) => (
+                  <MenuItem key={option.value || 'blank'} value={option.value}>{option.label}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            {clinicalScoreFields.map(({ key, label }) => (
+              <Grid item xs={12} sm={6} md={4} key={key}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {label}
+                  </Typography>
+                  <Rating
+                    size="small"
+                    value={clinicalFeedback[key] || 0}
+                    onChange={(_, value) => {
+                      setClinicalFeedback((prev) => ({
+                        ...prev,
+                        [key]: value || null,
+                      }));
+                    }}
+                  />
+                </Box>
+              </Grid>
+            ))}
+            <Grid item xs={12}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Correction type
+              </Typography>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                {clinicalCorrectionCategories.map((category) => {
+                  const selected = Array.isArray(clinicalFeedback.correction_categories)
+                    && clinicalFeedback.correction_categories.includes(category.value);
+                  return (
+                    <Chip
+                      key={category.value}
+                      label={category.label}
+                      color={selected ? 'primary' : 'default'}
+                      variant={selected ? 'filled' : 'outlined'}
+                      onClick={() => toggleClinicalCorrectionCategory(category.value)}
+                      sx={{ mb: 1 }}
+                    />
+                  );
+                })}
+              </Stack>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Correction note"
+                fullWidth
+                multiline
+                minRows={2}
+                value={clinicalFeedback.edit_reason}
+                onChange={(event) => {
+                  setClinicalFeedback((prev) => ({
+                    ...prev,
+                    edit_reason: event.target.value,
+                  }));
+                }}
+                size="small"
+              />
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderOutcomeAdjudicationPanel = () => {
+    const outcomes = review?.clinical_training?.recent_outcomes || [];
+    if (!Array.isArray(outcomes) || outcomes.length === 0) {
+      return null;
+    }
+
+    return (
+      <Card variant="outlined" sx={{ mb: 3, borderColor: 'divider' }}>
+        <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+            <Typography variant="subtitle1" fontWeight="bold">
+              Outcome Follow-up Review
+            </Typography>
+            <Chip
+              size="small"
+              variant="outlined"
+              color={review?.clinical_training?.outcome_adjudication_count ? 'success' : 'default'}
+              label={`${review?.clinical_training?.outcome_adjudication_count || 0} reviewed`}
+            />
+          </Box>
+
+          {outcomes.map((outcome) => {
+            const latest = outcome.latest_adjudication || {};
+            const payload = outcome.payload || {};
+            return (
+              <Box key={outcome.id} sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2, mt: 2, '&:first-of-type': { mt: 0 } }}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 1 }}>
+                  <Chip size="small" label={formatDisplayLabel(outcome.event_type)} />
+                  <Chip size="small" label={formatDisplayLabel(outcome.status)} variant="outlined" />
+                  {outcome.severity && <Chip size="small" color={outcome.severity === 'severe' || outcome.severity === 'emergency' ? 'warning' : 'default'} label={formatDisplayLabel(outcome.severity)} />}
+                  {payload?.reporter_role && <Chip size="small" variant="outlined" label={formatDisplayLabel(payload.reporter_role)} />}
+                </Box>
+
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  {outcome.notes || payload?.symptoms?.join?.(', ') || 'No follow-up note recorded.'}
+                </Typography>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      label="Outcome expected"
+                      value={toSelectBooleanValue(getOutcomeFieldValue(outcome, 'outcome_matches_expected'))}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { outcome_matches_expected: event.target.value })}
+                    >
+                      {outcomeBooleanOptions.map((option) => (
+                        <MenuItem key={option.value || 'blank'} value={option.value}>{option.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      label="Diagnosis held"
+                      value={toSelectBooleanValue(getOutcomeFieldValue(outcome, 'diagnosis_still_correct'))}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { diagnosis_still_correct: event.target.value })}
+                    >
+                      {outcomeBooleanOptions.map((option) => (
+                        <MenuItem key={option.value || 'blank'} value={option.value}>{option.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      label="Plan held"
+                      value={toSelectBooleanValue(getOutcomeFieldValue(outcome, 'plan_still_appropriate'))}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { plan_still_appropriate: event.target.value })}
+                    >
+                      {outcomeBooleanOptions.map((option) => (
+                        <MenuItem key={option.value || 'blank'} value={option.value}>{option.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      label="Action"
+                      value={getOutcomeFieldValue(outcome, 'action', latest.action || 'reviewed') || 'reviewed'}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { action: event.target.value })}
+                    >
+                      {outcomeActionOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Prognosis accuracy</Typography>
+                    <Rating
+                      size="small"
+                      value={Number(getOutcomeFieldValue(outcome, 'prognosis_accuracy_score')) || 0}
+                      onChange={(_, value) => updateOutcomeFeedback(outcome.id, { prognosis_accuracy_score: value || null })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Management outcome</Typography>
+                    <Rating
+                      size="small"
+                      value={Number(getOutcomeFieldValue(outcome, 'management_outcome_score')) || 0}
+                      onChange={(_, value) => updateOutcomeFeedback(outcome.id, { management_outcome_score: value || null })}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      label="Preventable"
+                      value={toSelectBooleanValue(getOutcomeFieldValue(outcome, 'preventable_event'))}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { preventable_event: event.target.value })}
+                    >
+                      {outcomeBooleanOptions.map((option) => (
+                        <MenuItem key={option.value || 'blank'} value={option.value}>{option.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Outcome severity"
+                      value={getOutcomeFieldValue(outcome, 'outcome_severity', outcome.severity || '') || ''}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { outcome_severity: event.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      size="small"
+                      label="Clinician interpretation"
+                      value={getOutcomeFieldValue(outcome, 'clinician_notes', '') || ''}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { clinician_notes: event.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      size="small"
+                      label="Next steps"
+                      value={getOutcomeFieldValue(outcome, 'next_steps', '') || ''}
+                      onChange={(event) => updateOutcomeFeedback(outcome.id, { next_steps: event.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={() => handleSaveOutcomeAdjudication(outcome)}
+                      disabled={savingOutcomeId === outcome.id}
+                    >
+                      {savingOutcomeId === outcome.id ? 'Saving...' : 'Save Outcome Review'}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            );
+          })}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderEvidenceSourceStrip = (entries, options = {}) => {
+    const evidenceEntries = entries || [];
+    const summary = summarizeEvidenceSources(evidenceEntries);
+    if (!summary.count) return null;
+
+    const compactView = Boolean(options.compact);
+    const excerptCount = compactView ? 1 : 2;
+
+    return (
+      <Box
+        sx={{
+          p: compactView ? 1 : 1.5,
+          mb: compactView ? 1.5 : 2,
+          bgcolor: summary.needsVerification ? 'warning.lighter' : 'action.hover',
+          border: '1px solid',
+          borderColor: summary.needsVerification ? 'warning.light' : 'divider',
+          borderRadius: 1,
+        }}
+      >
+        <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+          {summary.sources.slice(0, 4).map((source) => (
+            <Chip
+              key={source.key}
+              size="small"
+              label={source.count > 1 ? `${source.label} (${source.count})` : source.label}
+              color={source.color || 'default'}
+              variant={source.variant || 'outlined'}
+            />
+          ))}
+          {summary.confidenceLabel && (
+            <Chip
+              size="small"
+              label={summary.confidenceLabel}
+              color={summary.needsVerification ? 'warning' : 'success'}
+              variant={summary.needsVerification ? 'outlined' : 'filled'}
+            />
+          )}
+        </Stack>
+
+        {summary.needsVerification && (
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'warning.dark' }}>
+            Verify patient/caregiver-reported or AI-inferred objective findings before signing.
+          </Typography>
+        )}
+
+        {evidenceEntries.slice(0, excerptCount).map((entry, index) => {
+          const excerpt = getEvidenceExcerpt(entry, compactView ? 120 : 180);
+          if (!excerpt) return null;
+          const confidenceLabel = getEvidenceConfidenceLabel(entry);
+          return (
+            <Typography key={entry.id || index} variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+              {getSourceLabel(entry)}{confidenceLabel ? ` - ${confidenceLabel}` : ''}: {excerpt}
+            </Typography>
+          );
+        })}
+      </Box>
+    );
+  };
+
   const renderSOAPSection = (title, content, sectionKey, isEditing = false) => {
     if (!content && !isEditing) return null;
 
     const displayContent = isEditing ? (content || {}) : content;
+    const displayEntries = displayContent && typeof displayContent === 'object' && !Array.isArray(displayContent)
+      ? Object.entries(displayContent)
+      : [['summary', displayContent]];
+    const sectionEvidence = filterEvidenceForSoapField(sourceEvidenceEntries, sectionKey);
+    const templateOptions = soapQuickTemplates[sectionKey] || [];
 
     return (
       <Box sx={{ mb: 3 }}>
@@ -1182,33 +2585,66 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         </Typography>
         <Card elevation={2} sx={{ borderLeft: '4px solid', borderColor: 'primary.main' }}>
           <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-            {Object.entries(displayContent).map(([key, value]) => {
-              const editedValue = isEditing ? (editedNote?.[sectionKey]?.[key] ?? value) : value;
+            {renderEvidenceSourceStrip(sectionEvidence)}
+            {!sectionEvidence.length && isAiTriageReview(review) && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                No source map attached for this section. Verify the draft before final approval.
+              </Typography>
+            )}
+
+            {displayEntries.map(([key, value]) => {
+              const editedSection = isEditing ? getSoapSectionObject(editedNote?.[sectionKey], key) : {};
+              const editedValue = isEditing ? (editedSection[key] ?? value) : value;
+              const fieldEvidence = filterEvidenceForSoapField(sourceEvidenceEntries, sectionKey, key);
               return (
                 <Box key={key} sx={{ mb: 2, '&:last-child': { mb: 0 } }}>
                   <Typography variant="subtitle2" fontWeight="bold" color="primary" gutterBottom sx={{ textTransform: 'capitalize' }}>
                     {key.replace(/_/g, ' ')}
                   </Typography>
+                  {renderEvidenceSourceStrip(fieldEvidence, { compact: true })}
                   {isEditing ? (
-                    <TextField
-                      fullWidth
-                      multiline
-                      minRows={3}
-                      value={typeof editedValue === 'object' ? JSON.stringify(editedValue, null, 2) : (editedValue || '')}
-                      onChange={(e) => {
-                        const newValue = e.target.value;
-                        setEditedNote(prev => ({
-                          ...prev,
-                          [sectionKey]: {
-                            ...prev?.[sectionKey],
-                            [key]: newValue
-                          }
-                        }));
-                      }}
-                      variant="outlined"
-                      size="small"
-                      sx={{ pl: 2 }}
-                    />
+                    <>
+                      <Autocomplete
+                        value={null}
+                        options={templateOptions}
+                        getOptionLabel={getQuickOptionLabel}
+                        onChange={(event, selectedOption) => appendSoapTemplate(sectionKey, key, selectedOption)}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Insert quick template"
+                            placeholder="Search snippets"
+                            size="small"
+                          />
+                        )}
+                        selectOnFocus
+                        handleHomeEndKeys
+                        blurOnSelect
+                        sx={{ pl: 2, mb: 1 }}
+                      />
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        value={typeof editedValue === 'object' ? JSON.stringify(editedValue, null, 2) : (editedValue || '')}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          setEditedNote(prev => {
+                            const currentSection = getSoapSectionObject(prev?.[sectionKey], key);
+                            return {
+                              ...prev,
+                              [sectionKey]: {
+                                ...currentSection,
+                                [key]: newValue
+                              }
+                            };
+                          });
+                        }}
+                        variant="outlined"
+                        size="small"
+                        sx={{ pl: 2 }}
+                      />
+                    </>
                 ) : (
                   <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                     {typeof editedValue === 'object' ? JSON.stringify(editedValue, null, 2) : (editedValue || 'Not provided')}
@@ -1274,17 +2710,47 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                     {isEditing ? (
-                      <TextField
-                        label="Medication Name"
-                        value={prescription.medication_name || ''}
-                        onChange={(e) => updatePrescriptionField(index, 'medication_name', e.target.value)}
-                        size="small"
-                        sx={{ minWidth: 150 }}
+                      <Autocomplete
+                        freeSolo
+                        options={prescriptionQuickOptions}
+                        getOptionLabel={getQuickOptionLabel}
+                        inputValue={prescription.medication_name || ''}
+                        onInputChange={(event, newValue, reason) => {
+                          if (reason === 'input' || reason === 'clear') {
+                            updatePrescriptionField(index, 'medication_name', newValue);
+                          }
+                        }}
+                        onChange={(event, selectedOption) => {
+                          if (!selectedOption) {
+                            updatePrescriptionField(index, 'medication_name', '');
+                            return;
+                          }
+                          applyPrescriptionQuickOption(index, selectedOption);
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Medication"
+                            placeholder="Type or pick"
+                            size="small"
+                          />
+                        )}
+                        selectOnFocus
+                        handleHomeEndKeys
+                        sx={{ minWidth: { xs: 0, sm: 220 }, flex: 1, mr: 1 }}
                       />
                     ) : (
-                      <Typography variant="subtitle1" fontWeight="bold" color="success.dark" gutterBottom>
-                        {prescription.medication_name}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle1" fontWeight="bold" color="success.dark" gutterBottom>
+                          {prescription.medication_name}
+                        </Typography>
+                        {isCopilotDraftPendingApproval(prescription) && (
+                          <Chip label="Needs approval" size="small" color="warning" variant="outlined" sx={{ height: 22, fontWeight: 700 }} />
+                        )}
+                        {isCopilotActionDoctorApproved(prescription) && (
+                          <Chip label="Doctor approved" size="small" color="success" variant="outlined" sx={{ height: 22, fontWeight: 700 }} />
+                        )}
+                      </Box>
                     )}
                     {isEditing && (
                       <IconButton
@@ -1300,11 +2766,28 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                   <Grid container spacing={1}>
                     <Grid item xs={12} sm={6}>
                       {isEditing ? (
-                        <TextField
-                          label="Dosage"
-                          value={prescription.dosage || ''}
-                          onChange={(e) => updatePrescriptionField(index, 'dosage', e.target.value)}
-                          size="small"
+                        <Autocomplete
+                          freeSolo
+                          options={dosageQuickOptions}
+                          inputValue={prescription.dosage || ''}
+                          onInputChange={(event, newValue, reason) => {
+                            if (reason === 'input' || reason === 'clear') {
+                              updatePrescriptionField(index, 'dosage', newValue);
+                            }
+                          }}
+                          onChange={(event, selectedOption) => {
+                            updatePrescriptionField(index, 'dosage', getQuickOptionLabel(selectedOption));
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Dosage"
+                              size="small"
+                              fullWidth
+                            />
+                          )}
+                          selectOnFocus
+                          handleHomeEndKeys
                           fullWidth
                         />
                       ) : (
@@ -1315,24 +2798,30 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       {isEditing ? (
-                        <TextField
-                          select
-                          label="Route"
-                          value={prescription.route || 'oral'}
-                          onChange={(e) => updatePrescriptionField(index, 'route', e.target.value)}
-                          size="small"
+                        <Autocomplete
+                          freeSolo
+                          options={routeQuickOptions}
+                          inputValue={prescription.route || 'oral'}
+                          onInputChange={(event, newValue, reason) => {
+                            if (reason === 'input' || reason === 'clear') {
+                              updatePrescriptionField(index, 'route', newValue);
+                            }
+                          }}
+                          onChange={(event, selectedOption) => {
+                            updatePrescriptionField(index, 'route', getQuickOptionLabel(selectedOption) || 'oral');
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Route"
+                              size="small"
+                              fullWidth
+                            />
+                          )}
+                          selectOnFocus
+                          handleHomeEndKeys
                           fullWidth
-                          SelectProps={{ native: true }}
-                        >
-                          <option value="oral">Oral</option>
-                          <option value="intravenous">Intravenous</option>
-                          <option value="intramuscular">Intramuscular</option>
-                          <option value="subcutaneous">Subcutaneous</option>
-                          <option value="topical">Topical</option>
-                          <option value="inhalation">Inhalation</option>
-                          <option value="rectal">Rectal</option>
-                          <option value="vaginal">Vaginal</option>
-                        </TextField>
+                        />
                       ) : (
                         <Typography variant="body2" sx={{ mb: 0.5 }}>
                           <strong>Route:</strong> {prescription.route}
@@ -1341,12 +2830,43 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       {isEditing ? (
-                        <TextField
-                          label="Interval (hours)"
-                          type="number"
-                          value={prescription.interval || 8}
-                          onChange={(e) => updatePrescriptionField(index, 'interval', parseInt(e.target.value) || 0)}
-                          size="small"
+                        <Autocomplete
+                          freeSolo
+                          options={prescriptionIntervalQuickOptions}
+                          getOptionLabel={getQuickOptionLabel}
+                          value={getQuickNumberValue(prescription.interval, prescriptionIntervalQuickOptions, 'hours')}
+                          onChange={(event, selectedOption) => {
+                            if (!selectedOption) {
+                              updatePrescriptionField(index, 'interval', 0);
+                              return;
+                            }
+                            const selectedValue = typeof selectedOption === 'object'
+                              ? selectedOption.value
+                              : parseQuickNumber(selectedOption);
+                            updatePrescriptionField(index, 'interval', selectedValue ?? 0);
+                          }}
+                          onInputChange={(event, newValue, reason) => {
+                            if (reason === 'clear') {
+                              updatePrescriptionField(index, 'interval', 0);
+                              return;
+                            }
+                            if (reason === 'input') {
+                              const parsedValue = parseQuickNumber(newValue);
+                              if (parsedValue !== null) {
+                                updatePrescriptionField(index, 'interval', parsedValue);
+                              }
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Interval"
+                              size="small"
+                              fullWidth
+                            />
+                          )}
+                          selectOnFocus
+                          handleHomeEndKeys
                           fullWidth
                         />
                       ) : (
@@ -1450,17 +2970,47 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                     {isEditing ? (
-                      <TextField
-                        label="Test Type"
-                        value={investigation.test_type || ''}
-                        onChange={(e) => updateInvestigationField(index, 'test_type', e.target.value)}
-                        size="small"
-                        sx={{ minWidth: 150 }}
+                      <Autocomplete
+                        freeSolo
+                        options={investigationQuickOptions}
+                        getOptionLabel={getQuickOptionLabel}
+                        inputValue={investigation.test_type || ''}
+                        onInputChange={(event, newValue, reason) => {
+                          if (reason === 'input' || reason === 'clear') {
+                            updateInvestigationField(index, 'test_type', newValue);
+                          }
+                        }}
+                        onChange={(event, selectedOption) => {
+                          if (!selectedOption) {
+                            updateInvestigationField(index, 'test_type', '');
+                            return;
+                          }
+                          applyInvestigationQuickOption(index, selectedOption);
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Test"
+                            placeholder="Type or pick"
+                            size="small"
+                          />
+                        )}
+                        selectOnFocus
+                        handleHomeEndKeys
+                        sx={{ minWidth: { xs: 0, sm: 220 }, flex: 1, mr: 1 }}
                       />
                     ) : (
-                      <Typography variant="subtitle1" fontWeight="bold" color="info.dark" gutterBottom>
-                        {investigation.test_type}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle1" fontWeight="bold" color="info.dark" gutterBottom>
+                          {investigation.test_type}
+                        </Typography>
+                        {isCopilotDraftPendingApproval(investigation) && (
+                          <Chip label="Needs approval" size="small" color="warning" variant="outlined" sx={{ height: 22, fontWeight: 700 }} />
+                        )}
+                        {isCopilotActionDoctorApproved(investigation) && (
+                          <Chip label="Doctor approved" size="small" color="success" variant="outlined" sx={{ height: 22, fontWeight: 700 }} />
+                        )}
+                      </Box>
                     )}
                     {isEditing && (
                       <IconButton
@@ -1510,12 +3060,43 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       {isEditing ? (
-                        <TextField
-                          label="Interval (days)"
-                          type="number"
-                          value={investigation.interval || 0}
-                          onChange={(e) => updateInvestigationField(index, 'interval', parseInt(e.target.value) || 0)}
-                          size="small"
+                        <Autocomplete
+                          freeSolo
+                          options={investigationIntervalQuickOptions}
+                          getOptionLabel={getQuickOptionLabel}
+                          value={getQuickNumberValue(investigation.interval, investigationIntervalQuickOptions, 'days')}
+                          onChange={(event, selectedOption) => {
+                            if (!selectedOption) {
+                              updateInvestigationField(index, 'interval', 0);
+                              return;
+                            }
+                            const selectedValue = typeof selectedOption === 'object'
+                              ? selectedOption.value
+                              : parseQuickNumber(selectedOption);
+                            updateInvestigationField(index, 'interval', selectedValue ?? 0);
+                          }}
+                          onInputChange={(event, newValue, reason) => {
+                            if (reason === 'clear') {
+                              updateInvestigationField(index, 'interval', 0);
+                              return;
+                            }
+                            if (reason === 'input') {
+                              const parsedValue = parseQuickNumber(newValue);
+                              if (parsedValue !== null) {
+                                updateInvestigationField(index, 'interval', parsedValue);
+                              }
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Repeat"
+                              size="small"
+                              fullWidth
+                            />
+                          )}
+                          selectOnFocus
+                          handleHomeEndKeys
                           fullWidth
                         />
                       ) : null}
@@ -1635,11 +3216,33 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                             <option value="procedure">Procedure</option>
                             <option value="referral">Referral</option>
                           </TextField>
-                          <TextField
-                            label="Action Name"
-                            value={action.name || ''}
-                            onChange={(e) => updateOtherActionField(index, 'name', e.target.value)}
-                            size="small"
+                          <Autocomplete
+                            freeSolo
+                            options={otherActionQuickOptions}
+                            getOptionLabel={getQuickOptionLabel}
+                            inputValue={action.name || ''}
+                            onInputChange={(event, newValue, reason) => {
+                              if (reason === 'input' || reason === 'clear') {
+                                updateOtherActionField(index, 'name', newValue);
+                              }
+                            }}
+                            onChange={(event, selectedOption) => {
+                              if (!selectedOption) {
+                                updateOtherActionField(index, 'name', '');
+                                return;
+                              }
+                              applyOtherActionQuickOption(index, selectedOption);
+                            }}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                label="Action"
+                                placeholder="Type or pick"
+                                size="small"
+                              />
+                            )}
+                            selectOnFocus
+                            handleHomeEndKeys
                             fullWidth
                           />
                         </Box>
@@ -1668,6 +3271,12 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                           <Typography variant="subtitle1" fontWeight="bold" sx={{ color: 'text.primary' }}>
                             {action.name}
                           </Typography>
+                          {isCopilotDraftPendingApproval(action) && (
+                            <Chip label="Needs approval" size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />
+                          )}
+                          {isCopilotActionDoctorApproved(action) && (
+                            <Chip label="Doctor approved" size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />
+                          )}
                         </Box>
                       )}
                       {isEditing && (
@@ -1731,6 +3340,138 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     );
   };
 
+  const renderDoctorDecisionBar = () => {
+    if (!review || !isAiTriageReview(review) || review.is_finalized) {
+      return null;
+    }
+
+    const activeAction = Boolean(decisionBusyAction);
+    const hasPendingCopilotDrafts = pendingCopilotDraftActions.length > 0;
+    const primaryBlocker = approvalReadiness.blockers[0];
+    const primaryWarning = hasPendingCopilotDrafts
+      ? {
+          label: `${pendingCopilotDraftActions.length} realtime draft clinical ${pendingCopilotDraftActions.length === 1 ? 'action needs' : 'actions need'} doctor approval.`,
+        }
+      : approvalReadiness.warnings[0];
+    const statusLabel = hasPendingCopilotDrafts
+      ? 'Draft actions need approval'
+      : approvalReadiness.canApprove ? 'Ready for doctor decision' : 'Needs validation';
+    const statusColor = approvalReadiness.canApprove && !hasPendingCopilotDrafts ? 'success' : 'warning';
+
+    return (
+      <Box
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: (themeValue) => themeValue.zIndex.appBar - 1,
+          mb: 3,
+          p: { xs: 1.25, md: 1.5 },
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: approvalReadiness.canApprove && !hasPendingCopilotDrafts ? 'success.light' : 'warning.light',
+          borderRadius: 1,
+          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)',
+        }}
+      >
+        <Stack
+          direction={{ xs: 'column', lg: 'row' }}
+          spacing={1.25}
+          alignItems={{ xs: 'stretch', lg: 'center' }}
+          justifyContent="space-between"
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75, mb: 0.75 }}>
+              <Chip size="small" label={statusLabel} color={statusColor} variant={approvalReadiness.canApprove && !hasPendingCopilotDrafts ? 'filled' : 'outlined'} />
+              <Chip size="small" label={`${approvalReadiness.evidenceEntries.length} source anchors`} variant="outlined" />
+              {hasPendingCopilotDrafts && (
+                <Chip size="small" label={`${pendingCopilotDraftActions.length} drafts pending`} color="warning" variant="outlined" />
+              )}
+              <Chip
+                size="small"
+                label={`${approvalReadiness.missingInformation.length} missing`}
+                color={approvalReadiness.missingInformation.length ? 'warning' : 'default'}
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label={`${approvalReadiness.riskFlags.length} risk flags`}
+                color={approvalReadiness.riskFlags.length ? 'warning' : 'default'}
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label={`Quality ${aiGovernanceSignals.shortLabel}`}
+                color={aiGovernanceSignals.color}
+                variant={aiGovernanceSignals.variant}
+              />
+              <Chip
+                size="small"
+                label={`${aiGovernanceSignals.editBurden.percentChanged}% edits`}
+                color={aiGovernanceSignals.editBurden.color}
+                variant="outlined"
+              />
+            </Stack>
+            {(primaryBlocker || primaryWarning) && (
+              <Typography variant="caption" color={primaryBlocker ? 'warning.dark' : 'text.secondary'}>
+                {primaryBlocker?.label || primaryWarning?.label}
+              </Typography>
+            )}
+          </Box>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ flexShrink: 0 }}>
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={decisionBusyAction === 'approve_as_is' ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
+              onClick={handleApproveAiTriageAsIs}
+              disabled={activeAction || !approvalReadiness.canApprove || hasPendingCopilotDrafts}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<EditIcon />}
+              onClick={handleEditAiTriageDraft}
+              disabled={activeAction}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<HelpOutlineIcon />}
+              onClick={() => handleOpenMoreInfoDialog()}
+              disabled={activeAction}
+            >
+              Ask Patient
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<SmartToyIcon />}
+              onClick={handleStartLiveClarification}
+              disabled={activeAction}
+            >
+              Start Live
+            </Button>
+            <Button
+              variant="outlined"
+              color="warning"
+              size="small"
+              startIcon={<WarningIcon />}
+              onClick={handleEscalateAiTriage}
+              disabled={activeAction}
+            >
+              Escalate
+            </Button>
+          </Stack>
+        </Stack>
+      </Box>
+    );
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -1790,6 +3531,28 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                 variant="outlined"
               />
             )}
+            {isAiTriageReview(review) && (
+              <Chip
+                icon={<SmartToyIcon />}
+                label={getReviewOrigin(review) === 'hybrid' ? 'Hybrid Workflow' : 'AI Triage'}
+                color="info"
+                variant="outlined"
+              />
+            )}
+            {(() => {
+              const urgency = getUrgencyConfig(review);
+              if (!['urgent', 'emergency', 'critical'].includes(urgency.value)) {
+                return null;
+              }
+              return (
+                <Chip
+                  icon={<WarningIcon />}
+                  label={urgency.label}
+                  color={urgency.color}
+                  variant="outlined"
+                />
+              );
+            })()}
             {liveVisualCaptureCount > 0 && (
               <Chip
                 icon={<PhotoCameraIcon />}
@@ -1897,6 +3660,32 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         }
         return null;
       })()}
+
+      {renderDoctorDecisionBar()}
+
+      {isAiTriageReview(review) && !review.is_finalized && (
+        <AiTriageApprovalCockpit
+          review={review}
+          patientData={patientData}
+          busyAction={decisionBusyAction}
+          actionError={decisionError}
+          onApproveAsIs={handleApproveAiTriageAsIs}
+          onEditDraft={handleEditAiTriageDraft}
+          onRequestMoreInfo={handleOpenMoreInfoDialog}
+          onStartLiveClarification={handleStartLiveClarification}
+          onEscalate={handleEscalateAiTriage}
+        />
+      )}
+
+      {(isAiTriageReview(review) || !review.is_finalized || Array.isArray(review.workflow_events)) && (
+        <DoctorWorkflowAuditTrail review={review} />
+      )}
+
+      <PatientFollowThroughPanel
+        review={review}
+        patientData={patientData}
+        onRefresh={fetchReviewDetail}
+      />
 
       {/* Workflow Status Card */}
       {!review.is_finalized && (
@@ -2400,46 +4189,72 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             <Typography variant="h5" fontWeight="bold" color="primary">
               Doctor's Note
             </Typography>
-            {!editingNote ? (
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<ContentCopyIcon />}
-                  onClick={handleCopyNote}
-                  size="small"
-                  color={copySuccess ? "success" : "primary"}
-                >
-                  {copySuccess ? 'Copied!' : 'Copy Note'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleEditNote}
-                  size="small"
-                  disabled={review.is_finalized}
-                >
-                  Edit Note
-                </Button>
-              </Box>
-            ) : (
-              <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {pendingCopilotDraftActions.length > 0 && !review.is_finalized && (
                 <Button
                   variant="contained"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSaveNote}
+                  color="warning"
+                  startIcon={<CheckCircleIcon />}
+                  onClick={handleApproveCopilotDraftActions}
                   size="small"
                 >
-                  Save
+                  Approve {pendingCopilotDraftActions.length} Draft{pendingCopilotDraftActions.length === 1 ? '' : 's'}
                 </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleCancelEdit}
-                  size="small"
-                >
-                  Cancel
-                </Button>
-              </Box>
-            )}
+              )}
+              {!editingNote ? (
+                <>
+                  <Button
+                    variant="outlined"
+                    startIcon={<ContentCopyIcon />}
+                    onClick={handleCopyNote}
+                    size="small"
+                    color={copySuccess ? "success" : "primary"}
+                  >
+                    {copySuccess ? 'Copied!' : 'Copy Note'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={handleEditNote}
+                    size="small"
+                    disabled={review.is_finalized}
+                  >
+                    Edit Note
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSaveNote}
+                    size="small"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={handleCancelEdit}
+                    size="small"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </Box>
           </Box>
+          {pendingCopilotDraftActions.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2" fontWeight="bold">
+                Realtime draft clinical actions require doctor approval before finalization or patient follow-through.
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block' }}>
+                Pending: {pendingCopilotDraftActions.slice(0, 5).map((item) => item.label).join(', ')}
+                {pendingCopilotDraftActions.length > 5 ? `, +${pendingCopilotDraftActions.length - 5} more` : ''}
+              </Typography>
+            </Alert>
+          )}
+          {renderClinicalFeedbackPanel()}
+          {renderOutcomeAdjudicationPanel()}
           {renderSOAPSection('Subjective', review.doctor_note.subjective, 'subjective', editingNote)}
           {renderSOAPSection('Objective', review.doctor_note.objective, 'objective', editingNote)}
           {renderSOAPSection('Assessment', review.doctor_note.assessment, 'assessment', editingNote)}
@@ -2549,6 +4364,89 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         </DialogActions>
       </Dialog>
 
+      {/* Request More Information Dialog */}
+      <Dialog open={showMoreInfoDialog} onClose={() => setShowMoreInfoDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Request More Information</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              Send targeted clarification questions back to the patient or caregiver before approving this AI triage review.
+            </Typography>
+          </Alert>
+          <Stack spacing={2}>
+            {moreInfoQuestions.map((item, index) => (
+              <Box key={`more-info-${index}`} sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={7}>
+                    <TextField
+                      label="Question"
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      value={item.question}
+                      onChange={(event) => {
+                        setMoreInfoQuestions((prev) => prev.map((question, questionIndex) => (
+                          questionIndex === index ? { ...question, question: event.target.value } : question
+                        )));
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={5}>
+                    <TextField
+                      label="Reason"
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      value={item.reason}
+                      onChange={(event) => {
+                        setMoreInfoQuestions((prev) => prev.map((question, questionIndex) => (
+                          questionIndex === index ? { ...question, reason: event.target.value } : question
+                        )));
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      color="error"
+                      size="small"
+                      onClick={() => {
+                        setMoreInfoQuestions((prev) => prev.filter((_, questionIndex) => questionIndex !== index));
+                      }}
+                    >
+                      Remove Question
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                setMoreInfoQuestions((prev) => [
+                  ...prev,
+                  { question: '', reason: '' },
+                ]);
+              }}
+            >
+              Add Question
+            </Button>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowMoreInfoDialog(false)} disabled={decisionBusyAction === 'request_more_info'}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmitMoreInfoRequest}
+            disabled={decisionBusyAction === 'request_more_info'}
+          >
+            {decisionBusyAction === 'request_more_info' ? 'Sending...' : 'Send Questions'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Book Appointment Modal */}
       <BookAppointmentModal
         open={isBookingModalOpen}
@@ -2610,6 +4508,25 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         patientAge={review?.patient_age || review?.age || 'Unspecified'}
         publicId={publicId}
         patientId={review?.patient || review?.patient_id}
+        mode={liveCopilotMode}
+        reviewOrigin={getReviewOrigin(review)}
+        triageContext={{
+          urgency: getUrgencyConfig(review),
+          missingInformation: buildMoreInfoQuestions(review),
+          riskFlags: getRiskFlags(review),
+          evidenceEntries: sourceEvidenceEntries,
+          approvalReadiness,
+          generatedNote: getGeneratedNote(review),
+          patientStory: getPatientStory(review),
+          submitter: {
+            submitted_by: review?.submitted_by || review?.source_channel || '',
+            caregiver_relationship: review?.caregiver_relationship || '',
+            caregiver_name: caregiverContext.caregiverName || '',
+            patient_present: caregiverContext.patientPresent,
+            patient_identity_confirmed: caregiverContext.patientIdentityConfirmed,
+            authorized_recipient: caregiverContext.authorizedRecipient,
+          },
+        }}
         onSync={handleSyncCopilotOrders}
       />
     </>

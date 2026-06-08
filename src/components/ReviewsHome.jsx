@@ -32,11 +32,32 @@ import CreateEncounterModal from './CreateEncounterModal';
 import RecordingModal from './RecordingModal';
 import WorkflowStepper from './WorkflowStepper';
 import ReviewDetail from './ReviewDetail';
+import EnterpriseWorkflowInsights from './EnterpriseWorkflowInsights';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
+import {
+  getCaregiverContext,
+  getAiGovernanceSignals,
+  getDoctorQueuePriority,
+  getFollowThroughAttention,
+  getFollowThroughOperationalSignals,
+  getFollowThroughProgress,
+  getFollowThroughStatusConfig,
+  getMissingInformation,
+  getReviewOrigin,
+  getRiskFlags,
+  getUrgencyConfig,
+  getWhatsAppFollowThroughAgentState,
+  isAiTriageReview,
+  REVIEW_ORIGINS,
+  sortReviewsForDoctorQueue,
+} from '../utils/aiReviewWorkflow';
 
 const SIDEBAR_WIDTH = 360;
-const PROVIDER_REVIEW_STREAM_URL = 'https://api.prestigedelta.com/provider-reviews/status-stream/?hours=168&limit=100';
+const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
+const buildBackendUrl = (path) => `${BACKEND_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+const PROVIDER_REVIEWS_URL = buildBackendUrl('/provider-reviews/?hours=168');
+const PROVIDER_REVIEW_STREAM_URL = buildBackendUrl('/provider-reviews/status-stream/?hours=168&limit=100');
 
 const formatStatusLabel = (value) => {
   if (!value) return 'Unknown';
@@ -59,6 +80,43 @@ const formatQueueDateTime = (value) => {
     hour: 'numeric',
     minute: '2-digit',
   });
+};
+
+const getQueueCompletionIntent = (completion) => String(
+  completion?.completion_intent ||
+  completion?.intent ||
+  completion?.metadata?.completion_intent ||
+  completion?.metadata?.intent ||
+  ''
+).toLowerCase();
+
+const getQueueCompletionTimestamp = (completion) => (
+  completion?.completed_at ||
+  completion?.confirmed_at ||
+  completion?.created_at ||
+  completion?.updated_at ||
+  null
+);
+
+const getQueueCompletionDisplay = (completion) => {
+  const intent = getQueueCompletionIntent(completion);
+  const completed = completion?.completed ?? completion?.is_completed ?? completion?.metadata?.completed;
+  if (
+    intent.includes('safety_escalation') ||
+    completion?.should_escalate === true ||
+    completion?.metadata?.should_escalate === true
+  ) {
+    return { verb: 'reported safety concern', color: 'error.main' };
+  }
+  if (
+    completed === false ||
+    intent.includes('unable_to_complete') ||
+    intent.includes('barrier') ||
+    intent.includes('not_done')
+  ) {
+    return { verb: 'reported barrier', color: 'warning.main' };
+  }
+  return { verb: 'completed', color: 'success.main' };
 };
 
 const getLiveVisitStateConfig = (review) => {
@@ -188,6 +246,27 @@ const buildQueueSummaryFromReviews = (reviews, baseSummary = null) => {
     live_visit_ready_count: 0,
     scheduled_callback_count: 0,
     requested_callback_count: 0,
+    ai_triage_count: 0,
+    urgent_count: 0,
+    needs_info_count: 0,
+    follow_through_sent_count: 0,
+    follow_through_active_count: 0,
+    follow_through_completed_count: 0,
+    follow_through_attention_count: 0,
+    whatsapp_safety_escalation_count: 0,
+    whatsapp_completion_barrier_count: 0,
+    caregiver_review_count: 0,
+    caregiver_authorization_warning_count: 0,
+    follow_through_task_count: 0,
+    follow_through_completed_task_count: 0,
+    follow_through_completion_rate: 0,
+    whatsapp_agent_active_count: 0,
+    whatsapp_agent_completion_ready_count: 0,
+    whatsapp_agent_completion_count: 0,
+    high_governance_risk_count: 0,
+    governance_watch_count: 0,
+    ai_feedback_captured_count: 0,
+    ai_corrected_count: 0,
   };
 
   if (!Array.isArray(reviews) || reviews.length === 0) {
@@ -220,7 +299,77 @@ const buildQueueSummaryFromReviews = (reviews, baseSummary = null) => {
     if (review?.callback_status === 'booking_requested') {
       computedSummary.requested_callback_count += 1;
     }
+
+    if (isAiTriageReview(review)) {
+      computedSummary.ai_triage_count += 1;
+    }
+
+    const urgency = getUrgencyConfig(review);
+    const caregiverContext = getCaregiverContext(review);
+    if (urgency.value === 'urgent' || urgency.value === 'emergency' || urgency.value === 'critical') {
+      computedSummary.urgent_count += 1;
+    }
+
+    if (caregiverContext.isCaregiverSubmitted) {
+      computedSummary.caregiver_review_count += 1;
+    }
+    if (caregiverContext.authorizationBlocked || caregiverContext.authorizationUnknown || caregiverContext.needsRelationship) {
+      computedSummary.caregiver_authorization_warning_count += 1;
+    }
+
+    if (getMissingInformation(review).length > 0) {
+      computedSummary.needs_info_count += 1;
+    }
+
+    const followThrough = getFollowThroughProgress(review);
+    const followThroughAttention = getFollowThroughAttention(review);
+    const followThroughSignals = getFollowThroughOperationalSignals(review, { attention: followThroughAttention });
+    const whatsAppAgent = getWhatsAppFollowThroughAgentState(review);
+    const governance = getAiGovernanceSignals(review);
+    if (followThrough.sent) {
+      computedSummary.follow_through_sent_count += 1;
+      computedSummary.follow_through_task_count += followThrough.totalTasks;
+      computedSummary.follow_through_completed_task_count += followThrough.completedTasks;
+    }
+    if (['active', 'in_progress'].includes(followThrough.status)) {
+      computedSummary.follow_through_active_count += 1;
+    }
+    if (followThrough.status === 'completed') {
+      computedSummary.follow_through_completed_count += 1;
+    }
+    if (followThroughAttention.needsAttention) {
+      computedSummary.follow_through_attention_count += 1;
+    }
+    if (followThroughSignals.isSafetyEscalation) {
+      computedSummary.whatsapp_safety_escalation_count += 1;
+    }
+    if (followThroughSignals.isCompletionBarrier) {
+      computedSummary.whatsapp_completion_barrier_count += 1;
+    }
+    if (whatsAppAgent.canMarkItemsComplete) {
+      computedSummary.whatsapp_agent_active_count += 1;
+    }
+    if (whatsAppAgent.activeTaskReadyForCompletion) {
+      computedSummary.whatsapp_agent_completion_ready_count += 1;
+    }
+    computedSummary.whatsapp_agent_completion_count += whatsAppAgent.completedByWhatsAppCount;
+    if (governance.qualityRisk === 'high') {
+      computedSummary.high_governance_risk_count += 1;
+    }
+    if (governance.qualityRisk === 'medium') {
+      computedSummary.governance_watch_count += 1;
+    }
+    if (governance.feedbackCaptured) {
+      computedSummary.ai_feedback_captured_count += 1;
+    }
+    if (governance.acceptanceState === 'corrected') {
+      computedSummary.ai_corrected_count += 1;
+    }
   });
+
+  computedSummary.follow_through_completion_rate = computedSummary.follow_through_task_count
+    ? Math.round((computedSummary.follow_through_completed_task_count / computedSummary.follow_through_task_count) * 100)
+    : 0;
 
   return {
     ...(baseSummary || {}),
@@ -295,7 +444,7 @@ const ReviewsHome = () => {
     }
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/provider-reviews/?hours=168', {
+      const response = await fetch(PROVIDER_REVIEWS_URL, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -363,6 +512,13 @@ const ReviewsHome = () => {
       }
 
       setQueueSummary(payload.summary || null);
+
+      if (Array.isArray(payload.results)) {
+        setReviews(payload.results);
+        lastFetchRef.current = Date.now();
+        setLoading(false);
+        return;
+      }
 
       if (Date.now() - lastFetchRef.current > 1000) {
         fetchReviews({ showLoading: false });
@@ -477,6 +633,44 @@ const ReviewsHome = () => {
       filtered = filtered.filter((review) => (review.review_status || 'pending') === 'pending');
     } else if (filter === 'in_review') {
       filtered = filtered.filter((review) => review.review_status === 'in_review');
+    } else if (filter === 'ai_triage') {
+      filtered = filtered.filter((review) => isAiTriageReview(review));
+    } else if (filter === 'urgent') {
+      filtered = filtered.filter((review) => {
+        const urgency = getUrgencyConfig(review);
+        return ['urgent', 'emergency', 'critical'].includes(urgency.value) || getRiskFlags(review).length > 0;
+      });
+    } else if (filter === 'needs_info') {
+      filtered = filtered.filter((review) => getMissingInformation(review).length > 0 || review.review_status === 'needs_patient_info');
+    } else if (filter === 'caregiver') {
+      filtered = filtered.filter((review) => getCaregiverContext(review).isCaregiverSubmitted);
+    } else if (filter === 'caregiver_auth') {
+      filtered = filtered.filter((review) => {
+        const caregiverContext = getCaregiverContext(review);
+        return caregiverContext.authorizationBlocked || caregiverContext.authorizationUnknown || caregiverContext.needsRelationship;
+      });
+    } else if (filter === 'ready_to_approve') {
+      filtered = filtered.filter((review) => {
+        const status = review.review_status || (review.is_finalized ? 'finalized' : 'pending');
+        return isAiTriageReview(review)
+          && !review.is_finalized
+          && !['needs_patient_info', 'escalated', 'rejected', 'closed'].includes(status)
+          && getRiskFlags(review).length === 0;
+      });
+    } else if (filter === 'follow_through_active') {
+      filtered = filtered.filter((review) => ['active', 'in_progress'].includes(getFollowThroughProgress(review).status));
+    } else if (filter === 'follow_through_attention') {
+      filtered = filtered.filter((review) => getFollowThroughAttention(review).needsAttention);
+    } else if (filter === 'whatsapp_safety_escalation') {
+      filtered = filtered.filter((review) => getFollowThroughOperationalSignals(review).isSafetyEscalation);
+    } else if (filter === 'whatsapp_completion_barrier') {
+      filtered = filtered.filter((review) => getFollowThroughOperationalSignals(review).isCompletionBarrier);
+    } else if (filter === 'follow_through_completed') {
+      filtered = filtered.filter((review) => getFollowThroughProgress(review).status === 'completed');
+    } else if (filter === 'whatsapp_followup') {
+      filtered = filtered.filter((review) => getWhatsAppFollowThroughAgentState(review).canMarkItemsComplete);
+    } else if (filter === 'quality_risk') {
+      filtered = filtered.filter((review) => ['high', 'medium'].includes(getAiGovernanceSignals(review).qualityRisk));
     }
 
     if (searchTerm) {
@@ -488,7 +682,7 @@ const ReviewsHome = () => {
       );
     }
 
-    return filtered.sort((a, b) => new Date(b.created) - new Date(a.created));
+    return sortReviewsForDoctorQueue(filtered);
   }, [effectiveReviews, filter, searchTerm]);
 
   const handleReviewSelect = (reviewPublicId) => {
@@ -657,6 +851,97 @@ const ReviewsHome = () => {
             size="small"
             sx={{ fontSize: '0.8rem' }}
           />
+          <Chip
+            label="AI Triage"
+            onClick={() => setFilter('ai_triage')}
+            color={filter === 'ai_triage' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Urgent"
+            onClick={() => setFilter('urgent')}
+            color={filter === 'urgent' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Needs Info"
+            onClick={() => setFilter('needs_info')}
+            color={filter === 'needs_info' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Caregiver"
+            onClick={() => setFilter('caregiver')}
+            color={filter === 'caregiver' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Caregiver Auth"
+            onClick={() => setFilter('caregiver_auth')}
+            color={filter === 'caregiver_auth' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Ready"
+            onClick={() => setFilter('ready_to_approve')}
+            color={filter === 'ready_to_approve' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Follow-through"
+            onClick={() => setFilter('follow_through_active')}
+            color={filter === 'follow_through_active' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Needs Follow-up"
+            onClick={() => setFilter('follow_through_attention')}
+            color={filter === 'follow_through_attention' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="WhatsApp Safety"
+            onClick={() => setFilter('whatsapp_safety_escalation')}
+            color={filter === 'whatsapp_safety_escalation' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Completion Barriers"
+            onClick={() => setFilter('whatsapp_completion_barrier')}
+            color={filter === 'whatsapp_completion_barrier' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Completed Tasks"
+            onClick={() => setFilter('follow_through_completed')}
+            color={filter === 'follow_through_completed' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="WhatsApp AI"
+            onClick={() => setFilter('whatsapp_followup')}
+            color={filter === 'whatsapp_followup' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
+          <Chip
+            label="Quality Risk"
+            onClick={() => setFilter('quality_risk')}
+            color={filter === 'quality_risk' ? 'primary' : 'default'}
+            size="small"
+            sx={{ fontSize: '0.8rem' }}
+          />
         </Stack>
 
         {effectiveQueueSummary && (
@@ -682,6 +967,159 @@ const ReviewsHome = () => {
               variant="outlined"
               sx={{ fontSize: '0.75rem' }}
             />
+            {!!effectiveQueueSummary.ai_triage_count && (
+              <Chip
+                label={`AI Triage ${effectiveQueueSummary.ai_triage_count}`}
+                size="small"
+                color="info"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.urgent_count && (
+              <Chip
+                label={`Urgent ${effectiveQueueSummary.urgent_count}`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.needs_info_count && (
+              <Chip
+                label={`Needs Info ${effectiveQueueSummary.needs_info_count}`}
+                size="small"
+                color="secondary"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.caregiver_review_count && (
+              <Chip
+                label={`Caregiver ${effectiveQueueSummary.caregiver_review_count}`}
+                size="small"
+                color="secondary"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.caregiver_authorization_warning_count && (
+              <Chip
+                label={`Caregiver Auth ${effectiveQueueSummary.caregiver_authorization_warning_count}`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.follow_through_active_count && (
+              <Chip
+                label={`Follow-through ${effectiveQueueSummary.follow_through_active_count}`}
+                size="small"
+                color="primary"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.follow_through_attention_count && (
+              <Chip
+                label={`Needs Follow-up ${effectiveQueueSummary.follow_through_attention_count}`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.whatsapp_safety_escalation_count && (
+              <Chip
+                label={`WhatsApp Safety ${effectiveQueueSummary.whatsapp_safety_escalation_count}`}
+                size="small"
+                color="error"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.whatsapp_completion_barrier_count && (
+              <Chip
+                label={`Completion Barriers ${effectiveQueueSummary.whatsapp_completion_barrier_count}`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.follow_through_completed_count && (
+              <Chip
+                label={`Completed Tasks ${effectiveQueueSummary.follow_through_completed_count}`}
+                size="small"
+                color="success"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.whatsapp_agent_active_count && (
+              <Chip
+                label={`WhatsApp AI ${effectiveQueueSummary.whatsapp_agent_active_count}`}
+                size="small"
+                color="info"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.whatsapp_agent_completion_ready_count && (
+              <Chip
+                label={`Completion Ready ${effectiveQueueSummary.whatsapp_agent_completion_ready_count}`}
+                size="small"
+                color="success"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.whatsapp_agent_completion_count && (
+              <Chip
+                label={`WhatsApp Done ${effectiveQueueSummary.whatsapp_agent_completion_count}`}
+                size="small"
+                color="success"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.high_governance_risk_count && (
+              <Chip
+                label={`Quality Risk ${effectiveQueueSummary.high_governance_risk_count}`}
+                size="small"
+                color="error"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.governance_watch_count && (
+              <Chip
+                label={`Governance Watch ${effectiveQueueSummary.governance_watch_count}`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.ai_feedback_captured_count && (
+              <Chip
+                label={`AI Feedback ${effectiveQueueSummary.ai_feedback_captured_count}`}
+                size="small"
+                color="info"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
+            {!!effectiveQueueSummary.ai_corrected_count && (
+              <Chip
+                label={`AI Corrected ${effectiveQueueSummary.ai_corrected_count}`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem' }}
+              />
+            )}
             {!!effectiveQueueSummary.closed_count && (
               <Chip
                 label={`Closed ${effectiveQueueSummary.closed_count}`}
@@ -760,6 +1198,21 @@ const ReviewsHome = () => {
                 {(() => {
                   const statusConfig = getReviewStatusConfig(review);
                   const liveVisitState = getLiveVisitStateConfig(review);
+                  const origin = getReviewOrigin(review);
+                  const caregiverContext = getCaregiverContext(review);
+                  const urgency = getUrgencyConfig(review);
+                  const riskFlags = getRiskFlags(review);
+                  const missingInformation = getMissingInformation(review);
+                  const followThrough = getFollowThroughProgress(review);
+                  const followThroughAttention = getFollowThroughAttention(review);
+                  const followThroughConfig = getFollowThroughStatusConfig(followThrough);
+                  const whatsAppAgent = getWhatsAppFollowThroughAgentState(review);
+                  const governance = getAiGovernanceSignals(review);
+                  const queuePriority = getDoctorQueuePriority(review);
+                  const latestCompletionActor = followThrough.latestCompletion?.actor_name
+                    || (followThrough.latestCompletion?.actor_role ? formatStatusLabel(followThrough.latestCompletion.actor_role) : 'Patient');
+                  const latestCompletionDisplay = getQueueCompletionDisplay(followThrough.latestCompletion);
+                  const latestCompletionTimestamp = getQueueCompletionTimestamp(followThrough.latestCompletion);
                   return (
                 <ListItemButton
                   selected={selectedReviewId === review.public_id}
@@ -822,12 +1275,108 @@ const ReviewsHome = () => {
                           {new Date(review.created).toLocaleDateString()}
                         </Typography>
                         <Stack direction="row" spacing={0.5} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
+                          <Chip
+                            label={queuePriority.label}
+                            size="small"
+                            color={queuePriority.color}
+                            variant={queuePriority.rank <= 4 ? 'filled' : 'outlined'}
+                            sx={{ height: 22, fontSize: '0.7rem' }}
+                          />
                           {review.conducted_by_ai && (
                             <Chip
                               label="AI Review"
                               size="small"
                               color="info"
                               variant="outlined"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {origin === REVIEW_ORIGINS.AI_TRIAGE && (
+                            <Chip
+                              label="AI Triage"
+                              size="small"
+                              color="info"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {origin === REVIEW_ORIGINS.HYBRID && (
+                            <Chip
+                              label="Hybrid"
+                              size="small"
+                              color="secondary"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {caregiverContext.isCaregiverSubmitted && (
+                            <Chip
+                              label={caregiverContext.relationship ? `Caregiver: ${formatStatusLabel(caregiverContext.relationship)}` : 'Caregiver'}
+                              size="small"
+                              color={caregiverContext.needsRelationship ? 'warning' : 'secondary'}
+                              variant="outlined"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {caregiverContext.isCaregiverSubmitted && caregiverContext.authorizedRecipient !== true && (
+                            <Chip
+                              label={caregiverContext.authorizedRecipient === false ? 'Unauthorized' : 'Auth unknown'}
+                              size="small"
+                              color={caregiverContext.authorizedRecipient === false ? 'error' : 'warning'}
+                              variant="outlined"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {['urgent', 'emergency', 'critical'].includes(urgency.value) && (
+                            <Chip
+                              label={urgency.label}
+                              size="small"
+                              color={urgency.color}
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {riskFlags.length > 0 && (
+                            <Chip
+                              label={`${riskFlags.length} Risk ${riskFlags.length === 1 ? 'Flag' : 'Flags'}`}
+                              size="small"
+                              color="warning"
+                              variant="outlined"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {missingInformation.length > 0 && (
+                            <Chip
+                              label={`${missingInformation.length} Missing`}
+                              size="small"
+                              color="secondary"
+                              variant="outlined"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {followThrough.sent && (
+                            <Chip
+                              label={followThrough.totalTasks
+                                ? `${followThroughAttention.needsAttention ? followThroughAttention.shortLabel : followThroughConfig.shortLabel} ${followThrough.completedTasks}/${followThrough.totalTasks}`
+                                : followThroughAttention.needsAttention ? followThroughAttention.shortLabel : followThroughConfig.shortLabel}
+                              size="small"
+                              color={followThroughAttention.needsAttention ? followThroughAttention.color : followThroughConfig.color}
+                              variant={followThroughAttention.needsAttention ? followThroughAttention.variant : followThroughConfig.variant}
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {whatsAppAgent.canMarkItemsComplete && (
+                            <Chip
+                              label={whatsAppAgent.activeTaskReadyForCompletion ? 'WhatsApp ready' : 'WhatsApp loop'}
+                              size="small"
+                              color={whatsAppAgent.activeTaskReadyForCompletion ? 'success' : 'info'}
+                              variant="outlined"
+                              sx={{ height: 22, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {isAiTriageReview(review) && governance.qualityRisk !== 'low' && (
+                            <Chip
+                              label={governance.shortLabel}
+                              size="small"
+                              color={governance.color}
+                              variant={governance.variant}
                               sx={{ height: 22, fontSize: '0.7rem' }}
                             />
                           )}
@@ -858,6 +1407,56 @@ const ReviewsHome = () => {
                             />
                           )}
                         </Stack>
+                        {queuePriority.reasons.length > 0 && (
+                          <Typography
+                            variant="caption"
+                            color={queuePriority.rank <= 3 ? 'warning.main' : 'text.secondary'}
+                            display="block"
+                            sx={{ mt: 0.65, fontSize: '0.72rem' }}
+                          >
+                            {queuePriority.reasons[0]}
+                          </Typography>
+                        )}
+                        {followThrough.latestCompletion && latestCompletionTimestamp && (
+                          <Typography
+                            variant="caption"
+                            color={latestCompletionDisplay.color}
+                            display="block"
+                            sx={{ mt: 0.75, fontSize: '0.72rem' }}
+                          >
+                            {`${latestCompletionActor} ${latestCompletionDisplay.verb} ${formatQueueDateTime(latestCompletionTimestamp)}`}
+                          </Typography>
+                        )}
+                        {followThroughAttention.needsAttention && (
+                          <Typography
+                            variant="caption"
+                            color={followThroughAttention.color === 'error' ? 'error.main' : 'warning.main'}
+                            display="block"
+                            sx={{ mt: 0.75, fontSize: '0.72rem' }}
+                          >
+                            {followThroughAttention.reasons[0] || followThroughAttention.nextAction}
+                          </Typography>
+                        )}
+                        {whatsAppAgent.nextTask && followThrough.sent && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            display="block"
+                            sx={{ mt: 0.75, fontSize: '0.72rem' }}
+                          >
+                            {`WhatsApp next: ${whatsAppAgent.nextTask.title}`}
+                          </Typography>
+                        )}
+                        {isAiTriageReview(review) && governance.reasons.length > 0 && (
+                          <Typography
+                            variant="caption"
+                            color={governance.qualityRisk === 'high' ? 'error.main' : 'warning.main'}
+                            display="block"
+                            sx={{ mt: 0.75, fontSize: '0.72rem' }}
+                          >
+                            {governance.reasons[0]}
+                          </Typography>
+                        )}
                         {!!(review.live_transcript_count || review.live_tool_activity_count) && (
                           <Typography
                             variant="caption"
@@ -906,17 +1505,27 @@ const ReviewsHome = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
+        justifyContent: 'flex-start',
+        minHeight: '100%',
         width: '100%',
-        p: 3,
+        p: { xs: 2, md: 3 },
         textAlign: 'center',
-        px: 2,
       }}
     >
+      <EnterpriseWorkflowInsights
+        reviews={effectiveReviews}
+        queueSummary={effectiveQueueSummary}
+        onFilter={(nextFilter) => {
+          setFilter(nextFilter);
+          if (isMobile) {
+            setSidebarOpen(true);
+          }
+        }}
+      />
       <DescriptionIcon sx={{ 
         fontSize: { xs: 64, sm: 100 }, 
         color: 'text.disabled', 
+        mt: 2,
         mb: 2
       }} />
       <Typography 

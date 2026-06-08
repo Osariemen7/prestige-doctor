@@ -1,4 +1,6 @@
-# Specification: End-to-End Gemini Live Function Calling & EMR Integration
+# Legacy Specification: Gemini Live Function Calling & EMR Integration
+
+> Status: legacy reference only. Gemini Live is not the primary path because of billing constraints. Use `OPENAI_REALTIME_BACKEND_SPEC.md` and `AI_TRIAGE_REALTIME_END_TO_END_IMPLEMENTATION_PLAN.md` for new implementation work.
 
 This document outlines the backend API specifications required to support real-time audio triage, Ranked Differential Diagnoses, and EMR tool execution in the Doctor App (`prestige-doctor`) using **Google Gemini Live (Bidirectional WebSockets)**.
 

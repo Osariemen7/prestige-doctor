@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
   Paper,
   IconButton,
   Button,
-  Grid,
   Chip,
   Checkbox,
   LinearProgress,
@@ -34,7 +33,6 @@ import {
   HelpOutline as QuestionIcon,
   GraphicEq as AudioIcon,
   CheckCircleOutline as CheckIcon,
-  WarningAmber as WarningIcon,
   HistoryEdu as HistoryIcon,
   Chat as ChatIcon,
   ExpandMore as ExpandMoreIcon,
@@ -42,8 +40,23 @@ import {
   PlaylistAddCheck as ActionsIcon
 } from '@mui/icons-material';
 
-import { forceClinicalDocumentation } from '../services/geminiLiveService';
 import { getUser } from '../api';
+import {
+  createRealtimeSession,
+  forceOpenAiClinicalDocumentation,
+  saveLiveCopilotArtifacts,
+} from '../services/doctorWorkflowApi';
+import {
+  createOpenAiRealtimePeerSession,
+  extractCopilotUpdateFromRealtimeEvent,
+  hasRealtimeClientSecret,
+} from '../services/openAiRealtimeClient';
+import {
+  buildCopilotDraftSyncPayload,
+  buildRealtimeSessionPayload,
+  getLiveCopilotModeConfig,
+  normalizeTriageContextForRealtime,
+} from '../utils/liveCopilotWorkflow';
 
 
 const MOCK_DIALOGUE_FLOW = [
@@ -129,7 +142,7 @@ const MOCK_DIALOGUE_FLOW = [
     ],
     probingQuestions: [
       { id: 5, text: "When was the last time you had anything to eat or drink?", rationale: "Pre-operative fasting checklist (NPO)." },
-      { id: 6, text: "Do you have any known allergies, especially to antibiotics or pain medications?", rationale: "Ensure safe medication ordering." }
+      { id: 6, text: "Do you have any known allergies, especially to antibiotics or pain medications?", rationale: "Ensure safe medication planning." }
     ],
     prescriptions: [
       { name: 'Paracetamol IV', dosage: '1g', interval: 'Q8h', selected: true },
@@ -150,6 +163,219 @@ const MOCK_DIALOGUE_FLOW = [
   }
 ];
 
+const asArray = (value) => {
+  if (!value) return [];
+  return Array.isArray(value) ? value.filter(Boolean) : [value].filter(Boolean);
+};
+
+const textValue = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    return (
+      value.text ||
+      value.title ||
+      value.label ||
+      value.name ||
+      value.description ||
+      value.question ||
+      value.reason ||
+      ''
+    ).toString().trim();
+  }
+  return String(value).trim();
+};
+
+const normalizePercent = (value, fallback = 30) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  const percent = numeric <= 1 ? numeric * 100 : numeric;
+  return Math.max(1, Math.min(99, Math.round(percent)));
+};
+
+const normalizeCopilotSummaryList = (value) => asArray(value)
+  .map(textValue)
+  .filter(Boolean)
+  .slice(0, 5);
+
+const firstPresent = (...values) => values.find((value) => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === 'object') return Object.keys(value).length > 0;
+  return value !== undefined && value !== null && value !== '';
+});
+
+const normalizeRiskFlags = (value) => asArray(value)
+  .map((item) => {
+    if (typeof item === 'string') {
+      return { label: item.trim(), severity: 'watch', evidence: '' };
+    }
+    return {
+      label: textValue(item) || 'Clinical risk flag',
+      severity: String(item?.severity || item?.risk_level || item?.urgency || 'watch').toLowerCase(),
+      evidence: textValue(item?.evidence || item?.rationale || item?.detail || item?.notes),
+    };
+  })
+  .filter((item) => item.label)
+  .slice(0, 6);
+
+const normalizeDifferentials = (update) => {
+  const source =
+    update?.differentials ||
+    update?.differential_diagnoses ||
+    update?.differentialDiagnoses ||
+    update?.draftAssessment?.differentials ||
+    update?.draftAssessment?.differential_diagnosis ||
+    update?.draftAssessment?.differentialDiagnosis ||
+    update?.draft_assessment?.differentials ||
+    update?.draft_assessment?.differential_diagnosis ||
+    update?.draft_assessment?.differentialDiagnosis ||
+    [];
+
+  return asArray(source)
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        return {
+          name: item.trim(),
+          probability: Math.max(10, 45 - index * 10),
+          logic: 'Realtime copilot suggestion.',
+        };
+      }
+      return {
+        name: textValue(item?.name || item?.diagnosis || item?.title || item?.label) || `Differential ${index + 1}`,
+        probability: normalizePercent(item?.probability || item?.confidence || item?.score, Math.max(10, 45 - index * 10)),
+        logic: textValue(item?.logic || item?.rationale || item?.evidence || item?.reasoning || item?.reason) || 'Realtime copilot suggestion.',
+      };
+    })
+    .filter((item) => item.name)
+    .slice(0, 6);
+};
+
+const normalizeSuggestedQuestions = (update) => {
+  const source = (
+    update?.suggested_questions ||
+    update?.suggestedQuestions ||
+    update?.questions ||
+    update?.missing_information ||
+    update?.missingInformation ||
+    []
+  );
+  return asArray(source)
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        return {
+          id: `rt-question-${Date.now()}-${index}`,
+          text: item.trim(),
+          rationale: 'Realtime missing-data prompt.',
+        };
+      }
+      return {
+        id: item?.id || `rt-question-${Date.now()}-${index}`,
+        text: textValue(item?.question || item?.text || item?.label || item?.title),
+        rationale: textValue(item?.rationale || item?.reason || item?.detail || item?.description) || 'Realtime missing-data prompt.',
+        asked: Boolean(item?.asked),
+      };
+    })
+    .filter((item) => item.text)
+    .slice(0, 8);
+};
+
+const actionType = (item) => String(item?.type || item?.action_type || item?.category || '').toLowerCase();
+
+const normalizeCandidateActions = (update) => {
+  const expandActionSource = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'object') return [{ type: 'counselling', title: textValue(value) }];
+
+    const directTitle = textValue(value?.title || value?.name || value?.label || value?.medication_name || value?.test_type);
+    if (directTitle) return [value];
+
+    return Object.entries(value).flatMap(([category, items]) => asArray(items).map((item) => {
+      if (item && typeof item === 'object') {
+        return { ...item, type: item.type || item.action_type || category };
+      }
+      return { type: category, title: textValue(item) };
+    }));
+  };
+
+  const source = [
+    ...expandActionSource(update?.candidate_actions || update?.candidateActions),
+    ...expandActionSource(update?.draft_actions || update?.draftActions),
+    ...expandActionSource(update?.orders),
+    ...asArray(update?.prescriptions).map((item) => ({ ...(typeof item === 'object' ? item : { title: item }), type: 'prescription' })),
+    ...asArray(update?.investigations).map((item) => ({ ...(typeof item === 'object' ? item : { title: item }), type: 'investigation' })),
+    ...asArray(update?.referrals).map((item) => ({ ...(typeof item === 'object' ? item : { title: item }), type: 'referral' })),
+  ];
+  const prescriptions = [];
+  const investigations = [];
+  const otherActions = [];
+
+  source.forEach((item) => {
+    const type = actionType(item);
+    const title = textValue(item?.title || item?.name || item?.label || item?.medication_name || item?.test_type);
+    if (!title) return;
+
+    if (/medication|prescription|drug|dose/.test(type)) {
+      prescriptions.push({
+        name: title,
+        dosage: textValue(item?.dosage || item?.dose) || 'As directed',
+        interval: textValue(item?.interval || item?.frequency) || 'As directed',
+        selected: Boolean(item?.selected),
+      });
+      return;
+    }
+
+    if (/investigation|lab|test|imaging|biomarker/.test(type)) {
+      investigations.push({
+        name: title,
+        reason: textValue(item?.reason || item?.rationale || item?.detail || item?.description) || 'Realtime clinical suggestion',
+        selected: Boolean(item?.selected),
+      });
+      return;
+    }
+
+    otherActions.push({
+      type: /referral/.test(type) ? 'referral' : /procedure|vital|monitor/.test(type) ? 'procedures' : 'counselling',
+      name: title,
+      notes: textValue(item?.notes || item?.reason || item?.rationale || item?.detail || item?.description),
+      selected: Boolean(item?.selected),
+    });
+  });
+
+  return { prescriptions, investigations, otherActions };
+};
+
+const mergeClinicalItems = (current, incoming, keyName = 'name') => {
+  if (!incoming.length) return current;
+  const byKey = new Map();
+  current.forEach((item) => {
+    const key = String(item?.[keyName] || item?.name || item?.title || '').toLowerCase();
+    if (key) byKey.set(key, item);
+  });
+
+  const merged = [...current];
+  incoming.forEach((item) => {
+    const key = String(item?.[keyName] || item?.name || item?.title || '').toLowerCase();
+    if (!key) return;
+    const existingIndex = merged.findIndex((candidate) => (
+      String(candidate?.[keyName] || candidate?.name || candidate?.title || '').toLowerCase() === key
+    ));
+    if (existingIndex >= 0) {
+      merged[existingIndex] = {
+        ...merged[existingIndex],
+        ...item,
+        selected: merged[existingIndex].selected || item.selected,
+        asked: merged[existingIndex].asked || item.asked,
+      };
+    } else if (!byKey.has(key)) {
+      merged.push(item);
+      byKey.set(key, item);
+    }
+  });
+  return merged.slice(0, 12);
+};
+
 const LiveCopilotDashboard = ({
   open,
   onClose,
@@ -159,25 +385,43 @@ const LiveCopilotDashboard = ({
   patientAge = null,
   publicId = "demo",
   patientId = null,
+  mode = 'live_encounter',
+  reviewOrigin = 'live_encounter',
+  triageContext = null,
   onSync
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const modeConfig = useMemo(() => getLiveCopilotModeConfig(mode), [mode]);
+  const normalizedTriageContext = useMemo(
+    () => normalizeTriageContextForRealtime(triageContext || {}, mode),
+    [triageContext, mode]
+  );
   
   const [isActive, setIsActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [dialogueIndex, setDialogueIndex] = useState(-1);
+  const [, setDialogueIndex] = useState(-1);
   const [transcripts, setTranscripts] = useState([]);
   const [isDocumenting, setIsDocumenting] = useState(false);
+  const [realtimeSession, setRealtimeSession] = useState(null);
+  const [sessionStatus, setSessionStatus] = useState('idle');
+  const [sessionError, setSessionError] = useState('');
+  const [savingArtifacts, setSavingArtifacts] = useState(false);
+  const [copilotBrief, setCopilotBrief] = useState({
+    runningSummary: [],
+    missingInformation: [],
+    riskFlags: [],
+    followThroughTasks: [],
+    lastUpdatedAt: null,
+  });
 
   const handleForceDocumentation = async () => {
     setIsDocumenting(true);
     try {
       const transcriptText = transcripts.map(t => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n');
       
-      // 1. SPEC COMPLIANT WEBSOCKET DISPATCH:
-      // mid-session sessionUpdate frame over the WebSocket to force a turn call of document_clinical_encounter
-      console.log("WebSocket TX (Gemini Live API): Force Tool Calling Config Update", {
+      // Realtime session dispatch: ask the OpenAI-backed assistant to draft the official clinical documentation.
+      console.log("WebSocket TX (OpenAI Realtime): Force documentation tool selection", {
         sessionUpdate: {
           toolConfig: {
             functionCallingConfig: {
@@ -189,7 +433,7 @@ const LiveCopilotDashboard = ({
       });
       
       // Send turn request prompt
-      console.log("WebSocket TX (Gemini Live API): Client content prompt turn", {
+      console.log("WebSocket TX (OpenAI Realtime): Client documentation prompt", {
         clientContent: {
           turns: [{
             role: "user",
@@ -199,9 +443,7 @@ const LiveCopilotDashboard = ({
         }
       });
 
-      // 2. SPEC COMPLIANT WEBSOCKET TOOLCALL RECEPTION:
-      // The Gemini Live WebSocket returns a toolCall frame forcing us to run the function
-      console.log("WebSocket RX (Gemini Live API): Forced toolCall received", {
+      console.log("WebSocket RX (OpenAI Realtime): Documentation tool call received", {
         toolCall: {
           functionCalls: [
             {
@@ -270,7 +512,7 @@ const LiveCopilotDashboard = ({
           status: "unknown"
         },
         plan: {
-          management: "Clinical Management: " + (otherActions.filter(a => a.selected).map(a => a.name).join(', ') || "Awaiting clinical orders."),
+          management: "Clinical Management: " + (otherActions.filter(a => a.selected).map(a => a.name).join(', ') || "Awaiting doctor-approved orders."),
           lifestyle_advice: otherActions.filter(a => a.selected && a.type === 'counselling').map(a => a.name).join('. ') || "Rest and maintain adequate hydration. Avoid strenuous activities.",
           follow_up: "Follow up as recommended.",
           patient_education: "Discussed warning signs and symptoms.",
@@ -283,13 +525,13 @@ const LiveCopilotDashboard = ({
       };
 
       if (publicId && publicId !== 'demo') {
-        // Real mode: execute function call securely via backend EMR toolCalls router!
+        // Real mode: execute function call securely via backend EMR toolCalls router.
         // This invokes the exact `/runfunction/` execution endpoint used by both Doctor and Patient apps.
-        await forceClinicalDocumentation(soapArguments);
+        await forceOpenAiClinicalDocumentation(soapArguments);
         documentationResult = soapArguments;
 
         // Log toolResponse sent back to WebSocket
-        console.log("WebSocket TX (Gemini Live API): Send forced toolResponse", {
+        console.log("WebSocket TX (OpenAI Realtime): Send documentation tool response", {
           toolResponse: {
             functionResponses: [
               {
@@ -339,45 +581,20 @@ const LiveCopilotDashboard = ({
 
       // Sync back to EMR Note Editor
       if (onSync) {
-        // Map any medications/investigations/otherActions from the documentation payload
-        const syncedPrescriptions = (documentationResult.prescription || mappedPrescriptions)
-          .map(p => ({
-            medication_name: p.medication_name,
-            dosage: p.dosage || '1g',
-            route: p.route || 'oral',
-            interval: p.interval ? (typeof p.interval === 'string' ? parseInt(p.interval) : p.interval) : 8,
-            instructions: p.instructions || `Take as recommended by clinical advisor.`,
-            end_date: p.end_date || ''
-          }));
-
-        const syncedInvestigations = (documentationResult.investigation || mappedInvestigations)
-          .map(i => ({
-            test_type: i.test_type,
-            reason: i.reason || 'Symptom investigation',
-            instructions: i.instructions || '',
-            interval: i.interval || 0,
-            scheduled_time: ''
-          }));
-
-        const syncedOtherActions = otherActions.filter(a => a.selected)
-          .map(a => ({
-            action_type: a.type === 'procedures' ? 'procedure' : a.type || a.action_type,
-            name: a.name,
-            notes: a.notes || '',
-            scheduled_time: ''
-          }));
-
-        onSync({
+        onSync(buildCopilotDraftSyncPayload({
           soapNote: {
             subjective: documentationResult.subjective,
             objective: documentationResult.objective,
             assessment: documentationResult.assessment,
             plan: documentationResult.plan
           },
-          prescriptions: syncedPrescriptions,
-          investigations: syncedInvestigations,
-          otherActions: syncedOtherActions
-        });
+          prescriptions: documentationResult.prescription || mappedPrescriptions,
+          investigations: documentationResult.investigation || mappedInvestigations,
+          otherActions: otherActions.filter(a => a.selected),
+          mode,
+          reviewOrigin,
+          selectedOnly: false,
+        }));
       }
 
       setIsActive(false);
@@ -392,7 +609,7 @@ const LiveCopilotDashboard = ({
   };
 
   
-  // Mobile Tab Navigation State: 0 = Mic & Chat, 1 = AI Diagnosis, 2 = EMR Orders
+  // Mobile Tab Navigation State: 0 = Mic & Chat, 1 = AI Diagnosis, 2 = Drafts
   const [activeMobileTab, setActiveMobileTab] = useState(0);
   const [showContinuity, setShowContinuity] = useState(true);
   
@@ -422,6 +639,15 @@ const LiveCopilotDashboard = ({
   const animationFrameRef = useRef(null);
   const dialogueTimerRef = useRef(null);
   const transcriptEndRef = useRef(null);
+  const realtimePeerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (dialogueTimerRef.current) {
+      clearInterval(dialogueTimerRef.current);
+    }
+    realtimePeerRef.current?.close?.();
+    realtimePeerRef.current = null;
+  }, []);
 
   // Auto scroll transcription to bottom
   useEffect(() => {
@@ -510,26 +736,175 @@ const LiveCopilotDashboard = ({
     });
   };
 
-  const handleStartSession = () => {
+  const closeRealtimePeer = () => {
+    realtimePeerRef.current?.close?.();
+    realtimePeerRef.current = null;
+  };
+
+  const addTranscriptEntry = ({ speaker = 'doctor', text }) => {
+    if (!text) return;
+    setTranscripts(old => [...old, {
+      speaker,
+      text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    }]);
+  };
+
+  const applyCopilotUpdate = (update) => {
+    if (!update || typeof update !== 'object') return;
+
+    const nextDifferentials = normalizeDifferentials(update);
+    if (nextDifferentials.length) {
+      setDifferentials(nextDifferentials);
+    }
+
+    const nextQuestions = normalizeSuggestedQuestions(update);
+    if (nextQuestions.length) {
+      setProbingQuestions((current) => mergeClinicalItems(current, nextQuestions, 'text'));
+    }
+
+    const { prescriptions: nextPrescriptions, investigations: nextInvestigations, otherActions: nextOtherActions } = normalizeCandidateActions(update);
+    if (nextPrescriptions.length) {
+      setPrescriptions((current) => mergeClinicalItems(current, nextPrescriptions, 'name'));
+    }
+    if (nextInvestigations.length) {
+      setInvestigations((current) => mergeClinicalItems(current, nextInvestigations, 'name'));
+    }
+    if (nextOtherActions.length) {
+      setOtherActions((current) => mergeClinicalItems(current, nextOtherActions, 'name'));
+    }
+
+    setCopilotBrief((current) => {
+      const runningSummary = normalizeCopilotSummaryList(firstPresent(update.running_summary, update.runningSummary, update.summary));
+      const missingInformation = normalizeCopilotSummaryList(firstPresent(update.missing_information, update.missingInformation, update.missing_data, update.missingData));
+      const riskFlags = normalizeRiskFlags(firstPresent(update.risk_flags, update.riskFlags, update.safety_flags, update.safetyFlags));
+      const followThroughTasks = normalizeCopilotSummaryList(firstPresent(
+        update.patient_follow_through_tasks,
+        update.patientFollowThroughTasks,
+        update.follow_through_tasks,
+        update.followThroughTasks
+      ));
+      return {
+        runningSummary: runningSummary.length ? runningSummary : current.runningSummary,
+        missingInformation: missingInformation.length ? missingInformation : current.missingInformation,
+        riskFlags: riskFlags.length ? riskFlags : current.riskFlags,
+        followThroughTasks: followThroughTasks.length ? followThroughTasks : current.followThroughTasks,
+        lastUpdatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      };
+    });
+  };
+
+  const buildInitialCopilotBrief = () => ({
+    runningSummary: normalizedTriageContext.patient_story
+      ? [`Existing triage summary: ${normalizedTriageContext.patient_story}`]
+      : [],
+    missingInformation: asArray(normalizedTriageContext.missing_information)
+      .map((item) => textValue(item.question || item))
+      .filter(Boolean)
+      .slice(0, 8),
+    riskFlags: normalizeRiskFlags(normalizedTriageContext.risk_flags),
+    followThroughTasks: [],
+    lastUpdatedAt: null,
+  });
+
+  const handleStartSession = async () => {
+    setSessionStatus('connecting');
+    setSessionError('');
+    closeRealtimePeer();
+    let shouldRunPreviewDialogue = true;
+
+    if (publicId && publicId !== 'demo') {
+      try {
+        const session = await createRealtimeSession(publicId, buildRealtimeSessionPayload({
+          mode,
+          reviewOrigin,
+          patientId,
+          patientName,
+          chiefComplaint,
+          continuityBrief,
+          triageContext,
+        }));
+        setRealtimeSession(session);
+        if (hasRealtimeClientSecret(session)) {
+          try {
+            const peerSession = await createOpenAiRealtimePeerSession({
+              sessionResponse: session,
+              model: session?.model || 'gpt-realtime-mini',
+              instructions: session?.instructions || session?.session?.instructions || '',
+              onConnectionStateChange: (state) => {
+                if (state === 'connected') {
+                  setSessionStatus('connected');
+                } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+                  setSessionStatus('preview');
+                }
+              },
+              onTranscript: addTranscriptEntry,
+              onEvent: (event) => {
+                const copilotUpdate = extractCopilotUpdateFromRealtimeEvent(event);
+                if (copilotUpdate) {
+                  applyCopilotUpdate(copilotUpdate);
+                }
+              },
+              onError: () => {
+                setSessionError('Realtime data channel reported an error. Local preview remains available.');
+              },
+            });
+            realtimePeerRef.current = peerSession;
+            shouldRunPreviewDialogue = false;
+            setSessionStatus('connected');
+          } catch (realtimeError) {
+            console.error('OpenAI Realtime WebRTC connection failed:', realtimeError);
+            setSessionError(realtimeError.message || 'Realtime WebRTC connection failed. Continuing in local preview mode.');
+            setSessionStatus('preview');
+          }
+        } else {
+          setSessionStatus('preview');
+          if (!session?.local_fallback) {
+            setSessionError('Backend session created, but no browser client secret was returned yet. Continuing in local preview mode.');
+          }
+        }
+      } catch (error) {
+        console.error('Realtime session setup failed:', error);
+        setSessionError(error.message || 'Realtime setup failed. Continuing in local preview mode.');
+        setSessionStatus('preview');
+      }
+    } else {
+      setRealtimeSession({ local_fallback: true, model: 'gpt-realtime-mini', session_id: 'demo' });
+      setSessionStatus('preview');
+    }
+
     setIsActive(true);
     setIsPaused(false);
     setDialogueIndex(-1);
     setTranscripts([]);
+    setCopilotBrief(buildInitialCopilotBrief());
     
     if (dialogueTimerRef.current) clearInterval(dialogueTimerRef.current);
-    
-    setTimeout(() => {
-      advanceDialogue();
-    }, 1000);
 
-    dialogueTimerRef.current = setInterval(() => {
-      advanceDialogue();
-    }, 8500);
+    if (shouldRunPreviewDialogue) {
+      setTimeout(() => {
+        advanceDialogue();
+      }, 1000);
+
+      dialogueTimerRef.current = setInterval(() => {
+        advanceDialogue();
+      }, 8500);
+    } else {
+      addTranscriptEntry({
+        speaker: 'doctor',
+        text: mode === 'triage_clarification'
+          ? 'OpenAI Realtime clarification connected. Focus on unresolved triage questions and safety verification.'
+          : 'OpenAI Realtime session connected. Listening for patient and clinician audio.',
+      });
+    }
   };
 
   const handlePauseSession = () => {
     setIsPaused(prev => {
       const nextState = !prev;
+      realtimePeerRef.current?.mediaStream?.getAudioTracks?.().forEach((track) => {
+        track.enabled = !nextState;
+      });
       if (nextState) {
         clearInterval(dialogueTimerRef.current);
       } else {
@@ -541,10 +916,94 @@ const LiveCopilotDashboard = ({
     });
   };
 
-  const handleStopSession = () => {
+  const buildLiveCopilotArtifactPayload = (endedAt) => {
+    const transcriptPayload = transcripts.map((entry, index) => ({
+      id: `doctor-live-transcript-${index + 1}`,
+      speaker: entry.speaker,
+      text: entry.text,
+      time: entry.time,
+      at: endedAt,
+    }));
+    const copilotBriefPayload = {
+      running_summary: copilotBrief.runningSummary,
+      missing_information: copilotBrief.missingInformation,
+      risk_flags: copilotBrief.riskFlags,
+      followThroughTasks: copilotBrief.followThroughTasks,
+      follow_through_tasks: copilotBrief.followThroughTasks,
+      last_updated_at: copilotBrief.lastUpdatedAt,
+    };
+
+    return {
+      session_id: realtimeSession?.session_id || realtimeSession?.session?.id || realtimeSession?.local_event?.id || null,
+      session_status: 'stopped',
+      mode,
+      review_origin: reviewOrigin,
+      ended_at: endedAt,
+      transcript: transcriptPayload,
+      tool_activity: [{
+        id: `doctor-live-stop-${Date.now()}`,
+        name: 'openai_realtime_session',
+        stage: 'stopped',
+        level: 'info',
+        message: 'Doctor stopped the live copilot session from the review workspace.',
+        result: {
+          model: realtimeSession?.model || 'gpt-realtime-mini',
+          session_status: 'stopped',
+        },
+      }],
+      copilot_brief: copilotBriefPayload,
+      triage_context: normalizedTriageContext,
+      capability_expectations: {
+        draft_only: true,
+        doctor_approval_required: true,
+        preserve_source_labels: true,
+        patient_follow_through_after_approval: true,
+      },
+    };
+  };
+
+  const hasLiveCopilotArtifactContent = () => Boolean(
+    transcripts.length ||
+    copilotBrief.runningSummary.length ||
+    copilotBrief.missingInformation.length ||
+    copilotBrief.riskFlags.length ||
+    copilotBrief.followThroughTasks.length
+  );
+
+  const handleStopSession = async () => {
+    const endedAt = new Date().toISOString();
     setIsActive(false);
     setIsPaused(false);
     clearInterval(dialogueTimerRef.current);
+    closeRealtimePeer();
+    if (!publicId || publicId === 'demo' || !hasLiveCopilotArtifactContent()) {
+      setSessionStatus('idle');
+      return;
+    }
+
+    setSavingArtifacts(true);
+    setSessionStatus('saving');
+    try {
+      const result = await saveLiveCopilotArtifacts(publicId, buildLiveCopilotArtifactPayload(endedAt));
+      if (result?.local_fallback) {
+        setSessionError(result.message || 'Live copilot artifacts were captured locally.');
+      } else {
+        setSessionError('');
+        if (typeof onSync === 'function') {
+          onSync({
+            liveArtifactsSaved: true,
+            review: result?.review,
+            liveArtifacts: result?.live_artifacts,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save live copilot artifacts:', error);
+      setSessionError(error.message || 'Live copilot artifacts could not be saved.');
+    } finally {
+      setSavingArtifacts(false);
+      setSessionStatus('idle');
+    }
   };
 
   const handleTogglePrescription = (index) => {
@@ -586,6 +1045,115 @@ const LiveCopilotDashboard = ({
     }
   };
 
+  const handleSyncDraftActions = () => {
+    const draftPayload = buildCopilotDraftSyncPayload({
+      prescriptions,
+      investigations,
+      otherActions,
+      mode,
+      reviewOrigin,
+    });
+
+    if (onSync) {
+      onSync(draftPayload);
+    } else {
+      alert(
+        `Draft Sync Prepared\n\n` +
+        `Draft Medications: ${draftPayload.prescriptions.map(p => p.medication_name).join(', ') || 'None'}\n` +
+        `Draft Investigations: ${draftPayload.investigations.map(i => i.test_type).join(', ') || 'None'}\n` +
+        `Draft Actions: ${draftPayload.otherActions.map(a => a.name).join(', ') || 'None'}\n\n` +
+        `Doctor approval is required before patient-facing orders or instructions.`
+      );
+    }
+    onClose();
+  };
+
+  const hasCopilotBrief = Boolean(
+    copilotBrief.runningSummary.length ||
+    copilotBrief.missingInformation.length ||
+    copilotBrief.riskFlags.length ||
+    copilotBrief.followThroughTasks.length
+  );
+
+  const renderCopilotBriefPanel = (compact = false) => {
+    if (!hasCopilotBrief) return null;
+
+    return (
+      <Box sx={{
+        mb: compact ? 2 : 3,
+        p: compact ? 1.5 : 2,
+        borderRadius: 2,
+        bgcolor: 'rgba(37, 99, 235, 0.08)',
+        border: '1px solid rgba(96, 165, 250, 0.2)'
+      }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
+          <Typography variant="subtitle2" sx={{ color: '#bfdbfe', fontWeight: 800, letterSpacing: 0.2 }}>
+            {modeConfig.briefTitle}
+          </Typography>
+          {copilotBrief.lastUpdatedAt && (
+            <Chip size="small" label={copilotBrief.lastUpdatedAt} sx={{ height: 22, color: '#93c5fd', bgcolor: 'rgba(59, 130, 246, 0.14)' }} />
+          )}
+        </Stack>
+
+        {copilotBrief.riskFlags.length > 0 && (
+          <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ mb: 1.25 }}>
+            {copilotBrief.riskFlags.map((flag, index) => (
+              <Chip
+                key={`${flag.label}-${index}`}
+                size="small"
+                label={flag.label}
+                sx={{
+                  maxWidth: '100%',
+                  color: flag.severity.includes('critical') || flag.severity.includes('urgent') ? '#fecaca' : '#fde68a',
+                  bgcolor: flag.severity.includes('critical') || flag.severity.includes('urgent')
+                    ? 'rgba(239, 68, 68, 0.16)'
+                    : 'rgba(245, 158, 11, 0.14)',
+                  border: '1px solid rgba(255,255,255,0.08)'
+                }}
+              />
+            ))}
+          </Stack>
+        )}
+
+        {copilotBrief.runningSummary.length > 0 && (
+          <Stack spacing={0.75} sx={{ mb: copilotBrief.missingInformation.length || copilotBrief.followThroughTasks.length ? 1.25 : 0 }}>
+            {copilotBrief.runningSummary.map((item, index) => (
+              <Typography key={`${item}-${index}`} variant="body2" sx={{ color: 'rgba(255,255,255,0.82)', fontSize: compact ? '0.78rem' : '0.82rem', lineHeight: 1.35 }}>
+                {item}
+              </Typography>
+            ))}
+          </Stack>
+        )}
+
+        {copilotBrief.missingInformation.length > 0 && (
+          <Box sx={{ mb: copilotBrief.followThroughTasks.length ? 1.25 : 0 }}>
+            <Typography variant="caption" sx={{ color: '#fbbf24', fontWeight: 800, display: 'block', mb: 0.75, textTransform: 'uppercase' }}>
+              Missing Data
+            </Typography>
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+              {copilotBrief.missingInformation.map((item, index) => (
+                <Chip key={`${item}-${index}`} size="small" label={item} sx={{ maxWidth: '100%', color: '#fde68a', bgcolor: 'rgba(251, 191, 36, 0.12)' }} />
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        {copilotBrief.followThroughTasks.length > 0 && (
+          <Box>
+            <Typography variant="caption" sx={{ color: '#86efac', fontWeight: 800, display: 'block', mb: 0.75, textTransform: 'uppercase' }}>
+              Patient Follow-Through
+            </Typography>
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+              {copilotBrief.followThroughTasks.map((item, index) => (
+                <Chip key={`${item}-${index}`} size="small" label={item} sx={{ maxWidth: '100%', color: '#bbf7d0', bgcolor: 'rgba(34, 197, 94, 0.12)' }} />
+              ))}
+            </Stack>
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
   if (!open) return null;
 
   return (
@@ -624,7 +1192,7 @@ const LiveCopilotDashboard = ({
             }
           }} />
           <Typography variant="h6" fontWeight="700" letterSpacing={0.5} sx={{ fontSize: { xs: '0.95rem', sm: '1.25rem' } }}>
-            AI LIVE COPILOT <span style={{ color: alpha('#fff', 0.5), fontSize: '0.8rem', display: isMobile ? 'none' : 'inline' }}>| CLINIC & WARD ROUNDS</span>
+            {modeConfig.title.toUpperCase()} <span style={{ color: alpha('#fff', 0.5), fontSize: '0.8rem', display: isMobile ? 'none' : 'inline' }}>| OPENAI REALTIME</span>
           </Typography>
         </Box>
         
@@ -661,7 +1229,7 @@ const LiveCopilotDashboard = ({
           <Box display="flex" alignItems="center" gap={1}>
             <HistoryIcon sx={{ color: '#818cf8', fontSize: '1.15rem' }} />
             <Typography variant="body2" sx={{ fontWeight: '700', color: '#a5b4fc', fontSize: '0.85rem' }}>
-              Clinical Continuity Context Pre-Hydrated
+              {modeConfig.continuityLabel}
             </Typography>
           </Box>
           <IconButton size="small" sx={{ color: '#a5b4fc' }}>
@@ -677,6 +1245,57 @@ const LiveCopilotDashboard = ({
             {continuityBrief && (
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', mt: 0.5, display: 'block', fontStyle: 'italic', lineHeight: 1.4 }}>
                 <strong>Prior Visit Summary:</strong> {continuityBrief.length > 160 ? `${continuityBrief.substring(0, 160)}...` : continuityBrief}
+              </Typography>
+            )}
+            {modeConfig.guidance && (
+              <Typography variant="caption" sx={{ color: '#ddd6fe', mt: 0.5, display: 'block', lineHeight: 1.4 }}>
+                <strong>Copilot Focus:</strong> {modeConfig.guidance}
+              </Typography>
+            )}
+            <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.75 }}>
+              <Chip
+                label={`Mode: ${String(mode).replace(/_/g, ' ')}`}
+                size="small"
+                variant="outlined"
+                sx={{ color: '#c7d2fe', borderColor: 'rgba(199, 210, 254, 0.35)' }}
+              />
+              <Chip
+                label={sessionStatus === 'connected' ? 'OpenAI Realtime Connected' : sessionStatus === 'connecting' ? 'Connecting Realtime' : sessionStatus === 'saving' ? 'Saving Live Session' : sessionStatus === 'preview' ? 'Realtime Preview' : 'Realtime Idle'}
+                size="small"
+                color={sessionStatus === 'connected' ? 'success' : sessionStatus === 'connecting' || sessionStatus === 'saving' ? 'info' : 'default'}
+                variant="outlined"
+                sx={{ color: '#c7d2fe', borderColor: 'rgba(199, 210, 254, 0.35)' }}
+              />
+              <Chip
+                label={realtimeSession?.model || 'gpt-realtime-mini'}
+                size="small"
+                variant="outlined"
+                sx={{ color: '#c7d2fe', borderColor: 'rgba(199, 210, 254, 0.35)' }}
+              />
+              {asArray(normalizedTriageContext.approval_readiness?.blockers).length > 0 && (
+                <Chip
+                  label={`${normalizedTriageContext.approval_readiness.blockers.length} approval blockers`}
+                  size="small"
+                  variant="outlined"
+                  sx={{ color: '#fde68a', borderColor: 'rgba(251, 191, 36, 0.45)' }}
+                />
+              )}
+            </Stack>
+            {mode === 'triage_clarification' && asArray(normalizedTriageContext.clarification_focus?.focus_items).length > 0 && (
+              <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                {normalizedTriageContext.clarification_focus.focus_items.slice(0, 5).map((item, index) => (
+                  <Chip
+                    key={`${item}-${index}`}
+                    size="small"
+                    label={item}
+                    sx={{ color: '#fef3c7', bgcolor: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.22)' }}
+                  />
+                ))}
+              </Stack>
+            )}
+            {sessionError && (
+              <Typography variant="caption" sx={{ color: '#fca5a5', mt: 0.75, display: 'block' }}>
+                {sessionError}
               </Typography>
             )}
           </Box>
@@ -714,6 +1333,7 @@ const LiveCopilotDashboard = ({
                       variant="contained"
                       startIcon={<MicIcon />}
                       onClick={handleStartSession}
+                      disabled={sessionStatus === 'connecting' || savingArtifacts}
                       sx={{
                         borderRadius: 2,
                         px: 3,
@@ -724,7 +1344,7 @@ const LiveCopilotDashboard = ({
                         '&:hover': { bgcolor: '#1d4ed8' }
                       }}
                     >
-                      Start Live Consult
+                      {sessionStatus === 'connecting' ? 'Connecting...' : savingArtifacts ? 'Saving...' : 'Start Live Consult'}
                     </Button>
                   ) : (
                     <>
@@ -822,6 +1442,8 @@ const LiveCopilotDashboard = ({
               overflow: 'hidden',
               p: 3
             }}>
+              {renderCopilotBriefPanel(false)}
+
               {/* Ranked Differentials */}
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" sx={{ color: '#9ca3af', fontWeight: 'bold', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -918,7 +1540,7 @@ const LiveCopilotDashboard = ({
               </Box>
             </Box>
 
-            {/* COLUMN 3: Suggested EMR Orders: Prescriptions, Investigations & Other Actions (Right) */}
+            {/* COLUMN 3: Suggested EMR Drafts: Prescriptions, Investigations & Other Actions (Right) */}
             <Box sx={{
               width: '32%',
               display: 'flex',
@@ -940,7 +1562,7 @@ const LiveCopilotDashboard = ({
                 {/* 1. Prescriptions */}
                 <Box>
                   <Typography variant="subtitle2" sx={{ color: '#34d399', fontWeight: 'bold', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    💊 Recommended Prescriptions
+                    Draft Prescriptions
                   </Typography>
                   <Stack spacing={1.5}>
                     {prescriptions.map((prescription, idx) => (
@@ -967,7 +1589,7 @@ const LiveCopilotDashboard = ({
                             </Typography>
                           </Box>
                         </Box>
-                        <Chip label={prescription.selected ? 'Selected' : 'Add'} size="small" color={prescription.selected ? 'success' : 'default'} sx={{ height: 18, fontSize: '0.65rem' }} />
+                        <Chip label={prescription.selected ? 'Draft' : 'Add'} size="small" color={prescription.selected ? 'success' : 'default'} sx={{ height: 18, fontSize: '0.65rem' }} />
                       </Paper>
                     ))}
                   </Stack>
@@ -978,7 +1600,7 @@ const LiveCopilotDashboard = ({
                 {/* 2. Investigations */}
                 <Box>
                   <Typography variant="subtitle2" sx={{ color: '#60a5fa', fontWeight: 'bold', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    🔬 Suggested Investigations
+                    Draft Investigations
                   </Typography>
                   <Stack spacing={1.5}>
                     {investigations.map((investigation, idx) => (
@@ -1005,7 +1627,7 @@ const LiveCopilotDashboard = ({
                             </Typography>
                           </Box>
                         </Box>
-                        <Chip label={investigation.selected ? 'Ordered' : 'Order'} size="small" color={investigation.selected ? 'primary' : 'default'} sx={{ height: 18, fontSize: '0.65rem' }} />
+                        <Chip label={investigation.selected ? 'Draft' : 'Add'} size="small" color={investigation.selected ? 'primary' : 'default'} sx={{ height: 18, fontSize: '0.65rem' }} />
                       </Paper>
                     ))}
                   </Stack>
@@ -1016,7 +1638,7 @@ const LiveCopilotDashboard = ({
                 {/* 3. OTHER ACTIONS (Counselling, Procedures, Referrals) */}
                 <Box>
                   <Typography variant="subtitle2" sx={{ color: '#e0aaff', fontWeight: 'bold', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <ActionsIcon sx={{ color: '#c77dff', fontSize: '1.25rem' }} /> Other Clinical Actions
+                    <ActionsIcon sx={{ color: '#c77dff', fontSize: '1.25rem' }} /> Draft Clinical Actions
                   </Typography>
                   <Stack spacing={1.5}>
                     {otherActions.map((action, idx) => {
@@ -1067,65 +1689,15 @@ const LiveCopilotDashboard = ({
 
               {/* Sync Trigger */}
               <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mb: 1.25 }}>
+                  <Chip label="Drafts only" size="small" sx={{ height: 22, bgcolor: 'rgba(16, 185, 129, 0.12)', color: '#6ee7b7', fontWeight: 700 }} />
+                  <Chip label="Doctor approval required" size="small" sx={{ height: 22, bgcolor: 'rgba(251, 191, 36, 0.12)', color: '#fde68a', fontWeight: 700 }} />
+                </Stack>
                 <Button
                   variant="contained"
                   fullWidth
                   startIcon={<CheckIcon />}
-                  onClick={() => {
-                    const activePrescriptions = prescriptions.filter(p => p.selected).map(p => p.name);
-                    const activeInvestigations = investigations.filter(i => i.selected).map(i => i.name);
-                    const activeCounselling = otherActions.filter(a => a.selected && a.type === 'counselling').map(a => a.name);
-                    const activeProcedures = otherActions.filter(a => a.selected && a.type === 'procedures').map(a => a.name);
-                    const activeReferrals = otherActions.filter(a => a.selected && a.type === 'referral').map(a => a.name);
-                    
-                    if (onSync) {
-                      const syncedPrescriptions = prescriptions
-                        .filter(p => p.selected)
-                        .map(p => ({
-                          medication_name: p.name,
-                          dosage: p.dosage || '1g',
-                          route: 'oral',
-                          interval: p.interval ? parseInt(p.interval) : 8,
-                          instructions: p.instructions || `Take as recommended by clinical advisor.`,
-                          end_date: ''
-                        }));
-
-                      const syncedInvestigations = investigations
-                        .filter(i => i.selected)
-                        .map(i => ({
-                          test_type: i.name,
-                          reason: i.reason || 'Symptom investigation',
-                          instructions: '',
-                          interval: 0,
-                          scheduled_time: ''
-                        }));
-
-                      const syncedOtherActions = otherActions
-                        .filter(a => a.selected)
-                        .map(a => ({
-                          action_type: a.type === 'procedures' ? 'procedure' : a.type,
-                          name: a.name,
-                          notes: a.notes || '',
-                          scheduled_time: ''
-                        }));
-
-                      onSync({
-                        prescriptions: syncedPrescriptions,
-                        investigations: syncedInvestigations,
-                        otherActions: syncedOtherActions
-                      });
-                    } else {
-                      alert(
-                        `EMR Sync Completed! 🎉\n\n` +
-                        `Ordered Medications: ${activePrescriptions.join(', ') || 'None'}\n` +
-                        `Ordered Investigations: ${activeInvestigations.join(', ') || 'None'}\n` +
-                        `Counselling: ${activeCounselling.join(', ') || 'None'}\n` +
-                        `Procedures Queued: ${activeProcedures.join(', ') || 'None'}\n` +
-                        `Referrals Dispatched: ${activeReferrals.join(', ') || 'None'}`
-                      );
-                    }
-                    onClose();
-                  }}
+                  onClick={handleSyncDraftActions}
                   sx={{
                     borderRadius: 2.5,
                     py: 1.5,
@@ -1139,7 +1711,7 @@ const LiveCopilotDashboard = ({
                     }
                   }}
                 >
-                  Sync & Place Orders in EMR
+                  Sync Drafts to Review
                 </Button>
               </Box>
             </Box>
@@ -1163,8 +1735,8 @@ const LiveCopilotDashboard = ({
 
                     <Box display="flex" justifyContent="center" gap={1}>
                       {!isActive ? (
-                        <Button variant="contained" size="small" startIcon={<MicIcon />} onClick={handleStartSession} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 'bold' }}>
-                          Start Consult
+                        <Button variant="contained" size="small" startIcon={<MicIcon />} onClick={handleStartSession} disabled={sessionStatus === 'connecting' || savingArtifacts} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 'bold' }}>
+                          {sessionStatus === 'connecting' ? 'Connecting...' : savingArtifacts ? 'Saving...' : modeConfig.startLabel}
                         </Button>
                       ) : (
                         <>
@@ -1245,6 +1817,7 @@ const LiveCopilotDashboard = ({
             {activeMobileTab === 1 && (
               <Fade in={activeMobileTab === 1}>
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2 }}>
+                  {renderCopilotBriefPanel(true)}
                   
                   {/* Differentials */}
                   <Box sx={{ mb: 2.5 }}>
@@ -1306,7 +1879,7 @@ const LiveCopilotDashboard = ({
               </Fade>
             )}
 
-            {/* TAB 2: Orders & EMR Sync (Includes prescriptions, investigations, other actions) */}
+            {/* TAB 2: Draft Review Sync (Includes prescriptions, investigations, other actions) */}
             {activeMobileTab === 2 && (
               <Fade in={activeMobileTab === 2}>
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2 }}>
@@ -1315,7 +1888,7 @@ const LiveCopilotDashboard = ({
                     {/* Prescriptions */}
                     <Box>
                       <Typography variant="subtitle2" sx={{ color: '#34d399', fontWeight: 'bold', mb: 1 }}>
-                        💊 Recommended Medications
+                        Draft Medications
                       </Typography>
                       <Stack spacing={1}>
                         {prescriptions.map((prescription, idx) => (
@@ -1342,7 +1915,7 @@ const LiveCopilotDashboard = ({
                     {/* Investigations */}
                     <Box>
                       <Typography variant="subtitle2" sx={{ color: '#60a5fa', fontWeight: 'bold', mb: 1 }}>
-                        🔬 Suggested Investigations
+                        Draft Investigations
                       </Typography>
                       <Stack spacing={1}>
                         {investigations.map((investigation, idx) => (
@@ -1369,7 +1942,7 @@ const LiveCopilotDashboard = ({
                     {/* Other Actions */}
                     <Box>
                       <Typography variant="subtitle2" sx={{ color: '#e0aaff', fontWeight: 'bold', mb: 1 }}>
-                        📋 Other Clinical Actions
+                        Draft Clinical Actions
                       </Typography>
                       <Stack spacing={1}>
                         {otherActions.map((action, idx) => {
@@ -1410,65 +1983,15 @@ const LiveCopilotDashboard = ({
 
                   {/* Sync Button */}
                   <Box sx={{ pt: 2 }}>
+                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mb: 1 }}>
+                      <Chip label="Drafts only" size="small" sx={{ height: 22, bgcolor: 'rgba(16, 185, 129, 0.12)', color: '#6ee7b7', fontWeight: 700 }} />
+                      <Chip label="Doctor approval required" size="small" sx={{ height: 22, bgcolor: 'rgba(251, 191, 36, 0.12)', color: '#fde68a', fontWeight: 700 }} />
+                    </Stack>
                     <Button
                       variant="contained"
                       fullWidth
                       startIcon={<CheckIcon />}
-                      onClick={() => {
-                        const activePrescriptions = prescriptions.filter(p => p.selected).map(p => p.name);
-                        const activeInvestigations = investigations.filter(i => i.selected).map(i => i.name);
-                        const activeCounselling = otherActions.filter(a => a.selected && a.type === 'counselling').map(a => a.name);
-                        const activeProcedures = otherActions.filter(a => a.selected && a.type === 'procedures').map(a => a.name);
-                        const activeReferrals = otherActions.filter(a => a.selected && a.type === 'referral').map(a => a.name);
-                        
-                        if (onSync) {
-                          const syncedPrescriptions = prescriptions
-                            .filter(p => p.selected)
-                            .map(p => ({
-                              medication_name: p.name,
-                              dosage: p.dosage || '1g',
-                              route: 'oral',
-                              interval: p.interval ? parseInt(p.interval) : 8,
-                              instructions: p.instructions || `Take as recommended by clinical advisor.`,
-                              end_date: ''
-                            }));
-
-                          const syncedInvestigations = investigations
-                            .filter(i => i.selected)
-                            .map(i => ({
-                              test_type: i.name,
-                              reason: i.reason || 'Symptom investigation',
-                              instructions: '',
-                              interval: 0,
-                              scheduled_time: ''
-                            }));
-
-                          const syncedOtherActions = otherActions
-                            .filter(a => a.selected)
-                            .map(a => ({
-                              action_type: a.type === 'procedures' ? 'procedure' : a.type,
-                              name: a.name,
-                              notes: a.notes || '',
-                              scheduled_time: ''
-                            }));
-
-                          onSync({
-                            prescriptions: syncedPrescriptions,
-                            investigations: syncedInvestigations,
-                            otherActions: syncedOtherActions
-                          });
-                        } else {
-                          alert(
-                            `EMR Sync Completed! 🎉\n\n` +
-                            `Ordered Medications: ${activePrescriptions.join(', ') || 'None'}\n` +
-                            `Ordered Investigations: ${activeInvestigations.join(', ') || 'None'}\n` +
-                            `Counselling: ${activeCounselling.join(', ') || 'None'}\n` +
-                            `Procedures Queued: ${activeProcedures.join(', ') || 'None'}\n` +
-                            `Referrals Dispatched: ${activeReferrals.join(', ') || 'None'}`
-                          );
-                        }
-                        onClose();
-                      }}
+                      onClick={handleSyncDraftActions}
                       sx={{
                         borderRadius: 2,
                         py: 1.25,
@@ -1478,7 +2001,7 @@ const LiveCopilotDashboard = ({
                         boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
                       }}
                     >
-                      Sync & Place Orders in EMR
+                      Sync Drafts to Review
                     </Button>
                   </Box>
                 </Box>
@@ -1506,7 +2029,7 @@ const LiveCopilotDashboard = ({
             >
               <BottomNavigationAction label="Mic & Chat" icon={<ChatIcon />} />
               <BottomNavigationAction label="AI Diagnosis" icon={<MedicalIcon />} />
-              <BottomNavigationAction label="EMR Orders" icon={<OrderIcon />} />
+              <BottomNavigationAction label="Drafts" icon={<OrderIcon />} />
             </BottomNavigation>
 
           </Box>
