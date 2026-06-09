@@ -1185,7 +1185,9 @@ const LiveCopilotDashboard = ({
       color: 'white',
       display: 'flex',
       flexDirection: 'column',
-      fontFamily: '"Outfit", "Inter", sans-serif'
+      fontFamily: '"Outfit", "Inter", sans-serif',
+      height: '100dvh',
+      overflow: 'hidden'
     }}>
       {/* Header Panel */}
       <Box sx={{
@@ -1195,9 +1197,11 @@ const LiveCopilotDashboard = ({
         background: 'linear-gradient(135deg, rgba(16, 20, 32, 0.95) 0%, rgba(10, 13, 20, 0.95) 100%)',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        flexShrink: 0,
+        minWidth: 0
       }}>
-        <Box display="flex" alignItems="center" gap={1.5}>
+        <Box display="flex" alignItems="center" gap={1.5} sx={{ minWidth: 0 }}>
           <Box sx={{
             width: 10,
             height: 10,
@@ -1211,12 +1215,12 @@ const LiveCopilotDashboard = ({
               '100%': { transform: 'scale(1)', opacity: 1 }
             }
           }} />
-          <Typography variant="h6" fontWeight="700" letterSpacing={0.5} sx={{ fontSize: { xs: '0.95rem', sm: '1.25rem' } }}>
+          <Typography variant="h6" fontWeight="700" letterSpacing={0.5} sx={{ fontSize: { xs: '0.95rem', sm: '1.25rem' }, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {modeConfig.title.toUpperCase()} <span style={{ color: alpha('#fff', 0.5), fontSize: '0.8rem', display: isMobile ? 'none' : 'inline' }}>| OPENAI REALTIME</span>
           </Typography>
         </Box>
         
-        <Box display="flex" alignItems="center" gap={{ xs: 1, sm: 2 }}>
+        <Box display="flex" alignItems="center" gap={{ xs: 1, sm: 2 }} sx={{ minWidth: 0, flexShrink: 0 }}>
           <Chip
             icon={<MedicalIcon sx={{ color: 'white !important', fontSize: '0.85rem' }} />}
             label={isMobile ? patientName : `Patient: ${patientName}`}
@@ -1226,7 +1230,12 @@ const LiveCopilotDashboard = ({
               fontWeight: '600',
               border: '1px solid rgba(59, 130, 246, 0.3)',
               height: 28,
-              fontSize: '0.8rem'
+              fontSize: '0.8rem',
+              maxWidth: { xs: 128, sm: 220 },
+              '& .MuiChip-label': {
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }
             }}
           />
           <IconButton onClick={onClose} sx={{ color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} size="small">
@@ -1243,7 +1252,10 @@ const LiveCopilotDashboard = ({
         borderBottom: '1px solid rgba(99, 102, 241, 0.18)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 0.5
+        gap: 0.5,
+        flexShrink: 0,
+        maxHeight: { xs: '32dvh', md: 'none' },
+        overflowY: { xs: 'auto', md: 'visible' }
       }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ cursor: 'pointer' }} onClick={() => setShowContinuity(c => !c)}>
           <Box display="flex" alignItems="center" gap={1}>
@@ -1323,7 +1335,7 @@ const LiveCopilotDashboard = ({
       </Box>
 
       {/* Main Multi-Panel Viewport */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         
         {/* DESKTOP SIDE-BY-SIDE MODE */}
         {!isMobile ? (
@@ -1743,12 +1755,12 @@ const LiveCopilotDashboard = ({
           </>
         ) : (
           /* MOBILE VIEWPORT TABBED NAVIGATION */
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', pb: 7 }}>
+          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', pb: 'calc(64px + env(safe-area-inset-bottom))' }}>
             
             {/* TAB 0: Mic & Scrolling Chat */}
             {activeMobileTab === 0 && (
               <Fade in={activeMobileTab === 0}>
-                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2 }}>
+                <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2 }}>
                   <Box sx={{ p: 1.5, borderBottom: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 2, mb: 2 }}>
                     <Typography variant="caption" sx={{ color: '#9ca3af', letterSpacing: 1.5, fontWeight: '700', display: 'block', mb: 1 }}>
                       Real-time Audio Visualizer
@@ -1801,7 +1813,9 @@ const LiveCopilotDashboard = ({
 
                   <Box sx={{
                     flex: 1,
+                    minHeight: 0,
                     overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                     pr: 0.5,
                     display: 'flex',
                     flexDirection: 'column',
@@ -1841,7 +1855,7 @@ const LiveCopilotDashboard = ({
             {/* TAB 1: AI Diagnosis (Differentials & Questions) */}
             {activeMobileTab === 1 && (
               <Fade in={activeMobileTab === 1}>
-                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2 }}>
+                <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto', WebkitOverflowScrolling: 'touch', p: 2 }}>
                   {renderCopilotBriefPanel(true)}
                   
                   {/* Differentials */}
@@ -1866,11 +1880,11 @@ const LiveCopilotDashboard = ({
                   <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', my: 1.5 }} />
 
                   {/* Probing Questions */}
-                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     <Typography variant="subtitle2" sx={{ color: '#9ca3af', fontWeight: 'bold', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                       <QuestionIcon sx={{ color: '#fbbf24', fontSize: '1.1rem' }} /> Probing Questions Checklist
                     </Typography>
-                    <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <Box sx={{ flex: 1, minHeight: 160, overflowY: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                       {probingQuestions.length === 0 && renderCopilotEmptyState('No probing questions yet.')}
                       {probingQuestions.map(q => (
                         <Card key={q.id} sx={{
@@ -1909,8 +1923,8 @@ const LiveCopilotDashboard = ({
             {/* TAB 2: Draft Review Sync (Includes prescriptions, investigations, other actions) */}
             {activeMobileTab === 2 && (
               <Fade in={activeMobileTab === 2}>
-                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2 }}>
-                  <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2 }}>
+                  <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: 2.5, pb: 1 }}>
                     
                     {/* Prescriptions */}
                     <Box>
@@ -2050,7 +2064,8 @@ const LiveCopilotDashboard = ({
                 bottom: 0,
                 left: 0,
                 right: 0,
-                height: 56,
+                height: 'calc(56px + env(safe-area-inset-bottom))',
+                pb: 'env(safe-area-inset-bottom)',
                 bgcolor: '#0e111a',
                 borderTop: '1px solid rgba(255,255,255,0.08)',
                 '& .MuiBottomNavigationAction-root': { color: 'rgba(255,255,255,0.4)', py: 0.5 },
