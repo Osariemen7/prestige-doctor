@@ -379,8 +379,8 @@ const mergeClinicalItems = (current, incoming, keyName = 'name') => {
 const LiveCopilotDashboard = ({
   open,
   onClose,
-  patientName = "John Doe",
-  chiefComplaint = "Severe abdominal pain",
+  patientName = "Patient",
+  chiefComplaint = "General consultation",
   continuityBrief = null,
   patientAge = null,
   publicId = "demo",
@@ -615,26 +615,24 @@ const LiveCopilotDashboard = ({
   const [showContinuity, setShowContinuity] = useState(true);
   
   // Real-time UI State (AI Predictions)
-  const [differentials, setDifferentials] = useState([
-    { name: 'Acute Appendicitis', probability: 10, logic: 'Initial baseline differential based on pre-hydrated complaint.' },
-    { name: 'Gastroenteritis', probability: 10, logic: 'Initial baseline differential.' },
-    { name: 'Renal Colic', probability: 10, logic: 'Initial baseline differential.' }
-  ]);
-  const [probingQuestions, setProbingQuestions] = useState([
-    { id: 1, text: "What is the primary character and location of the pain?", rationale: "Identify pain triggers." },
-    { id: 2, text: "When did the pain start and is it constant?", rationale: "Establish clinical timeline." }
-  ]);
-  const [prescriptions, setPrescriptions] = useState([
-    { name: 'Paracetamol IV', dosage: '1g', interval: 'Q8h', selected: false }
-  ]);
-  const [investigations, setInvestigations] = useState([
-    { name: 'CBC with Diff', reason: 'Assess for systemic infection', selected: false },
-    { name: 'Abdominal Ultrasound', reason: 'Check appendix morphology', selected: false }
-  ]);
-  const [otherActions, setOtherActions] = useState([
-    { type: 'counselling', name: 'Rest and hydration advice', notes: 'Gently limit strenuous movement', selected: false },
-    { type: 'procedures', name: 'Assess vitals hourly', notes: 'Monitor BP, heart rate, & temperature', selected: true }
-  ]);
+  const [differentials, setDifferentials] = useState([]);
+  const [probingQuestions, setProbingQuestions] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [investigations, setInvestigations] = useState([]);
+  const [otherActions, setOtherActions] = useState([]);
+  const renderCopilotEmptyState = (message = 'No live suggestions yet.') => (
+    <Typography
+      variant="body2"
+      sx={{
+        color: 'rgba(255,255,255,0.45)',
+        fontSize: '0.82rem',
+        fontStyle: 'italic',
+        py: 1,
+      }}
+    >
+      {message}
+    </Typography>
+  );
 
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
@@ -808,11 +806,32 @@ const LiveCopilotDashboard = ({
     lastUpdatedAt: null,
   });
 
+  useEffect(() => {
+    closeRealtimePeer();
+    setIsActive(false);
+    setIsPaused(false);
+    setDialogueIndex(-1);
+    setTranscripts([]);
+    setDifferentials([]);
+    setProbingQuestions([]);
+    setPrescriptions([]);
+    setInvestigations([]);
+    setOtherActions([]);
+    setSessionStatus('idle');
+    setSessionError('');
+    setRealtimeSession(null);
+    setCopilotBrief(buildInitialCopilotBrief());
+    if (dialogueTimerRef.current) {
+      clearInterval(dialogueTimerRef.current);
+      dialogueTimerRef.current = null;
+    }
+  }, [publicId]);
+
   const handleStartSession = async () => {
     setSessionStatus('connecting');
     setSessionError('');
     closeRealtimePeer();
-    let shouldRunPreviewDialogue = true;
+    let shouldRunPreviewDialogue = publicId === 'demo';
 
     if (publicId && publicId !== 'demo') {
       try {
@@ -861,12 +880,12 @@ const LiveCopilotDashboard = ({
         } else {
           setSessionStatus('preview');
           if (!session?.local_fallback) {
-            setSessionError('Backend session created, but no browser client secret was returned yet. Continuing in local preview mode.');
+            setSessionError('Backend session created, but no browser client secret was returned yet. Realtime suggestions will stay empty until live updates are available.');
           }
         }
       } catch (error) {
         console.error('Realtime session setup failed:', error);
-        setSessionError(error.message || 'Realtime setup failed. Continuing in local preview mode.');
+        setSessionError(error.message || 'Realtime setup failed. Realtime suggestions will stay empty until live updates are available.');
         setSessionStatus('preview');
       }
     } else {
@@ -1452,6 +1471,7 @@ const LiveCopilotDashboard = ({
                 </Typography>
 
                 <Stack spacing={2}>
+                  {differentials.length === 0 && renderCopilotEmptyState('No ranked differentials yet. Start a live session to generate patient-specific suggestions.')}
                   {differentials.map((diff, index) => (
                     <Box key={index}>
                       <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
@@ -1500,6 +1520,7 @@ const LiveCopilotDashboard = ({
                   pr: 0.5,
                   '&::-webkit-scrollbar': { width: '4px' }
                 }}>
+                  {probingQuestions.length === 0 && renderCopilotEmptyState('No probing questions yet.')}
                   {probingQuestions.map((q) => (
                     <Card key={q.id} sx={{
                       bgcolor: q.asked ? 'rgba(255,255,255,0.02)' : 'rgba(251, 191, 36, 0.04)',
@@ -1566,6 +1587,7 @@ const LiveCopilotDashboard = ({
                     Draft Prescriptions
                   </Typography>
                   <Stack spacing={1.5}>
+                    {prescriptions.length === 0 && renderCopilotEmptyState('No draft medications yet.')}
                     {prescriptions.map((prescription, idx) => (
                       <Paper key={idx} sx={{
                         p: 1.25,
@@ -1604,6 +1626,7 @@ const LiveCopilotDashboard = ({
                     Draft Investigations
                   </Typography>
                   <Stack spacing={1.5}>
+                    {investigations.length === 0 && renderCopilotEmptyState('No draft investigations yet.')}
                     {investigations.map((investigation, idx) => (
                       <Paper key={idx} sx={{
                         p: 1.25,
@@ -1642,6 +1665,7 @@ const LiveCopilotDashboard = ({
                     <ActionsIcon sx={{ color: '#c77dff', fontSize: '1.25rem' }} /> Draft Clinical Actions
                   </Typography>
                   <Stack spacing={1.5}>
+                    {otherActions.length === 0 && renderCopilotEmptyState('No draft clinical actions yet.')}
                     {otherActions.map((action, idx) => {
                       const chipProps = getActionChipColor(action.type);
                       return (
@@ -1826,6 +1850,7 @@ const LiveCopilotDashboard = ({
                       <MedicalIcon sx={{ color: '#ef4444', fontSize: '1.1rem' }} /> Ranked Differentials
                     </Typography>
                     <Stack spacing={1.5}>
+                      {differentials.length === 0 && renderCopilotEmptyState('No ranked differentials yet.')}
                       {differentials.map((diff, idx) => (
                         <Box key={idx} sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 2 }}>
                           <Box display="flex" justifyContent="space-between" sx={{ mb: 0.5 }}>
@@ -1846,6 +1871,7 @@ const LiveCopilotDashboard = ({
                       <QuestionIcon sx={{ color: '#fbbf24', fontSize: '1.1rem' }} /> Probing Questions Checklist
                     </Typography>
                     <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      {probingQuestions.length === 0 && renderCopilotEmptyState('No probing questions yet.')}
                       {probingQuestions.map(q => (
                         <Card key={q.id} sx={{
                           bgcolor: q.asked ? 'rgba(255,255,255,0.02)' : 'rgba(251, 191, 36, 0.04)',
@@ -1888,11 +1914,12 @@ const LiveCopilotDashboard = ({
                     
                     {/* Prescriptions */}
                     <Box>
-                      <Typography variant="subtitle2" sx={{ color: '#34d399', fontWeight: 'bold', mb: 1 }}>
-                        Draft Medications
-                      </Typography>
-                      <Stack spacing={1}>
-                        {prescriptions.map((prescription, idx) => (
+                    <Typography variant="subtitle2" sx={{ color: '#34d399', fontWeight: 'bold', mb: 1 }}>
+                      Draft Medications
+                    </Typography>
+                    <Stack spacing={1}>
+                      {prescriptions.length === 0 && renderCopilotEmptyState('No draft medications yet.')}
+                      {prescriptions.map((prescription, idx) => (
                           <Paper key={idx} sx={{
                             p: 1.25,
                             bgcolor: prescription.selected ? 'rgba(52, 211, 153, 0.05)' : 'rgba(255,255,255,0.01)',
@@ -1915,11 +1942,12 @@ const LiveCopilotDashboard = ({
 
                     {/* Investigations */}
                     <Box>
-                      <Typography variant="subtitle2" sx={{ color: '#60a5fa', fontWeight: 'bold', mb: 1 }}>
-                        Draft Investigations
-                      </Typography>
-                      <Stack spacing={1}>
-                        {investigations.map((investigation, idx) => (
+                    <Typography variant="subtitle2" sx={{ color: '#60a5fa', fontWeight: 'bold', mb: 1 }}>
+                      Draft Investigations
+                    </Typography>
+                    <Stack spacing={1}>
+                      {investigations.length === 0 && renderCopilotEmptyState('No draft investigations yet.')}
+                      {investigations.map((investigation, idx) => (
                           <Paper key={idx} sx={{
                             p: 1.25,
                             bgcolor: investigation.selected ? 'rgba(96, 165, 250, 0.05)' : 'rgba(255,255,255,0.01)',
@@ -1942,11 +1970,12 @@ const LiveCopilotDashboard = ({
 
                     {/* Other Actions */}
                     <Box>
-                      <Typography variant="subtitle2" sx={{ color: '#e0aaff', fontWeight: 'bold', mb: 1 }}>
-                        Draft Clinical Actions
-                      </Typography>
-                      <Stack spacing={1}>
-                        {otherActions.map((action, idx) => {
+                    <Typography variant="subtitle2" sx={{ color: '#e0aaff', fontWeight: 'bold', mb: 1 }}>
+                      Draft Clinical Actions
+                    </Typography>
+                    <Stack spacing={1}>
+                      {otherActions.length === 0 && renderCopilotEmptyState('No draft clinical actions yet.')}
+                      {otherActions.map((action, idx) => {
                           const chipProps = getActionChipColor(action.type);
                           return (
                             <Paper key={idx} sx={{
