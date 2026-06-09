@@ -132,6 +132,25 @@ const clinicalCorrectionSeverityOptions = [
   { value: 'critical', label: 'Critical' },
 ];
 
+const getFirstArrayItem = (value) => (Array.isArray(value) && value.length > 0 ? value[0] : null);
+
+const resolveMedicalReviewPublicId = (review, fallbackPublicId = '') => {
+  const encounter =
+    review?.in_person_encounter ||
+    review?.encounter ||
+    getFirstArrayItem(review?.in_person_encounters);
+
+  return (
+    review?.medical_review_public_id ||
+    review?.medical_review?.public_id ||
+    review?.medicalReview?.public_id ||
+    review?.medical_review?.uuid ||
+    encounter?.medical_review_public_id ||
+    fallbackPublicId ||
+    ''
+  );
+};
+
 const clinicalCorrectionCategories = [
   { value: 'diagnosis_correction', label: 'Diagnosis' },
   { value: 'missed_red_flag', label: 'Red flag' },
@@ -670,6 +689,10 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   }), [review, patientData, clinicalFeedback, editingNote, editedNote]);
   const [copySuccess, setCopySuccess] = useState(false);
   const currentProcessingStatus = getStatus(publicId);
+  const medicalReviewPublicId = useMemo(
+    () => resolveMedicalReviewPublicId(review, publicId),
+    [review, publicId]
+  );
   const getClinicalTrainingFeedbackPayload = useCallback((context = {}) => {
     const feedback = { ...clinicalFeedback };
     if (context.decision === 'approve_as_is') {
@@ -875,6 +898,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       ...restExtras,
       decision,
       note_payload: notePayload,
+      medical_review_public_id: medicalReviewPublicId,
       patient_summary: extraPatientSummary || review?.patient_summary || review?.summary || '',
       patient: {
         first_name: patientData.first_name,
@@ -886,6 +910,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       metadata: {
         surface: 'doctor_review_detail',
         review_public_id: publicId,
+        medical_review_public_id: medicalReviewPublicId,
         origin,
         urgency_level: urgency.value,
         ai_governance: approvalMetadata,
@@ -1566,7 +1591,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       }
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
+        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -1685,7 +1710,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       try {
         const token = await getAccessToken();
         const response = await fetch(
-          `https://api.prestigedelta.com/medical-reviews/${publicId}/save-note/`,
+          `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
           {
             method: 'POST',
             headers: {
@@ -1727,7 +1752,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload();
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${publicId}/save-note/`,
+        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
         {
           method: 'POST',
           headers: {
@@ -1799,7 +1824,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       }
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${publicId}/finalize/`,
+        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -4507,6 +4532,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         continuityBrief={review?.patient_summary || review?.post_call_continuity_capsule || review?.live_call_brief || 'No prior visit summaries in EMR.'}
         patientAge={review?.patient_age || review?.age || 'Unspecified'}
         publicId={publicId}
+        medicalReviewPublicId={medicalReviewPublicId}
         patientId={review?.patient || review?.patient_id}
         mode={liveCopilotMode}
         reviewOrigin={getReviewOrigin(review)}

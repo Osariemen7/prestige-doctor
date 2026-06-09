@@ -384,6 +384,7 @@ const LiveCopilotDashboard = ({
   continuityBrief = null,
   patientAge = null,
   publicId = "demo",
+  medicalReviewPublicId = null,
   patientId = null,
   mode = 'live_encounter',
   reviewOrigin = 'live_encounter',
@@ -490,7 +491,7 @@ const LiveCopilotDashboard = ({
       }));
 
       const soapArguments = {
-        medical_review_public_id: publicId && publicId !== 'demo' ? publicId : null,
+        medical_review_public_id: medicalReviewPublicId || (publicId && publicId !== 'demo' ? publicId : null),
         patient_id: patientId,
         provider_profile_id: providerProfileId,
         organization_id: organizationId,

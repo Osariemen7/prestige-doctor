@@ -4,6 +4,7 @@ import {
   recordPatientFollowThroughCompletion,
   recordWhatsAppFollowThroughMessage,
   reconcileLocalWorkflowEvents,
+  submitDoctorDecision,
 } from './doctorWorkflowApi';
 
 jest.mock('../api', () => ({
@@ -96,6 +97,24 @@ describe('doctor workflow local fallback events', () => {
 
     expect(result).toEqual({ reconciled: 0, events: [], local_events_cleared: 0 });
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('uses the medical review public id for legacy save/finalize fallback', async () => {
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse({ detail: 'missing endpoint' }, false, 404))
+      .mockResolvedValueOnce(jsonResponse({ saved: true }))
+      .mockResolvedValueOnce(jsonResponse({ finalized: true }));
+
+    const result = await submitDoctorDecision('provider-review-1', {
+      decision: 'edit_and_approve',
+      medical_review_public_id: 'medical-review-1',
+      note_payload: { subjective: 'Updated draft' },
+    });
+
+    expect(global.fetch.mock.calls[0][0]).toContain('/provider-reviews/provider-review-1/doctor-decision/');
+    expect(global.fetch.mock.calls[1][0]).toContain('/medical-reviews/medical-review-1/save-note/');
+    expect(global.fetch.mock.calls[2][0]).toContain('/medical-reviews/medical-review-1/finalize/');
+    expect(result).toMatchObject({ legacy_fallback: true });
   });
 
   it('can clear all local events for one review while preserving other reviews', () => {

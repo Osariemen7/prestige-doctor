@@ -39,6 +39,13 @@ const getErrorMessage = (response, body, fallback) => {
 
 const isMissingEndpoint = (response) => response.status === 404 || response.status === 405;
 
+const resolveLegacyMedicalReviewId = (reviewPublicId, payload = {}) => (
+  payload?.medical_review_public_id ||
+  payload?.medicalReviewPublicId ||
+  payload?.metadata?.medical_review_public_id ||
+  reviewPublicId
+);
+
 const setLocalWorkflowEvents = (events) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(LOCAL_EVENT_KEY, JSON.stringify(Array.isArray(events) ? events : []));
@@ -116,8 +123,10 @@ const tryLegacySaveNote = async (reviewPublicId, payload) => {
     return null;
   }
 
+  const medicalReviewId = resolveLegacyMedicalReviewId(reviewPublicId, payload);
+
   return postJson(
-    `/medical-reviews/${reviewPublicId}/save-note/`,
+    `/medical-reviews/${medicalReviewId}/save-note/`,
     {
       note_payload: payload.note_payload,
       ...(payload.clinical_training_feedback
@@ -129,8 +138,10 @@ const tryLegacySaveNote = async (reviewPublicId, payload) => {
 };
 
 const tryLegacyFinalize = async (reviewPublicId, payload) => {
+  const medicalReviewId = resolveLegacyMedicalReviewId(reviewPublicId, payload);
+
   return postJson(
-    `/medical-reviews/${reviewPublicId}/finalize/`,
+    `/medical-reviews/${medicalReviewId}/finalize/`,
     {
       note_payload: payload.note_payload || {},
       create_patient: true,
