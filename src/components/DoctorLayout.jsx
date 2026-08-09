@@ -26,6 +26,7 @@ import {
   PersonAdd as PersonAddIcon,
   Message as MessageIcon,
   Science as ScienceIcon,
+  MedicalServices as MedicalServicesIcon,
 } from '@mui/icons-material';
 import InviteColleagueModal from './InviteColleagueModal';
 
@@ -73,6 +74,12 @@ const DoctorLayout = ({ children }) => {
       description: 'Manage patient lab tests',
       icon: <ScienceIcon />,
       path: '/investigations',
+    },
+    {
+      text: 'Clinical Services',
+      description: 'Server-scoped clinician-service queue',
+      icon: <MedicalServicesIcon />,
+      path: '/clinical-services',
     },
     {
       text: 'Business Dashboard',

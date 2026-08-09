@@ -855,7 +855,8 @@ const LiveCopilotDashboard = ({
                 if (state === 'connected') {
                   setSessionStatus('connected');
                 } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-                  setSessionStatus('preview');
+                  setSessionStatus('error');
+                  setIsActive(false);
                 }
               },
               onTranscript: addTranscriptEntry,
@@ -866,7 +867,9 @@ const LiveCopilotDashboard = ({
                 }
               },
               onError: () => {
-                setSessionError('Realtime data channel reported an error. Local preview remains available.');
+                setSessionError('Realtime data channel reported an error. The server-confirmed session is not available.');
+                setSessionStatus('error');
+                setIsActive(false);
               },
             });
             realtimePeerRef.current = peerSession;
@@ -874,22 +877,23 @@ const LiveCopilotDashboard = ({
             setSessionStatus('connected');
           } catch (realtimeError) {
             console.error('OpenAI Realtime WebRTC connection failed:', realtimeError);
-            setSessionError(realtimeError.message || 'Realtime WebRTC connection failed. Continuing in local preview mode.');
-            setSessionStatus('preview');
+            setSessionError(realtimeError.message || 'Realtime WebRTC connection failed.');
+            setSessionStatus('error');
+            return;
           }
         } else {
-          setSessionStatus('preview');
-          if (!session?.local_fallback) {
-            setSessionError('Backend session created, but no browser client secret was returned yet. Realtime suggestions will stay empty until live updates are available.');
-          }
+          setSessionError('The server session did not include a browser client secret. No realtime session was started.');
+          setSessionStatus('error');
+          return;
         }
       } catch (error) {
         console.error('Realtime session setup failed:', error);
-        setSessionError(error.message || 'Realtime setup failed. Realtime suggestions will stay empty until live updates are available.');
-        setSessionStatus('preview');
+        setSessionError(error.message || 'Realtime session setup failed.');
+        setSessionStatus('error');
+        return;
       }
     } else {
-      setRealtimeSession({ local_fallback: true, model: 'gpt-realtime-mini', session_id: 'demo' });
+      setRealtimeSession({ demo_preview: true, model: 'gpt-realtime-mini', session_id: 'demo' });
       setSessionStatus('preview');
     }
 
@@ -1005,17 +1009,13 @@ const LiveCopilotDashboard = ({
     setSessionStatus('saving');
     try {
       const result = await saveLiveCopilotArtifacts(publicId, buildLiveCopilotArtifactPayload(endedAt));
-      if (result?.local_fallback) {
-        setSessionError(result.message || 'Live copilot artifacts were captured locally.');
-      } else {
-        setSessionError('');
-        if (typeof onSync === 'function') {
-          onSync({
-            liveArtifactsSaved: true,
-            review: result?.review,
-            liveArtifacts: result?.live_artifacts,
-          });
-        }
+      setSessionError('');
+      if (typeof onSync === 'function') {
+        onSync({
+          liveArtifactsSaved: true,
+          review: result?.review,
+          liveArtifacts: result?.live_artifacts,
+        });
       }
     } catch (error) {
       console.error('Failed to save live copilot artifacts:', error);
@@ -1292,9 +1292,9 @@ const LiveCopilotDashboard = ({
                 sx={{ color: '#c7d2fe', borderColor: 'rgba(199, 210, 254, 0.35)' }}
               />
               <Chip
-                label={sessionStatus === 'connected' ? 'OpenAI Realtime Connected' : sessionStatus === 'connecting' ? 'Connecting Realtime' : sessionStatus === 'saving' ? 'Saving Live Session' : sessionStatus === 'preview' ? 'Realtime Preview' : 'Realtime Idle'}
+                label={sessionStatus === 'connected' ? 'OpenAI Realtime Connected' : sessionStatus === 'connecting' ? 'Connecting Realtime' : sessionStatus === 'saving' ? 'Saving Live Session' : sessionStatus === 'preview' ? 'Demo Preview' : sessionStatus === 'error' ? 'Realtime Unavailable' : 'Realtime Idle'}
                 size="small"
-                color={sessionStatus === 'connected' ? 'success' : sessionStatus === 'connecting' || sessionStatus === 'saving' ? 'info' : 'default'}
+                color={sessionStatus === 'connected' ? 'success' : sessionStatus === 'error' ? 'error' : sessionStatus === 'connecting' || sessionStatus === 'saving' ? 'info' : 'default'}
                 variant="outlined"
                 sx={{ color: '#c7d2fe', borderColor: 'rgba(199, 210, 254, 0.35)' }}
               />

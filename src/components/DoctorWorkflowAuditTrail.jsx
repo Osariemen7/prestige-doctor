@@ -1,12 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
-  Alert,
   Box,
-  Button,
   Card,
   CardContent,
   Chip,
-  CircularProgress,
   Divider,
   Stack,
   Typography,
@@ -17,13 +14,8 @@ import {
   HistoryEdu as HistoryIcon,
   Mic as MicIcon,
   Send as SendIcon,
-  Sync as SyncIcon,
   WarningAmber as WarningIcon,
 } from '@mui/icons-material';
-import {
-  getLocalWorkflowEvents,
-  reconcileLocalWorkflowEvents,
-} from '../services/doctorWorkflowApi';
 
 const formatLabel = (value) => {
   if (!value) return 'Workflow event';
@@ -70,20 +62,6 @@ const normalizeServerEvent = (event, index) => {
       '',
     createdAt: event?.created_at || event?.timestamp || event?.updated_at,
     actor: event?.actor_name || event?.doctor_name || event?.actor || event?.created_by || 'Backend',
-    source: 'server',
-  };
-};
-
-const normalizeLocalEvent = (event) => {
-  const payload = event?.payload || {};
-  return {
-    id: event?.id,
-    kind: event?.kind,
-    title: formatLabel(payload.decision || event?.kind),
-    detail: event?.message || event?.reason || payload.reason || '',
-    createdAt: event?.created_at,
-    actor: 'This browser',
-    source: 'local',
   };
 };
 
@@ -109,60 +87,24 @@ const getServerEvents = (review) => {
     .map(normalizeServerEvent);
 };
 
-const DoctorWorkflowAuditTrail = ({ review, onReconciled = null }) => {
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
-  const [syncError, setSyncError] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  const events = useMemo(() => {
-    const serverEvents = getServerEvents(review);
-    const localEvents = getLocalWorkflowEvents()
-      .filter((event) => event.review_public_id === review?.public_id)
-      .map(normalizeLocalEvent);
-
-    return [...localEvents, ...serverEvents]
+const DoctorWorkflowAuditTrail = ({ review }) => {
+  const events = useMemo(
+    () => getServerEvents(review)
       .filter((event) => event.id || event.kind)
       .sort((a, b) => {
         const left = Date.parse(a.createdAt || '') || 0;
         const right = Date.parse(b.createdAt || '') || 0;
         return right - left;
-      });
-  }, [review, refreshKey]);
+      }),
+    [review]
+  );
 
   if (!review?.public_id && events.length === 0) {
     return null;
   }
 
-  const localCount = events.filter((event) => event.source === 'local').length;
-  const handleReconcile = async () => {
-    if (!review?.public_id || localCount === 0) return;
-    setSyncing(true);
-    setSyncMessage('');
-    setSyncError('');
-
-    try {
-      const result = await reconcileLocalWorkflowEvents(review.public_id);
-      const cleared = result?.local_events_cleared || 0;
-      const remaining = result?.local_events_remaining || 0;
-      setSyncMessage(
-        cleared > 0
-          ? `${cleared} pending workflow event${cleared === 1 ? '' : 's'} synced to backend.${remaining ? ` ${remaining} still need review.` : ''}`
-          : 'Backend accepted the reconcile request, but no local events were cleared.'
-      );
-      setRefreshKey((value) => value + 1);
-      if (typeof onReconciled === 'function') {
-        onReconciled(result);
-      }
-    } catch (error) {
-      setSyncError(error.message || 'Failed to reconcile pending workflow events');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   return (
-    <Card variant="outlined" sx={{ mb: 3, borderColor: localCount ? 'warning.light' : 'divider' }}>
+    <Card variant="outlined" sx={{ mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -172,48 +114,16 @@ const DoctorWorkflowAuditTrail = ({ review, onReconciled = null }) => {
                 Workflow Audit Trail
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Doctor decisions, patient follow-up requests, and realtime session handoffs.
+                Server-recorded doctor decisions, patient follow-up requests, and realtime session handoffs.
               </Typography>
             </Box>
           </Box>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
-            <Chip size="small" label={`${events.length} events`} variant="outlined" />
-            {localCount > 0 && (
-              <Chip size="small" label={`${localCount} pending backend`} color="warning" />
-            )}
-            {localCount > 0 && (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={syncing ? <CircularProgress size={14} /> : <SyncIcon />}
-                onClick={handleReconcile}
-                disabled={syncing}
-              >
-                Sync Pending
-              </Button>
-            )}
-          </Stack>
+          <Chip size="small" label={`${events.length} server events`} variant="outlined" />
         </Box>
-
-        {syncMessage && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {syncMessage}
-          </Alert>
-        )}
-        {syncError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {syncError}
-          </Alert>
-        )}
-        {localCount > 0 && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Some workflow actions were captured locally because a backend endpoint was unavailable. Sync them once backend support is ready; failed sync attempts keep the local audit events visible.
-          </Alert>
-        )}
 
         {events.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            No doctor workflow actions have been recorded for this review yet.
+            No server-recorded doctor workflow actions are available for this review.
           </Typography>
         ) : (
           <Stack spacing={1.5}>
@@ -221,7 +131,7 @@ const DoctorWorkflowAuditTrail = ({ review, onReconciled = null }) => {
               <Box key={event.id || `${event.kind}-${index}`}>
                 {index > 0 && <Divider sx={{ mb: 1.5 }} />}
                 <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
-                  <Box sx={{ color: event.source === 'local' ? 'warning.main' : 'primary.main', mt: 0.25 }}>
+                  <Box sx={{ color: 'primary.main', mt: 0.25 }}>
                     {getEventIcon(event.kind)}
                   </Box>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -231,8 +141,8 @@ const DoctorWorkflowAuditTrail = ({ review, onReconciled = null }) => {
                       </Typography>
                       <Chip
                         size="small"
-                        label={event.source === 'local' ? 'Pending backend sync' : 'Backend recorded'}
-                        color={event.source === 'local' ? 'warning' : 'success'}
+                        label="Backend recorded"
+                        color="success"
                         variant="outlined"
                         sx={{ height: 20, fontSize: '0.68rem' }}
                       />

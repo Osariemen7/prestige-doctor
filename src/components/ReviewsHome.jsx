@@ -202,40 +202,6 @@ const getReviewStatusConfig = (review) => {
   }
 };
 
-const buildMockLiveQueueReview = (review) => ({
-  ...review,
-  has_live_visual_captures: true,
-  live_visual_capture_count: Math.max(review.live_visual_capture_count || 0, 1),
-  live_transcript_count: Math.max(review.live_transcript_count || 0, 1),
-  live_tool_activity_count: Math.max(review.live_tool_activity_count || 0, 2),
-  live_visit_entry_count: Math.max(review.live_visit_entry_count || 0, 4),
-   requires_doctor_action: review.requires_doctor_action ?? true,
-   live_visit_readiness: review.live_visit_readiness || 'ready_for_review',
-   callback_status: review.callback_status || 'none',
-  mock_live_visit_preview: true,
-});
-
-const applyMockLiveQueueSignals = (reviews, enabled) => {
-  if (!enabled || !Array.isArray(reviews) || reviews.length === 0) {
-    return reviews;
-  }
-
-  let injected = false;
-
-  return reviews.map((review) => {
-    if (injected) {
-      return review;
-    }
-
-    if (!review?.conducted_by_ai || review?.has_live_visual_captures) {
-      return review;
-    }
-
-    injected = true;
-    return buildMockLiveQueueReview(review);
-  });
-};
-
 const buildQueueSummaryFromReviews = (reviews, baseSummary = null) => {
   const computedSummary = {
     pending_count: 0,
@@ -398,27 +364,16 @@ const ReviewsHome = () => {
   const [queueSummary, setQueueSummary] = useState(null);
   const lastFetchRef = useRef(0);
   const streamFallbackRef = useRef(false);
-  const mockLiveVisitPreviewEnabled = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return window.location.hostname === 'localhost'
-      && new URLSearchParams(location.search).get('mockLiveVisit') === '1';
-  }, [location.search]);
 
   const selectedReviewId = publicId || null;
-  const effectiveReviews = useMemo(
-    () => applyMockLiveQueueSignals(reviews, mockLiveVisitPreviewEnabled),
-    [reviews, mockLiveVisitPreviewEnabled]
-  );
+  const effectiveReviews = reviews;
   const effectiveQueueSummary = useMemo(() => {
-    if (!queueSummary && !mockLiveVisitPreviewEnabled) {
+    if (!queueSummary) {
       return null;
     }
 
-    return buildQueueSummaryFromReviews(effectiveReviews, queueSummary);
-  }, [effectiveReviews, queueSummary, mockLiveVisitPreviewEnabled]);
+    return buildQueueSummaryFromReviews(reviews, queueSummary);
+  }, [reviews, queueSummary]);
 
   const activeReview = useMemo(() => {
     if (!workflowReviewId) return null;
@@ -1165,15 +1120,6 @@ const ReviewsHome = () => {
                 sx={{ fontSize: '0.75rem' }}
               />
             )}
-            {mockLiveVisitPreviewEnabled && (
-              <Chip
-                label="Mock Live Preview"
-                size="small"
-                color="warning"
-                variant="outlined"
-                sx={{ fontSize: '0.75rem' }}
-              />
-            )}
           </Stack>
         )}
       </Box>
@@ -1394,15 +1340,6 @@ const ReviewsHome = () => {
                               label={`${review.live_visual_capture_count || 1} Live ${review.live_visual_capture_count === 1 ? 'Capture' : 'Captures'}`}
                               size="small"
                               color="info"
-                              sx={{ height: 22, fontSize: '0.7rem' }}
-                            />
-                          )}
-                          {review.mock_live_visit_preview && (
-                            <Chip
-                              label="Mock Preview"
-                              size="small"
-                              color="warning"
-                              variant="outlined"
                               sx={{ height: 22, fontSize: '0.7rem' }}
                             />
                           )}

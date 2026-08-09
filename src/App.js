@@ -23,6 +23,9 @@ import PatientDetailsPage from './components/PatientDetailsPage';
 import InvestigationsMain from './components/InvestigationsMain';
 import InvestigationDetailPage from './components/InvestigationDetailPage';
 import PatientMediaGallery from './components/PatientMediaGallery';
+import DoctorClinicalServices from './components/DoctorClinicalServices';
+import DoctorClinicalServiceDetail from './components/DoctorClinicalServiceDetail';
+import Voice from './voice';
 
 const App = () => {
   const [sessionReady, setSessionReady] = useState(false);
@@ -69,6 +72,11 @@ const App = () => {
             {/* Investigation Management Routes */}
             <Route path="/investigations" element={<DoctorLayout><InvestigationsMain /></DoctorLayout>} />
             <Route path="/investigations/:type/:id" element={<DoctorLayout><InvestigationDetailPage /></DoctorLayout>} />
+
+            {/* Server-authoritative clinician-service routes */}
+            <Route path="/clinical-services" element={<DoctorLayout><DoctorClinicalServices /></DoctorLayout>} />
+            <Route path="/clinical-services/:orderId" element={<DoctorLayout><DoctorClinicalServiceDetail /></DoctorLayout>} />
+            <Route path="/voice" element={<Voice />} />
             
             {/* Legacy Routes */}
             <Route path="/dashboard" element={<Dashboard />} />

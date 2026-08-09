@@ -33,7 +33,6 @@ import {
   isAiTriageReview,
   REVIEW_ORIGINS,
 } from '../utils/aiReviewWorkflow';
-import { getLocalWorkflowEvents } from '../services/doctorWorkflowApi';
 
 const isFinalized = (review) => Boolean(review?.is_finalized || ['approved', 'finalized'].includes(review?.review_status));
 
@@ -53,7 +52,6 @@ const metricCardSx = {
 
 const EnterpriseWorkflowInsights = ({ reviews = [], queueSummary = null, onFilter }) => {
   const metrics = useMemo(() => {
-    const localEvents = getLocalWorkflowEvents();
     const now = Date.now();
     const collection = Array.isArray(reviews) ? reviews : [];
 
@@ -135,7 +133,6 @@ const EnterpriseWorkflowInsights = ({ reviews = [], queueSummary = null, onFilte
       openAgeCases: 0,
     });
 
-    const pendingLocalEvents = localEvents.filter((event) => collection.some((review) => review.public_id === event.review_public_id));
     const aiAssistRate = totals.total ? (totals.aiTriage / totals.total) * 100 : 0;
     const finalizationRate = totals.total ? (totals.finalized / totals.total) * 100 : 0;
     const followThroughRate = totals.finalized ? (totals.followThroughSent / totals.finalized) * 100 : 0;
@@ -151,7 +148,6 @@ const EnterpriseWorkflowInsights = ({ reviews = [], queueSummary = null, onFilte
       taskCompletionRate,
       feedbackCaptureRate,
       avgOpenAgeHours,
-      pendingLocalEvents: pendingLocalEvents.length,
       queueSummary: queueSummary || {},
     };
   }, [reviews, queueSummary]);
@@ -187,7 +183,6 @@ const EnterpriseWorkflowInsights = ({ reviews = [], queueSummary = null, onFilte
         </Box>
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
           <Chip icon={<InsightsIcon />} label={`${metrics.total} active reviews`} color="primary" variant="outlined" />
-          {!!metrics.pendingLocalEvents && <Chip label={`${metrics.pendingLocalEvents} pending sync`} color="warning" />}
         </Stack>
       </Box>
 

@@ -461,10 +461,10 @@ const PatientFollowThroughPanel = ({ review, patientData, onRefresh }) => {
       const result = await sendPatientFollowThrough(review.public_id, payload);
       setMessage(result?.message || (
         followThroughRecommendedAction.shouldSendPatientMessage
-          ? `Patient follow-through plan queued for ${patientName}.`
-          : `${followThroughRecommendedAction.label} recorded for provider follow-up.`
+          ? `Patient follow-through plan confirmed by the server for ${patientName}.`
+          : `${followThroughRecommendedAction.label} confirmed by the server.`
       ));
-      if (typeof onRefresh === 'function' && !result?.local_fallback) {
+      if (typeof onRefresh === 'function') {
         await onRefresh();
       }
     } catch (sendError) {

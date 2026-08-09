@@ -53,6 +53,7 @@ import LiveCopilotDashboard from './LiveCopilotDashboard';
 import AiTriageApprovalCockpit from './AiTriageApprovalCockpit';
 import DoctorWorkflowAuditTrail from './DoctorWorkflowAuditTrail';
 import PatientFollowThroughPanel from './PatientFollowThroughPanel';
+import DoctorTransitionContext from './DoctorTransitionContext';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
 import {
@@ -577,51 +578,6 @@ const getEvidenceExcerpt = (entry, maxLength = 180) => {
   return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
 };
 
-const buildMockLiveVisitEntries = () => {
-  const now = Date.now();
-
-  return [
-    {
-      id: 'mock-transcript-1',
-      source: 'live_visit',
-      kind: 'transcript',
-      time: new Date(now - 1000 * 60 * 12).toISOString(),
-      content: 'Patient describes intermittent abdominal pain that worsens after meals and shared prior imaging during the live session.',
-    },
-    {
-      id: 'mock-tool-1',
-      source: 'live_visit',
-      kind: 'tool_activity',
-      time: new Date(now - 1000 * 60 * 8).toISOString(),
-      title: 'Clinical summary refreshed',
-      stage: 'completed',
-      message: 'AI updated the rolling summary after reviewing symptom timeline and medication history.',
-    },
-    {
-      id: 'mock-capture-1',
-      source: 'live_visit',
-      kind: 'visual_capture',
-      time: new Date(now - 1000 * 60 * 6).toISOString(),
-      asset_url: '/images/doctor-ai-platform.png',
-      label: 'Abdominal scan snapshot',
-      purpose: 'supporting_document',
-      note: 'Mock preview artifact for localhost verification of the live visual capture gallery.',
-      upload_status: 'shared',
-      sent_to_model: true,
-      mime_type: 'image/png',
-    },
-    {
-      id: 'mock-tool-2',
-      source: 'live_visit',
-      kind: 'tool_activity',
-      time: new Date(now - 1000 * 60 * 4).toISOString(),
-      title: 'Urgency review',
-      stage: 'pending',
-      message: 'Clinician review still required before finalizing the recommendation.',
-    },
-  ];
-};
-
 const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const { publicId: urlPublicId } = useParams();
   const publicId = urlPublicId;
@@ -939,13 +895,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const payload = buildDoctorDecisionPayload(decision, extras);
       const result = await submitDoctorDecision(publicId, payload);
 
-      if (result?.local_fallback) {
-        alert(result.message || 'Workflow action captured locally while backend support is pending.');
-      } else if (result?.legacy_fallback) {
-        alert(result.message || 'Review saved through legacy workflow.');
-      } else {
-        alert(result?.message || 'Doctor decision saved successfully.');
-      }
+      alert(result?.message || 'Doctor decision confirmed by the server.');
 
       await fetchReviewDetail();
       if (onUpdate) {
@@ -1033,7 +983,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       await handleDoctorDecision('request_more_info', {
         questions,
         delivery_channel: 'chat',
-        metadata: { request_result: result?.local_fallback ? 'local_fallback' : 'sent' },
+        metadata: { request_result: 'server_confirmed' },
       });
       setShowMoreInfoDialog(false);
     } catch (error) {
@@ -1076,23 +1026,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       )
       .sort((left, right) => getEntryTimestampValue(left) - getEntryTimestampValue(right));
   }, [review]);
-  const mockLiveVisitPreviewEnabled = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return window.location.hostname === 'localhost'
-      && new URLSearchParams(location.search).get('mockLiveVisit') === '1';
-  }, [location.search]);
-  const mockLiveVisitEntries = useMemo(
-    () => (mockLiveVisitPreviewEnabled ? buildMockLiveVisitEntries() : []),
-    [mockLiveVisitPreviewEnabled]
-  );
-  const effectiveLiveVisitEntries = useMemo(
-    () => (liveVisitEntries.length > 0 ? liveVisitEntries : mockLiveVisitEntries),
-    [liveVisitEntries, mockLiveVisitEntries]
-  );
-  const usingMockLiveVisitPreview = mockLiveVisitPreviewEnabled && liveVisitEntries.length === 0 && mockLiveVisitEntries.length > 0;
+  const effectiveLiveVisitEntries = liveVisitEntries;
   const liveVisualCaptures = useMemo(
     () => effectiveLiveVisitEntries.filter((entry) => entry.kind === 'visual_capture' && entry.asset_url),
     [effectiveLiveVisitEntries]
@@ -3688,6 +3622,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
       {renderDoctorDecisionBar()}
 
+      <DoctorTransitionContext review={review} reviewPublicId={publicId} />
+
       {isAiTriageReview(review) && !review.is_finalized && (
         <AiTriageApprovalCockpit
           review={review}
@@ -3942,17 +3878,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               </Box>
             </Box>
             <Divider sx={{ mb: 2 }} />
-
-            {usingMockLiveVisitPreview && (
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 0.5 }}>
-                  Mock Live Visit Preview
-                </Typography>
-                <Typography variant="body2">
-                  Showing localhost-only seeded live-visit artifacts because this review does not currently have production visual captures.
-                </Typography>
-              </Alert>
-            )}
 
             {(liveVisitReadinessConfig.label || callbackSummaryText) && (
               <Alert
