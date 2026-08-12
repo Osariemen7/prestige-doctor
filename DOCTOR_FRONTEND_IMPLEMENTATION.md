@@ -555,7 +555,7 @@ Do not rank doctors by fastest decision or margin.
 
 ## 11. Demo Workspace
 
-Enable only with `VITE_ENABLE_DEMO=true`. Use MSW, deterministic clocks, and a persistent `Synthetic demo` label.
+Enable only with `REACT_APP_ENABLE_DEMO=true`. Use MSW, deterministic clocks, and a persistent `Synthetic demo` label.
 
 Required linked cases:
 
@@ -747,3 +747,28 @@ Use the shared 56-year-old Basic-member hypertension fixture. The doctor must:
 5. Observe the eligible day-28 repeat and terminal outcome evidence in the same case.
 
 MSW and Playwright must cover exact approval, edit-and-approve with a changed regimen hash, information resubmission, stale hash, expired authorization, adverse effect, deterioration, abnormal reading, investigation result requiring authority, unauthorized substitution rejection, and duplicate decision replay. Release requires proof that no doctor-owned review task is created, approval activates once, the clinician never performs commerce actor actions, and unchanged repeats consume only the authority granted by the exact approved plan.
+
+### Care Kernel conversation contract (feature-gated)
+
+Fetch `GET /care/capabilities` before mounting the alerts/review-linked
+conversation surface; server capability denial always wins over client flags.
+
+When `care_conversation_api` is enabled, the doctor inbox may read the same channel-neutral projection as WhatsApp:
+
+```http
+GET  /care/conversations?patient_id=&business_unit_id=&status=&unread=
+GET  /care/conversations/summary?patient_id=&business_unit_id=
+GET  /care/conversations/{conversationId}
+POST /care/conversations/{conversationId}/reply
+POST /care/conversations/{conversationId}/read
+```
+
+Conversation replies are operational continuity only: evidence gaps, due state, safety escalation, attendance/discharge outcome, and a clinically indicated checkpoint. They cannot approve a plan, claim a clinical decision, change triage, or select a model. Existing doctor claim and exact-hash decision endpoints remain the only clinical authority actions. Render only server-issued turns, task summaries, quick actions, and loop `state_version`; never show sponsorship amounts, credits, settlement, revenue, token counts, or prompts. Refetch on a stale state and fail closed when the capability is disabled.
+
+### Implemented Care Kernel surface
+
+- `/care-coordinator` and `/care-coordinator/:conversationId` are mounted in the doctor layout and navigation.
+- The page validates `care-conversation-turn-v1` with the same Zod core schema used by the patient and partner apps, and initializes capability state from `GET /care/capabilities` before any protected call.
+- It shows only patient case reference, task type/state/risk/due time, current checkpoint, role-safe turns, server quick actions, and safe response obligation. No sponsorship or model economics are rendered.
+- A permanent authority notice routes plan approval, discharge attestation, claim and exact-hash clinical decisions to their existing endpoints; conversation replies remain operational.
+- `/demo/doctor` is a persistent-labelled synthetic route using the linked patient and task IDs with zero production reads or writes.

@@ -27,6 +27,7 @@ import {
   Message as MessageIcon,
   Science as ScienceIcon,
   MedicalServices as MedicalServicesIcon,
+  ForumOutlined as ForumOutlinedIcon,
 } from '@mui/icons-material';
 import InviteColleagueModal from './InviteColleagueModal';
 
@@ -68,6 +69,12 @@ const DoctorLayout = ({ children }) => {
       description: 'Communicate with patients',
       icon: <MessageIcon />,
       path: '/messages',
+    },
+    {
+      text: 'Care Coordinator',
+      description: 'Consented care checkpoints and follow-up',
+      icon: <ForumOutlinedIcon />,
+      path: '/care-coordinator',
     },
     {
       text: 'Investigations',

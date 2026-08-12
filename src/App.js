@@ -25,6 +25,7 @@ import InvestigationDetailPage from './components/InvestigationDetailPage';
 import PatientMediaGallery from './components/PatientMediaGallery';
 import DoctorClinicalServices from './components/DoctorClinicalServices';
 import DoctorClinicalServiceDetail from './components/DoctorClinicalServiceDetail';
+import CareCoordinatorQueue from './components/CareCoordinatorQueue';
 import Voice from './voice';
 
 const App = () => {
@@ -76,6 +77,9 @@ const App = () => {
             {/* Server-authoritative clinician-service routes */}
             <Route path="/clinical-services" element={<DoctorLayout><DoctorClinicalServices /></DoctorLayout>} />
             <Route path="/clinical-services/:orderId" element={<DoctorLayout><DoctorClinicalServiceDetail /></DoctorLayout>} />
+            <Route path="/care-coordinator" element={<DoctorLayout><CareCoordinatorQueue /></DoctorLayout>} />
+            <Route path="/care-coordinator/:conversationId" element={<DoctorLayout><CareCoordinatorQueue /></DoctorLayout>} />
+            <Route path="/demo/doctor" element={<DoctorLayout><CareCoordinatorQueue demoMode /></DoctorLayout>} />
             <Route path="/voice" element={<Voice />} />
             
             {/* Legacy Routes */}

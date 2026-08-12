@@ -19,6 +19,7 @@ import {
   FiUsers,
   FiFileText,
   FiCalendar,
+  FiMessageCircle,
   FiSettings,
   FiLogOut,
   FiChevronDown,
@@ -80,6 +81,12 @@ const ProviderNavigation = () => {
           onClick={() => navigate('/reviews')}
         >
           Medical Reviews
+        </MenuItem>
+        <MenuItem
+          icon={<Icon as={FiMessageCircle} />}
+          onClick={() => navigate('/care-coordinator')}
+        >
+          Care Coordinator
         </MenuItem>
         <MenuItem
           icon={<Icon as={FiCalendar} />}
