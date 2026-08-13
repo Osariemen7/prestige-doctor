@@ -1,0 +1,37 @@
+name: Doctor release smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - codex/care-kernel-conversations
+
+concurrency:
+  group: doctor-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify Care Coordinator contract
+        env:
+          CI: 'true'
+          GENERATE_SOURCEMAP: 'false'
+        run: npm test -- --watchAll=false --runInBand src/services/careConversationContract.test.js
+      - name: Build production bundle
+        env:
+          CI: 'true'
+          GENERATE_SOURCEMAP: 'false'
+        run: npm run build
