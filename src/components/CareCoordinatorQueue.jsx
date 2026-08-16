@@ -14,7 +14,17 @@ import {
 } from '../services/careConversationApi';
 import { demoDoctorCapabilities, demoDoctorConversation } from '../demo/careConversationFixture';
 
-const newId = () => globalThis.crypto?.randomUUID?.() || `doctor-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const getRoot = () => {
+  if (typeof window !== 'undefined') return window;
+  if (typeof global !== 'undefined') return global;
+  try { return Function('return this')(); } catch {
+    return {};
+  }
+};
+
+const _root = getRoot();
+
+const newId = () => (_root.crypto?.randomUUID?.() || `doctor-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const words = (value) => String(value || '').replaceAll('_', ' ');
 const dateTime = (value) => value ? new Intl.DateTimeFormat('en-NG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Not scheduled';
 
