@@ -70,6 +70,7 @@ const requestJson = async (path, {
     error.status = response.status;
     error.payload = payload;
     error.endpointMissing = response.status === 404 || response.status === 405;
+    error.retryAfter = response.headers?.get?.('Retry-After') || null;
     throw error;
   }
 
@@ -171,6 +172,9 @@ export const submitClinicalProposalDecision = async (proposalId, {
   reason = '',
   questions = [],
   clinicalAttestations,
+  reviewStartedAt,
+  decisionAt,
+  decisionCategory,
   idempotencyKey,
   correlationId,
 } = {}) => {
@@ -190,6 +194,9 @@ export const submitClinicalProposalDecision = async (proposalId, {
     ...(reason ? { reason } : {}),
     ...(Array.isArray(questions) && questions.length ? { questions } : {}),
     ...(clinicalAttestations ? { clinical_attestations: clinicalAttestations } : {}),
+    ...(reviewStartedAt ? { review_started_at: reviewStartedAt } : {}),
+    ...(decisionAt ? { decision_at: decisionAt } : {}),
+    ...(decisionCategory ? { decision_category: decisionCategory } : {}),
   };
 
   return requireObject(

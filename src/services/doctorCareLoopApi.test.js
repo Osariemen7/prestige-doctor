@@ -86,6 +86,13 @@ describe('doctor CareLoop API', () => {
       aiDraftHash: 'draft-hash-v4',
       decision: 'edit_and_approve',
       editedProposal: { assessment: { summary: 'Edited by doctor' } },
+      clinicalAttestations: {
+        documentation_reviewed: true,
+        allergies_and_interactions_reviewed: true,
+      },
+      reviewStartedAt: '2026-08-10T09:00:00Z',
+      decisionAt: '2026-08-10T09:15:00Z',
+      decisionCategory: 'routine_review',
       idempotencyKey: 'decision-key',
       correlationId: 'decision-correlation',
     });
@@ -102,6 +109,13 @@ describe('doctor CareLoop API', () => {
       proposal_hash: 'proposal-hash-v4',
       ai_draft_hash: 'draft-hash-v4',
       edited_proposal: { assessment: { summary: 'Edited by doctor' } },
+      clinical_attestations: {
+        documentation_reviewed: true,
+        allergies_and_interactions_reviewed: true,
+      },
+      review_started_at: '2026-08-10T09:00:00Z',
+      decision_at: '2026-08-10T09:15:00Z',
+      decision_category: 'routine_review',
     });
   });
 
@@ -117,12 +131,15 @@ describe('doctor CareLoop API', () => {
     })).rejects.toThrow('exact server AI draft hash');
     expect(global.fetch).not.toHaveBeenCalled();
 
-    global.fetch.mockResolvedValueOnce(jsonResponse({ code: 'stale_proposal' }, false, 409));
+    global.fetch.mockResolvedValueOnce({
+      ...jsonResponse({ code: 'stale_proposal' }, false, 409),
+      headers: { get: (key) => key === 'Retry-After' ? '4' : 'application/json' },
+    });
     await expect(submitClinicalProposalDecision('proposal-1', {
       proposalHash: 'stale-hash',
       aiDraftHash: 'draft-hash',
       decision: 'approve_as_written',
-    })).rejects.toMatchObject({ status: 409, payload: { code: 'stale_proposal' } });
+    })).rejects.toMatchObject({ status: 409, retryAfter: '4', payload: { code: 'stale_proposal' } });
   });
 
   it('keeps schedule and join state server-confirmed', async () => {
