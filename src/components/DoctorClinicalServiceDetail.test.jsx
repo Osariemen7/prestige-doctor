@@ -185,7 +185,7 @@ describe('DoctorClinicalServiceDetail', () => {
     const user = userEvent.setup();
     render(<DoctorClinicalServiceDetail />);
 
-    await screen.findByText('Stable treated hypertension');
+    expect((await screen.findAllByText('Stable treated hypertension')).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: /Edit draft fields/ }));
     const impression = screen.getByLabelText('Primary Impression');
     await user.clear(impression);
