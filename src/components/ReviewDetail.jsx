@@ -1590,17 +1590,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         finalizePayload.clinical_training_feedback = clinicalTrainingFeedback;
       }
 
-      const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(finalizePayload)
-        }
-      );
+      const response = await Promise.reject(new Error('Legacy review finalization is disabled. Use the exact-hash Care Kernel decision workflow.'));
 
       if (response.ok) {
         alert('Review finalized successfully!');
@@ -1709,19 +1699,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       setSaving(true);
       try {
         const token = await getAccessToken();
-        const response = await fetch(
-          `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              note_payload: mergedNote
-            })
-          }
-        );
+        const response = await Promise.reject(new Error('Legacy note writes are disabled. Use the exact-hash Care Kernel decision workflow.'));
 
         if (response.ok) {
           setReview(prev => ({
@@ -1751,22 +1729,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const token = await getAccessToken();
       const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload();
 
-      const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            note_payload: editedNote,
-            ...(clinicalTrainingFeedback
-              ? { clinical_training_feedback: clinicalTrainingFeedback }
-              : {})
-          })
-        }
-      );
+      const response = await Promise.reject(new Error('Legacy note writes are disabled. Use the exact-hash Care Kernel decision workflow.'));
 
       if (response.ok) {
         // Update the review state with the edited note payload
@@ -1823,17 +1786,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         finalizePayload.clinical_training_feedback = clinicalTrainingFeedback;
       }
 
-      const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(finalizePayload)
-        }
-      );
+      const response = await Promise.reject(new Error('Legacy review finalization is disabled. Use the exact-hash Care Kernel decision workflow.'));
 
       if (response.ok) {
         await response.json();

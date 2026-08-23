@@ -1,7 +1,13 @@
 // Authentication utility functions for JWT with refresh tokens
 // WhatsApp OTP tokens: access = 10 min, refresh = 7 days
 
-const TOKEN_REFRESH_URL = 'https://api.prestigedelta.com/api/tokenrefresh/';
+const API_ORIGIN = String(
+  process.env.REACT_APP_API_BASE_URL ||
+  process.env.REACT_APP_BACKEND_BASE_URL ||
+  process.env.VITE_API_ORIGIN ||
+  'https://api.prestigedelta.com'
+).replace(/\/$/, '');
+const TOKEN_REFRESH_URL = `${API_ORIGIN}/api/tokenrefresh/`;
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 30 * 1000;

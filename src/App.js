@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Route, Routes, Navigate } from 'react-router-dom';
+import { Route, Routes, Navigate, useParams } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ProcessingStatusProvider } from './contexts/ProcessingStatusContext';
 import { tryRestoreSession, isAuthenticated } from './api';
@@ -8,21 +8,17 @@ import { tryRestoreSession, isAuthenticated } from './api';
 import DoctorAuth from './components/DoctorAuth';
 import CompleteProfile from './components/CompleteProfile';
 import ForgotPassword from './components/ForgotPassword';
-import Dashboard from './components/dashboard';
-import ProviderDashboard from './components/ProviderDashboard';
-import ProviderDashboardDocs from './components/ProviderDashboardDocs';
-import CreateEncounter from './components/createEncounter';
-import Record from './components/record';
-import ReviewsList from './components/ReviewsList';
-import ReviewDetail from './components/ReviewDetail';
-import ReviewsHome from './components/ReviewsHome';
-import DoctorLayout from './components/DoctorLayout';
-import AdminDashboard from './components/AdminDashboard';
-import DoctorMessaging from './components/DoctorMessaging';
-import PatientDetailsPage from './components/PatientDetailsPage';
-import InvestigationsMain from './components/InvestigationsMain';
-import InvestigationDetailPage from './components/InvestigationDetailPage';
-import PatientMediaGallery from './components/PatientMediaGallery';
+import DoctorVNextApp from './vnext/DoctorVNextApp';
+
+const LegacyCaseRedirect = () => {
+  const { publicId } = useParams();
+  return <Navigate to={`/app/cases/${encodeURIComponent(publicId || '')}`} replace />;
+};
+
+const LegacyPatientRedirect = () => {
+  const { patientId } = useParams();
+  return <Navigate to={`/app/patients/${encodeURIComponent(patientId || '')}`} replace />;
+};
 
 const App = () => {
   const [sessionReady, setSessionReady] = useState(false);
@@ -46,6 +42,10 @@ const App = () => {
       <ProcessingStatusProvider>
         <div className="app-container">
           <Routes>
+            {/* Care Kernel vNext doctor workspace. This is the new post-login surface. */}
+            <Route path="/app/*" element={<DoctorVNextApp />} />
+            <Route path="/demo/doctor" element={<DoctorVNextApp demo />} />
+
             {/* Public Routes */}
             <Route path="/login" element={<DoctorAuth />} />
             <Route path="/register" element={<DoctorAuth />} />
@@ -56,28 +56,29 @@ const App = () => {
             <Route path="/complete-profile" element={<CompleteProfile />} />
             
             {/* Protected Routes with Sidebar Layout */}
-            <Route path="/reviews" element={<DoctorLayout><ReviewsHome /></DoctorLayout>} />
-            <Route path="/reviews/:publicId" element={<DoctorLayout><ReviewsHome /></DoctorLayout>} />
-            <Route path="/review/:publicId" element={<DoctorLayout><ReviewDetail /></DoctorLayout>} />
-            <Route path="/provider-dashboard" element={<DoctorLayout><ProviderDashboard /></DoctorLayout>} />
-            <Route path="/patient/:patientId" element={<DoctorLayout><PatientDetailsPage /></DoctorLayout>} />
-            <Route path="/patient/:patientId/media" element={<DoctorLayout><PatientMediaGallery /></DoctorLayout>} />
-            <Route path="/admin-dashboard" element={<DoctorLayout><AdminDashboard /></DoctorLayout>} />
-            <Route path="/messages" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
-            <Route path="/messages/:patientId" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
+            {/* Legacy review URLs remain stable redirects; they cannot write the old workflow. */}
+            <Route path="/reviews" element={<Navigate to="/app/queue" replace />} />
+            <Route path="/reviews/:publicId" element={<LegacyCaseRedirect />} />
+            <Route path="/review/:publicId" element={<LegacyCaseRedirect />} />
+            <Route path="/provider-dashboard" element={<Navigate to="/app/queue" replace />} />
+            <Route path="/patient/:patientId" element={<LegacyPatientRedirect />} />
+            <Route path="/patient/:patientId/media" element={<LegacyPatientRedirect />} />
+            <Route path="/admin-dashboard" element={<Navigate to="/app/contribution" replace />} />
+            <Route path="/messages" element={<Navigate to="/app/messages" replace />} />
+            <Route path="/messages/:patientId" element={<Navigate to="/app/messages" replace />} />
             
             {/* Investigation Management Routes */}
-            <Route path="/investigations" element={<DoctorLayout><InvestigationsMain /></DoctorLayout>} />
-            <Route path="/investigations/:type/:id" element={<DoctorLayout><InvestigationDetailPage /></DoctorLayout>} />
+            <Route path="/investigations" element={<Navigate to="/app/queue" replace />} />
+            <Route path="/investigations/:type/:id" element={<Navigate to="/app/queue" replace />} />
             
             {/* Legacy Routes */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/provider-dashboard-docs" element={<ProviderDashboardDocs />} />
-            <Route path="/create-encounter" element={<CreateEncounter />} />
-            <Route path="/record/:publicId" element={<Record />} />
+            <Route path="/dashboard" element={<Navigate to="/app/queue" replace />} />
+            <Route path="/provider-dashboard-docs" element={<Navigate to="/app/queue" replace />} />
+            <Route path="/create-encounter" element={<Navigate to="/app/queue" replace />} />
+            <Route path="/record/:publicId" element={<LegacyCaseRedirect />} />
             
             {/* Default Route - Redirect to Reviews (Homepage) */}
-            <Route path="/" element={<Navigate to="/reviews" replace />} />
+            <Route path="/" element={<Navigate to="/app/queue" replace />} />
           </Routes>
         </div>
       </ProcessingStatusProvider>
