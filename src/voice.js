@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from 'agora-rtc-sdk-ng';
 import Recorder from 'recorder-js';
 import { getAccessToken } from './api';
-import axios from 'axios';
+import { API_BASE_URL, fetchAgoraCredentials } from './apiConfig';
 import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff, MdDescription } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, 
@@ -40,8 +40,7 @@ const Voice = () => {
 
     const [isSaving, setIsSaving] = useState(false);
     const [data, setData] = useState(null);
-    const [editableData, setEditableData] = useState(null);
-    const [suggestionData, setSuggestionData] = useState(null);
+    const [editableData, setEditableData] = useState(null);    const [suggestionData, setSuggestionData] = useState(null);
     const [appliedSuggestions, setAppliedSuggestions] = useState({
         profile: {},
         goals: {},
@@ -54,6 +53,10 @@ const Voice = () => {
     const { state: locationState } = useLocation();
     const reviewid = locationState?.item?.review_id;
     const thread = locationState?.item?.thread_id;
+
+    // Fail-closed state: when the backend cannot supply one-time Agora
+    // credentials, the visit UI is disabled instead of joining unsecured.
+    const [agoraUnavailable, setAgoraUnavailable] = useState(false);
 
     const client = createClient({ mode: 'rtc', codec: 'vp8' });
 
@@ -88,15 +91,23 @@ const Voice = () => {
             }
     
             const accessToken = await getAccessToken();
-            const response = await axios.post(
-                `https://api.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
-                suggestionPayload,
+            const response = await fetch(
+                `${API_BASE_URL}/documentreview/${reviewid}/generate-documentation/`,
                 {
-                    headers: { Authorization: `Bearer ${accessToken}` },
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify(suggestionPayload),
                 }
             );
     
-            const result = response.data;
+            if (!response.ok) {
+                throw new Error(`Suggestion request failed (${response.status})`);
+            }
+
+            const result = await response.json();
     
             setSnackbarSeverity('success');
             setSnackbarMessage('Suggestion generated successfully!');
@@ -207,10 +218,11 @@ const Voice = () => {
     
         setIsLoading(true);
         try {
-            const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
+            // Secure join: credentials must come from the backend token
+            // endpoint on every call. Never join with a null token.
             const channel = item.channel_name || chanel;
-    
+            const { appId, token } = await fetchAgoraCredentials(channel, getAccessToken);
+
             await client.join(appId, channel, token, null);
            
             const audioTrack = await createMicrophoneAudioTrack({
@@ -249,6 +261,9 @@ const Voice = () => {
             };
         } catch (error) {
             console.error('Error joining channel with video:', error);
+            // Fail closed: without server-issued credentials the channel
+            // cannot be joined securely, so surface an unavailable state.
+            setAgoraUnavailable(true);
         } finally {
             setIsLoading(false);
         }
@@ -415,7 +430,7 @@ const Voice = () => {
             try {
                 const token = await getAccessToken();
                 const response = await fetch(
-                    "https://api.prestigedelta.com/assemblyai/generate-token/",
+                    `${API_BASE_URL}/assemblyai/generate-token/`,
                     {
                         headers: {
                             "Content-Type": "application/json",
@@ -459,6 +474,29 @@ const Voice = () => {
                 {/* Video Container */}
                 <Box flex="1" position="relative">
                     <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
+
+                    {agoraUnavailable && (
+                        <Box
+                            position="absolute"
+                            top="50%"
+                            left="50%"
+                            transform="translate(-50%, -50%)"
+                            textAlign="center"
+                            zIndex="3"
+                            bg="rgba(0, 0, 0, 0.85)"
+                            p={6}
+                            borderRadius="md"
+                            maxWidth="90%"
+                        >
+                            <Text fontSize="lg" color="white" fontWeight="bold" mb={2}>
+                                Voice visits temporarily unavailable
+                            </Text>
+                            <Text fontSize="sm" color="gray.300">
+                                We could not establish a secure connection for this visit.
+                                Please try again shortly or contact support@prestigedelta.com.
+                            </Text>
+                        </Box>
+                    )}
 
                     {/* Overlayed Controls */}
                     <Flex
@@ -505,13 +543,15 @@ const Voice = () => {
                                         size="lg" 
                                     />
                                 ) : (
-                                    <IconButton 
-                                        icon={<MdVideocam />} 
-                                        colorScheme="green" 
-                                        fontSize="36px" 
-                                        onClick={joinChannelWithVideo}  
-                                        borderRadius="full" 
-                                        size="lg" 
+                                    <IconButton
+                                        icon={<MdVideocam />}
+                                        colorScheme="green"
+                                        fontSize="36px"
+                                        onClick={joinChannelWithVideo}
+                                        isDisabled={agoraUnavailable}
+                                        borderRadius="full"
+                                        size="lg"
+                                        aria-label="Start call"
                                     />
                                 )}
                                 <Text marginTop="5px" fontSize='12px' color='white'>

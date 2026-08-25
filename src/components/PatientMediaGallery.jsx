@@ -34,6 +34,7 @@ import {
   Pause as PauseIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
 const PatientMediaGallery = () => {
   const { patientId } = useParams();
@@ -60,7 +61,7 @@ const PatientMediaGallery = () => {
         return;
       }
 
-      const response = await fetch(`https://api.prestigedelta.com/provider/patient-media/?patient_id=${patientId}`, {
+      const response = await fetch(`${API_BASE_URL}/provider/patient-media/?patient_id=${patientId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

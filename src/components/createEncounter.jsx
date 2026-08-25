@@ -19,6 +19,7 @@ import {
   Stack
 } from '@mui/material';
 import {
+import { API_BASE_URL } from '../apiConfig';
   Close as CloseIcon,
   PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
@@ -92,7 +93,7 @@ const CreateEncounter = ({ open, onClose, onSuccess }) => {
       // Convert phone number to international format if needed
       const convertedPhone = convertToInternationalFormat(formData.patient_phone_number.trim());
       
-      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch(`${API_BASE_URL}/in-person-encounters/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

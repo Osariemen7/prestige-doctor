@@ -3,6 +3,7 @@ import { Box, Button, TextField, Paper, Typography, IconButton, Snackbar } from 
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './RegistrationPage.css';
+import { API_BASE_URL, ORGANIZATION_DOMAIN_HEADER } from './apiConfig';
 
 const RegistrationPage = () => {
   const [formData, setFormData] = useState({
@@ -34,12 +35,12 @@ const RegistrationPage = () => {
         ...formData,
         phone_number: formattedPhoneNumber,
       };
-      const response = await fetch('https://api.prestigedelta.com/register/', {
+      const response = await fetch(`${API_BASE_URL}/register/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
-          'X-Organization-Domain': 'provider.prestigehealth.app'
+          ...ORGANIZATION_DOMAIN_HEADER
         },
         body: JSON.stringify(item),
       });

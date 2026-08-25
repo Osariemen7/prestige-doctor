@@ -28,6 +28,7 @@ import {
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import GoogleAuthButton from './GoogleAuthButton';
 import GooglePhonePrompt from './GooglePhonePrompt';
+import { API_BASE_URL } from '../apiConfig';
 
 const DoctorRegister = () => {
   const [formData, setFormData] = useState({
@@ -63,7 +64,7 @@ const DoctorRegister = () => {
       if (referral_code) {
         setLoadingReferrer(true);
         try {
-          const response = await fetch(`https://api.prestigedelta.com/waitlist/by-referral-code/?referral_code=${referral_code}`);
+          const response = await fetch(`${API_BASE_URL}/waitlist/by-referral-code/?referral_code=${referral_code}`);
           if (response.ok) {
             const data = await response.json();
             setReferrerDetails(data);
@@ -100,7 +101,7 @@ const DoctorRegister = () => {
       ...(referral_code ? { invite_code: referral_code } : {})
     };
     try {
-      const response = await fetch('https://api.prestigedelta.com/register/', {
+      const response = await fetch(`${API_BASE_URL}/register/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 
@@ -151,7 +152,7 @@ const DoctorRegister = () => {
         phone_number: phoneNumber,
         ...(referral_code ? { invite_code: referral_code } : {})
       };
-      const response = await fetch('https://api.prestigedelta.com/auth/google/', {
+      const response = await fetch(`${API_BASE_URL}/auth/google/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 

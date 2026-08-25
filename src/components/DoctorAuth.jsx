@@ -20,8 +20,9 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { storeAuthData } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
-const API_BASE = 'https://api.prestigedelta.com/api';
+const API_BASE = `${API_BASE_URL}/api`;
 
 const SPECIALTIES = [
   { value: 'general_practice', label: 'General Practice' },

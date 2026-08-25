@@ -36,6 +36,7 @@ import EnterpriseWorkflowInsights from './EnterpriseWorkflowInsights';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
 import {
+import { API_BASE_URL } from '../apiConfig';
   getCaregiverContext,
   getAiGovernanceSignals,
   getDoctorQueuePriority,
@@ -54,7 +55,7 @@ import {
 } from '../utils/aiReviewWorkflow';
 
 const SIDEBAR_WIDTH = 360;
-const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
+const BACKEND_BASE_URL = API_BASE_URL;
 const buildBackendUrl = (path) => `${BACKEND_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 const PROVIDER_REVIEWS_URL = buildBackendUrl('/provider-reviews/?hours=168');
 const PROVIDER_REVIEW_STREAM_URL = buildBackendUrl('/provider-reviews/status-stream/?hours=168&limit=100');

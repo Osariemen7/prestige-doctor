@@ -16,6 +16,7 @@ import {
   useMediaQuery
 } from '@mui/material';
 import {
+import { API_BASE_URL } from '../apiConfig';
   Mic as MicIcon,
   Stop as StopIcon,
   Pause as PauseIcon,
@@ -138,7 +139,7 @@ const Record = () => {
         formData.append('original_format', 'webm');
 
         try {
-          const response = await fetch(`https://api.prestigedelta.com/in-person-encounters/${publicId}/upload-audio/`, {
+          const response = await fetch(`${API_BASE_URL}/in-person-encounters/${publicId}/upload-audio/`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`

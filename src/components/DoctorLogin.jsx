@@ -21,6 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import GoogleAuthButton from './GoogleAuthButton';
 import GooglePhonePrompt from './GooglePhonePrompt';
+import { API_BASE_URL } from '../apiConfig';
 
 const DoctorLogin = () => {
   const [formData, setFormData] = useState({
@@ -50,7 +51,7 @@ const DoctorLogin = () => {
     }
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/login/', {
+      const response = await fetch(`${API_BASE_URL}/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +95,7 @@ const DoctorLogin = () => {
       }
       
       // Try to login first without phone number
-      const response = await fetch('https://api.prestigedelta.com/auth/google/', {
+      const response = await fetch(`${API_BASE_URL}/auth/google/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +138,7 @@ const DoctorLogin = () => {
       setLoading(true);
       const token = pendingGoogleData.access_token || pendingGoogleData.token || pendingGoogleData.credential;
       
-      const response = await fetch('https://api.prestigedelta.com/auth/google/', {
+      const response = await fetch(`${API_BASE_URL}/auth/google/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

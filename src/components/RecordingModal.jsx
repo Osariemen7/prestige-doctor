@@ -28,6 +28,7 @@ import { getAccessToken } from '../api';
 import PatientDetailsModal from './PatientDetailsModal';
 import AiConsultationChat from './AiConsultationChat';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
+import { API_BASE_URL } from '../apiConfig';
 
 const selectPreferredValue = (...values) => {
   for (const value of values) {
@@ -643,7 +644,7 @@ const RecordingModal = ({
       const token = await getAccessToken();
 
       const response = await fetch(
-        `https://api.prestigedelta.com/in-person-encounters/${encounterId}/queue-processing/`,
+        `${API_BASE_URL}/in-person-encounters/${encounterId}/queue-processing/`,
         {
           method: 'POST',
           headers: {

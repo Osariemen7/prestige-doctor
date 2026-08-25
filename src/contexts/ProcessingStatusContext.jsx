@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
 const ProcessingStatusContext = createContext();
 
@@ -168,7 +169,7 @@ export const ProcessingStatusProvider = ({ children }) => {
 
       try {
         const response = await fetch(
-          `https://api.prestigedelta.com/in-person-encounters/${encounterId}/processing-status/`,
+          `${API_BASE_URL}/in-person-encounters/${encounterId}/processing-status/`,
           {
             headers: {
               'Authorization': `Bearer ${token}`

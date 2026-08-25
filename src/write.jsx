@@ -9,6 +9,7 @@ import { Container, Box, Button, Typography } from '@mui/material';
 import SnackbarComponent from './snackbar';
 import axios from 'axios';
 import { getAccessToken } from './api';
+import { API_BASE_URL } from './apiConfig';
 
 const theme = createTheme();
 
@@ -36,7 +37,7 @@ const PatientProfile = forwardRef(({ reviewid, thread, wsStatus, setIsDocumentat
         try {
             const accessToken = await getAccessToken();
             const response = await axios.get(
-                `https://api.prestigedelta.com/documentreview/${reviewid}/aggregate-data/`,
+                `${API_BASE_URL}/documentreview/${reviewid}/aggregate-data/`,
                 {
                     headers: { Authorization: `Bearer ${accessToken}` },
                 }
@@ -90,7 +91,7 @@ const getSuggestion = async () => {
         console.log("Suggestion payload:", suggestionPayload);
         const accessToken = await getAccessToken();
         const response = await axios.post(
-            `https://api.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
+            `${API_BASE_URL}/documentreview/${reviewid}/generate-documentation/`,
             suggestionPayload,
             {
                 headers: { Authorization: `Bearer ${accessToken}` },
@@ -166,7 +167,7 @@ console.log(suggestionData)
         try {
             const accessToken = await getAccessToken();
             await axios.post(
-                `https://api.prestigedelta.com/documentreview/${reviewid}/document-assessment/`,
+                `${API_BASE_URL}/documentreview/${reviewid}/document-assessment/`,
                 sectionDataToSave,
                 { headers: { Authorization: `Bearer ${accessToken}` } }
             );

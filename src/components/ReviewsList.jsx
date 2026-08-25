@@ -35,6 +35,7 @@ import RecordingModal from './RecordingModal';
 import WorkflowStepper from './WorkflowStepper';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
+import { API_BASE_URL } from '../apiConfig';
 
 const ReviewsList = () => {
   const [reviews, setReviews] = useState([]);
@@ -76,7 +77,7 @@ const ReviewsList = () => {
     }
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/provider-reviews/?hours=168', {
+      const response = await fetch(`${API_BASE_URL}/provider-reviews/?hours=168`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

@@ -13,6 +13,7 @@ import {
   Snackbar,
 } from '@mui/material';
 import { ArrowLeft } from 'lucide-react';
+import { API_BASE_URL } from './apiConfig';
 
 const ProviderPage = () => {
   const [clinicName, setClinicName] = useState('');
@@ -73,7 +74,7 @@ const ProviderPage = () => {
     };
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/provider/', {
+      const response = await fetch(`${API_BASE_URL}/provider/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

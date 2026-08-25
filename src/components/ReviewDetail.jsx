@@ -78,6 +78,7 @@ import {
   submitDoctorDecision,
 } from '../services/doctorWorkflowApi';
 import {
+import { API_BASE_URL } from '../apiConfig';
   approveAllCopilotDraftActions,
   buildCopilotDraftSyncPayload,
   getPendingCopilotDraftActions,
@@ -751,7 +752,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         },
       };
 
-      const response = await fetch('https://api.prestigedelta.com/clinician-outcome-adjudications/', {
+      const response = await fetch(`${API_BASE_URL}/clinician-outcome-adjudications/`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1360,7 +1361,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const attemptFallbackEncounterFetch = async (token) => {
     try {
       // 1. Try to fetch specific encounter directly if publicId matches an encounter ID
-      const directEncounterRes = await fetch(`https://api.prestigedelta.com/in-person-encounters/${publicId}/`, {
+      const directEncounterRes = await fetch(`${API_BASE_URL}/in-person-encounters/${publicId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1397,7 +1398,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
     try {
       // 2. Fallback to list search
-      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch(`${API_BASE_URL}/in-person-encounters/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1452,7 +1453,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     }
 
     try {
-      const response = await fetch(`https://api.prestigedelta.com/provider-reviews/${publicId}/`, {
+      const response = await fetch(`${API_BASE_URL}/provider-reviews/${publicId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1525,7 +1526,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       }
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
+        `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -1644,7 +1645,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       try {
         const token = await getAccessToken();
         const response = await fetch(
-          `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
+          `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/save-note/`,
           {
             method: 'POST',
             headers: {
@@ -1686,7 +1687,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload();
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
+        `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/save-note/`,
         {
           method: 'POST',
           headers: {
@@ -1758,7 +1759,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       }
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
+        `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -2041,7 +2042,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     const token = await getAccessToken();
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch(`${API_BASE_URL}/in-person-encounters/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

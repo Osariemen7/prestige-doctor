@@ -1,6 +1,7 @@
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
+const BASE_URL = API_BASE_URL;
 
 const buildUrl = (path, query = {}) => {
   const url = new URL(`${BASE_URL.replace(/\/$/, '')}/${String(path).replace(/^\//, '')}`);
