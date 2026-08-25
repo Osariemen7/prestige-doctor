@@ -10,6 +10,7 @@ jest.mock('react-router-dom', () => ({
   Routes: ({ children }) => <>{children}</>,
   Route: ({ element }) => element,
   Navigate: () => null,
+  useLocation: () => ({ pathname: '/reviews', search: '' }),
 }));
 
 jest.mock('@react-oauth/google', () => ({

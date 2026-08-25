@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ProcessingStatusProvider } from './contexts/ProcessingStatusContext';
 import { tryRestoreSession, isAuthenticated } from './api';
@@ -26,7 +27,18 @@ import PatientMediaGallery from './components/PatientMediaGallery';
 import DoctorClinicalServices from './components/DoctorClinicalServices';
 import DoctorClinicalServiceDetail from './components/DoctorClinicalServiceDetail';
 import CareCoordinatorQueue from './components/CareCoordinatorQueue';
+import ProtectedRoute from './components/ProtectedRoute';
+import SplashScreen from './components/SplashScreen';
+import ErrorFallback from './components/ErrorFallback';
 import Voice from './voice';
+
+const protectedLayout = (Component, props = {}) => (
+  <ProtectedRoute>
+    <DoctorLayout>
+      <Component {...props} />
+    </DoctorLayout>
+  </ProtectedRoute>
+);
 
 const App = () => {
   const [sessionReady, setSessionReady] = useState(false);
@@ -41,57 +53,69 @@ const App = () => {
   }, []);
 
   if (!sessionReady) {
-    // Optionally render a splash / spinner while checking the refresh token
-    return null;
+    // Branded splash while the refresh token is validated
+    return <SplashScreen />;
   }
 
   return (
     <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID}>
       <ProcessingStatusProvider>
-        <div className="app-container">
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<DoctorAuth />} />
-            <Route path="/register" element={<DoctorAuth />} />
-            <Route path="/register/:referral_code" element={<DoctorAuth />} />
-            <Route path="/doctor-register" element={<DoctorAuth />} />
-            <Route path="/doctor-login" element={<DoctorAuth />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/complete-profile" element={<CompleteProfile />} />
-            
-            {/* Protected Routes with Sidebar Layout */}
-            <Route path="/reviews" element={<DoctorLayout><ReviewsHome /></DoctorLayout>} />
-            <Route path="/reviews/:publicId" element={<DoctorLayout><ReviewsHome /></DoctorLayout>} />
-            <Route path="/review/:publicId" element={<DoctorLayout><ReviewDetail /></DoctorLayout>} />
-            <Route path="/provider-dashboard" element={<DoctorLayout><ProviderDashboard /></DoctorLayout>} />
-            <Route path="/patient/:patientId" element={<DoctorLayout><PatientDetailsPage /></DoctorLayout>} />
-            <Route path="/patient/:patientId/media" element={<DoctorLayout><PatientMediaGallery /></DoctorLayout>} />
-            <Route path="/admin-dashboard" element={<DoctorLayout><AdminDashboard /></DoctorLayout>} />
-            <Route path="/messages" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
-            <Route path="/messages/:patientId" element={<DoctorLayout><DoctorMessaging /></DoctorLayout>} />
-            
-            {/* Investigation Management Routes */}
-            <Route path="/investigations" element={<DoctorLayout><InvestigationsMain /></DoctorLayout>} />
-            <Route path="/investigations/:type/:id" element={<DoctorLayout><InvestigationDetailPage /></DoctorLayout>} />
+        <ErrorBoundary
+          FallbackComponent={ErrorFallback}
+          onReset={() => window.location.reload()}
+        >
+          <div className="app-container">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<DoctorAuth />} />
+              <Route path="/register" element={<DoctorAuth />} />
+              <Route path="/register/:referral_code" element={<DoctorAuth />} />
+              <Route path="/doctor-register" element={<DoctorAuth />} />
+              <Route path="/doctor-login" element={<DoctorAuth />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/complete-profile" element={<CompleteProfile />} />
 
-            {/* Server-authoritative clinician-service routes */}
-            <Route path="/clinical-services" element={<DoctorLayout><DoctorClinicalServices /></DoctorLayout>} />
-            <Route path="/clinical-services/:orderId" element={<DoctorLayout><DoctorClinicalServiceDetail /></DoctorLayout>} />
-            <Route path="/care-coordinator" element={<DoctorLayout><CareCoordinatorQueue /></DoctorLayout>} />
-            <Route path="/care-coordinator/:conversationId" element={<DoctorLayout><CareCoordinatorQueue /></DoctorLayout>} />
-            <Route path="/demo/doctor" element={<DoctorLayout><CareCoordinatorQueue demoMode /></DoctorLayout>} />
-            <Route path="/voice" element={<Voice />} />
-            
-            {/* Legacy Routes */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/provider-dashboard-docs" element={<ProviderDashboardDocs />} />
-            <Route path="/create-encounter" element={<CreateEncounter />} />
-            <Route path="/record/:publicId" element={<Record />} />
-            
-            {/* Default Route - Redirect to Reviews (Homepage) */}
-            <Route path="/" element={<Navigate to="/reviews" replace />} />
-          </Routes>
-        </div>
+              {/* Protected Routes with Sidebar Layout */}
+              <Route path="/reviews" element={protectedLayout(ReviewsHome)} />
+              <Route path="/reviews/:publicId" element={protectedLayout(ReviewsHome)} />
+              <Route path="/review/:publicId" element={protectedLayout(ReviewDetail)} />
+              <Route path="/provider-dashboard" element={protectedLayout(ProviderDashboard)} />
+              <Route path="/patient/:patientId" element={protectedLayout(PatientDetailsPage)} />
+              <Route path="/patient/:patientId/media" element={protectedLayout(PatientMediaGallery)} />
+              <Route path="/admin-dashboard" element={protectedLayout(AdminDashboard)} />
+              <Route path="/messages" element={protectedLayout(DoctorMessaging)} />
+              <Route path="/messages/:patientId" element={protectedLayout(DoctorMessaging)} />
+
+              {/* Investigation Management Routes */}
+              <Route path="/investigations" element={protectedLayout(InvestigationsMain)} />
+              <Route path="/investigations/:type/:id" element={protectedLayout(InvestigationDetailPage)} />
+
+              {/* Server-authoritative clinician-service routes */}
+              <Route path="/clinical-services" element={protectedLayout(DoctorClinicalServices)} />
+              <Route path="/clinical-services/:orderId" element={protectedLayout(DoctorClinicalServiceDetail)} />
+              <Route path="/care-coordinator" element={protectedLayout(CareCoordinatorQueue)} />
+              <Route path="/care-coordinator/:conversationId" element={protectedLayout(CareCoordinatorQueue)} />
+              <Route path="/demo/doctor" element={protectedLayout(CareCoordinatorQueue, { demoMode: true })} />
+              <Route path="/voice" element={<ProtectedRoute><Voice /></ProtectedRoute>} />
+
+              {/* Legacy Routes */}
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/provider-dashboard-docs" element={<ProviderDashboardDocs />} />
+              <Route path="/create-encounter" element={<CreateEncounter />} />
+              <Route path="/record/:publicId" element={<Record />} />
+
+              {/* Default Route - Redirect to Reviews (Homepage) */}
+              <Route
+                path="/"
+                element={
+                  isAuthenticated()
+                    ? <Navigate to="/reviews" replace />
+                    : <Navigate to="/login" replace />
+                }
+              />
+            </Routes>
+          </div>
+        </ErrorBoundary>
       </ProcessingStatusProvider>
     </GoogleOAuthProvider>
   );
