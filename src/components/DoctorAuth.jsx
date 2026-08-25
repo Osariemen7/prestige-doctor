@@ -1,27 +1,20 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Button,
-  TextField,
-  Paper,
-  Typography,
-  Snackbar,
-  Alert,
-  Container,
-  Fade,
-  MenuItem,
-  InputAdornment,
-  CircularProgress,
-} from '@mui/material';
-import {
-  MedicalServices as MedicalServicesIcon,
-  Phone as PhoneIcon,
-  ArrowBack as ArrowBackIcon,
-} from '@mui/icons-material';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { storeAuthData } from '../api';
+import { Alert, Box, Button, CircularProgress, Container, MenuItem, Snackbar, TextField, Typography } from '@mui/material';
+import {
+  ArrowBackRounded,
+  ArrowForwardRounded,
+  AutoAwesomeRounded,
+  CheckCircleOutlineRounded,
+  LockOutlined,
+  PhoneIphoneRounded,
+  VerifiedUserRounded,
+} from '@mui/icons-material';
+import { isAuthenticated, storeAuthData } from '../api';
+import { normalizeDoctorPhone } from '../utils/doctorAuth';
+import './DoctorAuth.css';
 
-const API_BASE = 'https://api.prestigedelta.com/api';
+const API_BASE = `${process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com'}/api`;
 
 const SPECIALTIES = [
   { value: 'general_practice', label: 'General Practice' },
@@ -42,116 +35,100 @@ const SPECIALTIES = [
   { value: 'urology', label: 'Urology' },
 ];
 
-const DoctorAuth = () => {
-  const navigate = useNavigate();
+const isValidDoctorPhone = (value) => /^\+234\d{10}$/.test(value);
 
-  // Flow steps: 'phone' → 'otp'
+const displayPhone = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length !== 13 || !digits.startsWith('234')) return value;
+  return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+};
+
+const initialNotice = { open: false, message: '', severity: 'info' };
+
+export default function DoctorAuth() {
+  const navigate = useNavigate();
   const [step, setStep] = useState('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [isExistingUser, setIsExistingUser] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-
-  // Signup-only fields (shown when is_existing_user === false)
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [specialty, setSpecialty] = useState('general_practice');
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState(initialNotice);
 
-  // ── Step 1: Request OTP ──────────────────────────────────────────────
-  const handleRequestOtp = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (isAuthenticated()) navigate('/', { replace: true });
+  }, [navigate]);
 
-    const cleaned = phoneNumber.trim();
-    if (!cleaned) {
-      setSnackbar({ open: true, message: 'Please enter your phone number.', severity: 'warning' });
+  const showNotice = (message, severity = 'info') => setNotice({ open: true, message, severity });
+
+  const handleRequestOtp = async (event) => {
+    event?.preventDefault?.();
+    const normalized = normalizeDoctorPhone(phoneNumber);
+    if (!isValidDoctorPhone(normalized)) {
+      showNotice('Enter a valid Nigerian number, for example 0801 234 5678 or +234 801 234 5678.', 'warning');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/doctor-auth/request-otp/`, {
+      const response = await fetch(`${API_BASE}/doctor-auth/request-otp/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number: cleaned }),
+        headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'doctor_app' },
+        body: JSON.stringify({ phone_number: normalized }),
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setSnackbar({ open: true, message: data.error || 'Failed to send OTP.', severity: 'error' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showNotice(data.error || 'We could not send your code. Please try again.', 'error');
         return;
       }
 
-      setIsExistingUser(data.is_existing_user);
+      setPhoneNumber(normalized);
+      setIsExistingUser(Boolean(data.is_existing_user));
       setStep('otp');
-      setSnackbar({
-        open: true,
-        message: data.is_existing_user
-          ? 'Welcome back! Check WhatsApp for your OTP.'
-          : 'OTP sent to your WhatsApp. Fill in your details to create an account.',
-        severity: 'success',
-      });
+      showNotice(data.is_existing_user ? 'Welcome back. Check WhatsApp for your code.' : 'Code sent. Add your details to create your doctor workspace.', 'success');
     } catch {
-      setSnackbar({ open: true, message: 'Network error. Please try again.', severity: 'error' });
+      showNotice('Network error. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Step 2: Verify OTP ───────────────────────────────────────────────
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-
-    if (!otp || otp.length < 4) {
-      setSnackbar({ open: true, message: 'Please enter the OTP sent to your WhatsApp.', severity: 'warning' });
+  const handleVerifyOtp = async (event) => {
+    event?.preventDefault?.();
+    if (!/^\d{4,6}$/.test(otp)) {
+      showNotice('Enter the verification code sent to WhatsApp.', 'warning');
       return;
     }
-
-    // For new users, require at least first + last name
     if (!isExistingUser && (!firstName.trim() || !lastName.trim())) {
-      setSnackbar({ open: true, message: 'Please enter your first and last name.', severity: 'warning' });
+      showNotice('Add your first and last name to set up your workspace.', 'warning');
       return;
     }
 
     setLoading(true);
     try {
-      const payload = {
-        phone_number: phoneNumber.trim(),
-        otp,
-      };
-
+      const payload = { phone_number: normalizeDoctorPhone(phoneNumber), otp };
       if (!isExistingUser) {
         payload.first_name = firstName.trim();
         payload.last_name = lastName.trim();
         payload.specialty = specialty;
       }
-
-      const res = await fetch(`${API_BASE}/doctor-auth/verify-otp/`, {
+      const response = await fetch(`${API_BASE}/doctor-auth/verify-otp/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'doctor_app' },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setSnackbar({ open: true, message: data.error || 'Verification failed.', severity: 'error' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showNotice(data.error || 'That code was not accepted. Request a new one and try again.', 'error');
         return;
       }
 
-      // Persist tokens + user info
       storeAuthData(data);
-
-      setSnackbar({ open: true, message: 'Authenticated! Redirecting…', severity: 'success' });
-
-      setTimeout(() => {
-        if (data.is_new_user) {
-          navigate('/complete-profile');
-        } else {
-          navigate('/reviews');
-        }
-      }, 800);
+      navigate('/', { replace: true });
     } catch {
-      setSnackbar({ open: true, message: 'Network error. Please try again.', severity: 'error' });
+      showNotice('Network error. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -162,235 +139,95 @@ const DoctorAuth = () => {
     setOtp('');
   };
 
-  // ── Render ───────────────────────────────────────────────────────────
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #2563EB 0%, #1e40af 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        p: 2,
-      }}
-    >
-      <Container maxWidth="xs">
-        <Fade in timeout={800}>
-          <Paper
-            elevation={12}
-            sx={{
-              p: 4,
-              borderRadius: 3,
-              background: 'rgba(255,255,255,0.98)',
-              backdropFilter: 'blur(10px)',
-              boxShadow: '0 16px 48px rgba(0,0,0,0.15)',
-              textAlign: 'center',
-            }}
-          >
-            {/* Header */}
-            <Box sx={{ mb: 3 }}>
-              <MedicalServicesIcon
-                sx={{
-                  fontSize: 48,
-                  color: '#2563EB',
-                  mb: 2,
-                  filter: 'drop-shadow(0 4px 8px rgba(37,99,235,0.3))',
-                }}
-              />
-              <Typography
-                variant="h4"
-                fontWeight={700}
-                sx={{
-                  mb: 1,
-                  background: 'linear-gradient(45deg, #2563EB, #1e40af)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                {step === 'phone' ? 'Doctor Portal' : isExistingUser ? 'Welcome Back' : 'Create Account'}
-              </Typography>
-              <Typography variant="body1" sx={{ color: '#666' }}>
-                {step === 'phone'
-                  ? 'Enter your phone number to receive a WhatsApp OTP'
-                  : isExistingUser
-                  ? 'Enter the code sent to your WhatsApp'
-                  : 'Complete your details and enter the OTP'}
-              </Typography>
+    <Box className="doctor-auth-page">
+      <Box className="doctor-auth-orb doctor-auth-orb-one" />
+      <Box className="doctor-auth-orb doctor-auth-orb-two" />
+      <Container maxWidth="lg" className="doctor-auth-container">
+        <Box className="doctor-auth-story">
+          <Box className="doctor-auth-brand"><Box className="doctor-auth-brand-mark"><AutoAwesomeRounded /></Box><Typography>prestige</Typography></Box>
+          <Typography className="doctor-auth-kicker">A calmer way to practice</Typography>
+          <Typography component="h1" className="doctor-auth-display">More care, without more chasing.</Typography>
+          <Typography className="doctor-auth-story-copy">Prestige gives doctors an AI care team that prepares the work, keeps patients close, and turns trusted follow-through into a durable practice.</Typography>
+          <Box className="doctor-auth-benefits">
+            <Box><CheckCircleOutlineRounded /><Typography>AI-prepared clinical work</Typography></Box>
+            <Box><CheckCircleOutlineRounded /><Typography>High-touch patient continuity</Typography></Box>
+            <Box><CheckCircleOutlineRounded /><Typography>Recurring care, built into your workflow</Typography></Box>
+          </Box>
+        </Box>
+
+        <Box component="section" className="doctor-auth-card">
+          <Box className="doctor-auth-card-heading">
+            <Box className="doctor-auth-card-icon"><VerifiedUserRounded /></Box>
+            <Box>
+              <Typography className="doctor-auth-eyebrow">Doctor workspace</Typography>
+              <Typography component="h2" className="doctor-auth-title">{step === 'phone' ? 'Start with your WhatsApp number' : isExistingUser ? 'Welcome back' : 'Create your workspace'}</Typography>
             </Box>
+          </Box>
+          <Typography className="doctor-auth-subtitle">{step === 'phone' ? 'Sign in or create your account in under a minute.' : `Enter the code sent to ${displayPhone(phoneNumber)}.`}</Typography>
 
-            {/* ─── Phone Step ─────────────────────────── */}
-            {step === 'phone' && (
-              <Box component="form" onSubmit={handleRequestOtp} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <TextField
-                  label="WhatsApp Phone Number"
-                  placeholder="+2348012345678"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  required
-                  fullWidth
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PhoneIcon sx={{ color: '#2563EB' }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      '&:hover': { boxShadow: '0 2px 8px rgba(37,99,235,0.1)' },
-                    },
-                  }}
-                />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={loading}
-                  fullWidth
-                  size="large"
-                  sx={{
-                    py: 1.5,
-                    borderRadius: 2,
-                    background: 'linear-gradient(45deg, #2563EB, #1e40af)',
-                    boxShadow: '0 4px 16px rgba(37,99,235,0.3)',
-                    fontSize: '1.1rem',
-                    fontWeight: 600,
-                    '&:hover': {
-                      background: 'linear-gradient(45deg, #1d4ed8, #1e3a8a)',
-                      boxShadow: '0 8px 24px rgba(37,99,235,0.4)',
-                      transform: 'translateY(-2px)',
-                    },
-                    '&:disabled': { background: '#ccc' },
-                  }}
-                >
-                  {loading ? <CircularProgress size={24} sx={{ color: '#fff' }} /> : 'Send OTP via WhatsApp'}
-                </Button>
+          <Box className="doctor-auth-steps">
+            <Box className={`doctor-auth-step ${step === 'phone' ? 'doctor-auth-step-active' : 'doctor-auth-step-done'}`}><Box>1</Box><Typography>Number</Typography></Box>
+            <Box className="doctor-auth-step-line" />
+            <Box className={`doctor-auth-step ${step === 'otp' ? 'doctor-auth-step-active' : ''}`}><Box>2</Box><Typography>Verify</Typography></Box>
+          </Box>
+
+          {step === 'phone' ? (
+            <Box component="form" onSubmit={handleRequestOtp} className="doctor-auth-form">
+              <TextField
+                label="WhatsApp number"
+                placeholder="0801 234 5678"
+                value={phoneNumber}
+                onChange={(event) => setPhoneNumber(event.target.value)}
+                autoComplete="tel"
+                inputMode="tel"
+                fullWidth
+                InputProps={{ startAdornment: <PhoneIphoneRounded className="doctor-auth-field-icon" /> }}
+              />
+              <Button type="submit" variant="contained" disabled={loading} endIcon={loading ? <CircularProgress size={18} color="inherit" /> : <ArrowForwardRounded />}>
+                {loading ? 'Sending code…' : 'Continue securely'}
+              </Button>
+              <Box className="doctor-auth-trust"><LockOutlined /><Typography>One WhatsApp verification every 7 days on this device.</Typography></Box>
+            </Box>
+          ) : (
+            <Box component="form" onSubmit={handleVerifyOtp} className="doctor-auth-form">
+              {!isExistingUser && (
+                <Box className="doctor-auth-name-row">
+                  <TextField label="First name" value={firstName} onChange={(event) => setFirstName(event.target.value)} fullWidth autoComplete="given-name" />
+                  <TextField label="Last name" value={lastName} onChange={(event) => setLastName(event.target.value)} fullWidth autoComplete="family-name" />
+                </Box>
+              )}
+              {!isExistingUser && (
+                <TextField select label="Primary specialty" value={specialty} onChange={(event) => setSpecialty(event.target.value)} fullWidth>
+                  {SPECIALTIES.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                </TextField>
+              )}
+              <TextField
+                label="WhatsApp code"
+                placeholder="6-digit code"
+                value={otp}
+                onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                fullWidth
+                inputProps={{ maxLength: 6 }}
+                className="doctor-auth-otp-input"
+              />
+              <Button type="submit" variant="contained" disabled={loading} endIcon={loading ? <CircularProgress size={18} color="inherit" /> : <VerifiedUserRounded />}>
+                {loading ? 'Verifying…' : 'Verify & enter workspace'}
+              </Button>
+              <Box className="doctor-auth-secondary-actions">
+                <Button type="button" variant="text" startIcon={<ArrowBackRounded />} onClick={handleBack}>Change number</Button>
+                <Button type="button" variant="text" onClick={handleRequestOtp} disabled={loading}>Resend code</Button>
               </Box>
-            )}
-
-            {/* ─── OTP Step ──────────────────────────── */}
-            {step === 'otp' && (
-              <Box component="form" onSubmit={handleVerifyOtp} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                {/* Signup fields for new users */}
-                {!isExistingUser && (
-                  <>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <TextField
-                        label="First Name"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        required
-                        fullWidth
-                        size="small"
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                      />
-                      <TextField
-                        label="Last Name"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        required
-                        fullWidth
-                        size="small"
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                      />
-                    </Box>
-                    <TextField
-                      select
-                      label="Specialty"
-                      value={specialty}
-                      onChange={(e) => setSpecialty(e.target.value)}
-                      fullWidth
-                      size="small"
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                    >
-                      {SPECIALTIES.map((s) => (
-                        <MenuItem key={s.value} value={s.value}>
-                          {s.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </>
-                )}
-
-                <TextField
-                  label="OTP Code"
-                  placeholder="Enter 6-digit code"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  required
-                  fullWidth
-                  inputProps={{ maxLength: 6, inputMode: 'numeric', style: { letterSpacing: '0.5em', textAlign: 'center', fontSize: '1.3rem' } }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      '&:hover': { boxShadow: '0 2px 8px rgba(37,99,235,0.1)' },
-                    },
-                  }}
-                />
-
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={loading}
-                  fullWidth
-                  size="large"
-                  sx={{
-                    py: 1.5,
-                    borderRadius: 2,
-                    background: 'linear-gradient(45deg, #2563EB, #1e40af)',
-                    boxShadow: '0 4px 16px rgba(37,99,235,0.3)',
-                    fontSize: '1.1rem',
-                    fontWeight: 600,
-                    '&:hover': {
-                      background: 'linear-gradient(45deg, #1d4ed8, #1e3a8a)',
-                      boxShadow: '0 8px 24px rgba(37,99,235,0.4)',
-                      transform: 'translateY(-2px)',
-                    },
-                    '&:disabled': { background: '#ccc' },
-                  }}
-                >
-                  {loading ? <CircularProgress size={24} sx={{ color: '#fff' }} /> : 'Verify & Continue'}
-                </Button>
-
-                <Button
-                  startIcon={<ArrowBackIcon />}
-                  onClick={handleBack}
-                  sx={{ color: '#666', textTransform: 'none' }}
-                >
-                  Change phone number
-                </Button>
-
-                <Button
-                  onClick={handleRequestOtp}
-                  disabled={loading}
-                  sx={{ color: '#2563EB', textTransform: 'none', fontWeight: 600 }}
-                >
-                  Resend OTP
-                </Button>
-              </Box>
-            )}
-          </Paper>
-        </Fade>
-
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={6000}
-          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert
-            onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-            severity={snackbar.severity}
-            variant="filled"
-            sx={{ width: '100%' }}
-          >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
+            </Box>
+          )}
+          <Typography className="doctor-auth-legal">By continuing, you agree to use Prestige for clinician-led care. Your clinical decisions remain yours.</Typography>
+        </Box>
       </Container>
+      <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((current) => ({ ...current, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity={notice.severity} variant="filled" onClose={() => setNotice((current) => ({ ...current, open: false }))}>{notice.message}</Alert>
+      </Snackbar>
     </Box>
   );
-};
-
-export default DoctorAuth;
+}

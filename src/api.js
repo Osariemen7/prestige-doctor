@@ -4,6 +4,8 @@
 const TOKEN_REFRESH_URL = 'https://api.prestigedelta.com/api/tokenrefresh/';
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
+const DEVICE_VERIFIED_AT_KEY = 'doctor_device_verified_at';
+export const DEVICE_AUTH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 30 * 1000;
 
 let refreshRequest = null;
@@ -11,6 +13,13 @@ let refreshRequest = null;
 const getAccessValue = (data) => data?.access || data?.access_token || null;
 
 const getRefreshValue = (data) => data?.refresh || data?.refresh_token || null;
+
+const isDeviceVerificationExpired = () => {
+  const verifiedAt = Number(localStorage.getItem(DEVICE_VERIFIED_AT_KEY));
+  return Number.isFinite(verifiedAt)
+    && verifiedAt > 0
+    && (Date.now() - verifiedAt) >= DEVICE_AUTH_WINDOW_MS;
+};
 
 const decodeTokenPayload = (token) => {
   if (!token || typeof token !== 'string' || typeof atob !== 'function') {
@@ -92,13 +101,35 @@ export const storeAuthData = (data) => {
 
   if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
   if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  // The refresh token is deliberately seven days long. Recording the
+  // verification time makes the device-level reauthentication contract
+  // explicit and lets the UI explain why a doctor stays signed in.
+  if (accessToken || refreshToken) {
+    localStorage.setItem(DEVICE_VERIFIED_AT_KEY, String(Date.now()));
+  }
   localStorage.setItem('user-info', JSON.stringify(data));
 };
 
 // ── Read helpers ───────────────────────────────────────────────────────
 
 export const isAuthenticated = () => {
-  return !!getRefreshToken() || !!getStoredAccessToken();
+  if (isDeviceVerificationExpired()) return false;
+  const refreshToken = getRefreshToken();
+  const accessToken = getStoredAccessToken();
+  return isTokenValid(refreshToken) || isTokenValid(accessToken);
+};
+
+export const getDeviceVerificationTime = () => {
+  const value = Number(localStorage.getItem(DEVICE_VERIFIED_AT_KEY));
+  return Number.isFinite(value) && value > 0 ? value : null;
+};
+
+export const hasWeeklyDeviceSession = () => {
+  if (isDeviceVerificationExpired()) return false;
+  const refreshToken = getRefreshToken();
+  if (!refreshToken || !isTokenValid(refreshToken)) return false;
+  const verifiedAt = getDeviceVerificationTime();
+  return !verifiedAt || (Date.now() - verifiedAt) < DEVICE_AUTH_WINDOW_MS;
 };
 
 export const getStoredAccessToken = () => {
@@ -150,6 +181,11 @@ export const getUser = () => {
  * token itself has expired (>7 days since last OTP auth).
  */
 export const getAccessToken = async () => {
+  if (isDeviceVerificationExpired()) {
+    logout();
+    return null;
+  }
+
   const currentAccessToken = getStoredAccessToken();
   if (currentAccessToken && isTokenValid(currentAccessToken, ACCESS_TOKEN_REFRESH_LEEWAY_MS)) {
     return currentAccessToken;
@@ -216,6 +252,9 @@ export const tryRestoreSession = async () => {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
   const token = await getAccessToken();
+  if (token && !getDeviceVerificationTime()) {
+    localStorage.setItem(DEVICE_VERIFIED_AT_KEY, String(Date.now()));
+  }
   return !!token;
 };
 
@@ -224,5 +263,6 @@ export const tryRestoreSession = async () => {
 export const logout = () => {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(DEVICE_VERIFIED_AT_KEY);
   localStorage.removeItem('user-info');
 };
