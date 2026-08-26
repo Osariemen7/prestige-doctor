@@ -24,6 +24,8 @@ jest.mock('./contexts/ProcessingStatusContext', () => ({
 jest.mock('./components/DoctorAuth', () => () => <div>Doctor authentication</div>);
 jest.mock('./components/CompleteProfile', () => () => <div>Complete profile</div>);
 jest.mock('./components/ForgotPassword', () => () => <div>Forgot password</div>);
+jest.mock('./components/TermsPage', () => () => <div>Terms</div>);
+jest.mock('./components/PrivacyPage', () => () => <div>Privacy</div>);
 jest.mock('./components/dashboard', () => () => <div>Legacy dashboard</div>);
 jest.mock('./components/ProviderDashboard', () => () => <div>Provider dashboard</div>);
 jest.mock('./components/ProviderDashboardDocs', () => () => <div>Provider docs</div>);
@@ -44,9 +46,17 @@ jest.mock('./components/DoctorClinicalServiceDetail', () => () => <div>Clinical 
 jest.mock('./components/CareCoordinatorQueue', () => () => <div>Care coordinator queue</div>);
 jest.mock('./voice', () => () => <div>Voice</div>);
 
+// react-scripts enables jest `resetMocks`, which wipes factory-level
+// implementations before every test, so implementations are (re)declared
+// inside the test body below.
+import { tryRestoreSession, isAuthenticated } from './api';
+
 import App from './App';
 
 test('restores the session and mounts the doctor clinical and care-coordinator routes', async () => {
+  tryRestoreSession.mockResolvedValue(true);
+  isAuthenticated.mockReturnValue(true);
+
   render(<App />);
 
   expect(await screen.findByText('Clinical service queue')).toBeInTheDocument();
