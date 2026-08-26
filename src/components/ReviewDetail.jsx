@@ -1369,7 +1369,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       });
       if (directEncounterRes.ok) {
         const match = await directEncounterRes.json();
-        console.log('Found matching encounter directly:', match);
+
         const draftReview = {
           id: match.medical_review_id,
           public_id: match.medical_review_public_id || publicId,
@@ -1413,7 +1413,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             : [];
         const match = list.find(enc => enc.medical_review_public_id === publicId || enc.public_id === publicId);
         if (match) {
-          console.log('Found matching encounter in list search:', match);
+
           const draftReview = {
             id: match.medical_review_id,
             public_id: match.medical_review_public_id || publicId,
@@ -1787,7 +1787,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   };
 
   const handleEditNote = () => {
-    console.log('handleEditNote called');
+
     setEditingNote(true);
     // doctor_note may be a JSON string (legacy) or already an object (new API behaviour)
     const rawNote = typeof review.doctor_note === 'string'
@@ -1799,7 +1799,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     if (!initialNote.investigation) initialNote.investigation = [];
     if (!initialNote.other_actions) initialNote.other_actions = [];
     setEditedNote(initialNote);
-    console.log('editedNote initialized:', initialNote);
+
   };
 
   const handleCancelEdit = () => {
@@ -4411,7 +4411,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         title={bookingPreset.title}
         description={bookingPreset.description}
         onSuccess={(data) => {
-          console.log('Patient booking request sent:', data);
+
           fetchReviewDetail();
           if (onUpdate) {
             onUpdate();

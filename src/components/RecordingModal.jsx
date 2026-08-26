@@ -236,11 +236,11 @@ const RecordingModal = ({
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible' && (isRecording || activeOperationsRef.current > 0) && !wakeLock) {
-        console.log('Page became visible, attempting to restore wake lock');
+
         await requestWakeLock();
       } else if (document.visibilityState === 'hidden' && isMobile && (isRecording || activeOperationsRef.current > 0)) {
         // On mobile, warn user when page becomes hidden during active operations
-        console.log('Page hidden on mobile during active operation');
+
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Page Hidden ⚠️', {
             body: 'Recording/processing may be interrupted. Return to this page to continue.',
@@ -322,10 +322,10 @@ const RecordingModal = ({
       try {
         const lock = await navigator.wakeLock.request('screen');
         setWakeLock(lock);
-        console.log('Wake lock acquired');
+
         
         lock.addEventListener('release', () => {
-          console.log('Wake lock released');
+
           setWakeLock(null);
           
           // On mobile, warn user if wake lock is lost during active operations
@@ -367,7 +367,7 @@ const RecordingModal = ({
       try {
         await wakeLock.release();
         setWakeLock(null);
-        console.log('Wake lock manually released');
+
       } catch (error) {
         console.warn('Failed to release wake lock:', error);
       }
@@ -390,7 +390,7 @@ const RecordingModal = ({
           setError('No microphone detected. Please connect a microphone and refresh the page.');
           return;
         }
-        console.log(`Found ${audioInputs.length} audio input device(s)`);
+
       } catch (deviceError) {
         console.warn('Could not enumerate devices (this is normal in some browsers):', deviceError);
         // Continue anyway - some browsers restrict device enumeration before permission is granted
@@ -426,7 +426,7 @@ const RecordingModal = ({
         return;
       }
       
-      console.log('Using mimeType:', mimeType);
+
       recordedMimeTypeRef.current = mimeType;
       
       mediaRecorderRef.current = new MediaRecorder(stream, {
@@ -436,7 +436,7 @@ const RecordingModal = ({
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          console.log('Audio chunk received:', event.data.size, 'bytes');
+
           chunksRef.current.push(event.data);
         }
       };
@@ -444,8 +444,7 @@ const RecordingModal = ({
       mediaRecorderRef.current.onstop = async () => {
         const mimeType = recordedMimeTypeRef.current || 'audio/webm';
         const audioBlob = new Blob(chunksRef.current, { type: mimeType });
-        console.log('Audio blob created:', audioBlob.size, 'bytes, type:', audioBlob.type);
-        console.log('Total chunks:', chunksRef.current.length);
+
         
         // Validate blob before proceeding
         if (audioBlob.size === 0) {
@@ -610,12 +609,7 @@ const RecordingModal = ({
         originalFormat = 'wav';
       }
 
-      console.log('Queueing audio for processing:', {
-        size: audioBlob.size,
-        type: mimeType,
-        extension: fileExtension,
-        format: originalFormat
-      });
+
 
       const formData = new FormData();
       formData.append('audio_file', audioBlob, `recording.${fileExtension}`);

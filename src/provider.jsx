@@ -42,9 +42,9 @@ const ProviderPage = () => {
       const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
       if (parsedUserInfo) {
         setAccessToken(parsedUserInfo.access);
-        console.log('Access Token:', parsedUserInfo.access);
+
       } else {
-        console.log('No user information found in storage.');
+
       }
     } catch (error) {
       console.error('Error fetching token:', error);

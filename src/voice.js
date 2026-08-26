@@ -137,7 +137,7 @@ const Voice = () => {
                 user.audioTrack.play();
                 // Set audio output to system default
                 user.audioTrack.setPlaybackDevice('default');
-                console.log('Playing remote audio track');
+
             }
             setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
           }
@@ -233,7 +233,7 @@ const Voice = () => {
 
             await client.publish(audioTrack);
             setLocalAudioTrack(audioTrack);
-            console.log('Local Audio Track Published', audioTrack);
+
 
             // Clean up any existing video track before creating a new one
             if (localVideoTrack) {
@@ -253,7 +253,7 @@ const Voice = () => {
             await connectWebSocket();
             await startRecording();
             
-            console.log('Joined channel with audio and video.');
+
     
             // Add listener to stop all tracks on page unload
             window.onbeforeunload = () => {
@@ -280,7 +280,7 @@ const Voice = () => {
                 setLocalVideoTrack(null);
                 setIsVideoEnabled(false);
                 setVid(true);
-                console.log('Video disabled.');
+
             } catch (error) {
                 console.error('Error disabling video:', error);
             }
@@ -292,7 +292,7 @@ const Voice = () => {
     setIsLoading(true); // Start loading
     try {
         if (isJoined) {
-            console.log('Leaving channel...');
+
             await client.leave();
             stopTimer();
         }
@@ -318,13 +318,12 @@ const Voice = () => {
         setUserCount(0);
         setIsJoined(false);
 
-        console.log('Left the channel and cleaned up tracks.');
+
     } catch (error) {
         console.error('Error leaving channel:', error);
     } finally {
         setIsLoading(false); // Stop loading
         navigate('/');
-            window.location.href = 'https://prestige-health.vercel.app/';
     }
 }
 
@@ -333,7 +332,7 @@ const Voice = () => {
     async function enableVideo() {
         try {
             if (localVideoTrack) {
-                console.log('Cleaning up existing video track before creating new one');
+
                 await client.unpublish(localVideoTrack);
                 localVideoTrack.stop();
                 localVideoTrack.close();
@@ -343,7 +342,7 @@ const Voice = () => {
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
             setIsVideoEnabled(true);
-            console.log('Video enabled.');
+
         } catch (error) {
             console.error('Error enabling video:', error);
         }
@@ -358,7 +357,7 @@ const Voice = () => {
     // Add transcription WebSocket connection
     const connectWebSocket = async () => {
         if (!assemblyAiToken) {
-            console.log('No AssemblyAI token available');
+
             return;
         }
 
@@ -366,7 +365,7 @@ const Voice = () => {
         assemblyWsRef.current = new WebSocket(socketUrl);
 
         assemblyWsRef.current.onopen = () => {
-            console.log('AssemblyAI WebSocket connected');
+
             // Set up interval to call getSuggestion every 18 seconds
             const suggestionInterval = setInterval(getSuggestion, 18000);
             // Store interval ID to clear it later
@@ -378,7 +377,7 @@ const Voice = () => {
         };
 
         assemblyWsRef.current.onclose = () => {
-            console.log('WebSocket closed');
+
             setIsRecording(false);
             // Clear suggestion interval when WebSocket closes
             if (timerId?.suggestionInterval) {
@@ -390,7 +389,7 @@ const Voice = () => {
             try {
                 const data = JSON.parse(message.data);
                 if (data.message_type === 'FinalTranscript') {
-                    console.log('Received transcript:', data.text);
+
                     setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
                 }
             } catch (error) {
@@ -406,7 +405,7 @@ const Voice = () => {
                 await connectWebSocket();
             }
             setIsRecording(true);
-            console.log('Recording started');
+
         } catch (error) {
             console.error('Error starting recording:', error);
         }
@@ -446,7 +445,7 @@ const Voice = () => {
                 
                 const data = await response.json();
                 setAssemblyAiToken(data.token);
-                console.log('AssemblyAI token fetched successfully');
+
             } catch (error) {
                 console.error("Error fetching AssemblyAI token:", error);
             }

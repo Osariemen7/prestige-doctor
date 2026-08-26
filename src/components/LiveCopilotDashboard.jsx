@@ -422,41 +422,12 @@ const LiveCopilotDashboard = ({
       const transcriptText = transcripts.map(t => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n');
       
       // Realtime session dispatch: ask the OpenAI-backed assistant to draft the official clinical documentation.
-      console.log("WebSocket TX (OpenAI Realtime): Force documentation tool selection", {
-        sessionUpdate: {
-          toolConfig: {
-            functionCallingConfig: {
-              mode: "ANY",
-              allowedFunctionNames: ["document_clinical_encounter"]
-            }
-          }
-        }
-      });
+
       
       // Send turn request prompt
-      console.log("WebSocket TX (OpenAI Realtime): Client documentation prompt", {
-        clientContent: {
-          turns: [{
-            role: "user",
-            parts: [{ text: "Please generate the clinical SOAP documentation for our discussion immediately." }]
-          }],
-          turnComplete: true
-        }
-      });
 
-      console.log("WebSocket RX (OpenAI Realtime): Documentation tool call received", {
-        toolCall: {
-          functionCalls: [
-            {
-              name: "document_clinical_encounter",
-              id: "call_forced_doc_12345",
-              args: {
-                transcript: transcriptText
-              }
-            }
-          ]
-        }
-      });
+
+
 
       let documentationResult;
       const user = getUser();
@@ -532,21 +503,7 @@ const LiveCopilotDashboard = ({
         documentationResult = soapArguments;
 
         // Log toolResponse sent back to WebSocket
-        console.log("WebSocket TX (OpenAI Realtime): Send documentation tool response", {
-          toolResponse: {
-            functionResponses: [
-              {
-                response: {
-                  output: {
-                    status: "success",
-                    message: "EMR documentation generated successfully."
-                  }
-                },
-                id: "call_forced_doc_12345"
-              }
-            ]
-          }
-        });
+
       } else {
         // Demo/Simulated mode fallback: immediately generate high-fidelity simulated SOAP note!
         await new Promise(resolve => setTimeout(resolve, 1500)); // simulate network delay

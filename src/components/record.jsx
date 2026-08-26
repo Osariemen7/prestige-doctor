@@ -85,7 +85,7 @@ const Record = () => {
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(err => {
-          console.log('AudioContext cleanup - already closed:', err);
+
         });
       }
     };
@@ -162,7 +162,7 @@ const Record = () => {
         
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close().catch(err => {
-            console.log('AudioContext already closed:', err);
+
           });
         }
       };
@@ -172,12 +172,12 @@ const Record = () => {
       setIsRecording(true);
       setIsPaused(false);
       setPauseWarning(false);
-      console.log('Initial time remaining:', timeRemaining);
+
 
       // Start countdown timer
       timerRef.current = setInterval(() => {
         setTimeRemaining(prev => {
-          console.log('Timer tick, time remaining:', prev);
+
           if (prev <= 1) {
             stopRecording();
             return 0;
@@ -185,7 +185,7 @@ const Record = () => {
           return prev - 1;
         });
       }, 1000);
-      console.log('Recording started, timer initialized');
+
 
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -194,12 +194,12 @@ const Record = () => {
   };
 
   const pauseRecording = () => {
-    console.log('pauseRecording called, state:', mediaRecorderRef.current?.state, 'isRecording:', isRecording, 'isPaused:', isPaused);
+
     if (mediaRecorderRef.current && isRecording && !isPaused && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.pause();
       setIsPaused(true);
       clearInterval(timerRef.current);
-      console.log('Recording paused, timer cleared');
+
 
       // Set timeout to check for audio after 3 seconds
       pauseTimerRef.current = setTimeout(() => {
@@ -219,18 +219,18 @@ const Record = () => {
   };
 
   const resumeRecording = () => {
-    console.log('resumeRecording called, state:', mediaRecorderRef.current?.state, 'isPaused:', isPaused);
+
     if (mediaRecorderRef.current && isPaused && mediaRecorderRef.current.state === 'paused') {
       mediaRecorderRef.current.resume();
       setIsPaused(false);
       setPauseWarning(false);
       clearTimeout(pauseTimerRef.current);
-      console.log('Recording resumed, restarting timer');
+
 
       // Resume countdown timer
       timerRef.current = setInterval(() => {
         setTimeRemaining(prev => {
-          console.log('Timer tick (after resume), time remaining:', prev);
+
           if (prev <= 1) {
             stopRecording();
             return 0;

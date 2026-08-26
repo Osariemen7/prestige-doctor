@@ -88,7 +88,7 @@ const getSuggestion = async () => {
         if (thread) {
             suggestionPayload.note.thread_id = thread;
         }
-        console.log("Suggestion payload:", suggestionPayload);
+
         const accessToken = await getAccessToken();
         const response = await axios.post(
             `${API_BASE_URL}/documentreview/${reviewid}/generate-documentation/`,
@@ -117,7 +117,7 @@ const getSuggestion = async () => {
             return updatedData;
         });
         setSuggestionData(result);
-        console.log(result);
+
 
         setAppliedSuggestions({
             profile: {},
@@ -141,14 +141,14 @@ const getSuggestion = async () => {
     }
 };
 
-console.log(suggestionData)
+
     const handleSubmit = async (tabName) => {
         let sectionDataToSave = {};
         if (tabName === 'patientProfile') {
             sectionDataToSave = { profile_data: editableData.profile_data };
         } else if (tabName === 'healthGoals') {
             sectionDataToSave = { goal_data: editableData.goal_data };
-            console.log("Data being sent for healthGoals:", sectionDataToSave);
+
         } else if (tabName === 'medicalReview') {
             sectionDataToSave = { review_data: editableData.review_data };
         } else if (tabName === 'all') {
@@ -157,7 +157,7 @@ console.log(suggestionData)
                 goal_data: editableData.goal_data,
                 review_data: editableData.review_data,
             };
-            console.log("Data being sent for ALL:", sectionDataToSave);
+
         } else {
             console.error("Invalid tab name for saving:", tabName);
             return false;
@@ -262,7 +262,7 @@ console.log(suggestionData)
     };
 
     const handleApplySuggestion = (suggestionSection, fieldsToApply) => {
-        console.log("handleApplySuggestion called for section:", suggestionSection, "fields:", fieldsToApply); // ADD THIS LINE
+
     
         setEditableData(prevData => {
             let updatedData = JSON.parse(JSON.stringify(prevData));
@@ -307,7 +307,7 @@ console.log(suggestionData)
                 }));
                 setHasChanges(true);
             }
-            console.log("Updated editableData:", updatedData); // ADD THIS LINE
+
             return updatedData;
         });
     
@@ -349,7 +349,7 @@ console.log(suggestionData)
                     });
                 }
             }
-            console.log("Updated data:", updatedData); // ADD THIS LINE
+
             return updatedData;
         });
     

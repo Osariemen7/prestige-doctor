@@ -48,7 +48,7 @@ export const ProcessingStatusProvider = ({ children }) => {
     if (!reviewId) return;
 
     if (pollingTimersRef.current[reviewId]) {
-      console.log(`[Polling] Clearing active polling timer for review ${reviewId}`);
+
       clearTimeout(pollingTimersRef.current[reviewId]);
       delete pollingTimersRef.current[reviewId];
     }
@@ -62,7 +62,7 @@ export const ProcessingStatusProvider = ({ children }) => {
         clearTimeout(clearTimersRef.current[reviewId]);
       }
       clearTimersRef.current[reviewId] = setTimeout(() => {
-        console.log(`[Polling] Status clear delay expired for review ${reviewId}, clearing status`);
+
         clearStatus(reviewId);
         delete clearTimersRef.current[reviewId];
       }, clearDelay);
@@ -84,7 +84,7 @@ export const ProcessingStatusProvider = ({ children }) => {
     if (callbacks?.onError) {
       callbacks.onError(message);
     }
-    console.log(`[Polling] Stopping polling for review ${reviewId}, clearing timer and scheduling 4s status clear`);
+
     stopEncounterPolling(reviewId, { keepStatus: true, clearDelay: STATUS_CLEAR_DELAY_MS });
   }, [setStatus, stopEncounterPolling]);
 
@@ -109,7 +109,7 @@ export const ProcessingStatusProvider = ({ children }) => {
       return;
     }
 
-    console.log(`[Polling] Attempting to start polling for review ${reviewId}, encounter ${encounterId}, initialState: ${initialState}`);
+
 
     const previousEncounterId = encounterMapRef.current[reviewId];
     const previousStatus = processingStatuses[reviewId];
@@ -120,7 +120,7 @@ export const ProcessingStatusProvider = ({ children }) => {
     
     // If already polling for the same encounter, just update callbacks
     if (previousEncounterId === encounterId && pollingTimersRef.current[reviewId]) {
-      console.log(`[Polling] Already polling for review ${reviewId}, updating callbacks only`);
+
       callbackRef.current[reviewId] = {
         onStatus,
         onComplete,
@@ -132,7 +132,7 @@ export const ProcessingStatusProvider = ({ children }) => {
 
     // If already failed or completed for this review/encounter, don't restart polling
     if ((alreadyFailed || alreadyCompleted) && previousEncounterId === encounterId) {
-      console.log(`[Polling] Review ${reviewId} already ${alreadyFailed ? 'failed' : 'completed'} (encounter ${encounterId}), skipping restart`);
+
       return;
     }    // Stop any existing polling for this review and register the new encounter
     stopEncounterPolling(reviewId);
@@ -148,18 +148,18 @@ export const ProcessingStatusProvider = ({ children }) => {
     const poll = async () => {
       const activeEncounterId = encounterMapRef.current[reviewId];
       if (activeEncounterId !== encounterId) {
-        console.log(`[Polling] Skipping poll for review ${reviewId}: encounter mismatch`);
+
         return;
       }
 
       // Check if we should still be polling
       const currentStatus = processingStatuses[reviewId];
       if (currentStatus === 'completed' || currentStatus === 'failed') {
-        console.log(`[Polling] Skipping poll for review ${reviewId}: already ${currentStatus}`);
+
         return;
       }
 
-      console.log(`[Polling] Polling review ${reviewId}, encounter ${encounterId}`);
+
 
       const token = await getAccessToken();
       if (!token) {
@@ -186,7 +186,7 @@ export const ProcessingStatusProvider = ({ children }) => {
         }
 
         const state = responseData.state || responseData.status || 'processing';
-        console.log(`[Polling] Review ${reviewId} state: ${state}`);
+
 
         statusDataRef.current[reviewId] = responseData;
         setStatus(reviewId, state);
@@ -197,7 +197,7 @@ export const ProcessingStatusProvider = ({ children }) => {
         }
 
         if (state === 'completed') {
-          console.log(`[Polling] Review ${reviewId} completed, stopping poll`);
+
           handlePollingCompletion(reviewId, responseData);
           return;
         }
@@ -210,7 +210,7 @@ export const ProcessingStatusProvider = ({ children }) => {
         }
 
         // Continue polling until completion or failure
-        console.log(`[Polling] Scheduling next poll for review ${reviewId} in ${POLL_INTERVAL_MS}ms`);
+
         pollingTimersRef.current[reviewId] = setTimeout(poll, POLL_INTERVAL_MS);
       } catch (error) {
         const message = error instanceof Error && error.message

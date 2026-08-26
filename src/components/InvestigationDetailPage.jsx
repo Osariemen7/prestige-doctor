@@ -95,8 +95,7 @@ const InvestigationDetailPage = () => {
           // Ensure checkout_url is preserved - check multiple possible locations
           checkout_url: order.checkout_url || order.investigation_request?.checkout_url,
         };
-        console.log('Order data:', order);
-        console.log('Normalized order:', normalizedOrder);
+
         setData(normalizedOrder);
       }
     } catch (err) {
@@ -187,7 +186,7 @@ const InvestigationDetailPage = () => {
   };
 
   const handleViewCheckout = () => {
-    console.log('Checkout URL:', data?.checkout_url);
+
     if (data?.checkout_url) {
       window.open(data.checkout_url, '_blank');
     } else {
@@ -640,7 +639,7 @@ const InvestigationDetailPage = () => {
                     <Typography variant="body2" color="text.secondary">
                       Share the checkout link with the patient to complete payment
                     </Typography>
-                    {console.log('Payment status:', data.payment_status, 'Checkout URL:', data.checkout_url)}
+
                     <Button
                       variant="contained"
                       fullWidth

@@ -127,7 +127,7 @@ const CreateInvestigationModal = ({ open, onClose, onSuccess, editData = null })
     setLoadingTests(true);
     try {
       const data = await getDefaultListings();
-      console.log('Available tests loaded:', data);
+
       setAvailableTests(data.listings || data || []);
     } catch (err) {
       console.error('Error loading tests:', err);
@@ -198,7 +198,7 @@ const CreateInvestigationModal = ({ open, onClose, onSuccess, editData = null })
 
     for (let i = 0; i < investigations.length; i++) {
       const inv = investigations[i];
-      console.log(`Checking investigation ${i}:`, inv);
+
       if (!inv.testType) {
         console.warn(`Validation failed: No testType for investigation ${i}`);
         setError(`Please enter test type for investigation ${i + 1}`);
@@ -224,17 +224,16 @@ const CreateInvestigationModal = ({ open, onClose, onSuccess, editData = null })
       }
     }
 
-    console.log('Form validation passed');
+
     return true;
   };
 
   const handleSubmit = async () => {
     setError(null);
-    console.log('handleSubmit called');
-    console.log('Current state:', { patientId, investigations, createOrder: true, paymentMethod, editData: !!editData });
+
 
     if (!validateForm()) {
-      console.log('Form validation failed');
+
       return;
     }
 
@@ -265,13 +264,13 @@ const CreateInvestigationModal = ({ open, onClose, onSuccess, editData = null })
         };
       });
 
-      console.log('Investigation payload:', investigationPayload);
+
 
       let response;
       
       if (editData) {
         // Update existing request
-        console.log('Updating investigation request with ID:', editData.id);
+
         response = await updateInvestigationRequest({
           investigationRequestId: editData.id,
           patientId: parseInt(patientId),
@@ -281,7 +280,7 @@ const CreateInvestigationModal = ({ open, onClose, onSuccess, editData = null })
         });
       } else {
         // Create new request
-        console.log('Creating new investigation request');
+
         response = await createInvestigationRequest({
           patientId: parseInt(patientId),
           investigations: investigationPayload,
@@ -290,7 +289,7 @@ const CreateInvestigationModal = ({ open, onClose, onSuccess, editData = null })
         });
       }
 
-      console.log('API Response:', response);
+
       onSuccess(response);
       handleClose();
     } catch (err) {

@@ -351,7 +351,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
   const handleSSEChunk = (chunk) => {
     switch (chunk.type) {
       case 'thread_info':
-        console.log('Thread info:', chunk);
+
         break;
       case 'synthesis_text':
       case 'synthesis_chunk':
@@ -368,7 +368,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
         setIsSending(false);
         break;
       default:
-        console.log('Unhandled SSE chunk', chunk);
+
     }
   };
 

@@ -58,7 +58,7 @@ const RegistrationPage = () => {
         navigate('/provider');
       }
     } catch (error) {
-      console.log(error);
+
       setMessage('An error occurred during registration');
     } finally {
       setLoading(false);
