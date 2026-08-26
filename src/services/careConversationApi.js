@@ -1,6 +1,6 @@
 import { getAccessToken } from '../api';
-import {
 import { API_BASE_URL } from '../apiConfig';
+import {
   careCapabilitySchema,
   careConversationCollectionSchema,
   careConversationReplyResultSchema,
