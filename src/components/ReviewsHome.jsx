@@ -739,7 +739,7 @@ const ReviewsHome = () => {
             Documentation
           </Typography>
           {isMobile && (
-            <IconButton onClick={() => setSidebarOpen(false)} size="small">
+            <IconButton onClick={() => setSidebarOpen(false)} size="small" aria-label="Close documentation panel">
               <CloseIcon />
             </IconButton>
           )}
@@ -765,6 +765,7 @@ const ReviewsHome = () => {
           fullWidth
           size="small"
           placeholder="Search patients..."
+          aria-label="Search patients"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
@@ -1556,10 +1557,11 @@ const ReviewsHome = () => {
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton 
-                onClick={() => setSidebarOpen(true)} 
+              <IconButton
+                onClick={() => setSidebarOpen(true)}
                 edge="start"
                 size="medium"
+                aria-label="Open documentation panel"
                 sx={{
                   bgcolor: 'primary.main',
                   color: 'white',

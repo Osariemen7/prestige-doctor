@@ -2586,6 +2586,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                         fullWidth
                         multiline
                         minRows={3}
+                        aria-label={`${sectionKey} ${key} note editor`}
                         value={typeof editedValue === 'object' ? JSON.stringify(editedValue, null, 2) : (editedValue || '')}
                         onChange={(e) => {
                           const newValue = e.target.value;
@@ -2717,6 +2718,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                         size="small"
                         onClick={() => deletePrescription(index)}
                         color="error"
+                        aria-label={`Delete prescription ${index + 1}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -2977,6 +2979,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                         size="small"
                         onClick={() => deleteInvestigation(index)}
                         color="error"
+                        aria-label={`Delete investigation ${index + 1}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -3244,6 +3247,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                           size="small"
                           onClick={() => deleteOtherAction(index)}
                           color="error"
+                          aria-label={`Delete other action ${index + 1}`}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
