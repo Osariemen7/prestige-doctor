@@ -7,7 +7,7 @@ PrestigeHealth mobile app.
 
 ## Stack
 
-- [React 19](https://react.dev) with [Create React App](https://create-react-app.dev) (react-scripts 5)
+- [React 19](https://react.dev) with [Vite 6](https://vite.dev) and [Vitest](https://vitest.dev)
 - [React Router v7](https://reactrouter.com) for routing (protected clinician routes)
 - [MUI v6](https://mui.com) primary UI kit; [Chakra UI v2](https://chakra-ui.com) in some legacy screens; Tailwind CSS utilities
 - [Agora RTC SDK NG](https://www.agora.io/en/products/video-call) for voice/video visits (server-issued tokens only)
@@ -19,31 +19,32 @@ PrestigeHealth mobile app.
 ```bash
 npm install
 cp .env.example .env        # fill in local values; never commit .env*
-npm start                   # http://localhost:3000
+npm run dev                 # http://localhost:3000
 ```
 
 ### Environment variables
 
 All client configuration is centralised in [`src/apiConfig.js`](src/apiConfig.js)
-and sourced from `REACT_APP_*` environment variables — see
-[`.env.example`](.env.example). Never commit real `.env` / `.env.production`
-files.
+and sourced from `VITE_*` environment variables (only `VITE_`-prefixed vars are
+exposed to the client bundle) — see [`.env.example`](.env.example). Never commit
+real `.env` / `.env.production` files.
 
 Key variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `REACT_APP_BACKEND_BASE_URL` | API base (defaults to `https://api.prestigedelta.com`) |
-| `REACT_APP_GOOGLE_CLIENT_ID` | Google sign-in OAuth client |
-| `REACT_APP_AGORA_APP_ID` | Display info only – live joins require the backend Agora token endpoint |
+| `VITE_BACKEND_BASE_URL` | API base (defaults to `https://api.prestigedelta.com`) |
+| `VITE_GOOGLE_CLIENT_ID` | Google sign-in OAuth client |
+| `VITE_AGORA_APP_ID` | Display info only – live joins require the backend Agora token endpoint |
 
 ## Scripts
 
 | Command | Description |
 | --- | --- |
-| `npm start` | Development server |
-| `npm test` | Jest test suite (CI mode: `npm test -- --watchAll=false`) |
+| `npm run dev` | Development server |
+| `npm test` | Vitest suite, single run (`npm run test:watch` to watch) |
 | `npm run build` | Production bundle in `build/` |
+| `npm run preview` | Serve the production build locally |
 
 ## Architecture notes
 
