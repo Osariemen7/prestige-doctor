@@ -9,6 +9,8 @@ import { tryRestoreSession, isAuthenticated } from './api';
 import DoctorAuth from './components/DoctorAuth';
 import CompleteProfile from './components/CompleteProfile';
 import ForgotPassword from './components/ForgotPassword';
+import TermsPage from './components/TermsPage';
+import PrivacyPage from './components/PrivacyPage';
 import Dashboard from './components/dashboard';
 import ProviderDashboard from './components/ProviderDashboard';
 import ProviderDashboardDocs from './components/ProviderDashboardDocs';
@@ -74,6 +76,8 @@ const App = () => {
               <Route path="/doctor-login" element={<DoctorAuth />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/complete-profile" element={<CompleteProfile />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
 
               {/* Protected Routes with Sidebar Layout */}
               <Route path="/reviews" element={protectedLayout(ReviewsHome)} />

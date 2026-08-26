@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Drawer,
@@ -16,6 +16,7 @@ import {
   useTheme,
   alpha,
   Tooltip,
+  Link,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -298,6 +299,67 @@ const DoctorLayout = ({ children }) => {
             </IconButton>
           </Tooltip>
         )}
+      </Box>
+
+      <Divider />
+
+      {/* Legal & support footer */}
+      <Box
+        component="footer"
+        sx={{
+          px: expanded ? 2.5 : 1,
+          py: 1.5,
+          display: 'flex',
+          flexDirection: expanded ? 'row' : 'column',
+          alignItems: expanded ? 'center' : 'center',
+          justifyContent: 'center',
+          gap: expanded ? 2 : 0.5,
+        }}
+      >
+        <Link
+          component={RouterLink}
+          to="/terms"
+          sx={{
+            fontSize: '0.75rem',
+            color: 'text.secondary',
+            textDecoration: 'none',
+            minHeight: 44,
+            display: 'inline-flex',
+            alignItems: 'center',
+            '&:hover': { color: 'primary.main' },
+          }}
+        >
+          Terms
+        </Link>
+        <Link
+          component={RouterLink}
+          to="/privacy"
+          sx={{
+            fontSize: '0.75rem',
+            color: 'text.secondary',
+            textDecoration: 'none',
+            minHeight: 44,
+            display: 'inline-flex',
+            alignItems: 'center',
+            '&:hover': { color: 'primary.main' },
+          }}
+        >
+          Privacy
+        </Link>
+        <Link
+          href="mailto:support@prestigedelta.com"
+          sx={{
+            fontSize: '0.75rem',
+            color: 'text.secondary',
+            textDecoration: 'none',
+            minHeight: 44,
+            display: 'inline-flex',
+            alignItems: 'center',
+            '&:hover': { color: 'primary.main' },
+          }}
+        >
+          Support
+        </Link>
       </Box>
 
       <Divider />

@@ -12,13 +12,14 @@ import {
   MenuItem,
   InputAdornment,
   CircularProgress,
+  Link as MuiLink,
 } from '@mui/material';
 import {
   MedicalServices as MedicalServicesIcon,
   Phone as PhoneIcon,
   ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { storeAuthData } from '../api';
 import { API_BASE_URL } from '../apiConfig';
 
@@ -373,6 +374,18 @@ const DoctorAuth = () => {
             )}
           </Paper>
         </Fade>
+
+        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: { xs: 1.5, sm: 3 } }}>
+          <MuiLink component={RouterLink} to="/terms" color="text.secondary" underline="hover" sx={{ fontSize: '0.85rem' }}>
+            Terms
+          </MuiLink>
+          <MuiLink component={RouterLink} to="/privacy" color="text.secondary" underline="hover" sx={{ fontSize: '0.85rem' }}>
+            Privacy
+          </MuiLink>
+          <MuiLink href="mailto:support@prestigedelta.com" color="text.secondary" underline="hover" sx={{ fontSize: '0.85rem' }}>
+            Support
+          </MuiLink>
+        </Box>
 
         <Snackbar
           open={snackbar.open}
