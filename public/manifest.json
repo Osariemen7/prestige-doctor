@@ -1,25 +1,27 @@
 {
-  "short_name": "Prestige",
-  "name": "Prestige Customer",
+  "short_name": "PrestigeHealth",
+  "name": "PrestigeHealth Provider",
+  "description": "Secure clinician dashboard for medical reviews, patient records, investigations and messaging.",
   "icons": [
-    {
-      "src": "Group.png",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "any maskable"
-    },
     {
       "src": "logo192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "Group.png",
+      "src": "logo512.png",
       "type": "image/png",
       "sizes": "512x512"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#1d4ed8",
   "background_color": "#ffffff"
 }

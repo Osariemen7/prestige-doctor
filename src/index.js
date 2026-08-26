@@ -7,7 +7,6 @@ import { ThemeProvider } from '@mui/material/styles';
 import { ChakraProvider } from '@chakra-ui/react';
 import { chakraTheme } from './theme/chakraTheme';
 import { muiTheme } from './theme/mui';
-import 'react-multi-carousel/lib/styles.css';
 import './carousel-fix.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -22,5 +21,17 @@ root.render(
     </ChakraProvider>
   </BrowserRouter>
 );
+
+// Register the minimal service worker (production only). It caches built
+// static assets exclusively - API/clinical traffic is never cached.
+if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register(`${process.env.PUBLIC_URL || ''}/sw.js`)
+      .catch((error) => {
+        console.warn('Service worker registration skipped:', error);
+      });
+  });
+}
 
 
