@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Box, Drawer, IconButton, Typography } from '@mui/material';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+import { Box, Drawer, IconButton, Link, Typography } from '@mui/material';
 import {
   AutoAwesomeRounded,
   Groups2Rounded,
@@ -76,10 +76,24 @@ function DoctorNav({ pathname, onNavigate, onLogout, compact = false }) {
         })}
       </Box>
       <Box className="doctor-nav-footer">
-        <Box className="doctor-nav-item doctor-nav-item-muted doctor-nav-logout" role="button" tabIndex={0} onClick={onLogout}>
+        <Box
+          className="doctor-nav-item doctor-nav-item-muted doctor-nav-logout"
+          role="button"
+          tabIndex={0}
+          aria-label="Sign out"
+          onClick={onLogout}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') onLogout();
+          }}
+        >
           <Box className="doctor-nav-icon"><LogoutRounded /></Box>
           <Box className="doctor-nav-copy"><Typography className="doctor-nav-label">Sign out</Typography></Box>
         </Box>
+        <Typography component="div" className="doctor-nav-legal">
+          <Link component={RouterLink} to="/terms">Terms</Link>
+          <span aria-hidden="true">·</span>
+          <Link component={RouterLink} to="/privacy">Privacy</Link>
+        </Typography>
       </Box>
     </Box>
   );

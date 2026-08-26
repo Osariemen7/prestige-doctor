@@ -11,10 +11,11 @@ import {
   VerifiedUserRounded,
 } from '@mui/icons-material';
 import { isAuthenticated, storeAuthData } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 import { normalizeDoctorPhone } from '../utils/doctorAuth';
 import './DoctorAuth.css';
 
-const API_BASE = `${process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com'}/api`;
+const API_BASE = `${API_BASE_URL}/api`;
 
 const SPECIALTIES = [
   { value: 'general_practice', label: 'General Practice' },

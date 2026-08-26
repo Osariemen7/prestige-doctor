@@ -40,6 +40,7 @@ import {
 import { getAccessToken } from '../api';
 import { getProviderDashboard, getPatientDetails, getProviderReviews } from '../services/providerDashboardApi';
 import PatientCard from './PatientCard';
+import { API_BASE_URL } from '../apiConfig';
 
 const ProviderDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -89,7 +90,7 @@ const ProviderDashboard = () => {
   const handleFinalizeReview = async (reviewId) => {
     try {
       const token = await getAccessToken();
-      const response = await fetch(`https://api.prestigedelta.com/provider-reviews/${reviewId}/`, {
+      const response = await fetch(`${API_BASE_URL}/provider-reviews/${reviewId}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,

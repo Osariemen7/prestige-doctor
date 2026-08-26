@@ -1,10 +1,11 @@
-import {
+﻿import {
   displayClinicalValue,
   getClinicalDiff,
   getClinicalEditContract,
   getClinicalReviewRisk,
   setClinicalPath,
 } from './clinicalProposalViewUtils';
+import { vi } from 'vitest';
 
 describe('clinical proposal view contract helpers', () => {
   it('fails closed when the server does not issue the v2 edit contract', () => {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -19,7 +20,7 @@ const Dashboard = () => {
     }
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/providerdashboard/', {
+      const response = await fetch(`${API_BASE_URL}/providerdashboard/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

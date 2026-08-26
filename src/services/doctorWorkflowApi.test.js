@@ -1,4 +1,4 @@
-import {
+﻿import {
   createRealtimeSession,
   recordPatientFollowThroughCompletion,
   recordWhatsAppFollowThroughMessage,
@@ -7,9 +7,10 @@ import {
   sendPatientFollowThrough,
   submitDoctorDecision,
 } from './doctorWorkflowApi';
+import { vi } from 'vitest';
 
-jest.mock('../api', () => ({
-  getAccessToken: jest.fn(() => Promise.resolve('test-token')),
+vi.mock('../api', () => ({
+  getAccessToken: vi.fn(() => Promise.resolve('test-token')),
 }));
 
 const jsonResponse = (body, ok = true, status = 200) => ({
@@ -24,11 +25,11 @@ const jsonResponse = (body, ok = true, status = 200) => ({
 describe('doctor workflow server authority', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('does not fall back to legacy or local approval when the decision endpoint is unavailable', async () => {

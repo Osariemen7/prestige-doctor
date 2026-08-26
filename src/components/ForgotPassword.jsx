@@ -25,6 +25,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EmailIcon from '@mui/icons-material/Email';
+import { API_BASE_URL, ORGANIZATION_DOMAIN_HEADER } from '../apiConfig';
 
 const theme = createTheme({
   palette: {
@@ -114,12 +115,12 @@ const ForgotPassword = () => {
         ? { phone_number: phoneNumber }
         : { email };
 
-      const response = await fetch('https://api.prestigedelta.com/emailotp/', {
+      const response = await fetch(`${API_BASE_URL}/emailotp/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
-          'X-Organization-Domain': 'provider.prestigehealth.app'
+          ...ORGANIZATION_DOMAIN_HEADER
         },
         body: JSON.stringify(payload)
       });
@@ -172,12 +173,12 @@ const ForgotPassword = () => {
         payload.email = email;
       }
       
-      const response = await fetch('https://api.prestigedelta.com/resetpassword/', {
+      const response = await fetch(`${API_BASE_URL}/resetpassword/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           accept: 'application/json',
-          'X-Organization-Domain': 'provider.prestigehealth.app'
+          ...ORGANIZATION_DOMAIN_HEADER
         },
         body: JSON.stringify(payload)
       });

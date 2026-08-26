@@ -1,1 +1,34 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+
+# Environment files - never commit secrets or configuration values
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.production.local
+.env.development.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+
+# Misc
+*.tsbuildinfo
+.eslintcache
+.ai_cache/

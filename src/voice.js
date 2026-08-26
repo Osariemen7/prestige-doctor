@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient, createMicrophoneAudioTrack, createCameraVideoTrack } from 'agora-rtc-sdk-ng';
 import Recorder from 'recorder-js';
 import { getAccessToken } from './api';
-import axios from 'axios';
+import { API_BASE_URL, fetchAgoraCredentials } from './apiConfig';
 import { MdCall, MdCallEnd, MdVideoCall, MdVideocam, MdVideocamOff, MdDescription } from 'react-icons/md';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChakraProvider, Heading, Text, Spinner, Box, Flex, IconButton, Avatar, 
@@ -40,8 +40,7 @@ const Voice = () => {
 
     const [isSaving, setIsSaving] = useState(false);
     const [data, setData] = useState(null);
-    const [editableData, setEditableData] = useState(null);
-    const [suggestionData, setSuggestionData] = useState(null);
+    const [editableData, setEditableData] = useState(null);    const [suggestionData, setSuggestionData] = useState(null);
     const [appliedSuggestions, setAppliedSuggestions] = useState({
         profile: {},
         goals: {},
@@ -54,6 +53,10 @@ const Voice = () => {
     const { state: locationState } = useLocation();
     const reviewid = locationState?.item?.review_id;
     const thread = locationState?.item?.thread_id;
+
+    // Fail-closed state: when the backend cannot supply one-time Agora
+    // credentials, the visit UI is disabled instead of joining unsecured.
+    const [agoraUnavailable, setAgoraUnavailable] = useState(false);
 
     const client = createClient({ mode: 'rtc', codec: 'vp8' });
 
@@ -88,15 +91,23 @@ const Voice = () => {
             }
     
             const accessToken = await getAccessToken();
-            const response = await axios.post(
-                `https://api.prestigedelta.com/documentreview/${reviewid}/generate-documentation/`,
-                suggestionPayload,
+            const response = await fetch(
+                `${API_BASE_URL}/documentreview/${reviewid}/generate-documentation/`,
                 {
-                    headers: { Authorization: `Bearer ${accessToken}` },
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify(suggestionPayload),
                 }
             );
     
-            const result = response.data;
+            if (!response.ok) {
+                throw new Error(`Suggestion request failed (${response.status})`);
+            }
+
+            const result = await response.json();
     
             setSnackbarSeverity('success');
             setSnackbarMessage('Suggestion generated successfully!');
@@ -126,7 +137,7 @@ const Voice = () => {
                 user.audioTrack.play();
                 // Set audio output to system default
                 user.audioTrack.setPlaybackDevice('default');
-                console.log('Playing remote audio track');
+
             }
             setRemoteAudioTracks((prev) => [...prev, user.audioTrack]);
           }
@@ -207,10 +218,11 @@ const Voice = () => {
     
         setIsLoading(true);
         try {
-            const appId = '44787e17cd0348cd8b75366a2b5931e9';
-            const token = null;
+            // Secure join: credentials must come from the backend token
+            // endpoint on every call. Never join with a null token.
             const channel = item.channel_name || chanel;
-    
+            const { appId, token } = await fetchAgoraCredentials(channel, getAccessToken);
+
             await client.join(appId, channel, token, null);
            
             const audioTrack = await createMicrophoneAudioTrack({
@@ -221,7 +233,7 @@ const Voice = () => {
 
             await client.publish(audioTrack);
             setLocalAudioTrack(audioTrack);
-            console.log('Local Audio Track Published', audioTrack);
+
 
             // Clean up any existing video track before creating a new one
             if (localVideoTrack) {
@@ -241,7 +253,7 @@ const Voice = () => {
             await connectWebSocket();
             await startRecording();
             
-            console.log('Joined channel with audio and video.');
+
     
             // Add listener to stop all tracks on page unload
             window.onbeforeunload = () => {
@@ -249,6 +261,9 @@ const Voice = () => {
             };
         } catch (error) {
             console.error('Error joining channel with video:', error);
+            // Fail closed: without server-issued credentials the channel
+            // cannot be joined securely, so surface an unavailable state.
+            setAgoraUnavailable(true);
         } finally {
             setIsLoading(false);
         }
@@ -265,7 +280,7 @@ const Voice = () => {
                 setLocalVideoTrack(null);
                 setIsVideoEnabled(false);
                 setVid(true);
-                console.log('Video disabled.');
+
             } catch (error) {
                 console.error('Error disabling video:', error);
             }
@@ -277,7 +292,7 @@ const Voice = () => {
     setIsLoading(true); // Start loading
     try {
         if (isJoined) {
-            console.log('Leaving channel...');
+
             await client.leave();
             stopTimer();
         }
@@ -303,13 +318,12 @@ const Voice = () => {
         setUserCount(0);
         setIsJoined(false);
 
-        console.log('Left the channel and cleaned up tracks.');
+
     } catch (error) {
         console.error('Error leaving channel:', error);
     } finally {
         setIsLoading(false); // Stop loading
         navigate('/');
-            window.location.href = 'https://prestige-health.vercel.app/';
     }
 }
 
@@ -318,7 +332,7 @@ const Voice = () => {
     async function enableVideo() {
         try {
             if (localVideoTrack) {
-                console.log('Cleaning up existing video track before creating new one');
+
                 await client.unpublish(localVideoTrack);
                 localVideoTrack.stop();
                 localVideoTrack.close();
@@ -328,7 +342,7 @@ const Voice = () => {
             await client.publish(videoTrack);
             setLocalVideoTrack(videoTrack);
             setIsVideoEnabled(true);
-            console.log('Video enabled.');
+
         } catch (error) {
             console.error('Error enabling video:', error);
         }
@@ -343,7 +357,7 @@ const Voice = () => {
     // Add transcription WebSocket connection
     const connectWebSocket = async () => {
         if (!assemblyAiToken) {
-            console.log('No AssemblyAI token available');
+
             return;
         }
 
@@ -351,7 +365,7 @@ const Voice = () => {
         assemblyWsRef.current = new WebSocket(socketUrl);
 
         assemblyWsRef.current.onopen = () => {
-            console.log('AssemblyAI WebSocket connected');
+
             // Set up interval to call getSuggestion every 18 seconds
             const suggestionInterval = setInterval(getSuggestion, 18000);
             // Store interval ID to clear it later
@@ -363,7 +377,7 @@ const Voice = () => {
         };
 
         assemblyWsRef.current.onclose = () => {
-            console.log('WebSocket closed');
+
             setIsRecording(false);
             // Clear suggestion interval when WebSocket closes
             if (timerId?.suggestionInterval) {
@@ -375,7 +389,7 @@ const Voice = () => {
             try {
                 const data = JSON.parse(message.data);
                 if (data.message_type === 'FinalTranscript') {
-                    console.log('Received transcript:', data.text);
+
                     setTranscript(prev => prev + (prev ? '\n' : '') + data.text);
                 }
             } catch (error) {
@@ -391,7 +405,7 @@ const Voice = () => {
                 await connectWebSocket();
             }
             setIsRecording(true);
-            console.log('Recording started');
+
         } catch (error) {
             console.error('Error starting recording:', error);
         }
@@ -415,7 +429,7 @@ const Voice = () => {
             try {
                 const token = await getAccessToken();
                 const response = await fetch(
-                    "https://api.prestigedelta.com/assemblyai/generate-token/",
+                    `${API_BASE_URL}/assemblyai/generate-token/`,
                     {
                         headers: {
                             "Content-Type": "application/json",
@@ -431,7 +445,7 @@ const Voice = () => {
                 
                 const data = await response.json();
                 setAssemblyAiToken(data.token);
-                console.log('AssemblyAI token fetched successfully');
+
             } catch (error) {
                 console.error("Error fetching AssemblyAI token:", error);
             }
@@ -459,6 +473,29 @@ const Voice = () => {
                 {/* Video Container */}
                 <Box flex="1" position="relative">
                     <VideoDisplay localVideoTrack={localVideoTrack} remoteUsers={remoteUsers} />
+
+                    {agoraUnavailable && (
+                        <Box
+                            position="absolute"
+                            top="50%"
+                            left="50%"
+                            transform="translate(-50%, -50%)"
+                            textAlign="center"
+                            zIndex="3"
+                            bg="rgba(0, 0, 0, 0.85)"
+                            p={6}
+                            borderRadius="md"
+                            maxWidth="90%"
+                        >
+                            <Text fontSize="lg" color="white" fontWeight="bold" mb={2}>
+                                Voice visits temporarily unavailable
+                            </Text>
+                            <Text fontSize="sm" color="gray.300">
+                                We could not establish a secure connection for this visit.
+                                Please try again shortly or contact support@prestigedelta.com.
+                            </Text>
+                        </Box>
+                    )}
 
                     {/* Overlayed Controls */}
                     <Flex
@@ -505,13 +542,15 @@ const Voice = () => {
                                         size="lg" 
                                     />
                                 ) : (
-                                    <IconButton 
-                                        icon={<MdVideocam />} 
-                                        colorScheme="green" 
-                                        fontSize="36px" 
-                                        onClick={joinChannelWithVideo}  
-                                        borderRadius="full" 
-                                        size="lg" 
+                                    <IconButton
+                                        icon={<MdVideocam />}
+                                        colorScheme="green"
+                                        fontSize="36px"
+                                        onClick={joinChannelWithVideo}
+                                        isDisabled={agoraUnavailable}
+                                        borderRadius="full"
+                                        size="lg"
+                                        aria-label="Start call"
                                     />
                                 )}
                                 <Text marginTop="5px" fontSize='12px' color='white'>

@@ -485,7 +485,7 @@ const DoctorMessaging = () => {
         if (patientConversations.length > 0) {
           // Conversation was created successfully, but don't auto-select it
           // Just refresh the conversations list to show the new conversation in the sidebar
-          console.log('Template message sent successfully, conversation created');
+
         } else {
           // If no conversation found, this is unexpected since backend should create one
           console.error('No conversation found for patient after sending template message');

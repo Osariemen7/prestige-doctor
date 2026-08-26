@@ -1,5 +1,6 @@
-import { careConversationSchema, parseContract } from './careConversationContract';
+﻿import { careConversationSchema, parseContract } from './careConversationContract';
 import { demoDoctorConversation } from '../demo/careConversationFixture';
+import { vi } from 'vitest';
 
 describe('care-conversation-turn-v1 doctor contract', () => {
   test('accepts the linked synthetic doctor projection', () => {

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DoctorClinicalServiceDetail from './DoctorClinicalServiceDetail';
@@ -7,8 +7,9 @@ import {
   getDoctorClinicalServiceOrder,
   submitClinicalProposalDecision,
 } from '../services/doctorCareLoopApi';
+import { vi } from 'vitest';
 
-jest.mock('@mui/material', () => {
+vi.mock('@mui/material', () => {
   const React = require('react');
   const passthrough = (tag) => ({ children, ...props }) => React.createElement(tag, {}, children);
   const Button = ({ children, onClick, disabled, ...props }) => React.createElement('button', { type: 'button', onClick, disabled, ...props }, children);
@@ -28,19 +29,19 @@ jest.mock('@mui/material', () => {
   };
 });
 
-jest.mock('react-router-dom', () => ({
-  useNavigate: () => jest.fn(),
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
   useParams: () => ({ orderId: 'order-1' }),
 }));
 
-jest.mock('../services/doctorCareLoopApi', () => ({
-  claimClinicalProposal: jest.fn(),
-  completeClinicalServiceCall: jest.fn(),
-  getClinicalProposal: jest.fn(),
-  getClinicalServiceJoin: jest.fn(),
-  getDoctorClinicalServiceOrder: jest.fn(),
-  scheduleClinicalService: jest.fn(),
-  submitClinicalProposalDecision: jest.fn(),
+vi.mock('../services/doctorCareLoopApi', () => ({
+  claimClinicalProposal: vi.fn(),
+  completeClinicalServiceCall: vi.fn(),
+  getClinicalProposal: vi.fn(),
+  getClinicalServiceJoin: vi.fn(),
+  getDoctorClinicalServiceOrder: vi.fn(),
+  scheduleClinicalService: vi.fn(),
+  submitClinicalProposalDecision: vi.fn(),
 }));
 
 const orderProjection = {
@@ -122,7 +123,7 @@ const proposalProjection = {
 
 describe('DoctorClinicalServiceDetail', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     getDoctorClinicalServiceOrder.mockResolvedValue(orderProjection);
     getClinicalProposal.mockResolvedValue(proposalProjection);
     submitClinicalProposalDecision.mockResolvedValue({

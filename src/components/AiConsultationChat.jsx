@@ -37,6 +37,7 @@ import {
   Image as ImageIcon,
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
 // SSE parser helper
 function parseSSEText(sseText, onChunk) {
@@ -111,7 +112,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${reviewPublicId}/doctor-thread/`,
+        `${API_BASE_URL}/medical-reviews/${reviewPublicId}/doctor-thread/`,
         {
           method: 'GET',
           headers: {
@@ -278,7 +279,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
     else if (file.type.startsWith('video/')) category = 'video';
     formData.append('file_category', category);
 
-    const resp = await fetch('https://api.prestigedelta.com/ai-processing/upload-file/', {
+    const resp = await fetch(`${API_BASE_URL}/ai-processing/upload-file/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -305,7 +306,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
       store_conversation: true
     };
 
-    const res = await fetch('https://api.prestigedelta.com/health-diary/agent-process-stream/', {
+    const res = await fetch(`${API_BASE_URL}/health-diary/agent-process-stream/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -350,7 +351,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
   const handleSSEChunk = (chunk) => {
     switch (chunk.type) {
       case 'thread_info':
-        console.log('Thread info:', chunk);
+
         break;
       case 'synthesis_text':
       case 'synthesis_chunk':
@@ -367,7 +368,7 @@ const AiConsultationChat = ({ reviewPublicId, enabled = false, requireExistingTh
         setIsSending(false);
         break;
       default:
-        console.log('Unhandled SSE chunk', chunk);
+
     }
   };
 
