@@ -1,4 +1,4 @@
-const REALTIME_CALLS_URL = process.env.REACT_APP_OPENAI_REALTIME_CALLS_URL || 'https://api.openai.com/v1/realtime/calls';
+﻿const REALTIME_CALLS_URL = import.meta.env.VITE_OPENAI_REALTIME_CALLS_URL || 'https://api.openai.com/v1/realtime/calls';
 const DEFAULT_REALTIME_MODEL = 'gpt-realtime-mini';
 const COPILOT_UPDATE_TOOL_NAME = 'prestige_emit_copilot_update';
 

@@ -1,24 +1,24 @@
-// Central runtime configuration for the provider dashboard.
+﻿// Central runtime configuration for the provider dashboard.
 // Every network call should source its base URL from here instead of
 // hardcoding hosts. Values can be overridden via environment variables.
 
 const DEFAULT_API_BASE_URL = 'https://api.prestigedelta.com';
 
 export const API_BASE_URL = (
-  process.env.REACT_APP_BACKEND_BASE_URL || DEFAULT_API_BASE_URL
+  import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '');
 
 // WebSocket counterpart of the API base (used for realtime services).
-export const API_WS_URL = process.env.REACT_APP_BACKEND_WS_URL || '';
+export const API_WS_URL = import.meta.env.VITE_BACKEND_WS_URL || '';
 
 // Organization scope header value; override via env when running against
 // an alternative tenant domain.
 export const ORGANIZATION_DOMAIN =
-  process.env.REACT_APP_ORGANIZATION_DOMAIN || 'provider.prestigehealth.app';
+  import.meta.env.VITE_ORGANIZATION_DOMAIN || 'provider.prestigehealth.app';
 
 export const ORGANIZATION_DOMAIN_HEADER = { 'X-Organization-Domain': ORGANIZATION_DOMAIN };
 
-// ── Agora RTC (voice/video visits) ─────────────────────────────────────
+// â”€â”€ Agora RTC (voice/video visits) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // The client MUST obtain short-lived credentials from the backend for every
 // join. Joining with a null token or shipping a static app id in source is
 // not permitted. Until the backend endpoint is provisioned the voice page
@@ -31,7 +31,7 @@ export const ORGANIZATION_DOMAIN_HEADER = { 'X-Organization-Domain': ORGANIZATIO
 export const AGORA_TOKEN_ENDPOINT = `${API_BASE_URL}/agora/rtc-token/`;
 
 // Display/fallback info only - never used to join a channel.
-export const AGORA_APP_ID_DISPLAY = process.env.REACT_APP_AGORA_APP_ID || '';
+export const AGORA_APP_ID_DISPLAY = import.meta.env.VITE_AGORA_APP_ID || '';
 
 /**
  * Fetch one-time Agora credentials from the backend.

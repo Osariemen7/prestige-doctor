@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { GoogleOAuthProvider } from '@react-oauth/google';
@@ -60,7 +60,7 @@ const App = () => {
   }
 
   return (
-    <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID}>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       <ProcessingStatusProvider>
         <ErrorBoundary
           FallbackComponent={ErrorFallback}

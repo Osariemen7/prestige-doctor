@@ -43,7 +43,6 @@
     "react-otp-input": "^3.1.1",
     "react-phone-number-input": "3.3.9",
     "react-router-dom": "^7.1.1",
-    "react-scripts": "5.0.1",
     "react-select": "^5.9.0",
     "recorder-js": "^1.0.7",
     "remark-gfm": "^4.0.1",
@@ -52,24 +51,18 @@
     "zod": "^4.2.1"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "eslintConfig": {
     "extends": [
       "react-app",
       "react-app/jest"
     ]
-  },
-  "jest": {
-    "moduleNameMapper": {
-      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
-      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js",
-      "^@chakra-ui/utils/(.*)$": "<rootDir>/node_modules/@chakra-ui/utils/dist/cjs/$1.cjs",
-      "^lucide-react$": "<rootDir>/node_modules/lucide-react/dist/cjs/lucide-react.js"
-    }
   },
   "browserslist": {
     "production": [
@@ -85,9 +78,13 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^26.1.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7",
     "zwitch": "^2.0.4"
   }
 }

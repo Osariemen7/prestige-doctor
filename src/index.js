@@ -24,10 +24,10 @@ root.render(
 
 // Register the minimal service worker (production only). It caches built
 // static assets exclusively - API/clinical traffic is never cached.
-if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register(`${process.env.PUBLIC_URL || ''}/sw.js`)
+      .register(`${import.meta.env.BASE_URL}sw.js`)
       .catch((error) => {
         console.warn('Service worker registration skipped:', error);
       });

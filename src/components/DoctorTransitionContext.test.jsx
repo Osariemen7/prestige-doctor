@@ -1,10 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import { render, screen } from '@testing-library/react';
 import DoctorTransitionContext from './DoctorTransitionContext';
 import { listDoctorCareTransitions } from '../services/doctorCareLoopApi';
+import { vi } from 'vitest';
 
-jest.mock('../services/doctorCareLoopApi', () => ({
-  listDoctorCareTransitions: jest.fn(),
+vi.mock('../services/doctorCareLoopApi', () => ({
+  listDoctorCareTransitions: vi.fn(),
 }));
 
 describe('DoctorTransitionContext', () => {

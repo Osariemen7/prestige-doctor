@@ -1,4 +1,4 @@
-import {
+﻿import {
   claimClinicalProposal,
   getClinicalProposal,
   getClinicalServiceJoin,
@@ -9,9 +9,10 @@ import {
   submitClinicalProposalDecision,
 } from './doctorCareLoopApi';
 import { getAccessToken } from '../api';
+import { vi } from 'vitest';
 
-jest.mock('../api', () => ({
-  getAccessToken: jest.fn(() => Promise.resolve('doctor-token')),
+vi.mock('../api', () => ({
+  getAccessToken: vi.fn(() => Promise.resolve('doctor-token')),
 }));
 
 const jsonResponse = (body, ok = true, status = 200) => ({
@@ -23,11 +24,11 @@ const jsonResponse = (body, ok = true, status = 200) => ({
 
 describe('doctor CareLoop API', () => {
   beforeEach(() => {
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
     getAccessToken.mockResolvedValue('doctor-token');
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   it('uses the authenticated doctor transition collection and preserves server ordering', async () => {
     global.fetch.mockResolvedValueOnce(jsonResponse({

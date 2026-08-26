@@ -1,8 +1,8 @@
-import { getAccessToken } from '../api';
+﻿import { getAccessToken } from '../api';
 import { API_BASE_URL } from '../apiConfig';
 
 const DEFAULT_BACKEND_BASE = API_BASE_URL;
-const DEFAULT_WS_BASE = process.env.REACT_APP_GEMINI_LIVE_WS_URL || 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+const DEFAULT_WS_BASE = import.meta.env.VITE_GEMINI_LIVE_WS_URL || 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 const DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 
 const ENDPOINTS = {

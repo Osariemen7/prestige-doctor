@@ -1,57 +1,57 @@
-import React from 'react';
+﻿import React from 'react';
 import { render, screen } from '@testing-library/react';
 
-jest.mock('./api', () => ({
-  tryRestoreSession: jest.fn().mockResolvedValue(true),
-  isAuthenticated: jest.fn(() => true),
+vi.mock('./api', () => ({
+  tryRestoreSession: vi.fn().mockResolvedValue(true),
+  isAuthenticated: vi.fn(() => true),
 }));
 
-jest.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', () => ({
   Routes: ({ children }) => <>{children}</>,
   Route: ({ element }) => element,
   Navigate: () => null,
   useLocation: () => ({ pathname: '/reviews', search: '' }),
 }));
 
-jest.mock('@react-oauth/google', () => ({
+vi.mock('@react-oauth/google', () => ({
   GoogleOAuthProvider: ({ children }) => <>{children}</>,
 }));
 
-jest.mock('./contexts/ProcessingStatusContext', () => ({
+vi.mock('./contexts/ProcessingStatusContext', () => ({
   ProcessingStatusProvider: ({ children }) => <>{children}</>,
 }));
 
-jest.mock('./components/DoctorAuth', () => () => <div>Doctor authentication</div>);
-jest.mock('./components/CompleteProfile', () => () => <div>Complete profile</div>);
-jest.mock('./components/ForgotPassword', () => () => <div>Forgot password</div>);
-jest.mock('./components/TermsPage', () => () => <div>Terms</div>);
-jest.mock('./components/PrivacyPage', () => () => <div>Privacy</div>);
-jest.mock('./components/dashboard', () => () => <div>Legacy dashboard</div>);
-jest.mock('./components/ProviderDashboard', () => () => <div>Provider dashboard</div>);
-jest.mock('./components/ProviderDashboardDocs', () => () => <div>Provider docs</div>);
-jest.mock('./components/createEncounter', () => () => <div>Create encounter</div>);
-jest.mock('./components/record', () => () => <div>Record encounter</div>);
-jest.mock('./components/ReviewsList', () => () => <div>Reviews list</div>);
-jest.mock('./components/ReviewDetail', () => () => <div>Review detail</div>);
-jest.mock('./components/ReviewsHome', () => () => <div>Reviews home</div>);
-jest.mock('./components/DoctorLayout', () => ({ children }) => <>{children}</>);
-jest.mock('./components/AdminDashboard', () => () => <div>Admin dashboard</div>);
-jest.mock('./components/DoctorMessaging', () => () => <div>Doctor messaging</div>);
-jest.mock('./components/PatientDetailsPage', () => () => <div>Patient details</div>);
-jest.mock('./components/InvestigationsMain', () => () => <div>Investigations</div>);
-jest.mock('./components/InvestigationDetailPage', () => () => <div>Investigation detail</div>);
-jest.mock('./components/PatientMediaGallery', () => () => <div>Patient media</div>);
-jest.mock('./components/DoctorClinicalServices', () => () => <div>Clinical service queue</div>);
-jest.mock('./components/DoctorClinicalServiceDetail', () => () => <div>Clinical service detail</div>);
-jest.mock('./components/CareCoordinatorQueue', () => () => <div>Care coordinator queue</div>);
-jest.mock('./voice', () => () => <div>Voice</div>);
+vi.mock('./components/DoctorAuth', () => ({ default: () => <div>Doctor authentication</div> }));
+vi.mock('./components/CompleteProfile', () => ({ default: () => <div>Complete profile</div> }));
+vi.mock('./components/ForgotPassword', () => ({ default: () => <div>Forgot password</div> }));
+vi.mock('./components/TermsPage', () => ({ default: () => <div>Terms</div> }));
+vi.mock('./components/PrivacyPage', () => ({ default: () => <div>Privacy</div> }));
+vi.mock('./components/dashboard', () => ({ default: () => <div>Legacy dashboard</div> }));
+vi.mock('./components/ProviderDashboard', () => ({ default: () => <div>Provider dashboard</div> }));
+vi.mock('./components/ProviderDashboardDocs', () => ({ default: () => <div>Provider docs</div> }));
+vi.mock('./components/createEncounter', () => ({ default: () => <div>Create encounter</div> }));
+vi.mock('./components/record', () => ({ default: () => <div>Record encounter</div> }));
+vi.mock('./components/ReviewsList', () => ({ default: () => <div>Reviews list</div> }));
+vi.mock('./components/ReviewDetail', () => ({ default: () => <div>Review detail</div> }));
+vi.mock('./components/ReviewsHome', () => ({ default: () => <div>Reviews home</div> }));
+vi.mock('./components/DoctorLayout', () => ({ default: ({ children }) => <>{children}</> }));
+vi.mock('./components/AdminDashboard', () => ({ default: () => <div>Admin dashboard</div> }));
+vi.mock('./components/DoctorMessaging', () => ({ default: () => <div>Doctor messaging</div> }));
+vi.mock('./components/PatientDetailsPage', () => ({ default: () => <div>Patient details</div> }));
+vi.mock('./components/InvestigationsMain', () => ({ default: () => <div>Investigations</div> }));
+vi.mock('./components/InvestigationDetailPage', () => ({ default: () => <div>Investigation detail</div> }));
+vi.mock('./components/PatientMediaGallery', () => ({ default: () => <div>Patient media</div> }));
+vi.mock('./components/DoctorClinicalServices', () => ({ default: () => <div>Clinical service queue</div> }));
+vi.mock('./components/DoctorClinicalServiceDetail', () => ({ default: () => <div>Clinical service detail</div> }));
+vi.mock('./components/CareCoordinatorQueue', () => ({ default: () => <div>Care coordinator queue</div> }));
+vi.mock('./voice', () => ({ default: () => <div>Voice</div> }));
 
-// react-scripts enables jest `resetMocks`, which wipes factory-level
-// implementations before every test, so implementations are (re)declared
-// inside the test body below.
+// Note: module factories re-declare mock implementations inside the test
+// body below because test runners may reset mocks between tests.
 import { tryRestoreSession, isAuthenticated } from './api';
 
 import App from './App';
+import { vi } from 'vitest';
 
 test('restores the session and mounts the doctor clinical and care-coordinator routes', async () => {
   tryRestoreSession.mockResolvedValue(true);
