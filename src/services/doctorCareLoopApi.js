@@ -1,6 +1,7 @@
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
+const BASE_URL = API_BASE_URL;
 
 const buildUrl = (path, query = {}) => {
   const url = new URL(`${BASE_URL.replace(/\/$/, '')}/${String(path).replace(/^\//, '')}`);
@@ -70,6 +71,7 @@ const requestJson = async (path, {
     error.status = response.status;
     error.payload = payload;
     error.endpointMissing = response.status === 404 || response.status === 405;
+    error.retryAfter = response.headers?.get?.('Retry-After') || null;
     throw error;
   }
 
@@ -171,6 +173,9 @@ export const submitClinicalProposalDecision = async (proposalId, {
   reason = '',
   questions = [],
   clinicalAttestations,
+  reviewStartedAt,
+  decisionAt,
+  decisionCategory,
   idempotencyKey,
   correlationId,
 } = {}) => {
@@ -190,6 +195,9 @@ export const submitClinicalProposalDecision = async (proposalId, {
     ...(reason ? { reason } : {}),
     ...(Array.isArray(questions) && questions.length ? { questions } : {}),
     ...(clinicalAttestations ? { clinical_attestations: clinicalAttestations } : {}),
+    ...(reviewStartedAt ? { review_started_at: reviewStartedAt } : {}),
+    ...(decisionAt ? { decision_at: decisionAt } : {}),
+    ...(decisionCategory ? { decision_category: decisionCategory } : {}),
   };
 
   return requireObject(

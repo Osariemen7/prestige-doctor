@@ -1,4 +1,5 @@
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 import {
   careCapabilitySchema,
   careConversationCollectionSchema,
@@ -8,7 +9,7 @@ import {
   parseContract,
 } from './careConversationContract';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
+const BASE_URL = API_BASE_URL;
 const newId = () => globalThis.crypto?.randomUUID?.() || `care-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const featureEnabled = () => (

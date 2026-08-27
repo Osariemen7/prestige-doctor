@@ -21,6 +21,7 @@ import {
   PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
 const convertToInternationalFormat = (phoneNumber) => {
   if (!phoneNumber || typeof phoneNumber !== 'string') {
@@ -100,7 +101,7 @@ const CreateEncounterModal = ({ open, onClose, onSuccess, medicalReviewId = null
             metadata: {}
           };
 
-      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch(`${API_BASE_URL}/in-person-encounters/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

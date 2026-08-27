@@ -206,7 +206,7 @@ const PatientDetailsPage = () => {
         patientId={patientId}
         patientName={`${demographics.first_name || ''} ${demographics.last_name || ''}`.trim()}
         onSuccess={(data) => {
-          console.log('Booking successful:', data);
+
           // Potential: show success toast or refresh data
         }}
       />

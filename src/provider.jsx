@@ -13,6 +13,7 @@ import {
   Snackbar,
 } from '@mui/material';
 import { ArrowLeft } from 'lucide-react';
+import { API_BASE_URL } from './apiConfig';
 
 const ProviderPage = () => {
   const [clinicName, setClinicName] = useState('');
@@ -41,9 +42,9 @@ const ProviderPage = () => {
       const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
       if (parsedUserInfo) {
         setAccessToken(parsedUserInfo.access);
-        console.log('Access Token:', parsedUserInfo.access);
+
       } else {
-        console.log('No user information found in storage.');
+
       }
     } catch (error) {
       console.error('Error fetching token:', error);
@@ -73,7 +74,7 @@ const ProviderPage = () => {
     };
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/provider/', {
+      const response = await fetch(`${API_BASE_URL}/provider/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

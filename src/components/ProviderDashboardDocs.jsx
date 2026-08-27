@@ -106,7 +106,7 @@ const fetchDashboardData = async () => {
   
   try {
     const response = await fetch(
-      'https://api.prestigedelta.com/providerdashboard/',
+      \`\${API_BASE_URL}/providerdashboard/\`,
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,
@@ -117,11 +117,7 @@ const fetchDashboardData = async () => {
 
     if (response.ok) {
       const data = await response.json();
-      console.log('Provider Info:', data.provider_info);
-      console.log('Active Patients:', data.patients.active);
-      console.log('Pending Patients:', data.patients.pending);
-      console.log('Churned Patients:', data.patients.churned);
-    }
+                            }
   } catch (error) {
     console.error('Error:', error);
   }
@@ -142,7 +138,7 @@ const fetchPatientDetails = async (patientId) => {
   
   try {
     const response = await fetch(
-      \`https://api.prestigedelta.com/providerdashboard/\${patientId}/\`,
+      \`\${API_BASE_URL}/providerdashboard/\${patientId}/\`,
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,
@@ -153,11 +149,7 @@ const fetchPatientDetails = async (patientId) => {
 
     if (response.ok) {
       const patient = await response.json();
-      console.log('Patient Profile:', patient.profile_data);
-      console.log('Medical Reviews:', patient.full_medical_reviews);
-      console.log('Care Plan:', patient.remote_care_plan);
-      console.log('Metrics:', patient.metrics);
-    }
+                            }
   } catch (error) {
     console.error('Error:', error);
   }
@@ -195,7 +187,7 @@ function MyComponent() {
     }
 
     const response = await fetch(
-      'https://api.prestigedelta.com/providerdashboard/',
+      \`\${API_BASE_URL}/providerdashboard/\`,
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,
@@ -211,7 +203,7 @@ function MyComponent() {
   const viewPatient = async (patientId) => {
     const token = await getAccessToken();
     const response = await fetch(
-      \`https://api.prestigedelta.com/providerdashboard/\${patientId}/\`,
+      \`\${API_BASE_URL}/providerdashboard/\${patientId}/\`,
       {
         headers: {
           'Authorization': \`Bearer \${token}\`,

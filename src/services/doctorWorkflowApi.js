@@ -1,7 +1,8 @@
 import { getAccessToken } from '../api';
 import { buildWhatsAppInboundFollowThroughResult } from '../utils/aiReviewWorkflow';
+import { API_BASE_URL } from '../apiConfig';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
+const BASE_URL = API_BASE_URL;
 
 const buildUrl = (path) => `${BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 

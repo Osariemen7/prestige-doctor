@@ -77,6 +77,7 @@ import {
   requestPatientInformation,
   submitDoctorDecision,
 } from '../services/doctorWorkflowApi';
+import { API_BASE_URL } from '../apiConfig';
 import {
   approveAllCopilotDraftActions,
   buildCopilotDraftSyncPayload,
@@ -751,7 +752,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         },
       };
 
-      const response = await fetch('https://api.prestigedelta.com/clinician-outcome-adjudications/', {
+      const response = await fetch(`${API_BASE_URL}/clinician-outcome-adjudications/`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1360,7 +1361,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const attemptFallbackEncounterFetch = async (token) => {
     try {
       // 1. Try to fetch specific encounter directly if publicId matches an encounter ID
-      const directEncounterRes = await fetch(`https://api.prestigedelta.com/in-person-encounters/${publicId}/`, {
+      const directEncounterRes = await fetch(`${API_BASE_URL}/in-person-encounters/${publicId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1368,7 +1369,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       });
       if (directEncounterRes.ok) {
         const match = await directEncounterRes.json();
-        console.log('Found matching encounter directly:', match);
+
         const draftReview = {
           id: match.medical_review_id,
           public_id: match.medical_review_public_id || publicId,
@@ -1397,7 +1398,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
     try {
       // 2. Fallback to list search
-      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch(`${API_BASE_URL}/in-person-encounters/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1412,7 +1413,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             : [];
         const match = list.find(enc => enc.medical_review_public_id === publicId || enc.public_id === publicId);
         if (match) {
-          console.log('Found matching encounter in list search:', match);
+
           const draftReview = {
             id: match.medical_review_id,
             public_id: match.medical_review_public_id || publicId,
@@ -1452,7 +1453,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     }
 
     try {
-      const response = await fetch(`https://api.prestigedelta.com/provider-reviews/${publicId}/`, {
+      const response = await fetch(`${API_BASE_URL}/provider-reviews/${publicId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1525,7 +1526,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       }
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
+        `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -1644,7 +1645,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       try {
         const token = await getAccessToken();
         const response = await fetch(
-          `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
+          `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/save-note/`,
           {
             method: 'POST',
             headers: {
@@ -1686,7 +1687,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload();
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/save-note/`,
+        `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/save-note/`,
         {
           method: 'POST',
           headers: {
@@ -1758,7 +1759,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       }
 
       const response = await fetch(
-        `https://api.prestigedelta.com/medical-reviews/${medicalReviewPublicId}/finalize/`,
+        `${API_BASE_URL}/medical-reviews/${medicalReviewPublicId}/finalize/`,
         {
           method: 'POST',
           headers: {
@@ -1786,7 +1787,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   };
 
   const handleEditNote = () => {
-    console.log('handleEditNote called');
+
     setEditingNote(true);
     // doctor_note may be a JSON string (legacy) or already an object (new API behaviour)
     const rawNote = typeof review.doctor_note === 'string'
@@ -1798,7 +1799,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     if (!initialNote.investigation) initialNote.investigation = [];
     if (!initialNote.other_actions) initialNote.other_actions = [];
     setEditedNote(initialNote);
-    console.log('editedNote initialized:', initialNote);
+
   };
 
   const handleCancelEdit = () => {
@@ -2041,7 +2042,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     const token = await getAccessToken();
 
     try {
-      const response = await fetch('https://api.prestigedelta.com/in-person-encounters/', {
+      const response = await fetch(`${API_BASE_URL}/in-person-encounters/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -2585,6 +2586,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                         fullWidth
                         multiline
                         minRows={3}
+                        aria-label={`${sectionKey} ${key} note editor`}
                         value={typeof editedValue === 'object' ? JSON.stringify(editedValue, null, 2) : (editedValue || '')}
                         onChange={(e) => {
                           const newValue = e.target.value;
@@ -2716,6 +2718,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                         size="small"
                         onClick={() => deletePrescription(index)}
                         color="error"
+                        aria-label={`Delete prescription ${index + 1}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -2976,6 +2979,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                         size="small"
                         onClick={() => deleteInvestigation(index)}
                         color="error"
+                        aria-label={`Delete investigation ${index + 1}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -3243,6 +3247,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
                           size="small"
                           onClick={() => deleteOtherAction(index)}
                           color="error"
+                          aria-label={`Delete other action ${index + 1}`}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -4410,7 +4415,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         title={bookingPreset.title}
         description={bookingPreset.description}
         onSuccess={(data) => {
-          console.log('Patient booking request sent:', data);
+
           fetchReviewDetail();
           if (onUpdate) {
             onUpdate();

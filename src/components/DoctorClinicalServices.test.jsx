@@ -1,11 +1,12 @@
-import React from 'react';
+﻿import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
 import DoctorClinicalServices from './DoctorClinicalServices';
 import { listDoctorClinicalServiceOrders } from '../services/doctorCareLoopApi';
+import { vi } from 'vitest';
 
-jest.mock('../services/doctorCareLoopApi', () => ({
-  listDoctorClinicalServiceOrders: jest.fn(),
+vi.mock('../services/doctorCareLoopApi', () => ({
+  listDoctorClinicalServiceOrders: vi.fn(),
 }));
 
 describe('DoctorClinicalServices', () => {

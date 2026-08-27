@@ -1,4 +1,4 @@
-import {
+﻿import {
   buildWhatsAppCompletionCommand,
   buildWhatsAppInboundFollowThroughResult,
   buildPatientHandoffPlan,
@@ -19,6 +19,7 @@ import {
   summarizeEvidenceSources,
   sortReviewsForDoctorQueue,
 } from './aiReviewWorkflow';
+import { vi } from 'vitest';
 
 describe('source-aware AI review evidence helpers', () => {
   it('flattens nested SOAP evidence while preserving source and field provenance', () => {

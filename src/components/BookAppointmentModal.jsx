@@ -21,6 +21,7 @@ import {
   Event as EventIcon
 } from '@mui/icons-material';
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
 const parseBookingRequestResponse = async (response) => {
   const contentType = response.headers.get('content-type') || '';
@@ -124,7 +125,7 @@ const BookAppointmentModal = ({
     }
 
     try {
-      const response = await fetch(`https://api.prestigedelta.com/provider-reviews/${reviewPublicId}/request-patient-booking/`, {
+      const response = await fetch(`${API_BASE_URL}/provider-reviews/${reviewPublicId}/request-patient-booking/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
