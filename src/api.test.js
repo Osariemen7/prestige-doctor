@@ -3,6 +3,7 @@ import {
   isAuthenticated,
   storeAuthData,
 } from './api';
+import { vi } from 'vitest';
 
 const tokenWithExpiry = (exp) => {
   const payload = btoa(JSON.stringify({ exp }));
@@ -12,12 +13,12 @@ const tokenWithExpiry = (exp) => {
 describe('weekly device authentication', () => {
   beforeEach(() => {
     localStorage.clear();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('keeps a verified device signed in for seven days', () => {
     const now = Date.now();
-    jest.spyOn(Date, 'now').mockReturnValue(now);
+    vi.spyOn(Date, 'now').mockReturnValue(now);
     storeAuthData({
       access: tokenWithExpiry((now + 10 * 60 * 1000) / 1000),
       refresh: tokenWithExpiry((now + 14 * 24 * 60 * 60 * 1000) / 1000),
@@ -31,7 +32,7 @@ describe('weekly device authentication', () => {
 
   it('requires a fresh OTP after the device window expires', () => {
     const now = Date.now();
-    jest.spyOn(Date, 'now').mockReturnValue(now);
+    vi.spyOn(Date, 'now').mockReturnValue(now);
     storeAuthData({
       access: tokenWithExpiry((now + 10 * 60 * 1000) / 1000),
       refresh: tokenWithExpiry((now + 14 * 24 * 60 * 60 * 1000) / 1000),
