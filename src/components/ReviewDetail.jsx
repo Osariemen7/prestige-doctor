@@ -21,7 +21,9 @@ import {
   Rating,
   MenuItem,
   Stack,
-  Autocomplete
+  Autocomplete,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -74,9 +76,17 @@ import {
   summarizeEvidenceSources,
 } from '../utils/aiReviewWorkflow';
 import {
+  fetchClinicalProposal,
   requestPatientInformation,
   submitDoctorDecision,
 } from '../services/doctorWorkflowApi';
+import {
+  buildCanonicalDoctorDecisionRequest,
+  getCanonicalProposalContract,
+  isStaleCanonicalDecisionError,
+  normalizeCanonicalDecision,
+  reconcileReviewWithCanonicalDecision,
+} from '../utils/canonicalDoctorDecision';
 import { API_BASE_URL } from '../apiConfig';
 import {
   approveAllCopilotDraftActions,
@@ -610,6 +620,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const [savingOutcomeId, setSavingOutcomeId] = useState(null);
   const [decisionBusyAction, setDecisionBusyAction] = useState(null);
   const [decisionError, setDecisionError] = useState('');
+  const [clinicalProposal, setClinicalProposal] = useState(null);
+  const [proposalReviewStartedAt, setProposalReviewStartedAt] = useState(null);
+  const [staleVersionNotice, setStaleVersionNotice] = useState(null);
+  const [savedDecisionDraft, setSavedDecisionDraft] = useState(null);
+  const [clinicalAttestations, setClinicalAttestations] = useState({
+    documentation_reviewed: false,
+    allergies_and_interactions_reviewed: false,
+  });
   const [showMoreInfoDialog, setShowMoreInfoDialog] = useState(false);
   const [moreInfoQuestions, setMoreInfoQuestions] = useState([]);
   const [liveCopilotMode, setLiveCopilotMode] = useState('live_encounter');
@@ -629,6 +647,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     setOutcomeFeedback({});
     setDecisionBusyAction(null);
     setDecisionError('');
+    setClinicalProposal(null);
+    setProposalReviewStartedAt(null);
+    setStaleVersionNotice(null);
+    setSavedDecisionDraft(null);
+    setClinicalAttestations({
+      documentation_reviewed: false,
+      allergies_and_interactions_reviewed: false,
+    });
     setShowMoreInfoDialog(false);
     setMoreInfoQuestions([]);
     setLiveCopilotMode('live_encounter');
@@ -649,6 +675,24 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   const medicalReviewPublicId = useMemo(
     () => resolveMedicalReviewPublicId(review, publicId),
     [review, publicId]
+  );
+  const canonicalProposalContract = useMemo(
+    () => getCanonicalProposalContract(clinicalProposal || review?.care_kernel_proposal),
+    [clinicalProposal, review]
+  );
+  const canonicalDecisionPending = canonicalProposalContract?.status === 'pending_doctor';
+  const canonicalDetailReady = Boolean(
+    clinicalProposal?.clinical_documentation &&
+    clinicalProposal?.hash_contract &&
+    canonicalProposalContract?.proposalHash &&
+    canonicalProposalContract?.aiDraftHash
+  );
+  const canonicalDecisionCompleted = Boolean(
+    canonicalProposalContract && canonicalProposalContract.status !== 'pending_doctor'
+  );
+  const approvalAttested = (
+    clinicalAttestations.documentation_reviewed &&
+    clinicalAttestations.allergies_and_interactions_reviewed
   );
   const getClinicalTrainingFeedbackPayload = useCallback((context = {}) => {
     const feedback = { ...clinicalFeedback };
@@ -815,96 +859,62 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   };
 
   const buildDoctorDecisionPayload = (decision, extras = {}) => {
-    const clinicalTrainingFeedback = getClinicalTrainingFeedbackPayload({ decision });
-    const origin = getReviewOrigin(review);
-    const urgency = getUrgencyConfig(review);
-    const {
-      metadata: extraMetadata = {},
-      note_payload: extraNotePayload,
-      patient_summary: extraPatientSummary,
-      send_summary: extraSendSummary,
-      ...restExtras
-    } = extras;
-    const notePayload = extraNotePayload || getDecisionNotePayload();
-    const governanceSignals = getAiGovernanceSignals(review, {
-      patient: patientData,
-      feedback: clinicalTrainingFeedback || clinicalFeedback,
-      decision,
+    const normalizedDecision = normalizeCanonicalDecision(decision);
+    const notePayload = extras.note_payload || savedDecisionDraft || getDecisionNotePayload();
+    const effectiveDecision = (
+      normalizedDecision === 'approve_as_written' && (editingNote || savedDecisionDraft)
+    ) ? 'edit_and_approve' : normalizedDecision;
+    return buildCanonicalDoctorDecisionRequest({
+      proposal: clinicalProposal || review?.care_kernel_proposal,
+      decision: effectiveDecision,
       notePayload,
+      reason: extras.reason || extras.metadata?.reason || '',
+      questions: extras.questions || [],
+      attestations: clinicalAttestations,
+      reviewStartedAt: proposalReviewStartedAt,
+      decisionAt: new Date().toISOString(),
     });
-    const pendingDraftActions = getPendingCopilotDraftActions(notePayload);
-    const approvalMetadata = {
-      quality_risk: governanceSignals.qualityRisk,
-      acceptance_state: governanceSignals.acceptanceState,
-      governance_reasons: governanceSignals.reasons,
-      approval_blocker_count: governanceSignals.approvalBlockerCount,
-      approval_warning_count: governanceSignals.approvalWarningCount,
-      evidence_anchor_count: governanceSignals.evidenceAnchorCount,
-      source_verification_count: governanceSignals.sourceVerificationCount,
-      edit_burden_level: governanceSignals.editBurden.level,
-      edit_burden_percent: governanceSignals.editBurden.percentChanged,
-      pending_copilot_draft_count: pendingDraftActions.length,
-      pending_copilot_draft_actions: pendingDraftActions.map((item) => ({
-        section: item.section,
-        kind: item.kind,
-        label: item.label,
-      })),
-    };
-
-    return {
-      ...restExtras,
-      decision,
-      note_payload: notePayload,
-      medical_review_public_id: medicalReviewPublicId,
-      patient_summary: extraPatientSummary || review?.patient_summary || review?.summary || '',
-      patient: {
-        first_name: patientData.first_name,
-        last_name: patientData.last_name,
-        phone: convertToInternationalFormat(patientData.phone),
-        email: patientData.email,
-      },
-      send_summary: extraSendSummary ?? false,
-      metadata: {
-        surface: 'doctor_review_detail',
-        review_public_id: publicId,
-        medical_review_public_id: medicalReviewPublicId,
-        origin,
-        urgency_level: urgency.value,
-        ai_governance: approvalMetadata,
-        ...extraMetadata,
-      },
-      approval_metadata: approvalMetadata,
-      doctor_edit_diff: governanceSignals.editBurden,
-      ...(clinicalTrainingFeedback
-        ? {
-            clinical_training_feedback: {
-              ...clinicalTrainingFeedback,
-              governance_signals: approvalMetadata,
-            },
-            doctor_feedback: clinicalTrainingFeedback,
-          }
-        : {}),
-    };
   };
 
   const handleDoctorDecision = async (decision, extras = {}) => {
-    if (!publicId) return null;
+    if (!canonicalProposalContract?.publicId || !canonicalDecisionPending || !canonicalDetailReady) {
+      const message = canonicalDecisionCompleted
+        ? 'This canonical proposal already has a doctor disposition.'
+        : 'The full canonical Care Kernel proposal and exact hashes are unavailable. Refresh before deciding.';
+      setDecisionError(message);
+      return null;
+    }
     setDecisionBusyAction(decision);
     setDecisionError('');
 
     try {
       const payload = buildDoctorDecisionPayload(decision, extras);
-      const result = await submitDoctorDecision(publicId, payload);
+      const result = await submitDoctorDecision(clinicalProposal || review?.care_kernel_proposal, payload);
+      if (result?.proposal) setClinicalProposal(result.proposal);
+      setReview((current) => reconcileReviewWithCanonicalDecision(current, result));
+      setStaleVersionNotice(null);
+      setSavedDecisionDraft(null);
+      setEditingNote(false);
+      setEditedNote(null);
+      alert('Doctor decision recorded by the Care Kernel.');
 
-      alert(result?.message || 'Doctor decision confirmed by the server.');
-
-      await fetchReviewDetail();
+      await fetchReviewDetail({ preserveDecisionState: true });
       if (onUpdate) {
         onUpdate();
       }
       return result;
     } catch (error) {
       console.error('Doctor decision failed:', error);
+      if (isStaleCanonicalDecisionError(error)) {
+        const detail = error.payload?.detail || 'The proposal changed while you were reviewing it.';
+        setStaleVersionNotice({
+          detail,
+          refetchUrl: error.payload?.refetch_url,
+          refreshed: false,
+        });
+        setDecisionError(`${detail} Refresh the current version and review it again; the decision was not retried.`);
+        return null;
+      }
       const message = error.message || 'Doctor decision failed';
       setDecisionError(message);
       alert(message);
@@ -933,6 +943,10 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
   const handleApproveAiTriageAsIs = () => {
     if (blockPendingCopilotDraftActions('approve this review')) return;
+    if (!approvalAttested) {
+      setDecisionError('Confirm both clinical review attestations before approving this exact proposal.');
+      return;
+    }
     handleDoctorDecision('approve_as_is');
   };
 
@@ -971,7 +985,12 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     setDecisionBusyAction('request_more_info');
     setDecisionError('');
     try {
-      const result = await requestPatientInformation(publicId, {
+      const decisionResult = await handleDoctorDecision('request_more_info', {
+        questions,
+        reason: questions.map((item) => item.question).join(' '),
+      });
+      if (!decisionResult) return;
+      await requestPatientInformation(publicId, {
         questions,
         delivery_channel: 'chat',
         patient: {
@@ -980,11 +999,6 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           phone: convertToInternationalFormat(patientData.phone),
           email: patientData.email,
         },
-      });
-      await handleDoctorDecision('request_more_info', {
-        questions,
-        delivery_channel: 'chat',
-        metadata: { request_result: 'server_confirmed' },
       });
       setShowMoreInfoDialog(false);
     } catch (error) {
@@ -1443,7 +1457,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     return false;
   };
 
-  const fetchReviewDetail = async () => {
+  const fetchReviewDetail = async (options = {}) => {
+    const preserveDecisionState = Boolean(options?.preserveDecisionState);
     setLoading(true);
     const token = await getAccessToken();
     
@@ -1462,7 +1477,39 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setReview(data);
+        const proposalSummary = data.care_kernel_proposal;
+        let currentProposal = null;
+        if (proposalSummary?.public_id) {
+          try {
+            currentProposal = await fetchClinicalProposal(proposalSummary.public_id);
+          } catch (proposalError) {
+            console.error('Failed to load canonical clinical proposal:', proposalError);
+            setDecisionError(proposalError.message || 'Failed to load the canonical clinical proposal.');
+          }
+        }
+        const resolvedProposal = currentProposal || proposalSummary;
+        const previousContract = getCanonicalProposalContract(clinicalProposal);
+        const nextContract = getCanonicalProposalContract(resolvedProposal);
+        if (nextContract?.publicId) {
+          setClinicalProposal(resolvedProposal);
+          if (
+            !previousContract ||
+            previousContract.publicId !== nextContract.publicId ||
+            previousContract.proposalHash !== nextContract.proposalHash ||
+            previousContract.aiDraftHash !== nextContract.aiDraftHash
+          ) {
+            setProposalReviewStartedAt(new Date().toISOString());
+            setClinicalAttestations({
+              documentation_reviewed: false,
+              allergies_and_interactions_reviewed: false,
+            });
+            setSavedDecisionDraft(null);
+          }
+        } else {
+          setClinicalProposal(null);
+        }
+        setReview(resolvedProposal ? reconcileReviewWithCanonicalDecision(data, resolvedProposal) : data);
+        if (!preserveDecisionState && (!proposalSummary || currentProposal)) setDecisionError('');
         lastFetchRef.current = Date.now();
         setChatRefreshTrigger(prev => prev + 1);
         
@@ -1477,12 +1524,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
         if (onUpdate) {
           onUpdate();
         }
+        return proposalSummary ? Boolean(currentProposal) : true;
       } else {
         console.warn('Failed to fetch review directly, trying fallback encounter check');
         const fallbackSuccess = await attemptFallbackEncounterFetch(token);
         if (!fallbackSuccess && !embedded) {
           navigate('/reviews');
         }
+        return fallbackSuccess;
       }
     } catch (error) {
       console.error('Error fetching review directly, trying fallback encounter check:', error);
@@ -1490,9 +1539,24 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       if (!fallbackSuccess && !embedded) {
         navigate('/reviews');
       }
+      return fallbackSuccess;
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefreshStaleProposal = async () => {
+    setDecisionBusyAction('refresh_proposal');
+    const refreshed = await fetchReviewDetail({ preserveDecisionState: true });
+    if (refreshed) {
+      setStaleVersionNotice((current) => ({
+        ...(current || {}),
+        detail: 'The current proposal version is loaded. Review the updated documentation and hashes before deciding.',
+        refreshed: true,
+      }));
+      setDecisionError('');
+    }
+    setDecisionBusyAction(null);
   };
 
   const handleFinalizeEncounter = async () => {
@@ -1705,6 +1769,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
       if (response.ok) {
         // Update the review state with the edited note payload
+        setSavedDecisionDraft(parseNotePayload(editedNote));
         setReview(prev => ({
           ...prev,
           doctor_note: editedNote,
@@ -3305,8 +3370,40 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
   };
 
   const renderDoctorDecisionBar = () => {
-    if (!review || !isAiTriageReview(review) || review.is_finalized) {
+    if (!review || !isAiTriageReview(review)) {
       return null;
+    }
+    if (review.is_finalized || canonicalDecisionCompleted) {
+      return (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          Canonical Care Kernel disposition recorded
+          {review?.care_kernel_proposal?.latest_decision?.decision
+            ? `: ${review.care_kernel_proposal.latest_decision.decision.replaceAll('_', ' ')}`
+            : '.'}
+        </Alert>
+      );
+    }
+    if (!canonicalProposalContract?.publicId) {
+      return (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          This review is not linked to an authorized Care Kernel proposal. Doctor decisions are disabled until the canonical proposal is available.
+        </Alert>
+      );
+    }
+    if (!canonicalDetailReady) {
+      return (
+        <Alert
+          severity="warning"
+          sx={{ mb: 3 }}
+          action={(
+            <Button color="inherit" size="small" onClick={handleRefreshStaleProposal}>
+              Refresh proposal
+            </Button>
+          )}
+        >
+          The full canonical proposal or one of its exact hashes could not be loaded. Doctor decisions remain disabled.
+        </Alert>
+      );
     }
 
     const activeAction = Boolean(decisionBusyAction);
@@ -3321,6 +3418,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       ? 'Draft actions need approval'
       : approvalReadiness.canApprove ? 'Ready for doctor decision' : 'Needs validation';
     const statusColor = approvalReadiness.canApprove && !hasPendingCopilotDrafts ? 'success' : 'warning';
+    const staleRefreshRequired = Boolean(staleVersionNotice && !staleVersionNotice.refreshed);
 
     return (
       <Box
@@ -3337,6 +3435,25 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)',
         }}
       >
+        {staleVersionNotice && (
+          <Alert
+            severity={staleVersionNotice.refreshed ? 'info' : 'warning'}
+            sx={{ mb: 1.5 }}
+            action={staleRefreshRequired ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={handleRefreshStaleProposal}
+                disabled={decisionBusyAction === 'refresh_proposal'}
+              >
+                {decisionBusyAction === 'refresh_proposal' ? 'Refreshing…' : 'Refresh proposal'}
+              </Button>
+            ) : null}
+          >
+            {staleVersionNotice.detail}
+          </Alert>
+        )}
+        {decisionError && <Alert severity="error" sx={{ mb: 1.5 }}>{decisionError}</Alert>}
         <Stack
           direction={{ xs: 'column', lg: 'row' }}
           spacing={1.25}
@@ -3347,6 +3464,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
             <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75, mb: 0.75 }}>
               <Chip size="small" label={statusLabel} color={statusColor} variant={approvalReadiness.canApprove && !hasPendingCopilotDrafts ? 'filled' : 'outlined'} />
               <Chip size="small" label={`${approvalReadiness.evidenceEntries.length} source anchors`} variant="outlined" />
+              <Chip size="small" label={`Hash ${canonicalProposalContract.proposalHash.slice(0, 10)}…`} variant="outlined" />
               {hasPendingCopilotDrafts && (
                 <Chip size="small" label={`${pendingCopilotDraftActions.length} drafts pending`} color="warning" variant="outlined" />
               )}
@@ -3389,16 +3507,16 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               size="small"
               startIcon={decisionBusyAction === 'approve_as_is' ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
               onClick={handleApproveAiTriageAsIs}
-              disabled={activeAction || !approvalReadiness.canApprove || hasPendingCopilotDrafts}
+              disabled={activeAction || !approvalReadiness.canApprove || hasPendingCopilotDrafts || !approvalAttested || staleRefreshRequired}
             >
-              Approve
+              {editingNote || savedDecisionDraft ? 'Approve edits' : 'Approve exact draft'}
             </Button>
             <Button
               variant="outlined"
               size="small"
               startIcon={<EditIcon />}
               onClick={handleEditAiTriageDraft}
-              disabled={activeAction}
+              disabled={activeAction || staleRefreshRequired}
             >
               Edit
             </Button>
@@ -3407,7 +3525,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               size="small"
               startIcon={<HelpOutlineIcon />}
               onClick={() => handleOpenMoreInfoDialog()}
-              disabled={activeAction}
+              disabled={activeAction || staleRefreshRequired}
             >
               Ask Patient
             </Button>
@@ -3416,7 +3534,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               size="small"
               startIcon={<SmartToyIcon />}
               onClick={handleStartLiveClarification}
-              disabled={activeAction}
+              disabled={activeAction || staleRefreshRequired}
             >
               Start Live
             </Button>
@@ -3426,11 +3544,39 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               size="small"
               startIcon={<WarningIcon />}
               onClick={handleEscalateAiTriage}
-              disabled={activeAction}
+              disabled={activeAction || staleRefreshRequired}
             >
               Escalate
             </Button>
           </Stack>
+        </Stack>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0, md: 2 }} sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={(
+              <Checkbox
+                size="small"
+                checked={clinicalAttestations.documentation_reviewed}
+                onChange={(event) => setClinicalAttestations((current) => ({
+                  ...current,
+                  documentation_reviewed: event.target.checked,
+                }))}
+              />
+            )}
+            label="I reviewed the exact SOAP packet and evidence"
+          />
+          <FormControlLabel
+            control={(
+              <Checkbox
+                size="small"
+                checked={clinicalAttestations.allergies_and_interactions_reviewed}
+                onChange={(event) => setClinicalAttestations((current) => ({
+                  ...current,
+                  allergies_and_interactions_reviewed: event.target.checked,
+                }))}
+              />
+            )}
+            label="I reviewed allergies, interactions, and action safety"
+          />
         </Stack>
       </Box>
     );
@@ -3454,6 +3600,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
   const hasEncounter = review?.in_person_encounters && review.in_person_encounters.length > 0;
   const encounter = hasEncounter ? review.in_person_encounters[0] : null;
+  const reviewDecisionCompleted = review.is_finalized || canonicalDecisionCompleted;
 
   const content = (
     <>
@@ -3475,9 +3622,9 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
               Medical Review
             </Typography>
             <Chip
-              icon={review.is_finalized ? <CheckCircleIcon /> : null}
-              label={review.is_finalized ? 'Finalized' : 'Pending'}
-              color={review.is_finalized ? 'success' : 'warning'}
+              icon={reviewDecisionCompleted ? <CheckCircleIcon /> : null}
+              label={reviewDecisionCompleted ? 'Doctor decision recorded' : 'Pending'}
+              color={reviewDecisionCompleted ? 'success' : 'warning'}
             />
             {!hasEncounter && (
               <Chip
@@ -3629,7 +3776,7 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
 
       <DoctorTransitionContext review={review} reviewPublicId={publicId} />
 
-      {isAiTriageReview(review) && !review.is_finalized && (
+      {isAiTriageReview(review) && !review.is_finalized && canonicalDecisionPending && (
         <AiTriageApprovalCockpit
           review={review}
           patientData={patientData}

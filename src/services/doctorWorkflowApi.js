@@ -1,6 +1,11 @@
 import { getAccessToken } from '../api';
 import { buildWhatsAppInboundFollowThroughResult } from '../utils/aiReviewWorkflow';
 import { API_BASE_URL } from '../apiConfig';
+import {
+  getCanonicalProposalContract,
+  isStaleCanonicalDecisionError,
+  requireCanonicalProposalContract,
+} from '../utils/canonicalDoctorDecision';
 
 const BASE_URL = API_BASE_URL;
 
@@ -57,21 +62,83 @@ const postJson = async (path, body, fallbackMessage, options = {}) => {
     error.status = response.status;
     error.payload = payload;
     error.endpointMissing = isMissingEndpoint(response);
+    error.staleVersion = isStaleCanonicalDecisionError(error);
     throw error;
   }
 
   return payload;
 };
 
-export const submitDoctorDecision = async (reviewPublicId, decisionPayload) => {
-  if (!reviewPublicId) {
-    throw new Error('Review identifier is required');
+const getJson = async (path, fallbackMessage, options = {}) => {
+  const headers = await getHeaders();
+  const response = await fetch(buildUrl(path), {
+    method: 'GET',
+    headers,
+    signal: options.signal,
+  });
+  const payload = await parseResponse(response);
+  if (!response.ok) {
+    const error = new Error(getErrorMessage(response, payload, fallbackMessage));
+    error.status = response.status;
+    error.payload = payload;
+    error.endpointMissing = isMissingEndpoint(response);
+    throw error;
+  }
+  return payload;
+};
+
+export const fetchClinicalProposal = async (proposalPublicId, options = {}) => {
+  if (!proposalPublicId) throw new Error('Clinical proposal identifier is required');
+  return getJson(
+    `/care/proposals/${encodeURIComponent(proposalPublicId)}`,
+    'Failed to load the current clinical proposal',
+    options,
+  );
+};
+
+export const submitDoctorDecision = async (proposal, decisionPayload) => {
+  const contract = requireCanonicalProposalContract(proposal);
+  const payloadContract = getCanonicalProposalContract({
+    public_id: contract.publicId,
+    proposal_hash: decisionPayload?.proposal_hash,
+    ai_draft_hash: decisionPayload?.ai_draft_hash,
+  });
+  if (
+    payloadContract.proposalHash !== contract.proposalHash ||
+    payloadContract.aiDraftHash !== contract.aiDraftHash
+  ) {
+    throw new Error('Decision hashes do not match the exact proposal currently displayed. Refresh before deciding.');
   }
 
+  const decisionAt = String(decisionPayload?.decision_at || 'server-time')
+    .replace(/[^a-zA-Z0-9_.:-]/g, '')
+    .slice(0, 40);
+  const decisionName = String(decisionPayload?.decision || 'decision')
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    .slice(0, 40);
+  const commandKey = [
+    'doctor-review',
+    contract.publicId,
+    contract.proposalHash.slice(0, 20),
+    decisionName,
+    decisionAt,
+  ].join(':');
+  const correlationId = [
+    'doctor-review',
+    contract.publicId,
+    contract.proposalHash.slice(0, 16),
+  ].join(':');
+
   return postJson(
-    `/provider-reviews/${reviewPublicId}/doctor-decision/`,
+    `/care/proposals/${encodeURIComponent(contract.publicId)}/doctor-decision`,
     decisionPayload,
-    'Failed to submit doctor decision'
+    'Failed to submit doctor decision',
+    {
+      headers: {
+        'Idempotency-Key': commandKey,
+        'X-Correlation-ID': correlationId,
+      },
+    },
   );
 };
 
