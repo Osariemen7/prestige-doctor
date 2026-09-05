@@ -1,5 +1,6 @@
 ﻿import {
   createRealtimeSession,
+  fetchClinicalProposal,
   recordPatientFollowThroughCompletion,
   recordWhatsAppFollowThroughMessage,
   requestPatientInformation,
@@ -22,6 +23,18 @@ const jsonResponse = (body, ok = true, status = 200) => ({
   json: () => Promise.resolve(body),
 });
 
+const proposalContract = {
+  public_id: 'proposal-1',
+  proposal_hash: 'proposal-hash-1',
+  ai_draft_hash: 'draft-hash-1',
+};
+
+const exactDecision = (decision = 'approve_as_written') => ({
+  decision,
+  proposal_hash: proposalContract.proposal_hash,
+  ai_draft_hash: proposalContract.ai_draft_hash,
+});
+
 describe('doctor workflow server authority', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -35,33 +48,64 @@ describe('doctor workflow server authority', () => {
   it('does not fall back to legacy or local approval when the decision endpoint is unavailable', async () => {
     global.fetch.mockResolvedValueOnce(jsonResponse({ detail: 'Not found' }, false, 404));
 
-    await expect(submitDoctorDecision('review-1', {
-      decision: 'approve_as_is',
-      note_payload: { subjective: 'Updated draft' },
-    })).rejects.toMatchObject({
+    await expect(submitDoctorDecision(proposalContract, exactDecision())).rejects.toMatchObject({
       status: 404,
       endpointMissing: true,
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/care/proposals/proposal-1/doctor-decision'),
+      expect.objectContaining({ method: 'POST' }),
+    );
     expect(window.localStorage.getItem('prestige_doctor_workflow_events')).toBeNull();
   });
 
   it('only returns a decision after the canonical server route confirms it', async () => {
     global.fetch.mockResolvedValueOnce(jsonResponse({
       decision_id: 'decision-1',
-      decision: 'approve_as_is',
+      decision: 'approve_as_written',
       message: 'Decision recorded by the server.',
     }));
 
-    await expect(submitDoctorDecision('review-1', {
-      decision: 'approve_as_is',
-      note_payload: { subjective: 'Server-bound draft' },
-    })).resolves.toMatchObject({
+    await expect(submitDoctorDecision(proposalContract, exactDecision())).resolves.toMatchObject({
       decision_id: 'decision-1',
-      decision: 'approve_as_is',
+      decision: 'approve_as_written',
     });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/care/proposals/proposal-1/doctor-decision'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringContaining('doctor-review:proposal-1:proposal-hash-1'),
+          'X-Correlation-ID': expect.stringContaining('doctor-review:proposal-1:proposal-hash-1'),
+        }),
+      }),
+    );
     expect(window.localStorage.getItem('prestige_doctor_workflow_events')).toBeNull();
+  });
+
+  it('loads proposal detail from the canonical Care Kernel route', async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse(proposalContract));
+
+    await expect(fetchClinicalProposal('proposal-1')).resolves.toEqual(proposalContract);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/care/proposals/proposal-1'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('surfaces a stale-version conflict for refresh UX without retrying', async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({
+      code: 'stale_proposal',
+      state: 'stale_version',
+      detail: 'The proposal changed.',
+    }, false, 409));
+
+    await expect(submitDoctorDecision(proposalContract, exactDecision())).rejects.toMatchObject({
+      status: 409,
+      staleVersion: true,
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('rejects missing checklist identifiers instead of recording local completion', async () => {
