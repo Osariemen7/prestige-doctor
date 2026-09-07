@@ -96,7 +96,6 @@ describe('DoctorClinicalServiceDetail', () => {
   });
 
   it('keeps an unsent edit local to the page and never calls approval without a server hash', async () => {
-    const user = userEvent.setup();
     getDoctorClinicalServiceOrder.mockResolvedValueOnce({
       ...orderProjection,
       proposal_hash: null,
@@ -118,8 +117,8 @@ describe('DoctorClinicalServiceDetail', () => {
     );
 
     expect((await screen.findAllByText('Not supplied by server')).length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: /Approve As Written/ }));
+    expect(screen.getByRole('button', { name: /Approve As Written/ })).toBeDisabled();
     expect(submitClinicalProposalDecision).not.toHaveBeenCalled();
-    expect(await screen.findByText(/exact server proposal hash is missing/)).toBeInTheDocument();
+    expect(screen.getByText(/Approval is blocked if the exact server proposal hash is missing or stale/)).toBeInTheDocument();
   });
 });
