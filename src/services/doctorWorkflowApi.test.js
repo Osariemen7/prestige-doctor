@@ -87,6 +87,29 @@ describe('doctor workflow server authority', () => {
     }));
   });
 
+  it('sends the clinician information request once with command identity headers', async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({
+      task_id: 'task-clarification-1',
+      review_status: 'awaiting_patient_information',
+    }));
+
+    await expect(requestPatientInformation('review-clarification-1', {
+      questions: [{ question: 'What changed?', reason: 'The current symptom timeline is incomplete.' }],
+    })).resolves.toMatchObject({
+      task_id: 'task-clarification-1',
+      review_status: 'awaiting_patient_information',
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, request] = global.fetch.mock.calls[0];
+    const getHeader = (name) => typeof request.headers?.get === 'function' ? request.headers.get(name) : request.headers?.[name];
+    expect(getHeader('Idempotency-Key')).toMatch(/^doctor-workflow-/);
+    expect(getHeader('X-Correlation-ID')).toMatch(/^doctor-correlation-/);
+    expect(JSON.parse(request.body)).toEqual({
+      questions: [{ question: 'What changed?', reason: 'The current symptom timeline is incomplete.' }],
+    });
+  });
+
   it('rejects missing checklist identifiers instead of recording local completion', async () => {
     await expect(recordPatientFollowThroughCompletion({
       reviewPublicId: 'review-1',
