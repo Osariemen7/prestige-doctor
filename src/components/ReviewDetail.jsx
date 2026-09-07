@@ -84,6 +84,7 @@ import {
   isCopilotActionDoctorApproved,
   isCopilotDraftPendingApproval,
 } from '../utils/liveCopilotWorkflow';
+import { getExactDecisionHashes } from '../utils/doctorDecisionContract';
 
 const convertToInternationalFormat = (phoneNumber) => {
   if (!phoneNumber || typeof phoneNumber !== 'string') {
@@ -832,6 +833,11 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       notePayload,
     });
     const pendingDraftActions = getPendingCopilotDraftActions(notePayload);
+    // The provider-review serializer exposes the current Care Kernel proposal
+    // and AI-draft hashes alongside the legacy review. Bind every doctor
+    // decision to those exact values so a stale tab fails closed with a 409
+    // instead of approving a changed draft.
+    const { proposalHash, aiDraftHash } = getExactDecisionHashes(review);
     const approvalMetadata = {
       quality_risk: governanceSignals.qualityRisk,
       acceptance_state: governanceSignals.acceptanceState,
@@ -874,6 +880,8 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       },
       approval_metadata: approvalMetadata,
       doctor_edit_diff: governanceSignals.editBurden,
+      ...(proposalHash ? { proposal_hash: proposalHash } : {}),
+      ...(aiDraftHash ? { ai_draft_hash: aiDraftHash } : {}),
       ...(clinicalTrainingFeedback
         ? {
             clinical_training_feedback: {
@@ -970,9 +978,12 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
     setDecisionBusyAction('request_more_info');
     setDecisionError('');
     try {
+      const { proposalHash, aiDraftHash } = getExactDecisionHashes(review);
       const result = await requestPatientInformation(publicId, {
         questions,
         delivery_channel: 'chat',
+        ...(proposalHash ? { proposal_hash: proposalHash } : {}),
+        ...(aiDraftHash ? { ai_draft_hash: aiDraftHash } : {}),
         patient: {
           first_name: patientData.first_name,
           last_name: patientData.last_name,
@@ -980,11 +991,14 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
           email: patientData.email,
         },
       });
-      await handleDoctorDecision('request_more_info', {
-        questions,
-        delivery_channel: 'chat',
-        metadata: { request_result: 'server_confirmed' },
-      });
+      // request-more-info is already a complete server command: it creates
+      // the patient task, delivers the questions, updates the review state,
+      // and records the workflow event. Do not follow it with a second
+      // doctor-decision mutation or the patient can receive duplicate
+      // requests and the review can accrue duplicate admin events.
+      alert(result?.message || 'Questions sent to the patient.');
+      await fetchReviewDetail();
+      if (onUpdate) onUpdate();
       setShowMoreInfoDialog(false);
     } catch (error) {
       console.error('More info request failed:', error);

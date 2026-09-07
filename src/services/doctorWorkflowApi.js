@@ -38,12 +38,21 @@ const getErrorMessage = (response, body, fallback) => {
 
 const isMissingEndpoint = (response) => response.status === 404 || response.status === 405;
 
+const createRequestId = (prefix) => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 const postJson = async (path, body, fallbackMessage, options = {}) => {
   const headers = await getHeaders();
   const response = await fetch(buildUrl(path), {
     method: 'POST',
     headers: {
       ...headers,
+      'Idempotency-Key': options.idempotencyKey || createRequestId('doctor-workflow'),
+      'X-Correlation-ID': options.correlationId || createRequestId('doctor-correlation'),
       ...(options.headers || {}),
     },
     body: JSON.stringify(body || {}),

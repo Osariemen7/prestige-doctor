@@ -63,6 +63,30 @@ describe('doctor workflow server authority', () => {
     expect(window.localStorage.getItem('prestige_doctor_workflow_events')).toBeNull();
   });
 
+  it('binds doctor decisions to the exact proposal/draft hashes and command identity', async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({
+      decision_id: 'decision-2',
+      decision: 'approve_as_is',
+    }));
+
+    await submitDoctorDecision('review-2', {
+      decision: 'approve_as_is',
+      proposal_hash: 'proposal-hash-v3',
+      ai_draft_hash: 'draft-hash-v3',
+    });
+
+    const [, request] = global.fetch.mock.calls[0];
+    const headers = request.headers;
+    const getHeader = (name) => typeof headers?.get === 'function' ? headers.get(name) : headers?.[name];
+    expect(getHeader('Idempotency-Key')).toMatch(/^doctor-workflow-/);
+    expect(getHeader('X-Correlation-ID')).toMatch(/^doctor-correlation-/);
+    expect(JSON.parse(request.body)).toEqual(expect.objectContaining({
+      decision: 'approve_as_is',
+      proposal_hash: 'proposal-hash-v3',
+      ai_draft_hash: 'draft-hash-v3',
+    }));
+  });
+
   it('rejects missing checklist identifiers instead of recording local completion', async () => {
     await expect(recordPatientFollowThroughCompletion({
       reviewPublicId: 'review-1',
