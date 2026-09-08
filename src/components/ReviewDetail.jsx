@@ -53,6 +53,7 @@ import LiveCopilotDashboard from './LiveCopilotDashboard';
 import AiTriageApprovalCockpit from './AiTriageApprovalCockpit';
 import DoctorWorkflowAuditTrail from './DoctorWorkflowAuditTrail';
 import PatientFollowThroughPanel from './PatientFollowThroughPanel';
+import DiagnosticResultReviewPanel from './DiagnosticResultReviewPanel';
 import DoctorTransitionContext from './DoctorTransitionContext';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
@@ -3637,6 +3638,11 @@ const ReviewDetail = ({ embedded = false, onUpdate = null }) => {
       {renderDoctorDecisionBar()}
 
       <DoctorTransitionContext review={review} reviewPublicId={publicId} />
+
+      <DiagnosticResultReviewPanel
+        review={review}
+        onRequestMoreInfo={() => handleOpenMoreInfoDialog()}
+      />
 
       {isAiTriageReview(review) && !review.is_finalized && (
         <AiTriageApprovalCockpit
