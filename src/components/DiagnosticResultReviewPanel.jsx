@@ -48,8 +48,10 @@ export default function DiagnosticResultReviewPanel({ review, onRequestMoreInfo 
   const results = useMemo(() => getCandidateResults(review).filter(isResultBearing), [review]);
   if (results.length === 0) return null;
 
-  const reviewStatus = normalize(review?.review_status || (review?.is_finalized ? 'finalized' : 'pending'));
-  const reviewComplete = ['approved', 'finalized'].includes(reviewStatus);
+  const resultReview = review?.result_review || review?.investigation_result_review || {};
+  const reviewStatus = normalize(review?.result_review_status || resultReview.status);
+  const reviewComplete = ['approved', 'complete', 'completed', 'finalized'].includes(reviewStatus)
+    || Boolean(review?.result_review_completed_at || resultReview.completed_at);
 
   return (
     <Card variant="outlined" sx={{ mb: 3, borderColor: 'info.light', bgcolor: 'rgba(239,246,255,0.62)' }} data-testid="diagnostic-result-review-panel">
@@ -62,7 +64,7 @@ export default function DiagnosticResultReviewPanel({ review, onRequestMoreInfo 
                 <Typography variant="h6" fontWeight={900}>Diagnostic result review</Typography>
               </Stack>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                These facts are server-projected from the investigation. Review the exact patient/dependent, provenance and next action before communicating through the approved WhatsApp follow-through.
+                These facts come from the investigation record. Review the exact patient/dependent, provenance and next action before communicating through the approved WhatsApp follow-through.
               </Typography>
             </Box>
             <Chip label={reviewComplete ? 'Review recorded' : 'Review required'} color={reviewComplete ? 'success' : 'warning'} variant="outlined" size="small" />
@@ -72,7 +74,7 @@ export default function DiagnosticResultReviewPanel({ review, onRequestMoreInfo 
             const verification = resultStatus(item);
             const status = investigationStatus(item);
             const name = item.test_type || item.name || `Investigation ${item.id || index + 1}`;
-            const nextAction = item.next_action || (status === 'completed' ? 'doctor_review' : 'await_provider_result');
+            const nextAction = item.next_action || 'Awaiting care-team action';
             const reportHref = item.result_url || item.report_url;
             const verified = ['verified', 'provider_verified', 'staff_verified'].includes(verification);
             return (
@@ -92,7 +94,7 @@ export default function DiagnosticResultReviewPanel({ review, onRequestMoreInfo 
                 {(item.value !== undefined && item.value !== null) && <Typography sx={{ mt: 1 }}><strong>Value:</strong> {item.value} {item.unit || ''}</Typography>}
                 {(item.results || item.narrative_result) && <Typography variant="body2" sx={{ mt: 1, whiteSpace: 'pre-wrap' }}>{item.results || item.narrative_result}</Typography>}
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                  Next server action: <strong>{label(nextAction)}</strong>
+                  Next action: <strong>{label(nextAction)}</strong>
                 </Typography>
                 {reportHref && (
                   <Button component={Link} href={reportHref} target="_blank" rel="noopener noreferrer" size="small" endIcon={<OpenInNew />} sx={{ mt: 1 }}>
@@ -105,7 +107,7 @@ export default function DiagnosticResultReviewPanel({ review, onRequestMoreInfo 
           })}
           <Alert severity={reviewComplete ? 'info' : 'warning'}>
             {reviewComplete
-              ? 'The clinical review is recorded. Follow the server-issued next action and the existing WhatsApp follow-through controls.'
+              ? 'The clinical review is recorded. Follow the next action and the existing WhatsApp follow-through controls.'
               : 'Use the existing doctor decision bar to document assessment, escalation or a request for more information. This panel never marks a result or care episode complete locally.'}
           </Alert>
           {!reviewComplete && onRequestMoreInfo && (
