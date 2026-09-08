@@ -1,7 +1,9 @@
 // Provider Dashboard API Client
 import { getAccessToken } from '../api';
 
-const BASE_URL = 'https://api.prestigedelta.com';
+import { getBackendBaseUrl } from '../apiBase';
+
+const BASE_URL = getBackendBaseUrl();
 
 const getAuthHeaders = async () => {
   const token = await getAccessToken();

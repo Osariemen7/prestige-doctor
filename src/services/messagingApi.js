@@ -1,7 +1,8 @@
 // Messaging API Client for Doctor-Patient Communication
 import { getAccessToken } from '../api';
+import { getBackendBaseUrl } from '../apiBase';
 
-const BASE_URL = 'https://api.prestigedelta.com';
+const BASE_URL = getBackendBaseUrl();
 
 const getAuthHeaders = async () => {
   const token = await getAccessToken();

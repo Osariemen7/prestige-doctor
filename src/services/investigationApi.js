@@ -1,7 +1,8 @@
 // Investigation Management API Service
 import { getAccessToken } from '../api';
+import { getBackendBaseUrl } from '../apiBase';
 
-const BASE_URL = 'https://api.prestigedelta.com';
+const BASE_URL = getBackendBaseUrl();
 
 // Helper function to make authenticated requests
 const makeRequest = async (url, options = {}) => {
