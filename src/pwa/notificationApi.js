@@ -3,6 +3,7 @@ import { registerDoctorWorker } from './register';
 import { safeDoctorPath } from './safePath';
 
 const APP = 'doctor';
+const BINDING = 'prestige.doctor.push-binding';
 const newId = () => globalThis.crypto?.randomUUID?.() || `doctor-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 export const notificationPath = (item) => safeDoctorPath(item?.route);
 export const listNotifications = (cursor, signal) => request(`/care/notifications?app=${APP}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, { signal });
@@ -29,7 +30,9 @@ export async function enableDoctorPush() {
   await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(config.vapid_public_key) });
   try {
-    return await request('/care/notifications/subscriptions', { method: 'POST', body: { app: APP, subscription: subscription.toJSON() }, commandKey: newId() });
+    const result = await request('/care/notifications/subscriptions', { method: 'POST', body: { app: APP, subscription: subscription.toJSON() }, commandKey: newId() });
+    localStorage.setItem(BINDING, JSON.stringify({ id: result.id }));
+    return result;
   } catch (error) {
     await subscription.unsubscribe().catch(() => false);
     throw error;
@@ -37,12 +40,15 @@ export async function enableDoctorPush() {
 }
 
 export async function disableDoctorPush() {
+  let binding = null;
+  try { binding = JSON.parse(localStorage.getItem(BINDING) || 'null'); } catch { /* Ignore malformed local state. */ }
+  localStorage.removeItem(BINDING);
   const registration = await navigator.serviceWorker?.getRegistration('/');
   const subscription = await registration?.pushManager?.getSubscription();
-  if (!subscription) return;
-  await subscription.unsubscribe();
+  if (subscription) await subscription.unsubscribe();
+  if (!binding?.id) return;
   let failure;
-  try { await request('/care/notifications/subscriptions', { method: 'DELETE', body: { app: APP, endpoint: subscription.endpoint }, commandKey: newId() }); }
+  try { await request(`/care/notifications/subscriptions/${encodeURIComponent(binding.id)}`, { method: 'DELETE', body: { app: APP }, commandKey: newId() }); }
   catch (error) { failure = error; }
   if (failure) throw failure;
 }
