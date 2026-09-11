@@ -1,5 +1,8 @@
-const CACHE = 'prestige-doctor-__BUILD_VERSION__';
-const SHELL = __SHELL_ASSETS__;
+const CACHE = 'prestige-doctor-shell-v1';
+const PRECACHE_ENTRIES = self.__WB_MANIFEST;
+const SHELL = Array.isArray(PRECACHE_ENTRIES)
+  ? PRECACHE_ENTRIES.map((entry) => typeof entry === 'string' ? entry : entry.url)
+  : [];
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL))));
 self.addEventListener('activate', (event) => event.waitUntil((async () => {
   const keys = await caches.keys();

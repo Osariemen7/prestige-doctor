@@ -2,7 +2,7 @@ const { defineConfig, loadEnv } = require('vite');
 const react = require('@vitejs/plugin-react');
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
+const { injectManifest } = require('workbox-build');
 
 const CLIENT_ENV_KEYS = [
   'PUBLIC_URL',
@@ -50,14 +50,19 @@ module.exports = defineConfig(({ mode, command }) => {
       },
     }, react(), {
       name: 'prestige-doctor-pwa',
-      closeBundle() {
+      async closeBundle() {
         const output = path.resolve('dist-vite');
         const html = fs.readFileSync(path.join(output, 'index.html'), 'utf8');
         const initialAssets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map((match) => match[1]);
         const assets = ['/index.html', '/offline.html', '/logo192.png', '/logo512.png', ...initialAssets];
-        const version = crypto.createHash('sha256').update(html).digest('hex').slice(0, 16);
-        const worker = fs.readFileSync('public/service-worker.js', 'utf8').replace('__BUILD_VERSION__', version).replace('__SHELL_ASSETS__', JSON.stringify(assets));
-        fs.writeFileSync(path.join(output, 'service-worker.js'), worker);
+        await injectManifest({
+          swSrc: path.resolve('public/service-worker.js'),
+          swDest: path.join(output, 'service-worker.js'),
+          globDirectory: output,
+          globPatterns: [],
+          additionalManifestEntries: assets,
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        });
       },
     }],
     define,

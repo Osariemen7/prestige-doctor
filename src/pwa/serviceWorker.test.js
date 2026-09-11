@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
-const source = fs.readFileSync(path.join(process.cwd(), 'public/service-worker.js'), 'utf8').replace('__SHELL_ASSETS__', '["/index.html", "/offline.html"]');
+const source = fs.readFileSync(path.join(process.cwd(), 'public/service-worker.js'), 'utf8').replace('self.__WB_MANIFEST', '[{url:"/index.html"},{url:"/offline.html"}]');
 function worker() {
   const handlers = {};
   const self = { location: { origin: 'https://doctor.test' }, addEventListener: (name, callback) => { handlers[name] = callback; }, registration: { showNotification: jest.fn().mockResolvedValue() }, clients: { matchAll: jest.fn().mockResolvedValue([]), openWindow: jest.fn().mockResolvedValue(), claim: jest.fn() }, skipWaiting: jest.fn() };
