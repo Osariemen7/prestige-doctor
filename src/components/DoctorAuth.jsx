@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { safeDoctorPath } from '../pwa/safePath';
+import InstallButton from '../pwa/InstallButton';
+import { resolveDoctorApiUrl } from '../apiOrigin';
 import { Alert, Box, Button, CircularProgress, Container, MenuItem, Snackbar, TextField, Typography } from '@mui/material';
 import {
   ArrowBackRounded,
@@ -14,7 +17,7 @@ import { isAuthenticated, storeAuthData } from '../api';
 import { normalizeDoctorPhone } from '../utils/doctorAuth';
 import './DoctorAuth.css';
 
-const API_BASE = `${process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com'}/api`;
+const API_BASE = resolveDoctorApiUrl('/api');
 
 const SPECIALTIES = [
   { value: 'general_practice', label: 'General Practice' },
@@ -47,6 +50,8 @@ const initialNotice = { open: false, message: '', severity: 'info' };
 
 export default function DoctorAuth() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = safeDoctorPath(new URLSearchParams(location.search).get('next'));
   const [step, setStep] = useState('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
@@ -58,8 +63,8 @@ export default function DoctorAuth() {
   const [notice, setNotice] = useState(initialNotice);
 
   useEffect(() => {
-    if (isAuthenticated()) navigate('/', { replace: true });
-  }, [navigate]);
+    if (isAuthenticated()) navigate(returnTo, { replace: true });
+  }, [navigate, returnTo]);
 
   const showNotice = (message, severity = 'info') => setNotice({ open: true, message, severity });
 
@@ -126,7 +131,7 @@ export default function DoctorAuth() {
       }
 
       storeAuthData(data);
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch {
       showNotice('Network error. Please try again.', 'error');
     } finally {
@@ -140,6 +145,8 @@ export default function DoctorAuth() {
   };
 
   return (
+    <>
+    <div className="doctor-public-install"><InstallButton /></div>
     <Box className="doctor-auth-page">
       <Box className="doctor-auth-orb doctor-auth-orb-one" />
       <Box className="doctor-auth-orb doctor-auth-orb-two" />
@@ -229,5 +236,6 @@ export default function DoctorAuth() {
         <Alert severity={notice.severity} variant="filled" onClose={() => setNotice((current) => ({ ...current, open: false }))}>{notice.message}</Alert>
       </Snackbar>
     </Box>
+    </>
   );
 }

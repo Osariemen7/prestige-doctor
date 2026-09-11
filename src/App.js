@@ -1,85 +1,38 @@
-import React, { useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { Box, CircularProgress, Typography } from '@mui/material';
-import { ProcessingStatusProvider } from './contexts/ProcessingStatusContext';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { isAuthenticated, tryRestoreSession } from './api';
-import DoctorAuth from './components/DoctorAuth';
-import DoctorHome from './components/DoctorHome';
-import DoctorPractice from './components/DoctorPractice';
-import DoctorLayout from './components/DoctorLayout';
-import ReviewsHome from './components/ReviewsHome';
-import CareCoordinatorQueue from './components/CareCoordinatorQueue';
-import PatientDetailsPage from './components/PatientDetailsPage';
-
-const withLayout = (element) => <DoctorLayout>{element}</DoctorLayout>;
-
-const ProtectedRoute = ({ children }) => (
-  isAuthenticated() ? children : <Navigate to="/login" replace />
-);
-
-const PublicOnlyRoute = ({ children }) => (
-  isAuthenticated() ? <Navigate to="/" replace /> : children
-);
-
-const DoctorLoading = () => (
-  <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', gap: 1, bgcolor: '#f6f8f7', color: '#5d7186' }}>
-    <Box sx={{ display: 'grid', justifyItems: 'center', gap: 1.5 }}>
-      <CircularProgress size={28} sx={{ color: '#17324d' }} />
-      <Typography sx={{ fontSize: '0.85rem' }}>Preparing your workspace…</Typography>
-    </Box>
-  </Box>
-);
-
+import { loginForPath, safeDoctorPath } from './pwa/safePath';
+import PwaStatus from './pwa/PwaStatus';
+const DoctorAuth = lazy(() => import('./components/DoctorAuth'));
+const DoctorVNextApp = lazy(() => import('./vnext/DoctorVNextApp'));
+const LegacyWorkspace = lazy(() => import('./pwa/LegacyWorkspace'));
+const Loading = () => <div className="doctor-loading" role="status">Preparing your workspace…</div>;
+function ProtectedRoute({ children }) {
+  const location = useLocation();
+  return isAuthenticated() ? children : <Navigate to={loginForPath(`${location.pathname}${location.search}${location.hash}`)} replace />;
+}
+function PublicRoute() {
+  const location = useLocation();
+  return isAuthenticated() ? <Navigate to={safeDoctorPath(new URLSearchParams(location.search).get('next'))} replace /> : <DoctorAuth />;
+}
+function CaseRedirect() { const { publicId } = useParams(); return <Navigate to={`/app/cases/${encodeURIComponent(publicId)}`} replace />; }
+function PatientRedirect() { const { patientId } = useParams(); return <Navigate to={`/app/patients/${encodeURIComponent(patientId)}`} replace />; }
+function ConversationRedirect() { const { conversationId } = useParams(); return <Navigate to={conversationId ? `/app/messages/${encodeURIComponent(conversationId)}` : '/app/messages'} replace />; }
 export default function App() {
-  const [sessionReady, setSessionReady] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void tryRestoreSession()
-      .catch(() => false)
-      .finally(() => {
-        if (active) setSessionReady(true);
-      });
-    return () => { active = false; };
-  }, []);
-
-  if (!sessionReady) return <DoctorLoading />;
-
-  return (
-    <ProcessingStatusProvider>
-      <Routes>
-        <Route path="/login" element={<PublicOnlyRoute><DoctorAuth /></PublicOnlyRoute>} />
-        <Route path="/register" element={<PublicOnlyRoute><DoctorAuth /></PublicOnlyRoute>} />
-        <Route path="/register/:referralCode" element={<PublicOnlyRoute><DoctorAuth /></PublicOnlyRoute>} />
-        <Route path="/doctor-register" element={<PublicOnlyRoute><DoctorAuth /></PublicOnlyRoute>} />
-        <Route path="/doctor-login" element={<PublicOnlyRoute><DoctorAuth /></PublicOnlyRoute>} />
-        <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
-
-        <Route path="/" element={<ProtectedRoute>{withLayout(<DoctorHome />)}</ProtectedRoute>} />
-        <Route path="/work" element={<ProtectedRoute>{withLayout(<ReviewsHome />)}</ProtectedRoute>} />
-        <Route path="/patients" element={<ProtectedRoute>{withLayout(<DoctorPractice />)}</ProtectedRoute>} />
-        <Route path="/care" element={<ProtectedRoute>{withLayout(<CareCoordinatorQueue />)}</ProtectedRoute>} />
-        <Route path="/care/:conversationId" element={<ProtectedRoute>{withLayout(<CareCoordinatorQueue />)}</ProtectedRoute>} />
-        <Route path="/patient/:patientId" element={<ProtectedRoute>{withLayout(<PatientDetailsPage />)}</ProtectedRoute>} />
-        <Route path="/patient/:patientId/media" element={<ProtectedRoute>{withLayout(<PatientDetailsPage />)}</ProtectedRoute>} />
-
-        {/* Compatibility aliases keep existing links useful while the old surface is retired. */}
-        <Route path="/reviews" element={<Navigate to="/work" replace />} />
-        <Route path="/reviews/:publicId" element={<ProtectedRoute>{withLayout(<ReviewsHome />)}</ProtectedRoute>} />
-        <Route path="/provider-dashboard" element={<Navigate to="/patients" replace />} />
-        <Route path="/care-coordinator" element={<Navigate to="/care" replace />} />
-        <Route path="/care-coordinator/:conversationId" element={<ProtectedRoute>{withLayout(<CareCoordinatorQueue />)}</ProtectedRoute>} />
-        <Route path="/complete-profile" element={<Navigate to="/" replace />} />
-        <Route path="/dashboard" element={<Navigate to="/" replace />} />
-        <Route path="/provider-dashboard-docs" element={<Navigate to="/" replace />} />
-        <Route path="/create-encounter" element={<Navigate to="/work" replace />} />
-        <Route path="/record/:publicId" element={<Navigate to="/work" replace />} />
-        <Route path="/messages/*" element={<Navigate to="/care" replace />} />
-        <Route path="/investigations/*" element={<Navigate to="/work" replace />} />
-        <Route path="/clinical-services/*" element={<Navigate to="/work" replace />} />
-        <Route path="/admin-dashboard" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </ProcessingStatusProvider>
-  );
+  const [ready, setReady] = useState(false);
+  const location = useLocation(); const navigate = useNavigate();
+  useEffect(() => { let active = true; tryRestoreSession().catch(() => false).finally(() => { if (active) setReady(true); }); return () => { active = false; }; }, []);
+  useEffect(() => { const expired = () => navigate(loginForPath(`${location.pathname}${location.search}${location.hash}`), { replace: true }); window.addEventListener('doctor-auth-required', expired); return () => window.removeEventListener('doctor-auth-required', expired); }, [location, navigate]);
+  return <><PwaStatus />{!ready ? <Loading /> : <Suspense fallback={<Loading />}><Routes>
+    {['/login', '/register', '/register/:referralCode', '/doctor-register', '/doctor-login'].map((path) => <Route key={path} path={path} element={<PublicRoute />} />)}
+    <Route path="/app/diagnostics/*" element={<ProtectedRoute><LegacyWorkspace /></ProtectedRoute>} />
+    <Route path="/app/*" element={<ProtectedRoute><DoctorVNextApp /></ProtectedRoute>} />
+    {process.env.NODE_ENV !== 'production' && <Route path="/demo/doctor" element={<DoctorVNextApp demo />} />}
+    {['/reviews/:publicId', '/review/:publicId', '/record/:publicId'].map((path) => <Route key={path} path={path} element={<CaseRedirect />} />)}
+    {['/patient/:patientId', '/patient/:patientId/media'].map((path) => <Route key={path} path={path} element={<PatientRedirect />} />)}
+    {['/care/:conversationId', '/care-coordinator/:conversationId', '/messages/:conversationId'].map((path) => <Route key={path} path={path} element={<ConversationRedirect />} />)}
+    {['/care', '/care-coordinator', '/messages'].map((path) => <Route key={path} path={path} element={<Navigate to="/app/messages" replace />} />)}
+    {['/work', '/investigations/*', '/clinical-services/*'].map((path) => <Route key={path} path={path} element={<Navigate to="/app/diagnostics" replace />} />)}
+    <Route path="*" element={<Navigate to="/app/queue" replace />} />
+  </Routes></Suspense>}</>;
 }

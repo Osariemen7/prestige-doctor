@@ -1,3 +1,4 @@
+import { resolveDoctorApiUrl } from '../apiOrigin';
 import { getAccessToken } from '../api';
 import {
   careCapabilitySchema,
@@ -8,7 +9,6 @@ import {
   parseContract,
 } from './careConversationContract';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
 const newId = () => globalThis.crypto?.randomUUID?.() || `care-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const featureEnabled = () => (
@@ -24,8 +24,9 @@ const request = async (path, { method = 'GET', body, signal, idempotencyKey, cor
     throw error;
   }
   const token = await getAccessToken();
-  const response = await fetch(`${BASE_URL.replace(/\/$/, '')}${path}`, {
+  const response = await fetch(resolveDoctorApiUrl(path), {
     method,
+    cache: 'no-store',
     headers: {
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),

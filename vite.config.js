@@ -1,5 +1,8 @@
 const { defineConfig, loadEnv } = require('vite');
 const react = require('@vitejs/plugin-react');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
 
 const CLIENT_ENV_KEYS = [
   'PUBLIC_URL',
@@ -7,27 +10,58 @@ const CLIENT_ENV_KEYS = [
   'REACT_APP_GOOGLE_CLIENT_ID',
   'REACT_APP_GEMINI_LIVE_WS_URL',
   'REACT_APP_OPENAI_REALTIME_CALLS_URL',
+  'REACT_APP_API_BASE_URL',
+  'REACT_APP_QA_API_ORIGIN',
+  'REACT_APP_QA_MODE',
+  'REACT_APP_ENV',
+  'REACT_APP_BUILD_SHA',
+  'REACT_APP_DOCTOR_ANALYTICS_ENDPOINT',
+  'VITE_API_ORIGIN',
+  'VITE_BUILD_SHA',
 ];
 
 function getCraCompatibleEnv(mode) {
   const loaded = loadEnv(mode, process.cwd(), '');
   return CLIENT_ENV_KEYS.reduce((env, key) => {
-    if (loaded[key] !== undefined) env[key] = loaded[key];
+    env[key] = process.env[key] ?? loaded[key] ?? '';
     return env;
   }, {
     NODE_ENV: mode === 'production' ? 'production' : 'development',
+    REACT_APP_ENABLE_DEMO: 'false',
+    VITE_ENABLE_DEMO: 'false',
   });
 }
 
-module.exports = defineConfig(({ mode }) => {
+module.exports = defineConfig(({ mode, command }) => {
   const env = getCraCompatibleEnv(mode);
-  const define = Object.fromEntries(
-    Object.entries(env).map(([key, value]) => [`process.env.${key}`, JSON.stringify(value)])
-  );
+  env.NODE_ENV = command === 'build' ? 'production' : 'development';
+  env.REACT_APP_BUILD_SHA ||= process.env.VERCEL_GIT_COMMIT_SHA || '';
+  const define = { 'process.env': JSON.stringify(env) };
 
   return {
-    plugins: [react()],
+    plugins: [{
+      name: 'direct-mui-icon-imports', enforce: 'pre',
+      transform(code, id) {
+        if (!id.replaceAll('\\', '/').includes('/src/') || !/\.[jt]sx?$/.test(id)) return null;
+        return code.replace(/import\s*\{([^}]+)\}\s*from\s*['"]@mui\/icons-material['"];?/g, (statement, names) => {
+          const symbols = names.split(',').map((name) => name.trim()).filter(Boolean).map((name) => name.match(/^(\w+)(?:\s+as\s+(\w+))?$/));
+          return symbols.every(Boolean) ? symbols.map((symbol) => `import ${symbol[2] || symbol[1]} from '@mui/icons-material/${symbol[1]}';`).join('\n') : statement;
+        });
+      },
+    }, react(), {
+      name: 'prestige-doctor-pwa',
+      closeBundle() {
+        const output = path.resolve('dist-vite');
+        const html = fs.readFileSync(path.join(output, 'index.html'), 'utf8');
+        const initialAssets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map((match) => match[1]);
+        const assets = ['/index.html', '/offline.html', '/logo192.png', '/logo512.png', ...initialAssets];
+        const version = crypto.createHash('sha256').update(html).digest('hex').slice(0, 16);
+        const worker = fs.readFileSync('public/service-worker.js', 'utf8').replace('__BUILD_VERSION__', version).replace('__SHELL_ASSETS__', JSON.stringify(assets));
+        fs.writeFileSync(path.join(output, 'service-worker.js'), worker);
+      },
+    }],
     define,
+    resolve: { alias: [{ find: /^\.\/demoFixtures$/, replacement: path.resolve(command === 'build' ? 'src/vnext/demoUnavailable.js' : 'src/vnext/demoFixtures.js') }] },
     esbuild: {
       loader: 'jsx',
       include: /src\/.*\.[jt]sx?$/,

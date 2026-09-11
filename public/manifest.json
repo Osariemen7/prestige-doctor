@@ -1,25 +1,25 @@
 {
-  "short_name": "Prestige",
-  "name": "Prestige Customer",
+  "id": "/",
+  "name": "Prestige Doctor",
+  "short_name": "Prestige Doctor",
+  "description": "Your Prestige Health clinical workspace",
+  "start_url": "/app/queue",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f8f7",
+  "theme_color": "#17324d",
   "icons": [
     {
-      "src": "Group.png",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "any maskable"
+      "src": "/logo192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "logo192.png",
+      "src": "/logo512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "Group.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "purpose": "any"
     }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  ]
 }

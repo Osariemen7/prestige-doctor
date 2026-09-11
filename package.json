@@ -83,13 +83,13 @@
     "zod": "^4.2.1"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "start": "vite --host 127.0.0.1",
+    "build": "vite build",
     "vite:dev": "vite --host 127.0.0.1",
     "vite:build": "vite build",
     "vite:preview": "vite preview --host 127.0.0.1",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "preview": "vite preview --host 127.0.0.1"
   },
   "eslintConfig": {
     "extends": [
