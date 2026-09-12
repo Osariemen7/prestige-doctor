@@ -27,24 +27,21 @@ self.addEventListener('fetch', (event) => {
     return response;
   }));
 });
-const safeRoute = (value) => {
-  if (typeof value !== 'string' || !/^\/app(?:\/|$)/.test(value) || /[\\\x00-\x1f]/.test(value)) return '/app/notifications';
-  try { const url = new URL(value, self.location.origin); return url.origin === self.location.origin && /^\/app(?:\/|$)/.test(url.pathname) ? url.pathname + url.search + url.hash : '/app/notifications'; } catch { return '/app/notifications'; }
-};
+const notificationRoute = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? `/app/notifications/${id}` : '/app/notifications';
 self.addEventListener('push', (event) => event.waitUntil((async () => {
   let payload = {}; try { payload = event.data?.json() || {}; } catch { /* Preserve a private preview. */ }
   if (payload.app && payload.app !== 'doctor') return;
-  await self.registration.showNotification('Prestige Doctor', { body: 'You have a new care update. Open the app to view it.', icon: '/logo192.png', badge: '/logo192.png', tag: String(payload.id || payload.notification_id || 'care-update'), data: { route: safeRoute(payload.route) } });
+  await self.registration.showNotification('Prestige Doctor', { body: 'You have a new care update. Open the app to view it.', icon: '/logo192.png', badge: '/logo192.png', tag: String(payload.id || payload.notification_id || 'care-update'), data: { notification_id: payload.notification_id || payload.id || null } });
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   clients.forEach((client) => client.postMessage({ type: 'DOCTOR_PUSH_RECEIVED' }));
 })()));
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const route = safeRoute(event.notification.data?.route);
+  const route = notificationRoute(event.notification.data?.notification_id);
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const target = windows.find((client) => new URL(client.url).origin === self.location.origin);
-    if (target) { await target.navigate(route); return target.focus(); }
+    const target = windows.find((client) => client.url === new URL(route, self.location.origin).href);
+    if (target) return target.focus();
     return self.clients.openWindow(route);
   })());
 });

@@ -1,5 +1,4 @@
-import { resolveDoctorApiUrl } from '../apiOrigin';
-import { getAccessToken } from '../api';
+import { request as authenticatedRequest } from '../vnext/api';
 import {
   careCapabilitySchema,
   careConversationCollectionSchema,
@@ -23,30 +22,11 @@ const request = async (path, { method = 'GET', body, signal, idempotencyKey, cor
     error.code = 'feature_disabled';
     throw error;
   }
-  const token = await getAccessToken();
-  const response = await fetch(resolveDoctorApiUrl(path), {
-    method,
-    cache: 'no-store',
-    headers: {
-      Accept: 'application/json',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(method !== 'GET' ? {
-        'Idempotency-Key': idempotencyKey || `doctor-conversation-${newId()}`,
-        'X-Correlation-ID': correlationId || newId(),
-      } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
+  return authenticatedRequest(path, {
+    method, body, signal,
+    commandKey: idempotencyKey || (method !== 'GET' ? `doctor-conversation-${newId()}` : undefined),
+    correlationId: correlationId || (method !== 'GET' ? newId() : undefined),
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload?.detail || payload?.error || `HTTP ${response.status}`);
-    error.status = response.status;
-    error.payload = payload;
-    throw error;
-  }
-  return payload;
 };
 
 export const getCareCapabilities = async (options = {}) => {

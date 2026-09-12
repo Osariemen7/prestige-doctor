@@ -19,3 +19,14 @@ npm run build
 ```
 
 Integration verification must use the Django server for OTP, authorization, conversation replies and clinical decisions, plus a configured push transport for real device delivery. Mocked tests do not certify those deployed services.
+
+
+## September 12 quality review
+
+- Push clicks carry an opaque notification identifier. The authenticated app rechecks the notification projection and marks it read before opening the returned doctor route. A push opens separately from an existing clinical draft.
+- Expired/rejected authentication refreshes once with the same mutation command. All doctor transports resolve the same configured API origin. Temporary refresh outages retain credentials for retry.
+- Coverage-pool 403 responses display only the server-returned privacy preview until a successful claim. Inbox routing accepts backend review_route_mode/review_claim.route_mode; missing exact-hash authority fails closed.
+- Route changes reset case-scoped drafts/confirmation/command state. Malformed links recover to the workspace. Existing conversation and clinical-service links retain their destination.
+- Vite remains the production builder. Jest uses the real lucide CommonJS entry because the old test resolver otherwise selects its ESM entry. CRA is currently test tooling only; no framework upgrade was introduced during this fix.
+
+Verification: 13 focused suites, 44 tests passed, and Vite production build passed. The optional cold full-login Jest smoke was stopped during workstation contention; it is not claimed as passed for this revision. No production frontend deployment was performed here.

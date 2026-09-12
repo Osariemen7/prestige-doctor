@@ -18,10 +18,21 @@ test('push preview is private and unsafe links stay inside the app', async () =>
   const { self, handlers } = worker(); let pending;
   handlers.push({ data: { json: () => ({ app: 'doctor', title: 'Patient name', body: 'Clinical details', route: '//evil.test' }) }, waitUntil: (promise) => { pending = promise; } });
   await pending;
-  expect(self.registration.showNotification).toHaveBeenCalledWith('Prestige Doctor', expect.objectContaining({ body: 'You have a new care update. Open the app to view it.', data: { route: '/app/notifications' } }));
+  expect(self.registration.showNotification).toHaveBeenCalledWith('Prestige Doctor', expect.objectContaining({ body: 'You have a new care update. Open the app to view it.', data: { notification_id: null } }));
 });
 test('a notification for another app is ignored', async () => {
   const { self, handlers } = worker(); let pending;
   handlers.push({ data: { json: () => ({ app: 'patient' }) }, waitUntil: (promise) => { pending = promise; } });
   await pending; expect(self.registration.showNotification).not.toHaveBeenCalled();
+});
+
+test('click resolves an opaque notification and never overwrites a case draft', async () => {
+  const { self, handlers } = worker(); let pending;
+  const target = { url: 'https://doctor.test/app/cases/case-1/documentation', navigate: jest.fn(), focus: jest.fn() };
+  self.clients.matchAll.mockResolvedValue([target]);
+  const id = 'c4131810-0715-43f7-9481-7ae9c509e594';
+  handlers.notificationclick({ notification: { close: jest.fn(), data: { notification_id: id, route: '/app/cases/forged' } }, waitUntil: (promise) => { pending = promise; } });
+  await pending;
+  expect(target.navigate).not.toHaveBeenCalled();
+  expect(self.clients.openWindow).toHaveBeenCalledWith(`/app/notifications/${id}`);
 });

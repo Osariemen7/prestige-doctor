@@ -1,12 +1,9 @@
+import { getDoctorApiOrigin } from './apiOrigin';
+
 export const DEFAULT_BACKEND_BASE_URL = 'https://api.prestigedelta.com';
 
 /** Resolve backend requests while keeping the deployed production default. */
-export const getBackendBaseUrl = () => {
-  const configured = typeof process !== 'undefined'
-    ? process.env.REACT_APP_BACKEND_BASE_URL
-    : '';
-  return String(configured || DEFAULT_BACKEND_BASE_URL).replace(/\/+$/, '');
-};
+export const getBackendBaseUrl = () => getDoctorApiOrigin();
 
 export const resolveBackendUrl = (pathOrUrl) => {
   const raw = String(pathOrUrl || '');

@@ -16,6 +16,7 @@ function PublicRoute() {
   return isAuthenticated() ? <Navigate to={safeDoctorPath(new URLSearchParams(location.search).get('next'))} replace /> : <DoctorAuth />;
 }
 function CaseRedirect() { const { publicId } = useParams(); return <Navigate to={`/app/cases/${encodeURIComponent(publicId)}`} replace />; }
+function ClinicalServiceRedirect() { const { orderId } = useParams(); return <Navigate to={`/app/clinical-services/${encodeURIComponent(orderId)}`} replace />; }
 function PatientRedirect() { const { patientId } = useParams(); return <Navigate to={`/app/patients/${encodeURIComponent(patientId)}`} replace />; }
 function ConversationRedirect() { const { conversationId } = useParams(); return <Navigate to={conversationId ? `/app/messages/${encodeURIComponent(conversationId)}` : '/app/messages'} replace />; }
 export default function App() {
@@ -30,8 +31,9 @@ export default function App() {
     {process.env.NODE_ENV !== 'production' && <Route path="/demo/doctor" element={<DoctorVNextApp demo />} />}
     {['/reviews/:publicId', '/review/:publicId', '/record/:publicId'].map((path) => <Route key={path} path={path} element={<CaseRedirect />} />)}
     {['/patient/:patientId', '/patient/:patientId/media'].map((path) => <Route key={path} path={path} element={<PatientRedirect />} />)}
-    {['/care/:conversationId', '/care-coordinator/:conversationId', '/messages/:conversationId'].map((path) => <Route key={path} path={path} element={<ConversationRedirect />} />)}
+    {['/care/conversations/:conversationId', '/care/:conversationId', '/care-coordinator/:conversationId', '/messages/:conversationId'].map((path) => <Route key={path} path={path} element={<ConversationRedirect />} />)}
     {['/care', '/care-coordinator', '/messages'].map((path) => <Route key={path} path={path} element={<Navigate to="/app/messages" replace />} />)}
+    <Route path="/clinical-services/:orderId" element={<ClinicalServiceRedirect />} />
     {['/work', '/investigations/*', '/clinical-services/*'].map((path) => <Route key={path} path={path} element={<Navigate to="/app/diagnostics" replace />} />)}
     <Route path="*" element={<Navigate to="/app/queue" replace />} />
   </Routes></Suspense>}</>;

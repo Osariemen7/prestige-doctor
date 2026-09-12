@@ -5,7 +5,7 @@ test('keeps exact authenticated case and message destinations through OTP', () =
   expect(new URLSearchParams(loginForPath(target).split('?')[1]).get('next')).toBe(target);
   expect(safeDoctorPath('/app/messages/conversation-2')).toBe('/app/messages/conversation-2');
 });
-test.each(['https://evil.test', '//evil.test', '/application', '/app/../../login', '/app\\evil.test', '/app/%2e%2e/login'])('rejects unsafe notification or login target %s', (value) => {
+test.each(['https://evil.test', '//evil.test', '/application', '/app/../../login', '/app\\evil.test', '/app/%2e%2e/login', '/app/messages/%E0%A4%A', '/app/messages/%5csecret', '/app/messages/%00'])('rejects unsafe notification or login target %s', (value) => {
   expect(safeDoctorPath(value)).toBe('/app/queue');
 });
 test('notification links cannot activate a production demo', () => {

@@ -15,3 +15,9 @@ describe('backend transport configuration', () => {
       .toBe('http://127.0.0.1:4318/api/tokenrefresh/');
   });
 });
+
+test('legacy and refresh transport use the same runtime QA origin as the PWA', () => {
+  globalThis.__PRESTIGE_API_ORIGIN__ = 'https://qa-api.test';
+  try { expect(resolveBackendUrl('/api/tokenrefresh/')).toBe('https://qa-api.test/api/tokenrefresh/'); }
+  finally { delete globalThis.__PRESTIGE_API_ORIGIN__; }
+});

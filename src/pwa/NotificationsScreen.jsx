@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { disableDoctorPush, enableDoctorPush, listNotifications, notificationPath, readNotification, getNotificationPreferences, saveNotificationPreferences } from './notificationApi';
+import { disableDoctorPush, enableDoctorPush, listNotifications, getNotificationPreferences, saveNotificationPreferences } from './notificationApi';
 import { EmptyState, ErrorState, LoadingState } from '../vnext/components';
 
 export default function NotificationsScreen() {
@@ -34,7 +34,7 @@ export default function NotificationsScreen() {
     finally { setBusy(false); }
   };
   const open = async (item) => {
-    try { await readNotification(item.id || item.public_id); window.dispatchEvent(new Event('doctor-notifications-changed')); navigate(notificationPath(item)); }
+    try { navigate(`/app/notifications/${encodeURIComponent(item.id || item.public_id)}`); }
     catch (failure) { setError(failure); }
   };
   return <><div className="vnext-page-header"><div><h1>Notifications</h1><p>Your care updates in one place. Device alerts use a private preview; open the app for details.</p></div><button className="vnext-button vnext-button--secondary" onClick={() => load()} disabled={loading}>Refresh</button></div>

@@ -3,6 +3,7 @@ import InstallButton from '../pwa/InstallButton';
 import NotificationLink from '../pwa/NotificationLink';
 import { disableDoctorPush } from '../pwa/notificationApi';
 import { logout } from '../api';
+import { safeDoctorPath } from '../pwa/safePath';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, Bell, BookOpen, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, MessageSquare, RefreshCw, ShieldCheck, Stethoscope, UsersRound, X } from 'lucide-react';
 import {
@@ -25,6 +26,7 @@ import { trackDoctorEvent } from './analytics';
 const ClinicalDocumentationWorkspace = lazy(() => import('./ClinicalDocumentationWorkspace'));
 const MessagesScreen = lazy(() => import('./MessagesScreen'));
 const NotificationsScreen = lazy(() => import('../pwa/NotificationsScreen'));
+const NotificationDestination = lazy(() => import('../pwa/NotificationDestination'));
 const CaseScreen = lazy(() => import('./ClinicalCaseScreen'));
 import {
   ActionButton,
@@ -245,7 +247,7 @@ export default function DoctorVNextApp({ demo = false }) {
   const location = useLocation();
   const navigate = useNavigate();
   const activeDemo = isDemoEnabled(demo || location.pathname.startsWith('/demo/doctor') || new URLSearchParams(location.search).get('demo') === '1');
-  const path = location.pathname.replace(/\/$/, '');
+  const path = (location.pathname === '/demo/doctor' ? location.pathname : safeDoctorPath(location.pathname, '/invalid-route')).replace(/\/$/, '');
   const match = (prefix) => path.startsWith(prefix) ? decodeURIComponent(path.slice(prefix.length).replace(/^\//, '')) : null;
   let content;
   if (path === '/app' || path === '/app/queue' || path === '/demo/doctor') content = <QueueScreen demo={activeDemo} />;
@@ -261,11 +263,12 @@ export default function DoctorVNextApp({ demo = false }) {
   else if (path === '/app/protocols') content = <ProtocolsScreen demo={activeDemo} />;
   else if (path === '/app/contribution') content = <ContributionScreen demo={activeDemo} />;
   else if (path === '/app/messages' || path.startsWith('/app/messages/')) content = <MessagesScreen conversationId={match('/app/messages/')} />;
+  else if (path.startsWith('/app/notifications/')) content = <NotificationDestination notificationId={match('/app/notifications/')} />;
   else if (path === '/app/notifications') content = <NotificationsScreen />;
   else content = <EmptyState title="Workspace route unavailable" body="This route is not part of the doctor Care Kernel vNext surface." action="Open review queue" onAction={() => navigate(doctorHref('/app/queue', activeDemo))} />;
   const queueData = useQueueCount(activeDemo);
   const resetDemo = activeDemo ? () => resetSyntheticDemo().then(() => { if (typeof window !== 'undefined') window.location.reload(); }) : undefined;
-  return <DoctorShell demo={activeDemo} queueCount={queueData} onResetDemo={resetDemo}>{content}</DoctorShell>;
+  return <DoctorShell demo={activeDemo} queueCount={queueData} onResetDemo={resetDemo}><React.Fragment key={path}>{content}</React.Fragment></DoctorShell>;
 }
 
 function useQueueCount(demo) {

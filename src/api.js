@@ -182,20 +182,20 @@ export const getUser = () => {
  * when necessary.  Returns null (and clears storage) if the refresh
  * token itself has expired (>7 days since last OTP auth).
  */
-export const getAccessToken = async () => {
+export const getAccessToken = async ({ forceRefresh = false } = {}) => {
   if (isDeviceVerificationExpired()) {
     logout();
     return null;
   }
 
   const currentAccessToken = getStoredAccessToken();
-  if (currentAccessToken && isTokenValid(currentAccessToken, ACCESS_TOKEN_REFRESH_LEEWAY_MS)) {
+  if (!forceRefresh && currentAccessToken && isTokenValid(currentAccessToken, ACCESS_TOKEN_REFRESH_LEEWAY_MS)) {
     return currentAccessToken;
   }
 
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
-    if (currentAccessToken) {
+    if (currentAccessToken && !forceRefresh) {
       return currentAccessToken;
     }
     logout();
@@ -215,6 +215,7 @@ export const getAccessToken = async () => {
       });
 
       if (!response.ok) {
+        if (response.status >= 500 && forceRefresh) throw new Error('Session refresh is temporarily unavailable. Please retry.');
         if (response.status >= 500 && currentAccessToken) {
           console.warn(`Token refresh returned ${response.status}; reusing the current access token.`);
           return currentAccessToken;
@@ -229,6 +230,7 @@ export const getAccessToken = async () => {
       updateStoredTokenFields(data);
       return getAccessValue(data);
     } catch (error) {
+      if (forceRefresh) throw error;
       if (currentAccessToken) {
         console.warn('Token refresh request failed; reusing the current access token.');
         return currentAccessToken;

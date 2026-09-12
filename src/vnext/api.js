@@ -1,4 +1,4 @@
-import { getAccessToken, tryRestoreSession, logout } from '../api';
+import { getAccessToken, logout } from '../api';
 import {
   claimDemoProposal,
   getDemoAlerts,
@@ -112,7 +112,8 @@ export const request = async (path, options = {}, attempt = 0) => {
   }
   const body = await parseBody(response);
   if (response.status === 401 && attempt === 0) {
-    await tryRestoreSession().catch(() => null);
+    try { await getAccessToken({ forceRefresh: true }); }
+    catch (cause) { throw new DoctorApiError('Your session could not be refreshed. Check your connection and retry.', { code: 'network_error', cause, path }); }
     return request(path, options, 1);
   }
   if (response.status === 401 && typeof window !== 'undefined') { logout(); window.dispatchEvent(new Event('doctor-auth-required')); }

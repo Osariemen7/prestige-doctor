@@ -73,9 +73,9 @@ export default function CaseScreen({ demo, proposalId, focusDecision = false }) 
       setDecisionResult(null);
       setStale(false);
     } catch (loadError) {
-      if (loadError?.status === 404 || loadError?.code === 'contract_unavailable') {
+      if (loadError?.status === 403 || loadError?.status === 404 || loadError?.code === 'contract_unavailable') {
         try {
-          const queue = await fetchReviewInbox({ demo, signal });
+          const queue = await fetchReviewInbox({ queue: 'pool', demo, signal });
           const row = (queue.items || []).find((item) => item.public_id === proposalId);
           if (row?.pool_preview) { setPoolPreview(row); setProposal(null); setError(null); }
           else setError(loadError);

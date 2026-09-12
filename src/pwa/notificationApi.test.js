@@ -5,7 +5,7 @@ test('uses role-scoped inbox and stable read acknowledgements', async () => {
   await listNotifications('cursor/next'); await readNotification('notice-1');
   expect(request).toHaveBeenCalledWith('/care/notifications?app=doctor&cursor=cursor%2Fnext', expect.any(Object));
   expect(request).toHaveBeenCalledWith('/care/notifications/notice-1/read', expect.objectContaining({ commandKey: 'doctor-notification-read-notice-1', body: { app: 'doctor' } }));
-  expect(notificationPath({ route: 'https://evil.test' })).toBe('/app/queue');
+  expect(notificationPath({ route: 'https://evil.test' })).toBe('/app/notifications');
 });
 test('logout unsubscribes this device even when server cleanup cannot be reached', async () => {
   const unsubscribe = jest.fn().mockResolvedValue(true);
