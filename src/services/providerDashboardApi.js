@@ -1,9 +1,8 @@
 // Provider Dashboard API Client
 import { getAccessToken } from '../api';
+import { API_BASE_URL } from '../apiConfig';
 
-import { getBackendBaseUrl } from '../apiBase';
-
-const BASE_URL = getBackendBaseUrl();
+const BASE_URL = `${API_BASE_URL}`;
 
 const getAuthHeaders = async () => {
   const token = await getAccessToken();

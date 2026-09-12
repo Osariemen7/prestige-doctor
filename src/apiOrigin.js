@@ -15,7 +15,7 @@ const runtimeOrigin = () => {
  */
 export function getDoctorApiOrigin({ env, runtime } = {}) {
   const sourceEnv = env || process.env;
-  const configured = runtime || runtimeOrigin() || sourceEnv.REACT_APP_QA_API_ORIGIN || sourceEnv.REACT_APP_API_BASE_URL || sourceEnv.REACT_APP_BACKEND_BASE_URL || sourceEnv.VITE_API_ORIGIN;
+  const configured = runtime || runtimeOrigin() || sourceEnv.REACT_APP_QA_API_ORIGIN || sourceEnv.REACT_APP_API_BASE_URL || sourceEnv.REACT_APP_BACKEND_BASE_URL || sourceEnv.VITE_API_ORIGIN || sourceEnv.VITE_BACKEND_BASE_URL;
   const qaMode = ['qa', 'test-qa'].includes(String(sourceEnv.REACT_APP_ENV || '').toLowerCase()) || sourceEnv.REACT_APP_QA_MODE === 'true';
 
   if (configured) return normalizeOrigin(configured);

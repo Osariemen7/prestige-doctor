@@ -1,11 +1,12 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import NotificationDestination from './NotificationDestination';
 import { getNotification, readNotification } from './notificationApi';
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate, NavLink: ({ children }) => <span>{children}</span> }));
-jest.mock('./notificationApi', () => ({ getNotification: jest.fn(), readNotification: jest.fn(), notificationPath: (item) => item.route }));
-beforeEach(() => { jest.clearAllMocks(); readNotification.mockResolvedValue({}); });
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate, NavLink: ({ children }) => <span>{children}</span> }));
+vi.mock('./notificationApi', () => ({ getNotification: vi.fn(), readNotification: vi.fn(), notificationPath: (item) => item.route }));
+beforeEach(() => { vi.clearAllMocks(); readNotification.mockResolvedValue({}); });
 test('reauthorizes the opaque identifier before marking read and navigating', async () => {
   getNotification.mockResolvedValue({ route: '/app/messages/authorized' });
   render(<NotificationDestination notificationId="notification-1" />);

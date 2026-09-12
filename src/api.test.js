@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import {
   DEVICE_AUTH_WINDOW_MS,
   isAuthenticated,
@@ -13,12 +14,12 @@ const tokenWithExpiry = (exp) => {
 describe('weekly device authentication', () => {
   beforeEach(() => {
     localStorage.clear();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('keeps a verified device signed in for seven days', () => {
     const now = Date.now();
-    jest.spyOn(Date, 'now').mockReturnValue(now);
+    vi.spyOn(Date, 'now').mockReturnValue(now);
     storeAuthData({
       access: tokenWithExpiry((now + 10 * 60 * 1000) / 1000),
       refresh: tokenWithExpiry((now + 14 * 24 * 60 * 60 * 1000) / 1000),
@@ -32,7 +33,7 @@ describe('weekly device authentication', () => {
 
   it('requires a fresh OTP after the device window expires', () => {
     const now = Date.now();
-    jest.spyOn(Date, 'now').mockReturnValue(now);
+    vi.spyOn(Date, 'now').mockReturnValue(now);
     storeAuthData({
       access: tokenWithExpiry((now + 10 * 60 * 1000) / 1000),
       refresh: tokenWithExpiry((now + 14 * 24 * 60 * 60 * 1000) / 1000),
@@ -49,7 +50,7 @@ test('forces a refresh even while the rejected access token has time remaining',
   const rejected = tokenWithExpiry((now + 600000) / 1000);
   const fresh = tokenWithExpiry((now + 1200000) / 1000);
   storeAuthData({ access: rejected, refresh: tokenWithExpiry((now + 86400000) / 1000) });
-  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ access: fresh }) });
+  global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access: fresh }) });
   expect(await getAccessToken({ forceRefresh: true })).toBe(fresh);
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
@@ -57,7 +58,7 @@ test('preserves credentials when forced refresh is temporarily unreachable', asy
   localStorage.clear();
   const access = tokenWithExpiry((Date.now() + 600000) / 1000);
   storeAuthData({ access, refresh: tokenWithExpiry((Date.now() + 86400000) / 1000) });
-  global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
+  global.fetch = vi.fn().mockRejectedValue(new Error('offline'));
   await expect(getAccessToken({ forceRefresh: true })).rejects.toThrow('offline');
   expect(localStorage.getItem('access_token')).toBe(access);
 });

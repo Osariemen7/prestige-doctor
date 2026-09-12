@@ -1,11 +1,14 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { isAuthenticated, tryRestoreSession } from './api';
 import { loginForPath, safeDoctorPath } from './pwa/safePath';
 import PwaStatus from './pwa/PwaStatus';
 const DoctorAuth = lazy(() => import('./components/DoctorAuth'));
 const DoctorVNextApp = lazy(() => import('./vnext/DoctorVNextApp'));
 const LegacyWorkspace = lazy(() => import('./pwa/LegacyWorkspace'));
+const TermsPage = lazy(() => import('./components/TermsPage'));
+const PrivacyPage = lazy(() => import('./components/PrivacyPage'));
+const DoctorPractice = lazy(() => import('./components/DoctorPractice'));
 const Loading = () => <div className="doctor-loading" role="status">Preparing your workspace…</div>;
 function ProtectedRoute({ children }) {
   const location = useLocation();
@@ -15,7 +18,7 @@ function PublicRoute() {
   const location = useLocation();
   return isAuthenticated() ? <Navigate to={safeDoctorPath(new URLSearchParams(location.search).get('next'))} replace /> : <DoctorAuth />;
 }
-function CaseRedirect() { const { publicId } = useParams(); return <Navigate to={`/app/cases/${encodeURIComponent(publicId)}`} replace />; }
+function ReviewRedirect() { const { publicId } = useParams(); const location = useLocation(); return <Navigate to={safeDoctorPath(`/app/diagnostics/reviews/${encodeURIComponent(publicId)}${location.search}${location.hash}`)} replace />; }
 function ClinicalServiceRedirect() { const { orderId } = useParams(); return <Navigate to={`/app/clinical-services/${encodeURIComponent(orderId)}`} replace />; }
 function PatientRedirect() { const { patientId } = useParams(); return <Navigate to={`/app/patients/${encodeURIComponent(patientId)}`} replace />; }
 function ConversationRedirect() { const { conversationId } = useParams(); return <Navigate to={conversationId ? `/app/messages/${encodeURIComponent(conversationId)}` : '/app/messages'} replace />; }
@@ -26,10 +29,15 @@ export default function App() {
   useEffect(() => { const expired = () => navigate(loginForPath(`${location.pathname}${location.search}${location.hash}`), { replace: true }); window.addEventListener('doctor-auth-required', expired); return () => window.removeEventListener('doctor-auth-required', expired); }, [location, navigate]);
   return <><PwaStatus />{!ready ? <Loading /> : <Suspense fallback={<Loading />}><Routes>
     {['/login', '/register', '/register/:referralCode', '/doctor-register', '/doctor-login'].map((path) => <Route key={path} path={path} element={<PublicRoute />} />)}
+    <Route path="/terms" element={<TermsPage />} />
+    <Route path="/privacy" element={<PrivacyPage />} />
+    <Route path="/app/patients" element={<ProtectedRoute><div className="doctor-legacy"><NavLink to="/app/queue">Back to your workspace</NavLink><DoctorPractice /></div></ProtectedRoute>} />
+    <Route path="/patients" element={<Navigate to="/app/patients" replace />} />
+    <Route path="/app/diagnostics/reviews/:publicId" element={<ProtectedRoute><LegacyWorkspace /></ProtectedRoute>} />
     <Route path="/app/diagnostics/*" element={<ProtectedRoute><LegacyWorkspace /></ProtectedRoute>} />
     <Route path="/app/*" element={<ProtectedRoute><DoctorVNextApp /></ProtectedRoute>} />
     {process.env.NODE_ENV !== 'production' && <Route path="/demo/doctor" element={<DoctorVNextApp demo />} />}
-    {['/reviews/:publicId', '/review/:publicId', '/record/:publicId'].map((path) => <Route key={path} path={path} element={<CaseRedirect />} />)}
+    {['/reviews/:publicId', '/review/:publicId', '/record/:publicId'].map((path) => <Route key={path} path={path} element={<ReviewRedirect />} />)}
     {['/patient/:patientId', '/patient/:patientId/media'].map((path) => <Route key={path} path={path} element={<PatientRedirect />} />)}
     {['/care/conversations/:conversationId', '/care/:conversationId', '/care-coordinator/:conversationId', '/messages/:conversationId'].map((path) => <Route key={path} path={path} element={<ConversationRedirect />} />)}
     {['/care', '/care-coordinator', '/messages'].map((path) => <Route key={path} path={path} element={<Navigate to="/app/messages" replace />} />)}

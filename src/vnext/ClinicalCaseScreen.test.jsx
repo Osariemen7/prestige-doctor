@@ -1,9 +1,10 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import CaseScreen from './ClinicalCaseScreen';
 import { fetchProposal, fetchReviewInbox, mutateReviewClaim } from './api';
-jest.mock('./api', () => ({ fetchProposal: jest.fn(), fetchReviewInbox: jest.fn(), mutateReviewClaim: jest.fn() }));
+vi.mock('./api', () => ({ fetchProposal: vi.fn(), fetchReviewInbox: vi.fn(), mutateReviewClaim: vi.fn() }));
 test('a backend 403 exposes only the authorized pool preview until a claim succeeds', async () => {
   fetchProposal.mockRejectedValue({ status: 403, message: 'Active case-review claim required.' });
   fetchReviewInbox.mockResolvedValue({ items: [{ public_id: 'pool-1', pool_preview: true, claimable: true, urgency: 'routine', route_mode: 'covering_pool' }] });

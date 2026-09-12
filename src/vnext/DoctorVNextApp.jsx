@@ -60,6 +60,7 @@ const NAV_ITEMS = [
   { href: '/app/contribution', label: 'Contribution', icon: Activity },
   { href: '/app/messages', label: 'Messages', icon: MessageSquare },
   { href: '/app/diagnostics', label: 'Results & services', icon: FileText },
+  { href: '/app/patients', label: 'Patients', icon: UsersRound },
 ];
 
 const mobileItems = [NAV_ITEMS[0], NAV_ITEMS[4], { href: '/app/notifications', label: 'Notifications', icon: Bell }, NAV_ITEMS[1]];

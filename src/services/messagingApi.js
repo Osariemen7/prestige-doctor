@@ -1,8 +1,8 @@
 // Messaging API Client for Doctor-Patient Communication
 import { getAccessToken } from '../api';
-import { getBackendBaseUrl } from '../apiBase';
+import { API_BASE_URL } from '../apiConfig';
 
-const BASE_URL = getBackendBaseUrl();
+const BASE_URL = `${API_BASE_URL}`;
 
 const getAuthHeaders = async () => {
   const token = await getAccessToken();

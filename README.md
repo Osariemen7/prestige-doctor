@@ -1,50 +1,77 @@
-# Welcome to your Expo app 👋
+# PrestigeHealth Provider Dashboard
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Web dashboard for PrestigeHealth clinicians: manage medical reviews, patient
+records, investigations, messaging, clinical services and the care-coordinator
+queue. This is the **provider-facing** React app; patients use the separate
+PrestigeHealth mobile app.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- [React 19](https://react.dev) with [Vite 6](https://vite.dev) and [Vitest](https://vitest.dev)
+- [React Router v7](https://reactrouter.com) for routing (protected clinician routes)
+- [MUI v6](https://mui.com) primary UI kit; [Chakra UI v2](https://chakra-ui.com) in some legacy screens; Tailwind CSS utilities
+- [Agora RTC SDK NG](https://www.agora.io/en/products/video-call) for voice/video visits (server-issued tokens only)
+- JWT auth: WhatsApp-OTP flow against `POST /api/tokenrefresh/` with automatic access-token refresh (`src/api.js`)
+- [react-error-boundary](https://github.com/bvaughn/react-error-boundary) top-level crash fallback
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-    npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Getting started
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env        # fill in local values; never commit .env*
+npm run dev                 # http://localhost:3000
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Environment variables
 
-## Learn more
+All client configuration is centralised in [`src/apiConfig.js`](src/apiConfig.js)
+and sourced from `VITE_*` environment variables (only `VITE_`-prefixed vars are
+exposed to the client bundle) — see [`.env.example`](.env.example). Never commit
+real `.env` / `.env.production` files.
 
-To learn more about developing your project with Expo, look at the following resources:
+Key variables:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+| Variable | Purpose |
+| --- | --- |
+| `VITE_BACKEND_BASE_URL` | API base (defaults to `https://api.prestigedelta.com`) |
+| `VITE_GOOGLE_CLIENT_ID` | Google sign-in OAuth client |
+| `VITE_AGORA_APP_ID` | Display info only – live joins require the backend Agora token endpoint |
 
-## Join the community
+## Scripts
 
-Join our community of developers creating universal apps.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Development server |
+| `npm test` | Vitest suite, single run (`npm run test:watch` to watch) |
+| `npm run build` | Production bundle in `build/` |
+| `npm run preview` | Serve the production build locally |
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Architecture notes
+
+- `src/App.js` restores the session from the persisted refresh token on launch
+  (branded splash while validating), then mounts routes. All clinician surfaces
+  are wrapped in `ProtectedRoute`, which redirects unauthenticated visitors to
+  `/login` while preserving the intended destination.
+- Voice/video visits **fail closed**: the client fetches short-lived Agora
+  credentials from `{API_BASE_URL}/agora/rtc-token/` for every join and never
+  joins with a null token.
+- A minimal service worker (`public/sw.js`) caches built static assets only;
+  `/api` and API hosts are always network-first/never cached so clinical data is
+  never served stale.
+
+## Deployment
+
+Deployed as a static build (Vercel config included):
+
+1. Set production env vars in the hosting provider (`REACT_APP_*` are baked at
+   build time).
+2. `npm run build` → serve `build/` with SPA rewrites to `index.html`.
+3. CI (`.github/workflows/release-smoke.yml`) runs the full test suite and a
+   production build on pull requests and pushes to `main`.
+
+## Support
+
+Questions or issues? Contact [support@prestigedelta.com](mailto:support@prestigedelta.com).
+See also [Terms](src/components/TermsPage.jsx) and
+[Privacy](src/components/PrivacyPage.jsx) notices for the provider supplement
+to the patient-app policies.

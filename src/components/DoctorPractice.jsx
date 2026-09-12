@@ -73,11 +73,11 @@ export default function DoctorPractice() {
       {error && <Alert severity="info" className="doctor-page-alert">{error}</Alert>}
       <Box className="doctor-page-heading">
         <Box>
-          <Typography className="doctor-eyebrow">Practice growth</Typography>
-          <Typography component="h1" className="doctor-page-title">Make continuity your advantage.</Typography>
-          <Typography className="doctor-page-subtitle">Give patients a reason to stay close while AI gives you the capacity to care for more of them well.</Typography>
+          <Typography className="doctor-eyebrow">Patients</Typography>
+          <Typography component="h1" className="doctor-page-title">Keep up with your patients.</Typography>
+          <Typography className="doctor-page-subtitle">Review your care relationships and open the authorized patient context.</Typography>
         </Box>
-        <Button variant="contained" startIcon={<PersonAddAlt1Rounded />} onClick={() => navigate('/care')}>Invite into care</Button>
+        <Button variant="contained" startIcon={<PersonAddAlt1Rounded />} onClick={() => navigate('/app/messages')}>Open care messages</Button>
       </Box>
 
       <Box className="doctor-stat-grid">
@@ -100,9 +100,9 @@ export default function DoctorPractice() {
           {patients.length === 0 ? (
             <Box className="doctor-empty-state">
               <Groups2Rounded />
-              <Typography>Your roster is ready for its first relationship.</Typography>
-              <Typography className="doctor-muted">Invite an existing patient into a structured care plan and let the AI team handle the reminders, context, and check-ins.</Typography>
-              <Button variant="outlined" onClick={() => navigate('/care')}>Start with a patient</Button>
+              <Typography>No patients have been assigned yet.</Typography>
+              <Typography className="doctor-muted">Patients in your authorized care scope will appear here as their care is assigned.</Typography>
+              <Button variant="outlined" onClick={() => navigate('/app/messages')}>Open care messages</Button>
             </Box>
           ) : (
             <Box className="doctor-practice-list">
@@ -128,7 +128,7 @@ export default function DoctorPractice() {
           <Typography className="doctor-eyebrow">Recurring care, made simple</Typography>
           <Typography className="doctor-panel-title">Your best clinical relationships can become your most durable ones.</Typography>
           <Typography className="doctor-callout-copy">Prestige keeps the operational layer moving so you can stay focused on decisions, trust, and outcomes.</Typography>
-          <Button variant="contained" endIcon={<ArrowForwardRounded />} onClick={() => navigate('/care')}>Open care inbox</Button>
+          <Button variant="contained" endIcon={<ArrowForwardRounded />} onClick={() => navigate('/app/messages')}>Open care inbox</Button>
         </Box>
       </Box>
     </Box>

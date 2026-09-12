@@ -17,6 +17,7 @@ const CLIENT_ENV_KEYS = [
   'REACT_APP_BUILD_SHA',
   'REACT_APP_DOCTOR_ANALYTICS_ENDPOINT',
   'VITE_API_ORIGIN',
+  'VITE_BACKEND_BASE_URL',
   'VITE_BUILD_SHA',
 ];
 
@@ -36,9 +37,10 @@ module.exports = defineConfig(({ mode, command }) => {
   const env = getCraCompatibleEnv(mode);
   env.NODE_ENV = command === 'build' ? 'production' : 'development';
   env.REACT_APP_BUILD_SHA ||= process.env.VERCEL_GIT_COMMIT_SHA || '';
-  const define = { 'process.env': JSON.stringify(env) };
+  const define = mode === 'test' ? {} : { 'process.env': JSON.stringify(env) };
 
   return {
+    test: { globals: true, environment: 'jsdom', setupFiles: './src/setupTests.js', css: false, maxWorkers: 1, fileParallelism: false, testTimeout: 30000 },
     plugins: [{
       name: 'direct-mui-icon-imports', enforce: 'pre',
       transform(code, id) {

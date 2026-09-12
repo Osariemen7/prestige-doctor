@@ -57,7 +57,6 @@
     "react-password-checklist": "^1.8.1",
     "react-phone-number-input": "3.3.9",
     "react-router-dom": "^6.26.2",
-    "react-scripts": "5.0.1",
     "react-scroll-parallax": "^3.4.5",
     "react-select": "^5.9.0",
     "react-slideshow-image": "^4.3.2",
@@ -68,18 +67,6 @@
     "tailwind-merge": "^3.0.1",
     "typescript": "^4.9.5",
     "web-vitals": "^4.2.4",
-    "workbox-background-sync": "^7.3.0",
-    "workbox-broadcast-update": "^7.3.0",
-    "workbox-cacheable-response": "^7.3.0",
-    "workbox-core": "^7.3.0",
-    "workbox-expiration": "^7.3.0",
-    "workbox-google-analytics": "^7.3.0",
-    "workbox-navigation-preload": "^7.3.0",
-    "workbox-precaching": "^7.3.0",
-    "workbox-range-requests": "^7.3.0",
-    "workbox-routing": "^7.3.0",
-    "workbox-strategies": "^7.3.0",
-    "workbox-streams": "^7.3.0",
     "zod": "^4.2.1"
   },
   "scripts": {
@@ -88,15 +75,10 @@
     "vite:dev": "vite --host 127.0.0.1",
     "vite:build": "vite build",
     "vite:preview": "vite preview --host 127.0.0.1",
-    "test": "react-scripts test",
-    "test:ci": "react-scripts test --watchAll=false --runInBand",
-    "preview": "vite preview --host 127.0.0.1"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "test": "vitest run",
+    "test:ci": "vitest run --maxWorkers=1 --no-file-parallelism",
+    "preview": "vite preview --host 127.0.0.1",
+    "test:watch": "vitest"
   },
   "browserslist": {
     "production": [
@@ -117,11 +99,10 @@
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "vite": "^6.3.5",
-    "zwitch": "^2.0.4"
-  },
-  "jest": {
-    "moduleNameMapper": {
-      "^lucide-react$": "<rootDir>/node_modules/lucide-react/dist/cjs/lucide-react.js"
-    }
+    "zwitch": "^2.0.4",
+    "vitest": "^3.2.7",
+    "jsdom": "^26.1.0",
+    "workbox-build": "6.6.0",
+    "@testing-library/dom": "10.4.1"
   }
 }

@@ -35,6 +35,7 @@ import ReviewDetail from './ReviewDetail';
 import EnterpriseWorkflowInsights from './EnterpriseWorkflowInsights';
 import { useProcessingStatus } from '../contexts/ProcessingStatusContext';
 import { getExistingNote, collectReviewTranscripts } from '../utils/reviewUtils';
+import { API_BASE_URL } from '../apiConfig';
 import {
   getCaregiverContext,
   getAiGovernanceSignals,
@@ -54,7 +55,7 @@ import {
 } from '../utils/aiReviewWorkflow';
 
 const SIDEBAR_WIDTH = 360;
-const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'https://api.prestigedelta.com';
+const BACKEND_BASE_URL = API_BASE_URL;
 const buildBackendUrl = (path) => `${BACKEND_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 const PROVIDER_REVIEWS_URL = buildBackendUrl('/provider-reviews/?hours=168');
 const PROVIDER_REVIEW_STREAM_URL = buildBackendUrl('/provider-reviews/status-stream/?hours=168&limit=100');
@@ -738,7 +739,7 @@ const ReviewsHome = () => {
             Documentation
           </Typography>
           {isMobile && (
-            <IconButton onClick={() => setSidebarOpen(false)} size="small">
+            <IconButton onClick={() => setSidebarOpen(false)} size="small" aria-label="Close documentation panel">
               <CloseIcon />
             </IconButton>
           )}
@@ -764,6 +765,7 @@ const ReviewsHome = () => {
           fullWidth
           size="small"
           placeholder="Search patients..."
+          aria-label="Search patients"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
@@ -1555,10 +1557,11 @@ const ReviewsHome = () => {
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton 
-                onClick={() => setSidebarOpen(true)} 
+              <IconButton
+                onClick={() => setSidebarOpen(true)}
                 edge="start"
                 size="medium"
+                aria-label="Open documentation panel"
                 sx={{
                   bgcolor: 'primary.main',
                   color: 'white',

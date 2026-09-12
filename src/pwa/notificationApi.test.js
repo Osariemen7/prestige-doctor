@@ -1,6 +1,7 @@
+import { vi } from 'vitest';
 import { notificationPath, readNotification, listNotifications, disableDoctorPush } from './notificationApi';
 import { request } from '../vnext/api';
-jest.mock('../vnext/api', () => ({ request: jest.fn() }));
+vi.mock('../vnext/api', () => ({ request: vi.fn() }));
 test('uses role-scoped inbox and stable read acknowledgements', async () => {
   await listNotifications('cursor/next'); await readNotification('notice-1');
   expect(request).toHaveBeenCalledWith('/care/notifications?app=doctor&cursor=cursor%2Fnext', expect.any(Object));
@@ -8,8 +9,8 @@ test('uses role-scoped inbox and stable read acknowledgements', async () => {
   expect(notificationPath({ route: 'https://evil.test' })).toBe('/app/notifications');
 });
 test('logout unsubscribes this device even when server cleanup cannot be reached', async () => {
-  const unsubscribe = jest.fn().mockResolvedValue(true);
-  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { getRegistration: jest.fn().mockResolvedValue({ pushManager: { getSubscription: jest.fn().mockResolvedValue({ endpoint: 'https://push.test/device', unsubscribe }) } }) } });
+  const unsubscribe = vi.fn().mockResolvedValue(true);
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { getRegistration: vi.fn().mockResolvedValue({ pushManager: { getSubscription: vi.fn().mockResolvedValue({ endpoint: 'https://push.test/device', unsubscribe }) } }) } });
   localStorage.setItem('prestige.doctor.push-binding', JSON.stringify({ id: 'subscription-1' }));
   request.mockRejectedValueOnce(new Error('offline'));
   await expect(disableDoctorPush()).rejects.toThrow('offline');

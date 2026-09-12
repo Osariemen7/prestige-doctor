@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ClinicalDocumentationWorkspace, { validateDocumentationDraft } from './ClinicalDocumentationWorkspace';
@@ -14,9 +15,9 @@ import {
   submitDoctorDecision,
 } from './api';
 
-jest.mock('react-router-dom', () => ({ useNavigate: () => jest.fn() }), { virtual: true });
-jest.mock('lucide-react', () => {
-  const ReactModule = require('react');
+vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('lucide-react', async () => {
+  const ReactModule = await import('react');
   const makeIcon = (name) => (props) => ReactModule.createElement('span', { ...props, 'data-icon': name });
   return ['AlertTriangle', 'Check', 'CheckCircle2', 'ChevronRight', 'CircleHelp', 'Clock3', 'FileCheck2', 'Info', 'LockKeyhole', 'Menu', 'RefreshCw', 'ShieldAlert', 'Timer', 'UserRound', 'X'].reduce((icons, name) => ({ ...icons, [name]: makeIcon(name) }), {});
 });

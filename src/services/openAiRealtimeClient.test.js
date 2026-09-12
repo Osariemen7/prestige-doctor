@@ -3,6 +3,7 @@ import {
   extractCopilotToolCallFromRealtimeEvent,
   extractCopilotUpdateFromRealtimeEvent,
 } from './openAiRealtimeClient';
+import { vi } from 'vitest';
 
 describe('openAiRealtimeClient copilot update parsing', () => {
   it('extracts copilot updates from realtime function-call argument events', () => {

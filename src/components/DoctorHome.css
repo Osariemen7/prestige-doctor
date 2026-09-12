@@ -66,6 +66,9 @@
 .doctor-nav-footer { display: grid; gap: 3px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--doctor-line); }
 .doctor-nav-logout:hover { background: #fff0f0; }
 .doctor-nav-logout:hover .doctor-nav-label, .doctor-nav-logout:hover .doctor-nav-icon { color: #c24d5d; }
+.doctor-nav-legal { display: flex; align-items: center; justify-content: center; gap: 7px; padding-top: 10px; color: #8a9aa8; font-size: 0.66rem !important; }
+.doctor-nav-legal a { color: #718698; text-decoration: none; font-weight: 700; }
+.doctor-nav-legal a:hover, .doctor-nav-legal a:focus-visible { color: var(--doctor-blue); text-decoration: underline; }
 .doctor-rail-user { display: flex; align-items: center; gap: 9px; margin-top: 17px; padding: 13px 9px 0; border-top: 1px solid var(--doctor-line); }
 .doctor-rail-user-name { overflow: hidden; color: var(--doctor-ink); font-size: 0.73rem !important; font-weight: 800 !important; text-overflow: ellipsis; white-space: nowrap; }
 .doctor-rail-user-role { margin-top: 3px !important; color: #8a9aa8; font-size: 0.64rem !important; }

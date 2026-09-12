@@ -13,6 +13,7 @@ import {
   markCopilotActionDoctorApproved,
   normalizeTriageContextForRealtime,
 } from './liveCopilotWorkflow';
+import { vi } from 'vitest';
 
 describe('live copilot workflow payload helpers', () => {
   it('builds a focused triage-clarification realtime payload with safety boundaries', () => {

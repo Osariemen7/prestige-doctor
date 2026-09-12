@@ -1,4 +1,4 @@
-import { GoogleLogin } from '@react-oauth/google';
+﻿import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import { Button, Box, Typography, CircularProgress } from '@mui/material';
 import React, { useState } from 'react';
@@ -13,9 +13,9 @@ const GoogleAuthButton = ({
 }) => {
   const [loading, setLoading] = useState(false);
 
-  const isConfigured = process.env.REACT_APP_GOOGLE_CLIENT_ID &&
-    process.env.REACT_APP_GOOGLE_CLIENT_ID !== 'your-actual-client-id-here' &&
-    process.env.REACT_APP_GOOGLE_CLIENT_ID.includes('googleusercontent.com');
+  const isConfigured = import.meta.env.VITE_GOOGLE_CLIENT_ID &&
+    import.meta.env.VITE_GOOGLE_CLIENT_ID !== 'your-actual-client-id-here' &&
+    import.meta.env.VITE_GOOGLE_CLIENT_ID.includes('googleusercontent.com');
 
   if (!isConfigured) {
     return (
@@ -26,7 +26,7 @@ const GoogleAuthButton = ({
           </Typography>
         </Button>
         <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
-          Please configure REACT_APP_GOOGLE_CLIENT_ID in your .env file with a valid Google OAuth client ID from Google Cloud Console.
+          Please configure VITE_GOOGLE_CLIENT_ID in your .env file with a valid Google OAuth client ID from Google Cloud Console.
         </Typography>
       </Box>
     );
