@@ -3,6 +3,10 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
+// The first App render loads the full MUI-auth route graph through React.lazy;
+// allow the cold Jest transform to complete on the constrained release host.
+jest.setTimeout(30000);
+
 test('renders the doctor workspace entry point for logged-out visitors', async () => {
   localStorage.clear();
   render(
