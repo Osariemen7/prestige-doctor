@@ -4,8 +4,7 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom/vitest';
 
-// React Router v7 uses the platform encoders in its history implementation;
-// Jest's jsdom environment does not provide them on older Node/Jest pairs.
+// Provide the platform encoders consistently in the Vitest jsdom environment.
 import { TextDecoder, TextEncoder } from 'util';
 
 global.TextEncoder = TextEncoder;

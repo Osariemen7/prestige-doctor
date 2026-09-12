@@ -18,4 +18,4 @@ node node_modules/vitest/vitest.mjs run src/AppRoutes.test.jsx src/pwa/Notificat
 npm run build
 ```
 
-The merge quality review passed 18 focused suites / 63 tests. Full cold login is not claimed by that focused set. Production builds must be run against the final committed source with `REACT_APP_BUILD_SHA` set to its commit ID (Vercel supplies its own Git commit ID). Build receipts and final source identity are reported separately. A public health response alone does not prove a frontend deployment or an authenticated end-to-end clinical flow.
+The merge quality review passed all 29 test files / 127 tests across bounded shards, including the real lazy login route. Its test wait allows cold module transformation and is not a production timing budget. Production builds must be run against the final committed source with `REACT_APP_BUILD_SHA` set to its commit ID (Vercel supplies its own Git commit ID). Build receipts and final source identity are reported separately. A public health response alone does not prove a frontend deployment or an authenticated end-to-end clinical flow.
