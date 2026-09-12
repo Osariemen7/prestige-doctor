@@ -40,9 +40,9 @@ describe('doctor Care Kernel HTTP contract', () => {
         next_checkpoint: { title: 'Review evidence' },
       }],
     }));
-    const result = await fetchCareActivity({ role: 'doctor', cursor: 'next-page' });
+    const result = await fetchCareActivity({ role: 'doctor', cursor: 'next-page', limit: 8 });
     const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toContain('/care/activity?role=doctor&cursor=next-page');
+    expect(url).toContain('/care/activity?role=doctor&cursor=next-page&limit=8');
     expect(options.method).toBe('GET');
     expect(options.headers.Authorization).toBe('Bearer access-token');
     expect(options.headers['Idempotency-Key']).toBeUndefined();

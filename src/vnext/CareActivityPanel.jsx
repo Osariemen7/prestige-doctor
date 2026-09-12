@@ -1,21 +1,50 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchCareActivity } from './api';
 import { formatDateTime, formatRelativeDue } from './contract';
 import { ActionButton, EmptyState, ErrorState, LinkArrow, LoadingState, Panel, SafeNote, StatusBadge } from './components';
 
+const PAGE_SIZE = 8;
+
 const useCareActivity = (demo) => {
-  const [state, setState] = useState({ loading: true, data: null, error: null });
+  const [state, setState] = useState({ loading: true, loadingMore: false, data: null, error: null, loadMoreError: null });
   const [reloadKey, setReloadKey] = useState(0);
+  const generation = useRef(0);
   useEffect(() => {
     let active = true;
+    const requestGeneration = ++generation.current;
     const controller = new AbortController();
-    setState((current) => ({ ...current, loading: true, error: null }));
-    fetchCareActivity({ role: 'doctor', demo, signal: controller.signal })
-      .then((data) => { if (active) setState({ loading: false, data, error: null }); })
-      .catch((error) => { if (active && error?.name !== 'AbortError') setState({ loading: false, data: null, error }); });
+    setState({ loading: true, loadingMore: false, data: null, error: null, loadMoreError: null });
+    fetchCareActivity({ role: 'doctor', demo, limit: PAGE_SIZE, signal: controller.signal })
+      .then((data) => { if (active && requestGeneration === generation.current) setState({ loading: false, loadingMore: false, data, error: null, loadMoreError: null }); })
+      .catch((error) => { if (active && requestGeneration === generation.current && error?.name !== 'AbortError') setState({ loading: false, loadingMore: false, data: null, error, loadMoreError: null }); });
     return () => { active = false; controller.abort(); };
   }, [demo, reloadKey]);
-  return { ...state, reload: () => setReloadKey((value) => value + 1) };
+  const loadMore = useCallback(async () => {
+    const cursor = state.data?.next_cursor;
+    if (!cursor || state.loadingMore) return;
+    const requestGeneration = generation.current;
+    setState((current) => ({ ...current, loadingMore: true, loadMoreError: null }));
+    try {
+      const page = await fetchCareActivity({ role: 'doctor', demo, cursor, limit: PAGE_SIZE });
+      if (requestGeneration !== generation.current) return;
+      setState((current) => {
+        const existing = current.data?.items || [];
+        const existingIds = new Set(existing.map((item) => item.public_id).filter(Boolean));
+        const additions = (page.items || []).filter((item) => !item.public_id || !existingIds.has(item.public_id));
+        return {
+          ...current,
+          loadingMore: false,
+          loadMoreError: null,
+          data: { ...current.data, ...page, items: [...existing, ...additions] },
+        };
+      });
+    } catch (error) {
+      if (requestGeneration === generation.current && error?.name !== 'AbortError') {
+        setState((current) => ({ ...current, loadingMore: false, loadMoreError: error }));
+      }
+    }
+  }, [demo, state.data?.next_cursor, state.loadingMore]);
+  return { ...state, loadMore, reload: () => setReloadKey((value) => value + 1) };
 };
 
 const progressLabel = (item) => {
@@ -31,14 +60,14 @@ function ActivityRow({ item, onOpenCase }) {
     <div className="vnext-activity-row__content">
       <div className="vnext-activity-row__top">
         <div className="vnext-activity-row__title">
-          <span className="vnext-eyebrow">{item.patient?.display_name || 'Authorized patient'} · {item.kind.replaceAll('_', ' ')}</span>
+          <span className="vnext-eyebrow">{item.patient?.display_name || 'Authorized patient'} · {String(item.kind || 'care work').replaceAll('_', ' ')}</span>
           <h3>{item.title}</h3>
         </div>
-        <StatusBadge status={item.status} />
+        <StatusBadge status={item.status} label={item.status_label || undefined} />
       </div>
       <p className="vnext-activity-row__progress">{progressLabel(item)}</p>
       <div className="vnext-activity-row__meta">
-        <span><strong>Owner</strong>{item.owner || 'Not supplied'}</span>
+        <span><strong>Owner</strong>{item.owner_label || item.owner || 'Not supplied'}</span>
         <span><strong>Checkpoint</strong>{item.next_checkpoint.title || 'Not supplied'}</span>
         <span><strong>Due</strong>{due.label}{item.due_at ? ` · ${formatDateTime(item.due_at)}` : ''}</span>
       </div>
@@ -52,8 +81,9 @@ function ActivityRow({ item, onOpenCase }) {
 export default function CareActivityPanel({ demo = false, onOpenCase }) {
   const data = useCareActivity(demo);
   return <Panel title="Ongoing care work" eyebrow="Server-owned continuity" action="Refresh" onAction={data.reload}>
-    {data.loading ? <LoadingState label="Loading ongoing care work…" /> : data.error ? <ErrorState error={data.error} onRetry={data.reload} /> : !data.data?.items?.length ? <EmptyState title="No ongoing care work" body="The server has not returned an active task that needs your clinical attention." /> : <div className="vnext-activity-list" aria-label="Ongoing care work">{data.data.items.slice(0, 8).map((item) => <ActivityRow key={item.public_id || `${item.title}-${item.updated_at}`} item={item} onOpenCase={onOpenCase} />)}</div>}
-    {!data.loading && !data.error && data.data?.items?.length > 8 && <p className="vnext-small vnext-muted" style={{ padding: '12px 18px', margin: 0 }}>Showing the first 8 server-prioritized items.</p>}
+    {data.loading ? <LoadingState label="Loading ongoing care work…" /> : data.error ? <ErrorState error={data.error} onRetry={data.reload} /> : !data.data?.items?.length ? <EmptyState title="No ongoing care work" body="The server has not returned an active task that needs your clinical attention." /> : <div className="vnext-activity-list" aria-label="Ongoing care work">{data.data.items.map((item) => <ActivityRow key={item.public_id || `${item.title}-${item.updated_at}`} item={item} onOpenCase={onOpenCase} />)}</div>}
+    {!data.loading && !data.error && data.data?.next_cursor && <div className="vnext-activity-more"><ActionButton variant="secondary" onClick={data.loadMore} disabled={data.loadingMore}>{data.loadingMore ? 'Loading more…' : 'Load more ongoing care work'}</ActionButton></div>}
+    {data.loadMoreError && <div className="vnext-notice vnext-notice--warning vnext-activity-more-error" role="alert"><span>More ongoing care work could not be loaded. Existing items remain server-confirmed.</span><ActionButton variant="secondary" onClick={data.loadMore} disabled={data.loadingMore}>{data.loadingMore ? 'Retrying…' : 'Try again'}</ActionButton></div>}
     <SafeNote>These are server-confirmed coordination states. Open the linked case for evidence and the exact-hash clinician review flow; this panel cannot approve or alter care.</SafeNote>
   </Panel>;
 }

@@ -33,7 +33,7 @@ export const careConversationSchema = z.object({
     task_id: z.string(), relation: z.string(), state: z.string(), task_type: z.string(), risk_tier: z.string(),
     due_at: z.string().nullable().optional(), requires_response: z.boolean(),
     assignment_actions: z.array(z.enum(['release', 'decline'])).default([]),
-  }).passthrough()).max(3),
+  }).passthrough()).max(6),
   turns: z.array(conversationTurnSchema),
   allowed_actions: z.object({ reply: z.boolean(), read: z.boolean(), pause: z.boolean(), update_delivery_preferences: z.boolean() }).passthrough(),
   delivery_preferences: z.object({

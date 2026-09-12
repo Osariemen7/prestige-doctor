@@ -68,8 +68,8 @@ export const formatRelativeDue = (value, now = Date.now()) => {
 
 export const statusTone = (status) => {
   const normalized = asText(status).toLowerCase();
-  if (['emergency', 'safety', 'blocked', 'overdue', 'rejected'].includes(normalized)) return 'danger';
-  if (['needs_attention', 'waiting_on_patient', 'waiting_on_clinician', 'waiting_on_provider', 'pending', 'renegotiated'].includes(normalized)) return 'warning';
+  if (['emergency', 'safety', 'blocked', 'overdue', 'rejected', 'declined'].includes(normalized)) return 'danger';
+  if (['needs_attention', 'waiting', 'waiting_on_patient', 'waiting_on_clinician', 'waiting_on_provider', 'pending', 'renegotiated', 'escalated'].includes(normalized)) return 'warning';
   if (['authorized', 'provider_included', 'completed'].includes(normalized)) return 'success';
   return 'info';
 };
@@ -77,6 +77,8 @@ export const statusTone = (status) => {
 export const statusLabel = (status) => {
   const labels = {
     needs_attention: 'Needs attention',
+    ready: 'Ready to start',
+    waiting: 'Waiting',
     in_progress: 'In progress',
     waiting_on_patient: 'Waiting on patient',
     waiting_on_clinician: 'Waiting on clinician',
@@ -84,6 +86,9 @@ export const statusLabel = (status) => {
     provider_included: 'Provider-included care',
     authorized: 'Authorized',
     completed: 'Completed',
+    declined: 'Declined',
+    escalated: 'Escalated',
+    terminal: 'Closed',
     unavailable: 'Unavailable',
     not_loaded: 'Not loaded',
     pending: 'Pending',
@@ -420,6 +425,13 @@ const normalizeActivityCheckpoint = (raw) => {
   };
 };
 
+const caseIdFromDestination = (raw) => {
+  const href = typeof raw === 'string' ? raw : raw?.href;
+  const match = /^\/app\/cases\/([^/?#]+)$/.exec(asText(href));
+  if (!match) return '';
+  try { return decodeURIComponent(match[1]); } catch { return ''; }
+};
+
 export const normalizeCareActivity = (raw = {}) => {
   const source = Array.isArray(raw) ? { items: raw } : (raw && typeof raw === 'object' ? raw : {});
   const rows = first(source.items, source.results, source.activity, source.ongoing_work, source.tasks);
@@ -427,16 +439,23 @@ export const normalizeCareActivity = (raw = {}) => {
     const checkpoint = normalizeActivityCheckpoint(first(item.next_checkpoint, item.checkpoint, item.next_step));
     const progressValue = first(item.progress_percent, item.verified_progress, item.progress);
     const numericProgress = progressValue === undefined || progressValue === null || progressValue === '' ? null : Number(progressValue);
+    const destinationCaseId = caseIdFromDestination(item.destination);
+    const owner = normalizeActivityOwner(item.owner || item.current_owner || item.assignee);
     return {
-      public_id: asText(first(item.public_id, item.id, item.task_id, item.goal_id, item.episode_id)),
-      kind: asText(first(item.kind, item.type, item.work_type), 'care_work'),
+      public_id: asText(first(item.public_id, item.id, item.task_id, item.goal_id, item.episode_id, item.activity_id)),
+      activity_id: asText(first(item.activity_id, item.public_id, item.id, item.task_id, item.goal_id, item.episode_id)),
+      task_id: asText(first(item.task_id, item.task?.public_id, item.task?.id)),
+      goal_id: asText(first(item.goal_id, item.goal?.public_id, item.goal?.id)),
+      kind: asText(first(item.kind, item.type, item.work_type, item.task_type), 'care_work'),
       title: asText(first(item.title, item.label, item.goal?.patient_wording, item.patient_goal), 'Ongoing care work'),
       status: asText(first(item.status, item.state), 'pending'),
+      status_label: asText(first(item.status_label, item.state_label)),
       patient: normalizeActivityPatient(item.patient || item.subject),
-      case_id: asText(first(item.case_public_id, item.proposal_id, item.case_id, item.context?.case_id, item.context?.proposal_id)),
+      case_id: asText(first(item.case_public_id, item.proposal_id, item.case_id, item.context?.case_id, item.context?.proposal_id, destinationCaseId)),
       progress: Number.isFinite(numericProgress) && numericProgress >= 0 && numericProgress <= 100 ? numericProgress : null,
       progress_label: asText(first(item.progress_label, item.progress_summary, item.last_progress)),
-      owner: normalizeActivityOwner(item.owner || item.current_owner || item.assignee),
+      owner,
+      owner_label: asText(first(item.owner_label, item.current_owner_label)) || owner,
       blocker: asText(first(item.blocker, item.blocked_reason, item.blocking_reason)),
       next_checkpoint: checkpoint,
       action_label: asText(first(item.action?.label, item.next_action_label, item.action_label)),

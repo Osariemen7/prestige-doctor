@@ -51,3 +51,25 @@ test('keeps a work item without a case destination read-only', async () => {
   expect(action).toBeDisabled();
   await waitFor(() => expect(fetchCareActivity).toHaveBeenCalledWith(expect.objectContaining({ role: 'doctor', demo: false })));
 });
+
+test('loads the next server page and keeps existing work when a page overlaps', async () => {
+  fetchCareActivity
+    .mockResolvedValueOnce({
+      items: [{ public_id: 'task-1', title: 'Review first case', status: 'ready', next_checkpoint: {} }],
+      next_cursor: '8',
+    })
+    .mockResolvedValueOnce({
+      items: [
+        { public_id: 'task-1', title: 'Review first case', status: 'ready', next_checkpoint: {} },
+        { public_id: 'task-9', title: 'Review next case', status: 'waiting', next_checkpoint: {} },
+      ],
+      next_cursor: null,
+    });
+  render(<MemoryRouter><CareActivityPanel /></MemoryRouter>);
+  expect(await screen.findByText('Review first case')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Load more ongoing care work' }));
+  expect(await screen.findByText('Review next case')).toBeInTheDocument();
+  expect(screen.getAllByText('Review first case')).toHaveLength(1);
+  expect(fetchCareActivity).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'doctor', cursor: '8', limit: 8 }));
+  expect(screen.queryByRole('button', { name: 'Load more ongoing care work' })).not.toBeInTheDocument();
+});

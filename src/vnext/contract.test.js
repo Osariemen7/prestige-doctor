@@ -34,14 +34,17 @@ test('does not infer exact-hash authority when the server contract is missing', 
 test('normalizes server-owned ongoing work and preserves missing authority fields', () => {
   const projection = normalizeCareActivity({
     results: [{
-      id: 'task-1',
-      type: 'result_follow_up',
+      activity_id: 'task:task-1',
+      task_id: 'task-1',
+      task_type: 'result_follow_up',
       title: 'Interpret a returned result',
-      state: 'waiting_on_clinician',
+      state: 'waiting',
+      status_label: 'Waiting',
       subject: { id: 'patient-1', name: 'Authorized patient' },
-      proposal_id: 'proposal-1',
+      destination: { href: '/app/cases/proposal-1', label: 'Open authorized case' },
       verified_progress: 42,
-      current_owner: { role: 'Assigned clinician' },
+      owner: 'doctor',
+      owner_label: 'Assigned clinician',
       blocked_reason: 'Clinical interpretation is required',
       next_checkpoint: { label: 'Open the case', due: '2026-08-09T12:00:00+01:00' },
       action: { label: 'Review' },
@@ -53,16 +56,29 @@ test('normalizes server-owned ongoing work and preserves missing authority field
     next_cursor: 'next-page',
     items: [{
       public_id: 'task-1',
+      activity_id: 'task:task-1',
+      task_id: 'task-1',
       kind: 'result_follow_up',
-      status: 'waiting_on_clinician',
+      status: 'waiting',
+      status_label: 'Waiting',
       patient: { public_id: 'patient-1', display_name: 'Authorized patient' },
       case_id: 'proposal-1',
       progress: 42,
-      owner: 'Assigned clinician',
+      owner: 'doctor',
+      owner_label: 'Assigned clinician',
       blocker: 'Clinical interpretation is required',
       next_checkpoint: { title: 'Open the case', due_at: '2026-08-09T12:00:00+01:00' },
       action_label: 'Review',
     }],
   });
   expect(projection.items[0].unsafe_destination).toBeUndefined();
+});
+
+test('maps canonical care task states to readable doctor status semantics', () => {
+  expect(statusTone('waiting')).toBe('warning');
+  expect(statusTone('declined')).toBe('danger');
+  expect(normalizeCareActivity({ items: [{ task_id: 'task-ready', state: 'ready', task_type: 'refill_review' }] }).items[0]).toMatchObject({
+    kind: 'refill_review',
+    status: 'ready',
+  });
 });

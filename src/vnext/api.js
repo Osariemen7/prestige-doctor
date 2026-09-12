@@ -165,10 +165,11 @@ export const fetchReviewInbox = async ({ queue = 'assigned', urgency, dueBefore,
   return { ...result, items: validateQueue(result) };
 };
 
-export const fetchCareActivity = async ({ role = 'doctor', cursor, demo = false, signal } = {}) => {
+export const fetchCareActivity = async ({ role = 'doctor', cursor, limit, demo = false, signal } = {}) => {
   if (isDemoEnabled(demo)) return validateActivity(await demoRequest('activity'));
   const params = new URLSearchParams({ role });
   if (cursor) params.set('cursor', cursor);
+  if (limit) params.set('limit', String(limit));
   const result = await request(`/care/activity?${params.toString()}`, { signal });
   return validateActivity(result);
 };
