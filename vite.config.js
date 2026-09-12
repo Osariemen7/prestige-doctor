@@ -83,6 +83,7 @@ module.exports = defineConfig(({ mode, command }) => {
     },
     build: {
       outDir: 'dist-vite',
+      manifest: true,
       emptyOutDir: true,
       sourcemap: false,
     },

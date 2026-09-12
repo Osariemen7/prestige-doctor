@@ -1,77 +1,31 @@
-# PrestigeHealth Provider Dashboard
+# PrestigeHealth Doctor PWA
 
-Web dashboard for PrestigeHealth clinicians: manage medical reviews, patient
-records, investigations, messaging, clinical services and the care-coordinator
-queue. This is the **provider-facing** React app; patients use the separate
-PrestigeHealth mobile app.
+The clinician app brings together review queues, patient progress, care messages, notifications and the diagnostic workspace. Patients and partners use their own role-specific PWAs.
 
-## Stack
-
-- [React 19](https://react.dev) with [Vite 6](https://vite.dev) and [Vitest](https://vitest.dev)
-- [React Router v7](https://reactrouter.com) for routing (protected clinician routes)
-- [MUI v6](https://mui.com) primary UI kit; [Chakra UI v2](https://chakra-ui.com) in some legacy screens; Tailwind CSS utilities
-- [Agora RTC SDK NG](https://www.agora.io/en/products/video-call) for voice/video visits (server-issued tokens only)
-- JWT auth: WhatsApp-OTP flow against `POST /api/tokenrefresh/` with automatic access-token refresh (`src/api.js`)
-- [react-error-boundary](https://github.com/bvaughn/react-error-boundary) top-level crash fallback
-
-## Getting started
+## Run locally
 
 ```bash
-npm install
-cp .env.example .env        # fill in local values; never commit .env*
-npm run dev                 # http://localhost:3000
+npm ci --legacy-peer-deps
+npm start
 ```
 
-### Environment variables
+The development server listens on `http://127.0.0.1:3205`. `npm run preview` serves a production build on port 3206. The stack is React 19, React Router 6.26 and Vite 6, with Vitest for tests.
 
-All client configuration is centralised in [`src/apiConfig.js`](src/apiConfig.js)
-and sourced from `VITE_*` environment variables (only `VITE_`-prefixed vars are
-exposed to the client bundle) — see [`.env.example`](.env.example). Never commit
-real `.env` / `.env.production` files.
+## Client configuration
 
-Key variables:
+The shared `src/apiOrigin.js` resolves the public API origin for authentication, core care and legacy services. It accepts `REACT_APP_QA_API_ORIGIN`, `REACT_APP_API_BASE_URL`, `REACT_APP_BACKEND_BASE_URL`, `VITE_API_ORIGIN` and `VITE_BACKEND_BASE_URL` in that order, after an explicit runtime override. The production default is `https://api.prestigedelta.com`; QA requires an explicit API origin. See `.env.example` for optional public integration settings. Never put secrets in client environment variables or commit real environment files.
 
-| Variable | Purpose |
-| --- | --- |
-| `VITE_BACKEND_BASE_URL` | API base (defaults to `https://api.prestigedelta.com`) |
-| `VITE_GOOGLE_CLIENT_ID` | Google sign-in OAuth client |
-| `VITE_AGORA_APP_ID` | Display info only – live joins require the backend Agora token endpoint |
+Set `REACT_APP_BUILD_SHA` to the exact source commit when building locally. Vercel builds also accept `VERCEL_GIT_COMMIT_SHA`. Production builds disable synthetic fixtures.
 
-## Scripts
+## Verify and deploy
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Development server |
-| `npm test` | Vitest suite, single run (`npm run test:watch` to watch) |
-| `npm run build` | Production bundle in `build/` |
-| `npm run preview` | Serve the production build locally |
+```bash
+npm run test:ci
+npm run build
+```
 
-## Architecture notes
+Vite outputs `dist-vite/`, including a build manifest and the injected `service-worker.js`. Deploy that directory with SPA rewrites to `index.html`; `vercel.json` provides the hosting configuration. The service worker caches public shell assets only. It does not cache clinical API responses or queue clinical changes offline.
 
-- `src/App.js` restores the session from the persisted refresh token on launch
-  (branded splash while validating), then mounts routes. All clinician surfaces
-  are wrapped in `ProtectedRoute`, which redirects unauthenticated visitors to
-  `/login` while preserving the intended destination.
-- Voice/video visits **fail closed**: the client fetches short-lived Agora
-  credentials from `{API_BASE_URL}/agora/rtc-token/` for every join and never
-  joins with a null token.
-- A minimal service worker (`public/sw.js`) caches built static assets only;
-  `/api` and API hosts are always network-first/never cached so clinical data is
-  never served stale.
+Core routes load on demand, and authenticated destinations survive WhatsApp OTP. Notifications resolve an opaque ID through the authenticated API before navigation. Existing medical-review links retain their identity and use the canonical review adapter.
 
-## Deployment
-
-Deployed as a static build (Vercel config included):
-
-1. Set production env vars in the hosting provider (`REACT_APP_*` are baked at
-   build time).
-2. `npm run build` → serve `build/` with SPA rewrites to `index.html`.
-3. CI (`.github/workflows/release-smoke.yml`) runs the full test suite and a
-   production build on pull requests and pushes to `main`.
-
-## Support
-
-Questions or issues? Contact [support@prestigedelta.com](mailto:support@prestigedelta.com).
-See also [Terms](src/components/TermsPage.jsx) and
-[Privacy](src/components/PrivacyPage.jsx) notices for the provider supplement
-to the patient-app policies.
+See [the Doctor PWA notes](docs/DOCTOR_PWA.md) for route contracts and the focused review results. A successful static build alone does not prove production authentication or end-to-end clinical delivery.
