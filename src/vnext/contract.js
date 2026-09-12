@@ -395,6 +395,62 @@ export const normalizePatientProgress = (raw = {}) => ({
   execution: raw.execution || null,
 });
 
+const normalizeActivityOwner = (raw) => {
+  if (typeof raw === 'string' || typeof raw === 'number') return asText(raw);
+  if (!raw || typeof raw !== 'object') return '';
+  return asText(first(raw.display_name, raw.name, raw.label, raw.role, raw.owner));
+};
+
+const normalizeActivityPatient = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    public_id: asText(first(raw.public_id, raw.id, raw.patient_id)),
+    display_name: asText(first(raw.display_name, raw.name)),
+  };
+};
+
+const normalizeActivityCheckpoint = (raw) => {
+  if (typeof raw === 'string') return { title: raw, due_at: null, owner: '' };
+  if (!raw || typeof raw !== 'object') return { title: '', due_at: null, owner: '' };
+  return {
+    public_id: asText(first(raw.public_id, raw.id, raw.task_id)),
+    title: asText(first(raw.title, raw.label, raw.name, raw.next_action)),
+    due_at: first(raw.due_at, raw.deadline, raw.due) || null,
+    owner: normalizeActivityOwner(raw.owner || raw.assignee),
+  };
+};
+
+export const normalizeCareActivity = (raw = {}) => {
+  const source = Array.isArray(raw) ? { items: raw } : (raw && typeof raw === 'object' ? raw : {});
+  const rows = first(source.items, source.results, source.activity, source.ongoing_work, source.tasks);
+  const items = asArray(rows).map((item = {}) => {
+    const checkpoint = normalizeActivityCheckpoint(first(item.next_checkpoint, item.checkpoint, item.next_step));
+    const progressValue = first(item.progress_percent, item.verified_progress, item.progress);
+    const numericProgress = progressValue === undefined || progressValue === null || progressValue === '' ? null : Number(progressValue);
+    return {
+      public_id: asText(first(item.public_id, item.id, item.task_id, item.goal_id, item.episode_id)),
+      kind: asText(first(item.kind, item.type, item.work_type), 'care_work'),
+      title: asText(first(item.title, item.label, item.goal?.patient_wording, item.patient_goal), 'Ongoing care work'),
+      status: asText(first(item.status, item.state), 'pending'),
+      patient: normalizeActivityPatient(item.patient || item.subject),
+      case_id: asText(first(item.case_public_id, item.proposal_id, item.case_id, item.context?.case_id, item.context?.proposal_id)),
+      progress: Number.isFinite(numericProgress) && numericProgress >= 0 && numericProgress <= 100 ? numericProgress : null,
+      progress_label: asText(first(item.progress_label, item.progress_summary, item.last_progress)),
+      owner: normalizeActivityOwner(item.owner || item.current_owner || item.assignee),
+      blocker: asText(first(item.blocker, item.blocked_reason, item.blocking_reason)),
+      next_checkpoint: checkpoint,
+      action_label: asText(first(item.action?.label, item.next_action_label, item.action_label)),
+      updated_at: first(item.updated_at, item.last_activity_at, item.created_at) || null,
+      due_at: first(item.due_at, item.deadline, checkpoint.due_at) || null,
+    };
+  });
+  return {
+    items,
+    next_cursor: asText(first(source.next_cursor, source.next, source.cursor)),
+    summary: source.summary && typeof source.summary === 'object' ? source.summary : {},
+  };
+};
+
 export const isTerminalDecision = (decision) => ['approve_as_written', 'edit_and_approve', 'escalate', 'reject'].includes(decision);
 
 export const isMaterialPlan = (plan) => Boolean(plan && (plan.plan_summary || plan.actions?.length || plan.regimens?.length));

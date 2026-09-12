@@ -537,6 +537,38 @@ export const getDemoAlerts = () => copy([
   { public_id: 'alert-info-123', type: 'resubmission', status: 'needs_attention', label: 'New information returned to an existing decision cycle', proposal_id: 'proposal-info-returned-123', due_at: '2026-08-07T16:30:00+01:00' },
 ]);
 
+export const getDemoActivity = () => copy({
+  items: [
+    {
+      public_id: 'task-review-hypertension-123',
+      kind: 'clinical_review',
+      title: 'Review the returned blood pressure follow-up',
+      status: 'needs_attention',
+      patient: { public_id: DEMO_IDS.patient, display_name: 'Amina Okafor' },
+      proposal_id: DEMO_IDS.proposal,
+      progress_percent: 64,
+      progress_summary: '64% verified progress from the latest care evidence',
+      owner: { role: 'Current clinician' },
+      blocker: 'Clinical decision required before coordination can continue',
+      next_checkpoint: { title: 'Review the exact proposal and decision options', due_at: '2026-08-07T15:00:00+01:00' },
+      updated_at: DEMO_NOW,
+    },
+    {
+      public_id: 'task-result-review-123',
+      kind: 'result_follow_up',
+      title: 'Interpret the returned laboratory result',
+      status: 'waiting_on_clinician',
+      patient: { public_id: 'patient-result-123', display_name: 'Authorized patient' },
+      proposal_id: 'proposal-info-returned-123',
+      progress_label: 'Result received; clinician interpretation is pending',
+      owner: { role: 'Assigned clinician' },
+      next_checkpoint: { title: 'Open the case and document the interpretation', due_at: '2026-08-08T12:00:00+01:00' },
+      updated_at: '2026-08-07T09:20:00+01:00',
+    },
+  ],
+  summary: { needs_attention: 1, waiting_on_clinician: 1 },
+});
+
 export const getDemoProtocols = () => copy([{ public_id: 'protocol-candidate-hypertension-123', title: 'Hypertension follow-up v3 amendment', status: demoProtocolDecisions['protocol-candidate-hypertension-123']?.decision === 'approve' ? 'approved' : 'pending_governance', cohort_match: 'Adult stable hypertension', sample_size: 42, completeness: 'sufficient', safety_events: 0, outcome_comparison: 'Awaiting server comparison', resource_cost: 'Server metric only', frontier_position: 'not_ranked', allowed_actions: ['approve', 'reject', 'request_research'] }]);
 
 export const submitDemoProtocolDecision = (candidateId, payload) => {

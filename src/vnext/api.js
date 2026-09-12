@@ -2,6 +2,7 @@ import { getAccessToken, logout } from '../api';
 import {
   claimDemoProposal,
   getDemoAlerts,
+  getDemoActivity,
   getDemoClinicalService,
   getDemoContribution,
   getDemoInbox,
@@ -16,6 +17,7 @@ import {
 } from './demoFixtures';
 import {
   normalizeClinicalService,
+  normalizeCareActivity,
   normalizePatientProgress,
   normalizeProposal,
   normalizeQueueItem,
@@ -80,6 +82,12 @@ const validateQueue = (value) => {
   return rows.map(normalizeQueueItem);
 };
 
+const validateActivity = (value) => {
+  const rows = Array.isArray(value) ? value : value?.results || value?.items || value?.activity || value?.ongoing_work || value?.tasks;
+  if (!Array.isArray(rows)) throw new DoctorApiError('We could not safely display the latest ongoing care work.', { code: 'schema_mismatch' });
+  return normalizeCareActivity({ ...(value && typeof value === 'object' && !Array.isArray(value) ? value : {}), items: rows });
+};
+
 const validateProposalForReview = (proposal) => {
   if (!proposal.public_id || !proposal.proposal_hash || proposal.hash_contract?.exact_hash_required !== true) {
     throw new DoctorApiError('We could not safely display the latest clinical proposal.', { code: 'schema_mismatch' });
@@ -133,6 +141,7 @@ const demoRequest = async (operation, args = {}) => {
     case 'transition': return getDemoTransition(args.transitionId);
     case 'progress': return getDemoProgress(args.patientId);
     case 'alerts': return getDemoAlerts();
+    case 'activity': return getDemoActivity();
     case 'protocols': return getDemoProtocols();
     case 'protocol-decision': return submitDemoProtocolDecision(args.candidateId, args.payload);
     case 'contribution': return getDemoContribution();
@@ -154,6 +163,14 @@ export const fetchReviewInbox = async ({ queue = 'assigned', urgency, dueBefore,
   if (cursor) params.set('cursor', cursor);
   const result = await request(`/provider/care-review-inbox?${params.toString()}`, { signal });
   return { ...result, items: validateQueue(result) };
+};
+
+export const fetchCareActivity = async ({ role = 'doctor', cursor, demo = false, signal } = {}) => {
+  if (isDemoEnabled(demo)) return validateActivity(await demoRequest('activity'));
+  const params = new URLSearchParams({ role });
+  if (cursor) params.set('cursor', cursor);
+  const result = await request(`/care/activity?${params.toString()}`, { signal });
+  return validateActivity(result);
 };
 
 export const fetchReviewAlerts = async ({ status, demo = false, signal } = {}) => {

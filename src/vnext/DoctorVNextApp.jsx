@@ -23,6 +23,7 @@ import {
 } from './api';
 import { formatDateTime, formatRelativeDue, statusLabel, statusTone } from './contract';
 import { trackDoctorEvent } from './analytics';
+import CareActivityPanel from './CareActivityPanel';
 const ClinicalDocumentationWorkspace = lazy(() => import('./ClinicalDocumentationWorkspace'));
 const MessagesScreen = lazy(() => import('./MessagesScreen'));
 const NotificationsScreen = lazy(() => import('../pwa/NotificationsScreen'));
@@ -154,6 +155,7 @@ function QueueScreen({ demo }) {
       <div className="vnext-metric"><div className="vnext-metric__label">Urgent route</div><div className="vnext-metric__value">{counts.urgent ?? '—'}</div><div className="vnext-metric__sub">Safety and SLA first</div></div>
       <div className="vnext-metric"><div className="vnext-metric__label">Coverage pool</div><div className="vnext-metric__value">{counts.pool ?? '—'}</div><div className="vnext-metric__sub">Minimum necessary preview</div></div>
     </div>
+    <div className="vnext-spaced"><CareActivityPanel demo={demo} onOpenCase={(caseId) => { trackDoctorEvent('ongoing_care_opened', { mode: demo ? 'demo' : 'live' }); navigate(doctorHref(`/app/cases/${encodeURIComponent(caseId)}`, demo)); }} /></div>
     <div className="vnext-section-heading"><div><h2>Cases</h2><p>Funding or sponsorship never changes this order, authority, or due time.</p></div></div>
     <div className="vnext-tabs" role="tablist" aria-label="Queue views">
       {[['assigned', 'Assigned', counts.assigned], ['mine', 'Mine', counts.mine], ['pool', 'Coverage pool', counts.pool]].map(([value, label, count]) => <button key={value} className={`vnext-tab ${tab === value ? 'vnext-tab--active' : ''}`} role="tab" aria-selected={tab === value} onClick={() => setTab(value)}>{label}<span className="vnext-count">{count ?? '—'}</span></button>)}

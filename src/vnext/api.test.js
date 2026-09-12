@@ -1,4 +1,4 @@
-import { fetchProposal, fetchReviewInbox, mutateReviewClaim, resetSyntheticDemo, submitDoctorDecision } from './api';
+import { fetchCareActivity, fetchProposal, fetchReviewInbox, mutateReviewClaim, resetSyntheticDemo, submitDoctorDecision } from './api';
 
 describe('synthetic Care Kernel adapter', () => {
   beforeEach(() => resetSyntheticDemo());
@@ -30,5 +30,17 @@ describe('synthetic Care Kernel adapter', () => {
   test('stale exact hash rejects the decision and does not return local success', async () => {
     await mutateReviewClaim({ proposalId: 'proposal-hypertension-v2', action: 'claim', demo: true });
     await expect(submitDoctorDecision({ proposalId: 'proposal-hypertension-v2', demo: true, payload: { decision: 'approve_as_written', proposal_hash: 'old-hash', reason: 'test' } })).rejects.toMatchObject({ status: 409, code: 'stale_proposal' });
+  });
+
+  test('returns the doctor ongoing-work projection with server-owned checkpoints', async () => {
+    const result = await fetchCareActivity({ demo: true });
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]).toMatchObject({
+      public_id: 'task-review-hypertension-123',
+      status: 'needs_attention',
+      case_id: 'proposal-hypertension-v2',
+      owner: 'Current clinician',
+      next_checkpoint: { title: 'Review the exact proposal and decision options' },
+    });
   });
 });

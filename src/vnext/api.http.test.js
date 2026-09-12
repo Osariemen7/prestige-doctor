@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { submitDoctorDecision, request, fetchProposal } from './api';
+import { fetchCareActivity, submitDoctorDecision, request, fetchProposal } from './api';
 import { getAccessToken } from '../api';
 
 vi.mock('../api', () => ({
@@ -28,6 +28,25 @@ describe('doctor Care Kernel HTTP contract', () => {
     expect(options.headers['Idempotency-Key']).toBe('stable-command-key');
     expect(options.headers['X-Correlation-ID']).toBe('case-correlation');
     expect(JSON.parse(options.body)).toEqual(expect.objectContaining({ proposal_hash: 'server-hash', decision: 'approve_as_written' }));
+  });
+
+  test('activity projection requests the doctor role and stays read-only', async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({
+      items: [{
+        public_id: 'task-1',
+        title: 'Review returned care update',
+        status: 'waiting_on_clinician',
+        proposal_id: 'proposal-1',
+        next_checkpoint: { title: 'Review evidence' },
+      }],
+    }));
+    const result = await fetchCareActivity({ role: 'doctor', cursor: 'next-page' });
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toContain('/care/activity?role=doctor&cursor=next-page');
+    expect(options.method).toBe('GET');
+    expect(options.headers.Authorization).toBe('Bearer access-token');
+    expect(options.headers['Idempotency-Key']).toBeUndefined();
+    expect(result.items[0]).toMatchObject({ public_id: 'task-1', case_id: 'proposal-1', status: 'waiting_on_clinician' });
   });
 });
 
