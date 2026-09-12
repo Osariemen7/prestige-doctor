@@ -1,6 +1,6 @@
 # Doctor PWA
 
-Install the committed lockfile with `npm ci --legacy-peer-deps`. Vite builds production into `dist-vite`; Vitest is the only test runner. React and React Router retain their existing versions. Workbox and the Testing Library DOM peer are explicit development dependencies; CRA/Jest tooling is removed.
+Install the committed lockfile with `npm ci --legacy-peer-deps`. Vite builds production into `dist`; Vitest is the only test runner. React and React Router retain their existing versions. Workbox and the Testing Library DOM peer are explicit development dependencies; CRA/Jest tooling is removed.
 
 The app has one doctor manifest, install guidance and service worker. Only public build assets are cached; protected API responses and clinical writes are never cached or queued offline. A new worker activates through the visible update action. Push previews contain no clinical details. Push clicks open an opaque notification ID, then authenticated GET reauthorizes its destination before read acknowledgement and navigation. An existing clinical draft is not reloaded by a push click.
 

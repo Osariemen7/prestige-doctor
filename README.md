@@ -24,7 +24,7 @@ npm run test:ci
 npm run build
 ```
 
-Vite outputs `dist-vite/`, including a build manifest and the injected `service-worker.js`. Deploy that directory with SPA rewrites to `index.html`; `vercel.json` provides the hosting configuration. The service worker caches public shell assets only. It does not cache clinical API responses or queue clinical changes offline.
+Vite outputs `dist/`, including a build manifest and the injected `service-worker.js`. Deploy that directory with SPA rewrites to `index.html`; `vercel.json` provides the hosting configuration. The service worker caches public shell assets only. It does not cache clinical API responses or queue clinical changes offline.
 
 Core routes load on demand, and authenticated destinations survive WhatsApp OTP. Notifications resolve an opaque ID through the authenticated API before navigation. Existing medical-review links retain their identity and use the canonical review adapter.
 

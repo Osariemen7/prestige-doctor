@@ -1,8 +1,8 @@
 const { defineConfig, loadEnv } = require('vite');
 const react = require('@vitejs/plugin-react');
-const fs = require('node:fs');
 const path = require('node:path');
 const { injectManifest } = require('workbox-build');
+const { createShellEntries } = require('./scripts/doctorPwaManifest.cjs');
 
 const CLIENT_ENV_KEYS = [
   'PUBLIC_URL',
@@ -53,10 +53,8 @@ module.exports = defineConfig(({ mode, command }) => {
     }, react(), {
       name: 'prestige-doctor-pwa',
       async closeBundle() {
-        const output = path.resolve('dist-vite');
-        const html = fs.readFileSync(path.join(output, 'index.html'), 'utf8');
-        const initialAssets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map((match) => match[1]);
-        const assets = ['/index.html', '/offline.html', '/logo192.png', '/logo512.png', ...initialAssets];
+        const output = path.resolve('dist');
+        const assets = createShellEntries(output);
         await injectManifest({
           swSrc: path.resolve('public/service-worker.js'),
           swDest: path.join(output, 'service-worker.js'),
@@ -82,7 +80,7 @@ module.exports = defineConfig(({ mode, command }) => {
       },
     },
     build: {
-      outDir: 'dist-vite',
+      outDir: 'dist',
       manifest: true,
       emptyOutDir: true,
       sourcemap: false,

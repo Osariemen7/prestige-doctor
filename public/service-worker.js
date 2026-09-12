@@ -3,7 +3,7 @@ const PRECACHE_ENTRIES = self.__WB_MANIFEST;
 const SHELL = Array.isArray(PRECACHE_ENTRIES)
   ? PRECACHE_ENTRIES.map((entry) => typeof entry === 'string' ? entry : entry.url)
   : [];
-self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL))));
+self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((url) => new Request(new URL(url, self.location.origin), { cache: 'reload' }))))));
 self.addEventListener('activate', (event) => event.waitUntil((async () => {
   const keys = await caches.keys();
   await Promise.all(keys.filter((key) => key !== CACHE && (key.startsWith('prestige-doctor-') || key.startsWith('workbox-precache'))).map((key) => caches.delete(key)));

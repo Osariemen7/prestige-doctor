@@ -6,8 +6,10 @@ const source = fs.readFileSync(path.join(process.cwd(), 'public/service-worker.j
 function worker() {
   const handlers = {};
   const self = { location: { origin: 'https://doctor.test' }, addEventListener: (name, callback) => { handlers[name] = callback; }, registration: { showNotification: vi.fn().mockResolvedValue() }, clients: { matchAll: vi.fn().mockResolvedValue([]), openWindow: vi.fn().mockResolvedValue(), claim: vi.fn() }, skipWaiting: vi.fn() };
-  vm.runInNewContext(source, { self, URL, caches: { open: vi.fn(), match: vi.fn(), keys: vi.fn() }, fetch: vi.fn() });
-  return { self, handlers };
+  const cache = { addAll: vi.fn().mockResolvedValue() };
+  class ShellRequest { constructor(url, options) { this.url = String(url); this.cache = options.cache; } }
+  vm.runInNewContext(source, { self, URL, Request: ShellRequest, caches: { open: vi.fn().mockResolvedValue(cache), match: vi.fn(), keys: vi.fn() }, fetch: vi.fn() });
+  return { self, handlers, cache };
 }
 test('never intercepts API, cross-origin reads, or mutation requests', () => {
   const { handlers } = worker();
@@ -36,4 +38,14 @@ test('click resolves an opaque notification and never overwrites a case draft', 
   await pending;
   expect(target.navigate).not.toHaveBeenCalled();
   expect(self.clients.openWindow).toHaveBeenCalledWith(`/app/notifications/${id}`);
+});
+
+test('install refreshes mutable shell bytes instead of reusing the HTTP cache', async () => {
+  const { handlers, cache } = worker(); let pending;
+  handlers.install({ waitUntil: (promise) => { pending = promise; } });
+  await pending;
+  expect(cache.addAll.mock.calls[0][0].map(({ url, cache: mode }) => ({ url, mode }))).toEqual([
+    { url: 'https://doctor.test/index.html', mode: 'reload' },
+    { url: 'https://doctor.test/offline.html', mode: 'reload' },
+  ]);
 });
