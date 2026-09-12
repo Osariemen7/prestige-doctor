@@ -146,13 +146,12 @@ export default function DoctorAuth() {
 
   return (
     <>
-    <div className="doctor-public-install"><InstallButton /></div>
     <Box className="doctor-auth-page">
       <Box className="doctor-auth-orb doctor-auth-orb-one" />
       <Box className="doctor-auth-orb doctor-auth-orb-two" />
       <Container maxWidth="lg" className="doctor-auth-container">
         <Box className="doctor-auth-story">
-          <Box className="doctor-auth-brand"><Box className="doctor-auth-brand-mark"><AutoAwesomeRounded /></Box><Typography>prestige</Typography></Box>
+          <Box className="doctor-auth-brand-row"><Box className="doctor-auth-brand"><Box className="doctor-auth-brand-mark"><AutoAwesomeRounded /></Box><Typography>prestige</Typography></Box><InstallButton /></Box>
           <Typography className="doctor-auth-kicker">A calmer way to practice</Typography>
           <Typography component="h1" className="doctor-auth-display">More care, without more chasing.</Typography>
           <Typography className="doctor-auth-story-copy">Prestige gives doctors an AI care team that prepares the work, keeps patients close, and turns trusted follow-through into a durable practice.</Typography>

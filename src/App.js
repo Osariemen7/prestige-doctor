@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams }
 import { isAuthenticated, tryRestoreSession } from './api';
 import { loginForPath, safeDoctorPath } from './pwa/safePath';
 import PwaStatus from './pwa/PwaStatus';
+import { DoctorInstallProvider } from './pwa/InstallButton';
 const DoctorAuth = lazy(() => import('./components/DoctorAuth'));
 const DoctorVNextApp = lazy(() => import('./vnext/DoctorVNextApp'));
 const LegacyWorkspace = lazy(() => import('./pwa/LegacyWorkspace'));
@@ -27,7 +28,7 @@ export default function App() {
   const location = useLocation(); const navigate = useNavigate();
   useEffect(() => { let active = true; tryRestoreSession().catch(() => false).finally(() => { if (active) setReady(true); }); return () => { active = false; }; }, []);
   useEffect(() => { const expired = () => navigate(loginForPath(`${location.pathname}${location.search}${location.hash}`), { replace: true }); window.addEventListener('doctor-auth-required', expired); return () => window.removeEventListener('doctor-auth-required', expired); }, [location, navigate]);
-  return <><PwaStatus />{!ready ? <Loading /> : <Suspense fallback={<Loading />}><Routes>
+  return <DoctorInstallProvider><PwaStatus />{!ready ? <Loading /> : <Suspense fallback={<Loading />}><Routes>
     {['/login', '/register', '/register/:referralCode', '/doctor-register', '/doctor-login'].map((path) => <Route key={path} path={path} element={<PublicRoute />} />)}
     <Route path="/terms" element={<TermsPage />} />
     <Route path="/privacy" element={<PrivacyPage />} />
@@ -44,5 +45,5 @@ export default function App() {
     <Route path="/clinical-services/:orderId" element={<ClinicalServiceRedirect />} />
     {['/work', '/investigations/*', '/clinical-services/*'].map((path) => <Route key={path} path={path} element={<Navigate to="/app/diagnostics" replace />} />)}
     <Route path="*" element={<Navigate to="/app/queue" replace />} />
-  </Routes></Suspense>}</>;
+  </Routes></Suspense>}</DoctorInstallProvider>;
 }
