@@ -15,6 +15,7 @@ export default function PwaStatus() {
   }, []);
   if (!update?.waiting) return null;
   const apply = () => {
+    if (isDoctorUpdateGuarded()) return;
     if (!window.confirm('Reload to update the app? Submit or copy any unfinished notes first.')) return;
     navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
     update.waiting.postMessage({ type: 'SKIP_WAITING' });
