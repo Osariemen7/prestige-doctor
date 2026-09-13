@@ -25,6 +25,7 @@ import {
   submitDoctorDecision,
 } from './api';
 import { trackDoctorEvent } from './analytics';
+import { setClinicalSubmissionActive, setDoctorFormDirty } from '../pwa/updateGuard';
 
 const SECTION_DEFINITIONS = [
   {
@@ -282,6 +283,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
 
   const changes = useMemo(() => documentationChanges(original || {}, draft || {}), [draft, original]);
   const validationErrors = useMemo(() => draft ? validateDocumentationDraft(draft) : [], [draft]);
+  useEffect(() => { if (!draft || result) return undefined; return setDoctorFormDirty(changes.length > 0); }, [changes.length, draft, result]);
   const documentation = proposal?.clinical_documentation;
   const safety = ['safety', 'emergency'].includes(proposal?.status) || proposal?.authority_route === 'physical_care';
   const capabilities = documentation?.editor_capabilities || {};
@@ -319,6 +321,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     };
     frozenPayloadRef.current = copy(payload);
     setBusy(true); setMutationError(null); setUnresolved(null);
+    const releaseSubmissionGuard = setClinicalSubmissionActive(true);
     if (!commandKeyRef.current) commandKeyRef.current = getCommandKey(`documentation-decision:${proposalId}:${proposal.proposal_hash}`);
     try {
       const next = await submitDoctorDecision({ proposalId, payload: frozenPayloadRef.current, demo, commandKey: commandKeyRef.current, correlationId: proposal.correlation_id });
@@ -340,7 +343,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
       } else {
         setUnresolved({ message: 'The decision is unresolved. The frozen payload and command identity remain in page memory for a safe retry.' });
       }
-    } finally { setBusy(false); }
+    } finally { releaseSubmissionGuard(); setBusy(false); }
   };
 
   const reapply = (change, index) => {

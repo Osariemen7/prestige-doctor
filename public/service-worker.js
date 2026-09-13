@@ -1,5 +1,6 @@
-const CACHE = 'prestige-doctor-shell-v1';
 const PRECACHE_ENTRIES = self.__WB_MANIFEST;
+const CACHE_REVISION = Array.isArray(PRECACHE_ENTRIES) ? PRECACHE_ENTRIES.map((entry) => typeof entry === 'string' ? entry : `${entry.url}:${entry.revision || ""}`).join('|').slice(-32) : 'local';
+const CACHE = `prestige-doctor-shell-${CACHE_REVISION || 'local'}`;
 const SHELL = Array.isArray(PRECACHE_ENTRIES)
   ? PRECACHE_ENTRIES.map((entry) => typeof entry === 'string' ? entry : entry.url)
   : [];

@@ -109,6 +109,9 @@ export const decisionLabel = (decision) => ({
   reject: 'Reject proposal',
 }[decision] || statusLabel(decision));
 
+
+export const normalizeDecision = (decision) => ({ approve: 'approve_as_written', approve_as_is: 'approve_as_written', approve_as_written: 'approve_as_written', edit: 'edit_and_approve', amend: 'edit_and_approve', edit_and_approve: 'edit_and_approve', request_information: 'request_more_information', request_more_info: 'request_more_information', request_more_information: 'request_more_information', convert_to_live_encounter: 'convert_to_live_encounter', escalate: 'escalate', reject: 'reject' }[asText(decision).trim().toLowerCase()] || '');
+export const normalizeDecisionOptions = (value) => [...new Set(asArray(value).map((item) => normalizeDecision(typeof item === 'string' ? item : item?.value || item?.action || item?.id)).filter(Boolean))];
 export const normalizeQueueItem = (raw = {}) => {
   const publicId = asText(first(raw.public_id, raw.id, raw.proposal_id));
   const preview = Boolean(raw.pool_preview);
@@ -345,7 +348,7 @@ export const normalizeProposal = (raw = {}) => {
     mobilization: proposal.mobilization || {},
     included_purchase_checkpoint: proposal.included_purchase_checkpoint || null,
     clinical_documentation: normalizeClinicalDocumentation(proposal.clinical_documentation),
-    decision_options: asArray(first(proposal.allowed_actions, proposal.decision_options)),
+    decision_options: normalizeDecisionOptions(first(proposal.allowed_actions, proposal.decision_options, proposal.authority_checkpoint?.allowed_actions)),
     correlation_id: asText(proposal.correlation_id),
   };
 };
