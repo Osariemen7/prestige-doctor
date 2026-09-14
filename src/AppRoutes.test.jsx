@@ -15,10 +15,10 @@ vi.mock('./pwa/LegacyWorkspace', async () => {
   const { useParams } = await import('react-router-dom');
   return { default: () => <p>Medical review {useParams().publicId}</p> };
 });
-test('legacy review IDs open the medical-review adapter, not the proposal endpoint', async () => {
+test('legacy review IDs resolve to the canonical Care Kernel case workspace', async () => {
   isAuthenticated.mockReturnValue(true);
   render(<MemoryRouter initialEntries={['/reviews/medical-review-1']}><App /></MemoryRouter>);
-  expect(await screen.findByText('Medical review medical-review-1')).toBeInTheDocument();
+  expect(await screen.findByText('Care workspace')).toBeInTheDocument();
 });
 test('opaque notification links survive authentication without exposing the destination', async () => {
   isAuthenticated.mockReturnValue(false);

@@ -4,7 +4,7 @@ import NotificationLink from '../pwa/NotificationLink';
 import { disableDoctorPush } from '../pwa/notificationApi';
 import { logout } from '../api';
 import { safeDoctorPath } from '../pwa/safePath';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Activity, Bell, BookOpen, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, MessageSquare, RefreshCw, ShieldCheck, Stethoscope, UsersRound, X } from 'lucide-react';
 import {
   fetchClinicalServiceOrder,
@@ -129,15 +129,19 @@ function PageHeader({ title, description, eyebrow = 'Clinical workspace', action
 
 function QueueScreen({ demo }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('assigned');
-  const [urgency, setUrgency] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => searchParams.get('queue') || 'assigned');
+  const [urgency, setUrgency] = useState(() => searchParams.get('urgency') || 'all');
+  const [status, setStatus] = useState(() => searchParams.get('status') || 'all');
   const [reloadAt, setReloadAt] = useState(0);
   const data = useAsyncData((signal) => fetchReviewInbox({ queue: tab, demo, signal }), [demo, tab, reloadAt]);
   useEffect(() => { trackDoctorEvent('queue_viewed', { mode: demo ? 'demo' : 'live', tab }); }, [demo, tab]);
+  useEffect(() => { const next = new URLSearchParams(searchParams); next.set('queue', tab); urgency === 'all' ? next.delete('urgency') : next.set('urgency', urgency); status === 'all' ? next.delete('status') : next.set('status', status); setSearchParams(next, { replace: true }); }, [tab, urgency, status]);
   const rows = useMemo(() => {
     const source = data.data?.items || [];
     const filtered = source.filter((row) => {
       if (urgency === 'urgent' && row.urgency !== 'urgent') return false;
+      if (status !== 'all' && row.status !== status) return false;
       if (urgency === 'soon' && !['soon', 'urgent'].includes(row.urgency)) return false;
       if (tab === 'assigned') return row.route_mode === 'assigned' && !row.claimed_by_current_doctor;
       if (tab === 'mine') return row.claimed_by_current_doctor;
@@ -146,7 +150,7 @@ function QueueScreen({ demo }) {
     // The server provides route priority. The client filters and preserves it;
     // it never re-ranks cases using funding, model labels, or local heuristics.
     return filtered;
-  }, [data.data, tab, urgency]);
+  }, [data.data, tab, urgency, status]);
   const counts = data.data?.summary || {};
   return <>
     <PageHeader title="Review queue" description="Server-prioritized cases that need a safe clinical decision. Start with urgency, authority, evidence, and the next accountable checkpoint." actions={<ActionButton icon="RefreshCw" variant="secondary" onClick={() => setReloadAt((value) => value + 1)} disabled={data.loading}>Refresh</ActionButton>} />
@@ -160,7 +164,7 @@ function QueueScreen({ demo }) {
     <div className="vnext-tabs" role="tablist" aria-label="Queue views">
       {[['assigned', 'Assigned', counts.assigned], ['mine', 'Mine', counts.mine], ['pool', 'Coverage pool', counts.pool]].map(([value, label, count]) => <button key={value} className={`vnext-tab ${tab === value ? 'vnext-tab--active' : ''}`} role="tab" aria-selected={tab === value} onClick={() => setTab(value)}>{label}<span className="vnext-count">{count ?? '—'}</span></button>)}
     </div>
-    <div className="vnext-toolbar" style={{ marginTop: 14 }}><div className="vnext-filter"><label htmlFor="queue-urgency">Show</label><select id="queue-urgency" className="vnext-select" value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="all">All server-routed cases</option><option value="urgent">Urgent only</option><option value="soon">Due soon or urgent</option></select></div><SafeNote>Queue order is server-owned. Local filters do not create priority.</SafeNote></div>
+    <div className="vnext-toolbar" style={{ marginTop: 14 }}><div className="vnext-filter"><label htmlFor="queue-urgency">Urgency</label><select id="queue-urgency" className="vnext-select" value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="all">All</option><option value="urgent">Urgent only</option><option value="soon">Due soon or urgent</option></select></div><div className="vnext-filter"><label htmlFor="queue-status">Status</label><select id="queue-status" className="vnext-select" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option value="needs_attention">Needs attention</option><option value="pending">Pending</option><option value="waiting_on_patient">Waiting on patient</option><option value="in_progress">In progress</option></select></div><SafeNote>Queue order is server-owned. Local filters do not create priority.</SafeNote></div>
     {tab === 'pool' && <div className="vnext-pool-callout"><Icon name="LockKeyhole" size={18} /><p><strong>Coverage pool privacy.</strong> Patient identity, clinical detail, and proposal hashes remain withheld until a successful claim returns the full proposal.</p></div>}
     <div className="vnext-panel" style={{ marginTop: 12 }}>
       {data.loading ? <LoadingState label="Loading the server-prioritized queue…" /> : data.error ? <ErrorState error={data.error} onRetry={() => setReloadAt((value) => value + 1)} /> : rows.length === 0 ? <EmptyState title="No cases in this view" body="The server did not return a case for this filter. Your clinical queue is not being inferred in the browser." /> : <div style={{ overflowX: 'auto' }}><table className="vnext-queue-table"><thead><tr><th>Case</th><th>Route</th><th>Urgency</th><th>Authority</th><th>Evidence</th><th>Deadline</th><th><span className="vnext-sr-only">Action</span></th></tr></thead><tbody>{rows.map((row) => <QueueRow key={row.public_id} row={row} onOpen={() => { trackDoctorEvent('case_opened', { mode: demo ? 'demo' : 'live', route: row.route_mode, pool_preview: row.pool_preview }); navigate(doctorHref(`/app/cases/${encodeURIComponent(row.public_id)}`, demo)); }} />)}</tbody></table></div>}

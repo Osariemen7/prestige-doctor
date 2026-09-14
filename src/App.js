@@ -9,7 +9,6 @@ const DoctorVNextApp = lazy(() => import('./vnext/DoctorVNextApp'));
 const LegacyWorkspace = lazy(() => import('./pwa/LegacyWorkspace'));
 const TermsPage = lazy(() => import('./components/TermsPage'));
 const PrivacyPage = lazy(() => import('./components/PrivacyPage'));
-const DoctorPractice = lazy(() => import('./components/DoctorPractice'));
 const Loading = () => <div className="doctor-loading" role="status">Preparing your workspace…</div>;
 function ProtectedRoute({ children }) {
   const location = useLocation();
@@ -19,7 +18,7 @@ function PublicRoute() {
   const location = useLocation();
   return isAuthenticated() ? <Navigate to={safeDoctorPath(new URLSearchParams(location.search).get('next'))} replace /> : <DoctorAuth />;
 }
-function ReviewRedirect() { const { publicId } = useParams(); const location = useLocation(); return <Navigate to={safeDoctorPath(`/app/diagnostics/reviews/${encodeURIComponent(publicId)}${location.search}${location.hash}`)} replace />; }
+function ReviewRedirect() { const { publicId } = useParams(); const location = useLocation(); return <Navigate to={safeDoctorPath(`/app/cases/${encodeURIComponent(publicId)}${location.search}${location.hash}`)} replace />; }
 function ClinicalServiceRedirect() { const { orderId } = useParams(); return <Navigate to={`/app/clinical-services/${encodeURIComponent(orderId)}`} replace />; }
 function PatientRedirect() { const { patientId } = useParams(); return <Navigate to={`/app/patients/${encodeURIComponent(patientId)}`} replace />; }
 function ConversationRedirect() { const { conversationId } = useParams(); return <Navigate to={conversationId ? `/app/messages/${encodeURIComponent(conversationId)}` : '/app/messages'} replace />; }
@@ -32,10 +31,10 @@ export default function App() {
     {['/login', '/register', '/register/:referralCode', '/doctor-register', '/doctor-login'].map((path) => <Route key={path} path={path} element={<PublicRoute />} />)}
     <Route path="/terms" element={<TermsPage />} />
     <Route path="/privacy" element={<PrivacyPage />} />
-    <Route path="/app/patients" element={<ProtectedRoute><div className="doctor-legacy"><NavLink to="/app/queue">Back to your workspace</NavLink><DoctorPractice /></div></ProtectedRoute>} />
+    <Route path="/app/patients" element={<ProtectedRoute><Navigate to="/app/queue" replace /></ProtectedRoute>} />
     <Route path="/patients" element={<Navigate to="/app/patients" replace />} />
-    <Route path="/app/diagnostics/reviews/:publicId" element={<ProtectedRoute><LegacyWorkspace /></ProtectedRoute>} />
-    <Route path="/app/diagnostics/*" element={<ProtectedRoute><LegacyWorkspace /></ProtectedRoute>} />
+    <Route path="/app/diagnostics/reviews/:publicId" element={<ProtectedRoute><ReviewRedirect /></ProtectedRoute>} />
+    <Route path="/app/diagnostics/*" element={<ProtectedRoute><Navigate to="/app/queue" replace /></ProtectedRoute>} />
     <Route path="/app/*" element={<ProtectedRoute><DoctorVNextApp /></ProtectedRoute>} />
     {process.env.NODE_ENV !== 'production' && <Route path="/demo/doctor" element={<DoctorVNextApp demo />} />}
     {['/reviews/:publicId', '/review/:publicId', '/record/:publicId'].map((path) => <Route key={path} path={path} element={<ReviewRedirect />} />)}
