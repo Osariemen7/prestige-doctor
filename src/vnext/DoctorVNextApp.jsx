@@ -53,6 +53,7 @@ import {
   UrgencyBadge,
 } from './components';
 import './doctor-vnext.css';
+import { DoctorPatientsScreen, DoctorResultsScreen } from './DoctorCollections';
 
 const NAV_ITEMS = [
   { href: '/app/queue', label: 'Review queue', icon: ClipboardList },
@@ -265,6 +266,8 @@ export default function DoctorVNextApp({ demo = false }) {
   else if (path.startsWith('/app/transitions/')) content = <TransitionScreen demo={activeDemo} transitionId={match('/app/transitions/')} />;
   else if (path.startsWith('/app/patients/') && path.endsWith('/approved-care')) content = <PatientProgressScreen demo={activeDemo} patientId={decodeURIComponent(path.slice('/app/patients/'.length, -'/approved-care'.length))} />;
   else if (path.startsWith('/app/patients/')) content = <PatientProgressScreen demo={activeDemo} patientId={match('/app/patients/')} />;
+  else if (path === '/app/patients') content = <DoctorPatientsScreen demo={activeDemo} />;
+  else if (path === '/app/diagnostics') content = <DoctorResultsScreen demo={activeDemo} />;
   else if (path === '/app/alerts') content = <AlertsScreen demo={activeDemo} />;
   else if (path.startsWith('/app/protocols/')) content = <ProtocolCandidateScreen demo={activeDemo} candidateId={match('/app/protocols/')} />;
   else if (path === '/app/protocols') content = <ProtocolsScreen demo={activeDemo} />;

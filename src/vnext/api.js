@@ -249,6 +249,39 @@ export const fetchContribution = async ({ from, to, demo = false, signal } = {})
   return validateObject(await request(`/provider/work-metrics?${params.toString()}`, { signal }), 'work metrics');
 };
 
+
+const validateCollection = (value, label) => {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : { results: value };
+  const rows = source.results || source.items || source.data || [];
+  if (!Array.isArray(rows)) throw new DoctorApiError('Could not safely display latest '+label, { code: 'schema_mismatch' });
+  return { ...source, items: rows, next_cursor: source.next_cursor || source.next || source.nextCursor || null };
+};
+export const fetchDoctorPatients = async ({ cursor, search, limit = 25, demo = false, signal } = {}) => {
+  if (isDemoEnabled(demo)) return { items: getDemoInbox().map((row) => row.patient).filter(Boolean), next_cursor: null };
+  const params = new URLSearchParams({ limit: String(limit) }); if (cursor) params.set('cursor', cursor); if (search) params.set('search', search);
+  return validateCollection(await request('/provider/patients?'+params, { signal }), 'patients');
+};
+export const fetchDoctorResults = async ({ cursor, status, limit = 25, demo = false, signal } = {}) => {
+  if (isDemoEnabled(demo)) return { items: [], next_cursor: null };
+  const params = new URLSearchParams({ limit: String(limit) }); if (cursor) params.set('cursor', cursor); if (status && status !== 'all') params.set('status', status);
+  return validateCollection(await request('/provider/results?'+params, { signal }), 'results');
+};
+export const fetchReviewDraft = async ({ proposalId, demo = false, signal } = {}) => {
+  if (isDemoEnabled(demo)) return { proposal_id: proposalId, status: 'unavailable', content: {}, base_proposal_hash: null, version: 0 };
+  return validateObject(await request('/care/proposals/'+encodeURIComponent(proposalId)+'/review-draft', { signal }), 'review draft');
+};
+export const saveReviewDraft = async ({ proposalId, payload, commandKey, demo = false, signal } = {}) => {
+  if (isDemoEnabled(demo)) return { ...payload, proposal_id: proposalId, status: 'saved', version: Number(payload?.version || 0) + 1 };
+  return validateObject(await request('/care/proposals/'+encodeURIComponent(proposalId)+'/review-draft', { method: 'PATCH', body: payload, commandKey, correlationScope: 'review-draft:'+proposalId, signal }), 'review draft');
+};
+export const fetchDoctorOnboarding = async ({ demo = false, signal } = {}) => {
+  if (isDemoEnabled(demo)) return { status: 'verified', capabilities: ['clinical_review'] };
+  try { return validateObject(await request('/care/onboarding?role=doctor', { signal }), 'doctor setup'); } catch (error) { if ([403,404].includes(error.status)) return { status: 'unavailable', capabilities: [], unavailable: true }; throw error; }
+};
+export const submitExperienceFeedback = async ({ payload, commandKey, demo = false, signal } = {}) => {
+  if (isDemoEnabled(demo)) return { status: 'received', receipt: 'demo-feedback-'+Date.now() };
+  return validateObject(await request('/care/experience-feedback', { method: 'POST', body: payload, commandKey, correlationScope: 'experience-feedback', signal }), 'feedback receipt');
+};
 export const resetSyntheticDemo = async () => demoRequest('reset');
 
 export const apiDiagnostics = Object.freeze({ apiOriginConfigured: Boolean(process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_BASE_URL || process.env.VITE_API_ORIGIN), clientVersion: CLIENT_VERSION });
