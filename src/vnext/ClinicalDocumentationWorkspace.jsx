@@ -287,6 +287,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     return () => window.clearInterval(interval);
   }, [clearProtectedState, demo, isClaimed, proposal, proposalId, result]);
 
+  const documentation = proposal?.clinical_documentation;
   const changes = useMemo(() => documentationChanges(original || {}, draft || {}), [draft, original]);
   const validationErrors = useMemo(() => draft ? validateDocumentationDraft(draft) : [], [draft]);
   useEffect(() => { if (!draft || result) return undefined; return setDoctorFormDirty(changes.length > 0); }, [changes.length, draft, result]);
@@ -300,7 +301,6 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     } catch (saveError) { setDraftSaveState(saveError?.status === 409 || saveError?.staleProposal ? "stale" : "failed"); }
   }, [changes.length, demo, draft, draftVersion, proposal, proposalId, result, documentation]);
   useEffect(() => { if (!draft || !changes.length || result || !draftHydratedRef.current) return undefined; const timer = window.setTimeout(persistDraft, 1000); return () => window.clearTimeout(timer); }, [draft, changes.length, persistDraft, result]);
-  const documentation = proposal?.clinical_documentation;
   const safety = ['safety', 'emergency'].includes(proposal?.status) || proposal?.authority_route === 'physical_care';
   const capabilities = documentation?.editor_capabilities || {};
 
