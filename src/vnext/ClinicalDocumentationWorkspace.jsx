@@ -23,6 +23,8 @@ import {
   getCommandKey,
   mutateReviewClaim,
   submitDoctorDecision,
+  fetchReviewDraft,
+  saveReviewDraft,
 } from './api';
 import { trackDoctorEvent } from './analytics';
 import { setClinicalSubmissionActive, setDoctorFormDirty } from '../pwa/updateGuard';
@@ -245,6 +247,10 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
   const [unresolved, setUnresolved] = useState(null);
   const [staleComparison, setStaleComparison] = useState(null);
   const [reapplyChanges, setReapplyChanges] = useState([]);
+  const [draftVersion, setDraftVersion] = useState(0);
+  const [draftSaveState, setDraftSaveState] = useState("saved");
+  const draftHydratedRef = useRef(false);
+  const draftSaveKeyRef = useRef(null);
   const [reloadKey, setReloadKey] = useState(0);
   const commandKeyRef = useRef(null);
   const frozenPayloadRef = useRef(null);
@@ -284,6 +290,16 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
   const changes = useMemo(() => documentationChanges(original || {}, draft || {}), [draft, original]);
   const validationErrors = useMemo(() => draft ? validateDocumentationDraft(draft) : [], [draft]);
   useEffect(() => { if (!draft || result) return undefined; return setDoctorFormDirty(changes.length > 0); }, [changes.length, draft, result]);
+  const persistDraft = useCallback(async () => {
+    if (!draft || !proposal || result || !draftHydratedRef.current || !changes.length) return;
+    setDraftSaveState("saving");
+    try {
+      const saved = await saveReviewDraft({ proposalId, demo, commandKey: draftSaveKeyRef.current || (draftSaveKeyRef.current = getCommandKey("review-draft:"+proposalId)), payload: { content: copy(draft), base_proposal_hash: proposal.proposal_hash, expected_version: draftVersion, proposal_version: documentation?.source_plan_version_id || null } });
+      setDraftVersion(Number(saved?.version || saved?.state_version || draftVersion + 1));
+      setDraftSaveState(saved?.status === "stale" ? "stale" : "saved");
+    } catch (saveError) { setDraftSaveState(saveError?.status === 409 || saveError?.staleProposal ? "stale" : "failed"); }
+  }, [changes.length, demo, draft, draftVersion, proposal, proposalId, result, documentation]);
+  useEffect(() => { if (!draft || !changes.length || result || !draftHydratedRef.current) return undefined; const timer = window.setTimeout(persistDraft, 1000); return () => window.clearTimeout(timer); }, [draft, changes.length, persistDraft, result]);
   const documentation = proposal?.clinical_documentation;
   const safety = ['safety', 'emergency'].includes(proposal?.status) || proposal?.authority_route === 'physical_care';
   const capabilities = documentation?.editor_capabilities || {};
@@ -367,6 +383,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     {!documentation.signed && !isClaimed && !safety && <div className="doc-claim-banner"><Icon name="LockKeyhole" /><div><strong>Claim this case before editing or signing</strong><p>The SOAP packet is read-only until the server returns an active privacy-safe lease.</p></div><ActionButton variant="primary" onClick={claim} disabled={busy}>{busy ? 'Claiming…' : 'Claim and review'}</ActionButton></div>}
     {mutationError && <div className="doc-inline-error"><ErrorState error={mutationError} compact /></div>}
     {unresolved && <div className="vnext-notice vnext-notice--warning doc-unresolved" role="status"><strong>Decision unresolved</strong><p>{unresolved.message}</p><ActionButton variant="secondary" onClick={submit} disabled={busy}>Retry frozen decision</ActionButton></div>}
+    {!result && <section className="doc-context-card doc-draft-save" aria-live="polite"><div className="doc-context-card__row"><span>Unsaved review draft</span><strong>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "failed" ? "Save failed" : draftSaveState === "stale" ? "Version changed" : changes.length ? "Saved" : "No changes"}</strong></div><p className="vnext-small vnext-muted">This draft is private working material and never signs or activates care.</p><div className="vnext-form-actions"><ActionButton variant="secondary" onClick={persistDraft} disabled={draftSaveState === "saving" || !changes.length}>{draftSaveState === "saving" ? "Saving…" : "Save draft"}</ActionButton>{draftSaveState === "stale" && <span className="vnext-small vnext-field--danger">Reload the latest proposal before saving again.</span>}</div></section>}
     {reapplyChanges.length > 0 && <section className="doc-reapply" aria-labelledby="doc-reapply-title"><div><div className="vnext-eyebrow">New exact version loaded</div><h2 id="doc-reapply-title">Reapply prior draft changes one field at a time</h2><p>No old value was merged automatically. Compare each change with the current server proposal.</p></div><div>{reapplyChanges.map((change, index) => <article key={`${change.path}-${index}`}><div><strong>{change.path.replaceAll('.', ' › ')}</strong><span>{conciseValue(change.after)}</span></div><ActionButton variant="secondary" onClick={() => reapply(change, index)}>Reapply this field</ActionButton></article>)}</div></section>}
     {result || documentation.signed ? <section className="doc-signed-result"><div className="doc-signed-result__mark"><Icon name="CheckCircle2" size={26} /></div><div><div className="vnext-eyebrow">Server-authorized outcome</div><h2>Documentation signed against the exact clinical version</h2><p>The AI draft is now either approved as written or replaced by an immutable clinician-authored child version.</p><dl><div><dt>Signed version</dt><dd>{proposal.execution_state?.signed_version_id || documentation.version_id || 'Returned in documentation projection'}</dd></div><div><dt>Signed hash</dt><dd><code>…{publicHashSuffix(proposal.execution_state?.signed_content_hash || documentation.content_hash)}</code></dd></div><div><dt>Downstream owner</dt><dd>{proposal.execution_state?.downstream_owner?.role || proposal.execution_state?.owner || 'Not returned'}</dd></div><div><dt>Due</dt><dd>{formatDateTime(proposal.execution_state?.due_at)}</dd></div><div><dt>Next checkpoint</dt><dd>{proposal.execution_state?.next_checkpoint?.title || proposal.execution_state?.next_checkpoint || 'Not returned'}</dd></div></dl>{documentation.amendment_diff?.length > 0 && <p className="vnext-small vnext-muted">The server recorded {documentation.amendment_diff.length} privacy-minimal amendment paths.</p>}<ActionButton variant="primary" onClick={() => navigate(-1)}>Return to case</ActionButton></div></section> : <>
       <div className="doc-mobile-stepper" aria-label="Documentation steps">{SECTION_DEFINITIONS.map((section, index) => <button key={section.id} aria-current={section.id === activeSection ? 'step' : undefined} onClick={() => setActiveSection(section.id)}><span>{section.short}</span><small>{index + 1} of {SECTION_DEFINITIONS.length}</small></button>)}</div>
