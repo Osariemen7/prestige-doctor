@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ClinicalDocumentationWorkspace, { validateDocumentationDraft } from './ClinicalDocumentationWorkspace';
@@ -14,6 +14,7 @@ import {
   resetSyntheticDemo,
   submitDoctorDecision,
 } from './api';
+import * as doctorApi from './api';
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('lucide-react', async () => {
@@ -26,6 +27,7 @@ const PROPOSAL_ID = 'proposal-hypertension-v2';
 
 describe('detailed clinical documentation contract', () => {
   beforeEach(async () => { await resetSyntheticDemo(); });
+  afterEach(() => vi.restoreAllMocks());
 
   test('normalizes the full SOAP/action packet without dropping immutable provenance', async () => {
     const proposal = await fetchProposal({ proposalId: PROPOSAL_ID, demo: true });
@@ -97,6 +99,108 @@ describe('detailed clinical documentation contract', () => {
     expect(result.clinical_documentation.amendment_diff.length).toBeGreaterThan(0);
     expect(result.execution_state.next_checkpoint.title).toMatch(/Day 28/i);
     expect(result.execution_state.downstream_owner.role).toBe('Care Kernel coordination');
+  });
+
+  test('hydrates a claimed draft and reuses an uncertain save key only for its exact retry', async () => {
+    const claimedProposal = await mutateReviewClaim({ proposalId: PROPOSAL_ID, action: 'claim', demo: true });
+    vi.spyOn(doctorApi, 'fetchProposal').mockResolvedValue(claimedProposal);
+    const fetchDraft = vi.spyOn(doctorApi, 'fetchReviewDraft').mockResolvedValue({ draft: null });
+    const saveDraft = vi.spyOn(doctorApi, 'saveReviewDraft')
+      .mockRejectedValueOnce(new Error('connection lost after submission'))
+      .mockResolvedValueOnce({ status: 'saved', draft: { version: 1 } })
+      .mockResolvedValueOnce({ status: 'saved', draft: { version: 2 } });
+
+    render(<ClinicalDocumentationWorkspace proposalId={PROPOSAL_ID} />);
+    const complaint = await screen.findByLabelText('Chief complaint');
+    await waitFor(() => expect(complaint).not.toBeDisabled());
+    expect(fetchDraft).toHaveBeenCalledWith(expect.objectContaining({ proposalId: PROPOSAL_ID }));
+    fireEvent.change(complaint, { target: { value: 'Updated complaint for a focused retry test.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(await screen.findByText('Save outcome uncertain')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry same draft save' }));
+    await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
+    expect(saveDraft.mock.calls[1][0].commandKey).toBe(saveDraft.mock.calls[0][0].commandKey);
+    expect(saveDraft.mock.calls[1][0].payload).toEqual(saveDraft.mock.calls[0][0].payload);
+    expect(saveDraft.mock.calls[0][0].payload.expected_version).toBe(0);
+
+    fireEvent.change(complaint, { target: { value: 'A distinct later draft intent.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(3));
+    expect(saveDraft.mock.calls[2][0].commandKey).not.toBe(saveDraft.mock.calls[1][0].commandKey);
+    expect(saveDraft.mock.calls[2][0].payload.expected_version).toBe(1);
+    expect(screen.queryByText('Documentation signed against the exact clinical version')).not.toBeInTheDocument();
+  });
+
+  test('keeps a successful claim visible and offers draft-load retry after a transient read failure', async () => {
+    const fetchDraft = vi.spyOn(doctorApi, 'fetchReviewDraft')
+      .mockRejectedValueOnce(new Error('temporary draft read failure'))
+      .mockResolvedValue({ draft: null });
+
+    render(<ClinicalDocumentationWorkspace demo proposalId={PROPOSAL_ID} />);
+    fireEvent.click(await screen.findByRole('button', { name: /claim and review/i }));
+    const retry = await screen.findByRole('button', { name: 'Retry draft loading' });
+    expect(screen.queryByRole('button', { name: /claim and review/i })).not.toBeInTheDocument();
+    expect(fetchDraft).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(retry);
+    await waitFor(() => expect(fetchDraft).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByLabelText('Chief complaint')).not.toBeDisabled());
+  });
+
+  test('reloads and compares current server draft after 409, then uses a new key for the rebased save', async () => {
+    const claimedProposal = await mutateReviewClaim({ proposalId: PROPOSAL_ID, action: 'claim', demo: true });
+    const latestProposal = copy(claimedProposal);
+    latestProposal.proposal_hash = 'latest-proposal-hash';
+    vi.spyOn(doctorApi, 'fetchProposal')
+      .mockResolvedValueOnce(claimedProposal)
+      .mockResolvedValueOnce(latestProposal);
+    vi.spyOn(doctorApi, 'fetchReviewDraft')
+      .mockResolvedValueOnce({ draft: null })
+      .mockResolvedValueOnce({ draft: null });
+    const stale = Object.assign(new Error('proposal changed'), { status: 409, code: 'stale_proposal', staleProposal: true });
+    const saveDraft = vi.spyOn(doctorApi, 'saveReviewDraft')
+      .mockRejectedValueOnce(stale)
+      .mockResolvedValueOnce({ status: 'saved', draft: { version: 1 } });
+
+    render(<ClinicalDocumentationWorkspace proposalId={PROPOSAL_ID} />);
+    const complaint = await screen.findByLabelText('Chief complaint');
+    await waitFor(() => expect(complaint).not.toBeDisabled());
+    fireEvent.change(complaint, { target: { value: 'Local edit retained across a stale proposal.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    expect(await screen.findByRole('heading', { name: 'Reapply prior draft changes one field at a time' })).toBeInTheDocument();
+    expect(screen.getByText('Local edit retained across a stale proposal.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reapply this field' }));
+    expect(screen.getByDisplayValue('Local edit retained across a stale proposal.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
+
+    expect(saveDraft.mock.calls[1][0].commandKey).not.toBe(saveDraft.mock.calls[0][0].commandKey);
+    expect(saveDraft.mock.calls[1][0].payload.base_proposal_hash).toBe('latest-proposal-hash');
+    expect(saveDraft.mock.calls[1][0].payload.content.subjective.chief_complaint)
+      .toBe('Local edit retained across a stale proposal.');
+  });
+
+  test('refreshes claim authority and disables editing after a draft save reports claim loss', async () => {
+    const claimedProposal = await mutateReviewClaim({ proposalId: PROPOSAL_ID, action: 'claim', demo: true });
+    const unclaimedProposal = await mutateReviewClaim({ proposalId: PROPOSAL_ID, action: 'release', demo: true });
+    vi.spyOn(doctorApi, 'fetchProposal')
+      .mockResolvedValueOnce(claimedProposal)
+      .mockResolvedValueOnce(unclaimedProposal);
+    vi.spyOn(doctorApi, 'fetchReviewDraft').mockResolvedValue({ draft: null });
+    const claimLost = Object.assign(new Error('claim lost'), { status: 409, code: 'claim_lost' });
+    const saveDraft = vi.spyOn(doctorApi, 'saveReviewDraft').mockRejectedValueOnce(claimLost);
+
+    render(<ClinicalDocumentationWorkspace proposalId={PROPOSAL_ID} />);
+    const complaint = await screen.findByLabelText('Chief complaint');
+    await waitFor(() => expect(complaint).not.toBeDisabled());
+    fireEvent.change(complaint, { target: { value: 'A draft edited before claim expiry.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    expect(await screen.findByRole('button', { name: /claim and review/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Chief complaint')).toBeDisabled());
+    expect(saveDraft).toHaveBeenCalledTimes(1);
   });
 
   test('renders a claim-gated workspace and keeps evidence outside editable controls', async () => {

@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { fetchCareActivity, submitDoctorDecision, request, fetchProposal } from './api';
+import { fetchCareActivity, submitDoctorDecision, submitExperienceFeedback, request, fetchProposal } from './api';
 import { getAccessToken } from '../api';
 
 vi.mock('../api', () => ({
@@ -28,6 +28,24 @@ describe('doctor Care Kernel HTTP contract', () => {
     expect(options.headers['Idempotency-Key']).toBe('stable-command-key');
     expect(options.headers['X-Correlation-ID']).toBe('case-correlation');
     expect(JSON.parse(options.body)).toEqual(expect.objectContaining({ proposal_hash: 'server-hash', decision: 'approve_as_written' }));
+  });
+
+  test('experience feedback uses the protected endpoint and stable idempotency header without client identity fields', async () => {
+    const payload = {
+      app: 'doctor',
+      category: 'blocked',
+      description: 'The review draft could not be saved.',
+      route: '/app/cases/:proposalId/documentation',
+      app_version: 'doctor-build-123',
+    };
+    await submitExperienceFeedback({ payload, commandKey: 'feedback-intent-1' });
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toContain('/care/experience-feedback');
+    expect(options.method).toBe('POST');
+    expect(options.headers['Idempotency-Key']).toBe('feedback-intent-1');
+    expect(JSON.parse(options.body)).toEqual(payload);
+    expect(JSON.parse(options.body)).not.toHaveProperty('user_id');
+    expect(JSON.parse(options.body)).not.toHaveProperty('role');
   });
 
   test('activity projection requests the doctor role and stays read-only', async () => {

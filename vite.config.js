@@ -3,6 +3,7 @@ const react = require('@vitejs/plugin-react');
 const path = require('node:path');
 const { injectManifest } = require('workbox-build');
 const { createShellEntries } = require('./scripts/doctorPwaManifest.cjs');
+const { buildMetadataPlugin } = require('./scripts/doctorBuildMetadata.cjs');
 
 const CLIENT_ENV_KEYS = [
   'PUBLIC_URL',
@@ -19,25 +20,8 @@ const CLIENT_ENV_KEYS = [
   'VITE_API_ORIGIN',
   'VITE_BACKEND_BASE_URL',
   'VITE_BUILD_SHA',
+  'VERCEL_ENV',
 ];
-
-function buildMetadataPlugin(env) {
-  return {
-    name: 'prestige-build-metadata',
-    apply: 'build',
-    generateBundle() {
-      const buildSha = process.env.VERCEL_GIT_COMMIT_SHA || env.REACT_APP_BUILD_SHA || env.VITE_BUILD_SHA || 'unknown';
-      const configuredApi = env.REACT_APP_API_BASE_URL || env.REACT_APP_BACKEND_BASE_URL || env.REACT_APP_QA_API_ORIGIN || 'https://api.prestigedelta.com';
-      let publicApiOrigin = String(configuredApi).replace(/\/$/, '');
-      try { publicApiOrigin = new URL(publicApiOrigin).origin; } catch (_) {}
-      this.emitFile({
-        type: 'asset',
-        fileName: '.well-known/prestige-build.json',
-        source: JSON.stringify({ schema_version: 'prestige_build_v1', application_role: 'doctor', build_sha: String(buildSha), contract_version: 'care-pilot-contract-v1', public_api_origin: publicApiOrigin }) + String.fromCharCode(10),
-      });
-    },
-  };
-}
 
 function getCraCompatibleEnv(mode) {
   const loaded = loadEnv(mode, process.cwd(), '');
@@ -54,7 +38,15 @@ function getCraCompatibleEnv(mode) {
 module.exports = defineConfig(({ mode, command }) => {
   const env = getCraCompatibleEnv(mode);
   env.NODE_ENV = command === 'build' ? 'production' : 'development';
-  env.REACT_APP_BUILD_SHA ||= process.env.VERCEL_GIT_COMMIT_SHA || '';
+  env.REACT_APP_BUILD_SHA ||= process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || process.env.GIT_COMMIT_SHA || '';
+  const buildMetadataEnv = {
+    ...env,
+    VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA || env.VERCEL_GIT_COMMIT_SHA,
+    GITHUB_SHA: process.env.GITHUB_SHA || env.GITHUB_SHA,
+    GIT_COMMIT_SHA: process.env.GIT_COMMIT_SHA || env.GIT_COMMIT_SHA,
+    CI_COMMIT_SHA: process.env.CI_COMMIT_SHA || env.CI_COMMIT_SHA,
+    SOURCE_VERSION: process.env.SOURCE_VERSION || env.SOURCE_VERSION,
+  };
   const define = mode === 'test' ? {} : { 'process.env': JSON.stringify(env) };
 
   return {
@@ -68,7 +60,7 @@ module.exports = defineConfig(({ mode, command }) => {
           return symbols.every(Boolean) ? symbols.map((symbol) => `import ${symbol[2] || symbol[1]} from '@mui/icons-material/${symbol[1]}';`).join('\n') : statement;
         });
       },
-    }, react(), buildMetadataPlugin(env), {
+    }, react(), buildMetadataPlugin(buildMetadataEnv), {
       name: 'prestige-doctor-pwa',
       async closeBundle() {
         const output = path.resolve('dist');

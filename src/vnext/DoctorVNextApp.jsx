@@ -24,6 +24,7 @@ import {
 import { formatDateTime, formatRelativeDue, statusLabel, statusTone } from './contract';
 import { trackDoctorEvent } from './analytics';
 import CareActivityPanel from './CareActivityPanel';
+import ExperienceFeedback from './ExperienceFeedback';
 const ClinicalDocumentationWorkspace = lazy(() => import('./ClinicalDocumentationWorkspace'));
 const MessagesScreen = lazy(() => import('./MessagesScreen'));
 const NotificationsScreen = lazy(() => import('../pwa/NotificationsScreen'));
@@ -53,7 +54,7 @@ import {
   UrgencyBadge,
 } from './components';
 import './doctor-vnext.css';
-import { DoctorPatientsScreen, DoctorResultsScreen } from './DoctorCollections';
+import { DoctorPatientsScreen, DoctorResultsScreen, DoctorResultDetailScreen } from './DoctorCollections';
 
 const NAV_ITEMS = [
   { href: '/app/queue', label: 'Review queue', icon: ClipboardList },
@@ -116,6 +117,7 @@ function DoctorShell({ children, demo, queueCount, onResetDemo }) {
           <nav className="vnext-nav"><NavLink to={doctorHref('/app/queue', demo)} className="vnext-nav__item" onClick={() => setMobileMenu(false)}><Stethoscope size={17} /><span>Assigned cases</span></NavLink><NavLink to={doctorHref('/app/contribution', demo)} className="vnext-nav__item" onClick={() => setMobileMenu(false)}><UsersRound size={17} /><span>Work metrics</span></NavLink></nav>
           <hr className="vnext-sidebar__rule" />
           <div className="vnext-sidebar__note"><strong><ShieldCheck size={14} style={{ verticalAlign: 'middle', marginRight: 5 }} />Clinical authority</strong>Every decision is bound to the exact server proposal version. No clinical state is stored in this browser.</div>
+          <ExperienceFeedback demo={demo} />
         </aside>
         <main id="doctor-main-content" className="vnext-main"><div className="vnext-main__inner"><RouteErrorBoundary><Suspense fallback={<LoadingState />}>{children}</Suspense></RouteErrorBoundary></div></main>
       </div>
@@ -264,6 +266,7 @@ export default function DoctorVNextApp({ demo = false }) {
   else if (path.startsWith('/app/cases/')) content = <CaseScreen demo={activeDemo} proposalId={match('/app/cases/')} />;
   else if (path.startsWith('/app/clinical-services/')) content = <ClinicalServiceScreen demo={activeDemo} orderId={match('/app/clinical-services/')} />;
   else if (path.startsWith('/app/transitions/')) content = <TransitionScreen demo={activeDemo} transitionId={match('/app/transitions/')} />;
+  else if (path.startsWith('/app/results/')) content = <DoctorResultDetailScreen resultId={match('/app/results/')} />;
   else if (path.startsWith('/app/patients/') && path.endsWith('/approved-care')) content = <PatientProgressScreen demo={activeDemo} patientId={decodeURIComponent(path.slice('/app/patients/'.length, -'/approved-care'.length))} />;
   else if (path.startsWith('/app/patients/')) content = <PatientProgressScreen demo={activeDemo} patientId={match('/app/patients/')} />;
   else if (path === '/app/patients') content = <DoctorPatientsScreen demo={activeDemo} />;

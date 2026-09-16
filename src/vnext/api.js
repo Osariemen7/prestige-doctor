@@ -266,6 +266,10 @@ export const fetchDoctorResults = async ({ cursor, status, limit = 25, demo = fa
   const params = new URLSearchParams({ limit: String(limit) }); if (cursor) params.set('cursor', cursor); if (status && status !== 'all') params.set('status', status);
   return validateCollection(await request('/provider/results?'+params, { signal }), 'results');
 };
+export const fetchDoctorResultDetail = async ({ resultId, signal } = {}) => {
+  if (!resultId) throw new DoctorApiError('A result reference is required.', { code: 'invalid_request' });
+  return validateObject(await request('/investigations/'+encodeURIComponent(resultId)+'/', { signal }), 'investigation result');
+};
 export const fetchReviewDraft = async ({ proposalId, demo = false, signal } = {}) => {
   if (isDemoEnabled(demo)) return { proposal_id: proposalId, status: 'unavailable', content: {}, base_proposal_hash: null, version: 0 };
   return validateObject(await request('/care/proposals/'+encodeURIComponent(proposalId)+'/review-draft', { signal }), 'review draft');

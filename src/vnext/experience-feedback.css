@@ -1,0 +1,71 @@
+.vnext-feedback-trigger {
+  width: calc(100% - 8px);
+  margin: 10px 4px 0;
+  border: 1px solid var(--vnext-border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--vnext-ink);
+  text-align: left;
+}
+.vnext-feedback-trigger:hover { background: #f4f7fa; }
+.vnext-feedback-trigger__icon {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+}
+.vnext-feedback-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(18, 30, 43, .52);
+}
+.vnext-feedback-dialog {
+  width: min(100%, 560px);
+  max-height: min(90vh, 760px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--vnext-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(14, 36, 61, .25);
+}
+.vnext-feedback-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.vnext-feedback-dialog__header h2 { margin: 4px 0 0; font-size: 23px; line-height: 1.2; }
+.vnext-feedback-help { color: var(--vnext-muted); margin: 0 0 18px; }
+.vnext-feedback-field { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; font-weight: 700; }
+.vnext-feedback-field select, .vnext-feedback-field textarea {
+  width: 100%;
+  border: 1px solid var(--vnext-border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--vnext-ink);
+  padding: 11px 12px;
+}
+.vnext-feedback-field select { min-height: 46px; }
+.vnext-feedback-field textarea { min-height: 126px; resize: vertical; font-weight: 400; }
+.vnext-feedback-field small { color: var(--vnext-muted); text-align: right; font-weight: 500; }
+.vnext-feedback-error { margin: 12px 0; padding: 10px 12px; border-left: 3px solid var(--vnext-red); background: #fff5f4; color: #7d1d16; }
+.vnext-feedback-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.vnext-feedback-success { padding: 16px 0 4px; }
+.vnext-feedback-success > strong { color: var(--vnext-green); font-size: 17px; }
+.vnext-feedback-success code { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .vnext-feedback-backdrop { padding: 10px; }
+  .vnext-feedback-dialog { max-height: 94vh; padding: 18px; }
+  .vnext-feedback-actions { flex-direction: column-reverse; }
+  .vnext-feedback-actions .vnext-button { width: 100%; }
+}

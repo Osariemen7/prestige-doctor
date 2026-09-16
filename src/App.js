@@ -4,7 +4,7 @@ import { isAuthenticated, tryRestoreSession } from './api';
 import { loginForPath, safeDoctorPath } from './pwa/safePath';
 import PwaStatus from './pwa/PwaStatus';
 import { DoctorInstallProvider } from './pwa/InstallButton';
-const DoctorAuth = lazy(() => import('./components/DoctorAuth'));
+import DoctorAuth from './components/DoctorAuth';
 const DoctorVNextApp = lazy(() => import('./vnext/DoctorVNextApp'));
 const LegacyWorkspace = lazy(() => import('./pwa/LegacyWorkspace'));
 const TermsPage = lazy(() => import('./components/TermsPage'));
@@ -31,10 +31,9 @@ export default function App() {
     {['/login', '/register', '/register/:referralCode', '/doctor-register', '/doctor-login'].map((path) => <Route key={path} path={path} element={<PublicRoute />} />)}
     <Route path="/terms" element={<TermsPage />} />
     <Route path="/privacy" element={<PrivacyPage />} />
-    <Route path="/app/patients" element={<ProtectedRoute><Navigate to="/app/queue" replace /></ProtectedRoute>} />
     <Route path="/patients" element={<Navigate to="/app/patients" replace />} />
     <Route path="/app/diagnostics/reviews/:publicId" element={<ProtectedRoute><ReviewRedirect /></ProtectedRoute>} />
-    <Route path="/app/diagnostics/*" element={<ProtectedRoute><Navigate to="/app/queue" replace /></ProtectedRoute>} />
+    <Route path="/app/diagnostics/:legacyPath/*" element={<ProtectedRoute><Navigate to="/app/queue" replace /></ProtectedRoute>} />
     <Route path="/app/*" element={<ProtectedRoute><DoctorVNextApp /></ProtectedRoute>} />
     {process.env.NODE_ENV !== 'production' && <Route path="/demo/doctor" element={<DoctorVNextApp demo />} />}
     {['/reviews/:publicId', '/review/:publicId', '/record/:publicId'].map((path) => <Route key={path} path={path} element={<ReviewRedirect />} />)}

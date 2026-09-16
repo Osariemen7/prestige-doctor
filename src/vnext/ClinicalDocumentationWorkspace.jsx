@@ -21,6 +21,7 @@ import {
 import {
   fetchProposal,
   getCommandKey,
+  forgetCommandKey,
   mutateReviewClaim,
   submitDoctorDecision,
   fetchReviewDraft,
@@ -28,6 +29,17 @@ import {
 } from './api';
 import { trackDoctorEvent } from './analytics';
 import { setClinicalSubmissionActive, setDoctorFormDirty } from '../pwa/updateGuard';
+
+const reviewDraftSignature = (content, proposal) => JSON.stringify({
+  content,
+  base_proposal_hash: proposal?.proposal_hash || null,
+  proposal_version: proposal?.clinical_documentation?.source_plan_version_id || null,
+});
+
+const proposalClaimedByCurrentDoctor = (proposal, demo) => Boolean(
+  proposal?.review_claim?.claimed_by_current_doctor
+  || (demo && Number(proposal?.review_claim?.claimed_by_provider_id) === 17)
+);
 
 const SECTION_DEFINITIONS = [
   {
@@ -249,33 +261,98 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
   const [reapplyChanges, setReapplyChanges] = useState([]);
   const [draftVersion, setDraftVersion] = useState(0);
   const [draftSaveState, setDraftSaveState] = useState("saved");
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const draftHydratedRef = useRef(false);
-  const draftSaveKeyRef = useRef(null);
+  const draftSaveIntentRef = useRef(null);
+  const draftSaveInFlightRef = useRef(false);
+  const savedDraftSignatureRef = useRef(null);
+  const pendingConflictDraftRef = useRef(null);
   const [reloadKey, setReloadKey] = useState(0);
   const commandKeyRef = useRef(null);
   const frozenPayloadRef = useRef(null);
 
   const clearProtectedState = useCallback((claimError) => {
+    draftHydratedRef.current = false;
+    setDraftHydrated(false);
+    draftSaveIntentRef.current = null;
+    savedDraftSignatureRef.current = null;
+    pendingConflictDraftRef.current = null;
+    forgetCommandKey("review-draft:" + proposalId);
+    commandKeyRef.current = null;
+    frozenPayloadRef.current = null;
     setProposal(null); setOriginal(null); setDraft(null); setStaleComparison(null); setReapplyChanges([]); setResult(null); setUnresolved(null); setError(claimError);
-  }, []);
+  }, [proposalId]);
 
-  const load = useCallback(async (signal, preserveDraft = false) => {
+  const hydrateDraft = useCallback(async (next, signal) => {
+    const contract = next.clinical_documentation?.edit_contract;
+    const baseline = contract ? copy(contract) : null;
+    draftHydratedRef.current = false;
+    setDraftHydrated(false);
+    setOriginal(baseline);
+    setDraft(baseline);
+    setDraftVersion(0);
+    setDraftSaveState("saved");
+    setStaleComparison(null);
+    setReapplyChanges([]);
+    draftSaveIntentRef.current = null;
+    savedDraftSignatureRef.current = baseline ? reviewDraftSignature(baseline, next) : null;
+    if (!baseline) {
+      draftHydratedRef.current = true;
+      setDraftHydrated(true);
+      return { baseline: null, content: null, version: 0, stale: false };
+    }
+
+    const hydrated = { baseline, content: baseline, version: 0, stale: false };
+    const claimed = proposalClaimedByCurrentDoctor(next, demo);
+    if (claimed) {
+      const response = await fetchReviewDraft({ proposalId, demo, signal });
+      const saved = response?.draft;
+      const content = saved?.payload?.content;
+      hydrated.version = Number(saved?.version || 0);
+      setDraftVersion(hydrated.version);
+      if (saved && (saved.stale || (saved.base_proposal_hash && saved.base_proposal_hash !== next.proposal_hash))) {
+        hydrated.stale = true;
+        if (content && typeof content === 'object' && !Array.isArray(content)) {
+          hydrated.staleContent = copy(content);
+          setStaleComparison(copy(content));
+          setReapplyChanges(documentationChanges(baseline, content));
+        }
+        setDraftSaveState("stale");
+      } else if (content && typeof content === 'object' && !Array.isArray(content)) {
+        const restored = copy(content);
+        hydrated.content = restored;
+        setDraft(restored);
+        savedDraftSignatureRef.current = reviewDraftSignature(restored, next);
+      }
+    }
+
+    draftHydratedRef.current = true;
+    setDraftHydrated(true);
+    return hydrated;
+  }, [demo, proposalId]);
+
+  const load = useCallback(async (signal) => {
     setLoading(true); setError(null);
+    draftHydratedRef.current = false;
+    setDraftHydrated(false);
     try {
       const next = await fetchProposal({ proposalId, demo, signal });
-      const contract = next.clinical_documentation?.edit_contract;
-      setProposal(next);
-      if (!preserveDraft) {
-        setOriginal(contract ? copy(contract) : null);
-        setDraft(contract ? copy(contract) : null);
-      }
+      await hydrateDraft(next, signal);
+      if (!signal?.aborted) setProposal(next);
     } catch (loadError) {
       if (loadError?.status === 403) clearProtectedState(loadError); else setError(loadError);
     } finally { setLoading(false); }
-  }, [clearProtectedState, demo, proposalId]);
+  }, [clearProtectedState, demo, hydrateDraft, proposalId]);
 
   useEffect(() => { const controller = new AbortController(); load(controller.signal); return () => controller.abort(); }, [load, reloadKey]);
   useEffect(() => { trackDoctorEvent('documentation_opened', { mode: demo ? 'demo' : 'live' }); }, [demo]);
+  useEffect(() => {
+    const scope = "review-draft:" + proposalId;
+    return () => {
+      if (draftSaveIntentRef.current) forgetCommandKey(scope);
+    };
+  }, [proposalId]);
+
 
   const isClaimed = Boolean(proposal?.review_claim?.claimed_by_current_doctor || (demo && Number(proposal?.review_claim?.claimed_by_provider_id) === 17));
   useEffect(() => {
@@ -290,17 +367,99 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
   const documentation = proposal?.clinical_documentation;
   const changes = useMemo(() => documentationChanges(original || {}, draft || {}), [draft, original]);
   const validationErrors = useMemo(() => draft ? validateDocumentationDraft(draft) : [], [draft]);
+  const recoverDraftConflict = useCallback(async (localDraft) => {
+    const scope = "review-draft:" + proposalId;
+    draftSaveIntentRef.current = null;
+    forgetCommandKey(scope);
+    pendingConflictDraftRef.current = copy(localDraft);
+    draftHydratedRef.current = false;
+    setDraftHydrated(false);
+    setLoading(true);
+    setMutationError(null);
+    try {
+      const latest = await fetchProposal({ proposalId, demo });
+      setProposal(latest);
+      const hydrated = await hydrateDraft(latest);
+      const current = hydrated?.content || latest.clinical_documentation?.edit_contract || {};
+      setStaleComparison(copy(localDraft));
+      setReapplyChanges(documentationChanges(current, localDraft || {}));
+      pendingConflictDraftRef.current = null;
+      if (proposalClaimedByCurrentDoctor(latest, demo)) {
+        setDraftSaveState("saved");
+      } else {
+        setDraftSaveState("stale");
+        setMutationError(new Error("Your review claim changed. Reclaim the case before saving these changes."));
+      }
+    } catch (refreshError) {
+      if (refreshError?.status === 403 || refreshError?.code === "claim_lost") {
+        clearProtectedState(refreshError);
+        setReloadKey((value) => value + 1);
+      } else {
+        setDraftHydrated(false);
+        draftHydratedRef.current = false;
+        setMutationError(refreshError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [clearProtectedState, demo, hydrateDraft, proposalId]);
+
+  const retryDraftRecovery = () => {
+    setMutationError(null);
+    if (pendingConflictDraftRef.current) {
+      recoverDraftConflict(pendingConflictDraftRef.current);
+      return;
+    }
+    setReloadKey((value) => value + 1);
+  };
+
+  const currentDraftSignature = draft && proposal ? reviewDraftSignature(draft, proposal) : null;
+  const draftIsDirty = Boolean(currentDraftSignature && currentDraftSignature !== savedDraftSignatureRef.current);
   useEffect(() => { if (!draft || result) return undefined; return setDoctorFormDirty(changes.length > 0); }, [changes.length, draft, result]);
   const persistDraft = useCallback(async () => {
-    if (!draft || !proposal || result || !draftHydratedRef.current || !changes.length) return;
+    if (!draft || !proposal || result || !draftHydratedRef.current || !draftIsDirty || draftSaveInFlightRef.current) return;
+    const scope = "review-draft:" + proposalId;
+    if (!draftSaveIntentRef.current) {
+      const payload = {
+        content: copy(draft),
+        base_proposal_hash: proposal.proposal_hash,
+        expected_version: draftVersion,
+        proposal_version: documentation?.source_plan_version_id || null,
+      };
+      draftSaveIntentRef.current = {
+        commandKey: getCommandKey(scope),
+        payload,
+        signature: reviewDraftSignature(draft, proposal),
+      };
+    }
+    const intent = draftSaveIntentRef.current;
+    draftSaveInFlightRef.current = true;
     setDraftSaveState("saving");
     try {
-      const saved = await saveReviewDraft({ proposalId, demo, commandKey: draftSaveKeyRef.current || (draftSaveKeyRef.current = getCommandKey("review-draft:"+proposalId)), payload: { content: copy(draft), base_proposal_hash: proposal.proposal_hash, expected_version: draftVersion, proposal_version: documentation?.source_plan_version_id || null } });
-      setDraftVersion(Number(saved?.version || saved?.state_version || draftVersion + 1));
-      setDraftSaveState(saved?.status === "stale" ? "stale" : "saved");
-    } catch (saveError) { setDraftSaveState(saveError?.status === 409 || saveError?.staleProposal ? "stale" : "failed"); }
-  }, [changes.length, demo, draft, draftVersion, proposal, proposalId, result, documentation]);
-  useEffect(() => { if (!draft || !changes.length || result || !draftHydratedRef.current) return undefined; const timer = window.setTimeout(persistDraft, 1000); return () => window.clearTimeout(timer); }, [draft, changes.length, persistDraft, result]);
+      const saved = await saveReviewDraft({ proposalId, demo, commandKey: intent.commandKey, payload: intent.payload });
+      setDraftVersion(Number(saved?.draft?.version || saved?.version || saved?.state_version || draftVersion + 1));
+      savedDraftSignatureRef.current = intent.signature;
+      draftSaveIntentRef.current = null;
+      forgetCommandKey(scope);
+      setDraftSaveState("saved");
+    } catch (saveError) {
+      if (saveError?.status === 403 || saveError?.code === "claim_lost") {
+        clearProtectedState(saveError);
+        setReloadKey((value) => value + 1);
+      } else if (saveError?.status === 409 || saveError?.staleProposal) {
+        await recoverDraftConflict(copy(draft));
+      } else {
+        setDraftSaveState("failed");
+      }
+    } finally {
+      draftSaveInFlightRef.current = false;
+    }
+  }, [clearProtectedState, demo, draft, draftIsDirty, draftVersion, proposal, proposalId, recoverDraftConflict, result, documentation]);
+  useEffect(() => {
+    if (!draft || result || !draftHydratedRef.current || !draftIsDirty || ['failed', 'stale'].includes(draftSaveState)) return undefined;
+    const timer = window.setTimeout(persistDraft, 1000);
+    return () => window.clearTimeout(timer);
+  }, [draft, draftIsDirty, draftSaveState, persistDraft, result]);
   const safety = ['safety', 'emergency'].includes(proposal?.status) || proposal?.authority_route === 'physical_care';
   const capabilities = documentation?.editor_capabilities || {};
 
@@ -316,8 +475,34 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
 
   const claim = async () => {
     setBusy(true); setMutationError(null);
-    try { setProposal(await mutateReviewClaim({ proposalId, action: 'claim', demo })); }
-    catch (claimError) { if (claimError?.status === 403) clearProtectedState(claimError); else setMutationError(claimError); }
+    const previousComparison = staleComparison;
+    const previousReapply = reapplyChanges;
+    try {
+      const next = await mutateReviewClaim({ proposalId, action: 'claim', demo });
+      setProposal(next);
+      try {
+        await hydrateDraft(next);
+        if (previousComparison && previousReapply.length) {
+          setStaleComparison(previousComparison);
+          setReapplyChanges(previousReapply);
+          setDraftSaveState("saved");
+        }
+      } catch (draftError) {
+        draftHydratedRef.current = false;
+        setDraftHydrated(false);
+        if (draftError?.status === 403 || draftError?.code === "claim_lost") {
+          clearProtectedState(draftError);
+          setReloadKey((value) => value + 1);
+        } else {
+          setMutationError(draftError);
+        }
+      }
+    } catch (claimError) {
+      if (claimError?.status === 403 || claimError?.code === "claim_lost") {
+        clearProtectedState(claimError);
+        setReloadKey((value) => value + 1);
+      } else setMutationError(claimError);
+    }
     finally { setBusy(false); }
   };
 
@@ -365,6 +550,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
   const reapply = (change, index) => {
     setDraft((current) => withAt(current, change.path, copy(change.after)));
     setReapplyChanges((current) => current.filter((_, rowIndex) => rowIndex !== index));
+    setDraftSaveState("saved");
   };
 
   if (loading) return <><div className="doc-page-header"><div><div className="vnext-eyebrow">Clinical documentation</div><h1>Reviewing exact SOAP packet</h1></div></div><LoadingState label="Authorizing the latest documentation version…" /></>;
@@ -375,15 +561,15 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
 
   const currentSection = SECTION_DEFINITIONS.find((section) => section.id === activeSection) || SECTION_DEFINITIONS[0];
   const canEdit = capabilities.can_edit && !documentation.signed && !safety;
-  const editable = isClaimed && canEdit;
+  const editable = isClaimed && draftHydrated && canEdit;
   const approvalDisabled = !editable || validationErrors.length > 0 || busy;
   return <div className="doc-workspace">
     <div className="doc-page-header"><div><div className="vnext-eyebrow">AI-prepared clinical documentation</div><h1>{proposal.patient?.display_name || 'Authorized patient'}</h1><p>{proposal.presenting_problem || 'Presenting problem not returned'}</p></div><div className="doc-page-header__actions"><StatusBadge status={documentation.signed ? 'authorized' : 'pending'} label={documentation.signed ? 'Clinician signed' : 'Not signed'} /><HashBadge hash={documentation.content_hash} exact={false} /><ActionButton variant="secondary" onClick={() => navigate(-1)}>Back to case</ActionButton></div></div>
     {safety && <SafetyBanner emergency={proposal.status === 'emergency'}>The server safety route takes precedence. Documentation approval controls are suppressed.</SafetyBanner>}
     {!documentation.signed && !isClaimed && !safety && <div className="doc-claim-banner"><Icon name="LockKeyhole" /><div><strong>Claim this case before editing or signing</strong><p>The SOAP packet is read-only until the server returns an active privacy-safe lease.</p></div><ActionButton variant="primary" onClick={claim} disabled={busy}>{busy ? 'Claiming…' : 'Claim and review'}</ActionButton></div>}
-    {mutationError && <div className="doc-inline-error"><ErrorState error={mutationError} compact /></div>}
+    {mutationError && <div className="doc-inline-error"><ErrorState error={mutationError} compact />{isClaimed && !draftHydrated && <ActionButton variant="secondary" onClick={retryDraftRecovery} disabled={loading || busy}>Retry draft loading</ActionButton>}</div>}
     {unresolved && <div className="vnext-notice vnext-notice--warning doc-unresolved" role="status"><strong>Decision unresolved</strong><p>{unresolved.message}</p><ActionButton variant="secondary" onClick={submit} disabled={busy}>Retry frozen decision</ActionButton></div>}
-    {!result && <section className="doc-context-card doc-draft-save" aria-live="polite"><div className="doc-context-card__row"><span>Unsaved review draft</span><strong>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "failed" ? "Save failed" : draftSaveState === "stale" ? "Version changed" : changes.length ? "Saved" : "No changes"}</strong></div><p className="vnext-small vnext-muted">This draft is private working material and never signs or activates care.</p><div className="vnext-form-actions"><ActionButton variant="secondary" onClick={persistDraft} disabled={draftSaveState === "saving" || !changes.length}>{draftSaveState === "saving" ? "Saving…" : "Save draft"}</ActionButton>{draftSaveState === "stale" && <span className="vnext-small vnext-field--danger">Reload the latest proposal before saving again.</span>}</div></section>}
+    {!result && <section className="doc-context-card doc-draft-save" aria-live="polite"><div className="doc-context-card__row"><span>Review draft</span><strong>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "failed" ? "Save outcome uncertain" : draftSaveState === "stale" ? "Version changed" : draftIsDirty ? "Unsaved changes" : "Saved"}</strong></div><p className="vnext-small vnext-muted">This draft is private working material and never signs or activates care.</p><div className="vnext-form-actions"><ActionButton variant="secondary" onClick={persistDraft} disabled={draftSaveState === "saving" || !draftIsDirty}>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "failed" ? "Retry same draft save" : "Save draft"}</ActionButton>{draftSaveState === "stale" && <span className="vnext-small vnext-field--danger">The latest proposal was loaded. Compare and reapply any local changes before saving.</span>}</div></section>}
     {reapplyChanges.length > 0 && <section className="doc-reapply" aria-labelledby="doc-reapply-title"><div><div className="vnext-eyebrow">New exact version loaded</div><h2 id="doc-reapply-title">Reapply prior draft changes one field at a time</h2><p>No old value was merged automatically. Compare each change with the current server proposal.</p></div><div>{reapplyChanges.map((change, index) => <article key={`${change.path}-${index}`}><div><strong>{change.path.replaceAll('.', ' › ')}</strong><span>{conciseValue(change.after)}</span></div><ActionButton variant="secondary" onClick={() => reapply(change, index)}>Reapply this field</ActionButton></article>)}</div></section>}
     {result || documentation.signed ? <section className="doc-signed-result"><div className="doc-signed-result__mark"><Icon name="CheckCircle2" size={26} /></div><div><div className="vnext-eyebrow">Server-authorized outcome</div><h2>Documentation signed against the exact clinical version</h2><p>The AI draft is now either approved as written or replaced by an immutable clinician-authored child version.</p><dl><div><dt>Signed version</dt><dd>{proposal.execution_state?.signed_version_id || documentation.version_id || 'Returned in documentation projection'}</dd></div><div><dt>Signed hash</dt><dd><code>…{publicHashSuffix(proposal.execution_state?.signed_content_hash || documentation.content_hash)}</code></dd></div><div><dt>Downstream owner</dt><dd>{proposal.execution_state?.downstream_owner?.role || proposal.execution_state?.owner || 'Not returned'}</dd></div><div><dt>Due</dt><dd>{formatDateTime(proposal.execution_state?.due_at)}</dd></div><div><dt>Next checkpoint</dt><dd>{proposal.execution_state?.next_checkpoint?.title || proposal.execution_state?.next_checkpoint || 'Not returned'}</dd></div></dl>{documentation.amendment_diff?.length > 0 && <p className="vnext-small vnext-muted">The server recorded {documentation.amendment_diff.length} privacy-minimal amendment paths.</p>}<ActionButton variant="primary" onClick={() => navigate(-1)}>Return to case</ActionButton></div></section> : <>
       <div className="doc-mobile-stepper" aria-label="Documentation steps">{SECTION_DEFINITIONS.map((section, index) => <button key={section.id} aria-current={section.id === activeSection ? 'step' : undefined} onClick={() => setActiveSection(section.id)}><span>{section.short}</span><small>{index + 1} of {SECTION_DEFINITIONS.length}</small></button>)}</div>
