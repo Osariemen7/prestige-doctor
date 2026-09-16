@@ -21,6 +21,24 @@ const CLIENT_ENV_KEYS = [
   'VITE_BUILD_SHA',
 ];
 
+function buildMetadataPlugin(env) {
+  return {
+    name: 'prestige-build-metadata',
+    apply: 'build',
+    generateBundle() {
+      const buildSha = process.env.VERCEL_GIT_COMMIT_SHA || env.REACT_APP_BUILD_SHA || env.VITE_BUILD_SHA || 'unknown';
+      const configuredApi = env.REACT_APP_API_BASE_URL || env.REACT_APP_BACKEND_BASE_URL || env.REACT_APP_QA_API_ORIGIN || 'https://api.prestigedelta.com';
+      let publicApiOrigin = String(configuredApi).replace(/\/$/, '');
+      try { publicApiOrigin = new URL(publicApiOrigin).origin; } catch (_) {}
+      this.emitFile({
+        type: 'asset',
+        fileName: '.well-known/prestige-build.json',
+        source: JSON.stringify({ schema_version: 'prestige_build_v1', application_role: 'doctor', build_sha: String(buildSha), contract_version: 'care-pilot-contract-v1', public_api_origin: publicApiOrigin }) + String.fromCharCode(10),
+      });
+    },
+  };
+}
+
 function getCraCompatibleEnv(mode) {
   const loaded = loadEnv(mode, process.cwd(), '');
   return CLIENT_ENV_KEYS.reduce((env, key) => {
@@ -50,7 +68,7 @@ module.exports = defineConfig(({ mode, command }) => {
           return symbols.every(Boolean) ? symbols.map((symbol) => `import ${symbol[2] || symbol[1]} from '@mui/icons-material/${symbol[1]}';`).join('\n') : statement;
         });
       },
-    }, react(), {
+    }, react(), buildMetadataPlugin(env), {
       name: 'prestige-doctor-pwa',
       async closeBundle() {
         const output = path.resolve('dist');
