@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchDoctorPatients, fetchDoctorResults, fetchDoctorResultDetail } from './api';
 import { useLocation } from 'react-router-dom';
+import { ChevronRight, Search, UserRound, FileText, RefreshCw } from 'lucide-react';
+import { EmptyState, StatusBadge } from './components';
 
 const resultStatus = (search) => {
   const value = new URLSearchParams(search).get('status');
@@ -77,7 +79,7 @@ function useCollection(loader, args) {
 }
 
 function title(item, fallback) {
-  return item?.title || item?.name || item?.test_name || item?.test_type || fallback;
+  return item?.title || item?.display_name || item?.name || item?.test_name || item?.test_type || fallback;
 }
 
 function resultDestination(item) {
@@ -105,9 +107,9 @@ function CollectionState({ state, label }) {
 
 function CollectionHeader({ title: heading, description, onRefresh, refreshing }) {
   return <div className="vnext-page-header">
-    <div><h1>{heading}</h1><p>{description}</p></div>
+    <div><div className="vnext-eyebrow">Clinical workspace</div><h1>{heading}</h1><p>{description}</p></div>
     <button className="vnext-button vnext-button--secondary" onClick={onRefresh} disabled={refreshing}>
-      {refreshing ? 'Refreshing...' : 'Refresh'}
+      <RefreshCw size={16} aria-hidden="true" />{refreshing ? 'Refreshing...' : 'Refresh'}
     </button>
   </div>;
 }
@@ -129,17 +131,17 @@ export function DoctorPatientsScreen({ demo = false }) {
   };
 
   return <section>
-    <CollectionHeader title="Patients" description="Scoped patient context returned by the Care Kernel. Search never grants extra access." onRefresh={state.refresh} refreshing={state.loading} />
-    <label className="vnext-form-field">
-      <span>Search patients</span>
+    <CollectionHeader title="Patients" description="The patients in your care, with their history and next steps in one place." onRefresh={state.refresh} refreshing={state.loading} />
+    <label className="vnext-form-field vnext-collection-filter">
+      <span><Search size={15} aria-hidden="true" /> Search patients</span>
       <input aria-label="Search patients" className="vnext-input" value={search} onChange={updateSearch} placeholder="Search by name or authorized reference" />
     </label>
     <CollectionState state={state} label="Patients" />
-    {!state.loading && !state.error && !state.data?.items?.length && <p>No authorized patients found.</p>}
-    {!!state.data?.items?.length && <div className="vnext-list" aria-label="Authorized patients">
-      {state.data.items.map((patient) => <button className="vnext-list-row" key={patient.public_id || patient.id} onClick={() => nav(`/app/patients/${encodeURIComponent(patient.public_id || patient.id)}`)}>
-        <span><strong>{title(patient, 'Authorized patient')}</strong><small>{patient.patient_id || patient.public_id || 'Reference not returned'}</small></span>
-        <span aria-hidden="true">&gt;</span>
+    {!state.loading && !state.error && !state.data?.items?.length && <EmptyState title="No authorized patients found." body="Try another name or reference. Patients assigned to your care will appear here." />}
+    {!!state.data?.items?.length && <div className="vnext-collection-list" aria-label="Authorized patients">
+      {state.data.items.map((patient) => <button className="vnext-list-row" key={patient.public_id || patient.id} onClick={() => nav(`/app/patients/${encodeURIComponent(patient.public_id || patient.id)}${demo ? '?demo=1' : ''}`)}>
+        <span className="vnext-patient-avatar" aria-hidden="true"><UserRound size={20} /></span><span className="vnext-collection-list__name"><strong>{title(patient, 'Authorized patient')}</strong><small>{patient.patient_id || patient.public_id || 'Reference not returned'}</small></span>
+        <ChevronRight size={18} aria-hidden="true" />
       </button>)}
     </div>}
     {state.data?.next_cursor && <button className="vnext-button vnext-button--secondary vnext-spaced" onClick={state.loadMore} disabled={state.loadingMore}>
@@ -163,8 +165,8 @@ export function DoctorResultsScreen({ demo = false }) {
   };
 
   return <section>
-    <CollectionHeader title="Results & services" description="Results are shown by server state. Receipt does not mean review." onRefresh={state.refresh} refreshing={state.loading} />
-    <label className="vnext-form-field">
+    <CollectionHeader title="Results & services" description="Follow investigations from request to result. Open a record to review the evidence." onRefresh={state.refresh} refreshing={state.loading} />
+    <label className="vnext-form-field vnext-collection-filter">
       <span>Filter results</span>
       <select className="vnext-select" value={status} onChange={updateStatus}>
         <option value="all">All results</option>
@@ -173,8 +175,8 @@ export function DoctorResultsScreen({ demo = false }) {
       </select>
     </label>
     <CollectionState state={state} label="Results" />
-    {!state.loading && !state.error && !state.data?.items?.length && <p>No results returned for review.</p>}
-    {!!state.data?.items?.length && <div className="vnext-list" aria-label="Results and services">
+    {!state.loading && !state.error && !state.data?.items?.length && <EmptyState title="No results returned for review." body="Results will appear here as they become available. You can also try a different filter." />}
+    {!!state.data?.items?.length && <div className="vnext-collection-list" aria-label="Results and services">
       {state.data.items.map((item) => {
         const destination = resultDestination(item);
         const label = title(item, 'Investigation result');
@@ -186,8 +188,8 @@ export function DoctorResultsScreen({ demo = false }) {
           disabled={!destination}
           aria-label={destination ? `Review result: ${label}` : `Result destination unavailable: ${label}`}
         >
-          <span><strong>{label}</strong><small>{item.patient?.display_name || item.patient_name || 'Authorized patient'}</small></span>
-          <span>{item.review_required ? 'Review required' : item.status || 'Status unavailable'}</span>
+          <span className="vnext-patient-avatar" aria-hidden="true"><FileText size={20} /></span><span className="vnext-collection-list__name"><strong>{label}</strong><small>{item.patient?.display_name || item.patient_name || 'Authorized patient'}</small></span>
+          <StatusBadge status={item.review_required ? 'pending' : item.status} label={item.review_required ? 'Review required' : undefined} /><ChevronRight size={18} aria-hidden="true" />
         </button>;
       })}
     </div>}

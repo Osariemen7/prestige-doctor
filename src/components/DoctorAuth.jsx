@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { safeDoctorPath } from '../pwa/safePath';
 import InstallButton from '../pwa/InstallButton';
 import { resolveDoctorApiUrl } from '../apiOrigin';
@@ -7,7 +7,6 @@ import { Alert, Box, Button, CircularProgress, Container, MenuItem, Snackbar, Te
 import {
   ArrowBackRounded,
   ArrowForwardRounded,
-  AutoAwesomeRounded,
   CheckCircleOutlineRounded,
   LockOutlined,
   PhoneIphoneRounded,
@@ -16,6 +15,7 @@ import {
 import { isAuthenticated, storeAuthData } from '../api';
 import { normalizeDoctorPhone } from '../utils/doctorAuth';
 import './DoctorAuth.css';
+import { DoctorBrand } from './DoctorPublicLayout';
 
 const API_BASE = resolveDoctorApiUrl('/api');
 
@@ -147,18 +147,17 @@ export default function DoctorAuth() {
   return (
     <>
     <Box className="doctor-auth-page">
-      <Box className="doctor-auth-orb doctor-auth-orb-one" />
-      <Box className="doctor-auth-orb doctor-auth-orb-two" />
-      <Container maxWidth="lg" className="doctor-auth-container">
+      <header className="doctor-auth-header"><DoctorBrand /><InstallButton /></header>
+      <Container component="main" maxWidth="lg" className="doctor-auth-container">
         <Box className="doctor-auth-story">
-          <Box className="doctor-auth-brand-row"><Box className="doctor-auth-brand"><Box className="doctor-auth-brand-mark"><AutoAwesomeRounded /></Box><Typography>prestige</Typography></Box><InstallButton /></Box>
-          <Typography className="doctor-auth-kicker">A calmer way to practice</Typography>
-          <Typography component="h1" className="doctor-auth-display">More care, without more chasing.</Typography>
-          <Typography className="doctor-auth-story-copy">Prestige gives doctors an AI care team that prepares the work, keeps patients close, and turns trusted follow-through into a durable practice.</Typography>
+          <Link to="/" className="doctor-auth-back"><ArrowBackRounded fontSize="small" /> Back to Prestige</Link>
+          <Typography className="doctor-auth-kicker">YOUR CARE, IN FOCUS</Typography>
+          <Typography component="h2" className="doctor-auth-display">A little less admin. A lot more care.</Typography>
+          <Typography className="doctor-auth-story-copy">A clear place for your clinical work, patient conversations and next steps. Pick up where you left off.</Typography>
           <Box className="doctor-auth-benefits">
-            <Box><CheckCircleOutlineRounded /><Typography>AI-prepared clinical work</Typography></Box>
-            <Box><CheckCircleOutlineRounded /><Typography>High-touch patient continuity</Typography></Box>
-            <Box><CheckCircleOutlineRounded /><Typography>Recurring care, built into your workflow</Typography></Box>
+            <Box><CheckCircleOutlineRounded /><Typography>Clinical work, ready to review</Typography></Box>
+            <Box><CheckCircleOutlineRounded /><Typography>Patient context, all together</Typography></Box>
+            <Box><CheckCircleOutlineRounded /><Typography>Follow-through, built into your day</Typography></Box>
           </Box>
         </Box>
 
@@ -167,12 +166,12 @@ export default function DoctorAuth() {
             <Box className="doctor-auth-card-icon"><VerifiedUserRounded /></Box>
             <Box>
               <Typography className="doctor-auth-eyebrow">Doctor workspace</Typography>
-              <Typography component="h2" className="doctor-auth-title">{step === 'phone' ? 'Start with your WhatsApp number' : isExistingUser ? 'Welcome back' : 'Create your workspace'}</Typography>
+              <Typography component="h1" className="doctor-auth-title">{step === 'phone' ? 'Start with your WhatsApp number' : isExistingUser ? 'Welcome back' : 'Create your workspace'}</Typography>
             </Box>
           </Box>
-          <Typography className="doctor-auth-subtitle">{step === 'phone' ? 'Sign in or create your account in under a minute.' : `Enter the code sent to ${displayPhone(phoneNumber)}.`}</Typography>
+          <Typography className="doctor-auth-subtitle">{step === 'phone' ? 'We’ll send a verification code to your WhatsApp. No password to remember.' : `Enter the code sent to ${displayPhone(phoneNumber)}.`}</Typography>
 
-          <Box className="doctor-auth-steps">
+          <Box className="doctor-auth-steps" aria-label="Sign-in progress">
             <Box className={`doctor-auth-step ${step === 'phone' ? 'doctor-auth-step-active' : 'doctor-auth-step-done'}`}><Box>1</Box><Typography>Number</Typography></Box>
             <Box className="doctor-auth-step-line" />
             <Box className={`doctor-auth-step ${step === 'otp' ? 'doctor-auth-step-active' : ''}`}><Box>2</Box><Typography>Verify</Typography></Box>
@@ -186,6 +185,7 @@ export default function DoctorAuth() {
                 value={phoneNumber}
                 onChange={(event) => setPhoneNumber(event.target.value)}
                 autoComplete="tel"
+                type="tel"
                 inputMode="tel"
                 fullWidth
                 InputProps={{ startAdornment: <PhoneIphoneRounded className="doctor-auth-field-icon" /> }}
@@ -228,7 +228,7 @@ export default function DoctorAuth() {
               </Box>
             </Box>
           )}
-          <Typography className="doctor-auth-legal">By continuing, you agree to use Prestige for clinician-led care. Your clinical decisions remain yours.</Typography>
+          <Typography className="doctor-auth-legal">By continuing, you agree to our <Link to="/terms">Terms of use</Link> and <Link to="/privacy">Privacy notice</Link>. Your clinical decisions remain yours.</Typography>
         </Box>
       </Container>
       <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((current) => ({ ...current, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

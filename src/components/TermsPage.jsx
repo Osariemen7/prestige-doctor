@@ -1,12 +1,10 @@
 import React from 'react';
+import { DoctorPublicHeader, DoctorPublicFooter } from './DoctorPublicLayout';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Box,
-  Container,
-  Paper,
   Typography,
   Link,
-  Divider,
 } from '@mui/material';
 
 const SECTIONS = [
@@ -45,18 +43,18 @@ const SECTIONS = [
 ];
 
 const TermsPage = () => (
-  <Container maxWidth="md" sx={{ py: { xs: 4, md: 8 }, px: { xs: 2, sm: 3 } }}>
-    <Paper elevation={1} sx={{ p: { xs: 3, md: 6 }, borderRadius: 3 }}>
-      <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
+  <div className="doctor-public doctor-legal"><DoctorPublicHeader /><main className="doctor-legal-content">
+      <p className="doctor-public-eyebrow">CLEAR EXPECTATIONS. THOUGHTFUL CARE.</p>
+      <Typography component="h1">
         Terms of use
       </Typography>
-      <Typography variant="subtitle1" color="text.secondary" paragraph>
+      <Typography className="doctor-legal-intro">
         PrestigeHealth Provider Dashboard — provider-facing supplement
       </Typography>
-      <Divider sx={{ my: 3 }} />
+
       {SECTIONS.map((section) => (
-        <Box key={section.heading} sx={{ mb: 4 }}>
-          <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 700 }}>
+        <Box component="section" key={section.heading}>
+          <Typography component="h2">
             {section.heading}
           </Typography>
           {section.body.map((paragraph) => (
@@ -66,8 +64,8 @@ const TermsPage = () => (
           ))}
         </Box>
       ))}
-      <Divider sx={{ my: 3 }} />
-      <Typography variant="body2" color="text.secondary">
+
+      <Typography className="doctor-legal-contact">
         Questions about these terms? Contact{' '}
         <Link href="mailto:support@prestigedelta.com">support@prestigedelta.com</Link>. See also our{' '}
         <Link component={RouterLink} to="/privacy">Privacy notice</Link> and the{' '}
@@ -76,8 +74,7 @@ const TermsPage = () => (
         </Link>
         .
       </Typography>
-    </Paper>
-  </Container>
+    </main><DoctorPublicFooter /></div>
 );
 
 export default TermsPage;

@@ -1,0 +1,22 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Activity, ArrowRight, CalendarDays, Check, ClipboardList, MessageSquare, ShieldCheck, Users } from 'lucide-react';
+import { isAuthenticated } from '../api';
+import { DoctorPublicHeader, DoctorPublicFooter } from './DoctorPublicLayout';
+
+const features = [
+  { icon: ClipboardList, number: '01', title: 'See what needs you.', copy: 'Bring your clinical reviews, investigations and follow-ups into one clear work queue.' },
+  { icon: Users, number: '02', title: 'Keep the whole picture.', copy: 'Move from a patient’s history to their latest results, with the context you need for your next decision.' },
+  { icon: MessageSquare, number: '03', title: 'Keep care moving.', copy: 'Stay connected through patient conversations and follow-through, beyond the consultation.' },
+];
+export default function DoctorLanding() {
+  const destination = isAuthenticated() ? '/app/queue' : '/register';
+  return <div className="doctor-public"><a href="#main-content" className="doctor-public-skip">Skip to content</a><DoctorPublicHeader /><main id="main-content">
+    <section className="doctor-public-hero doctor-public-width">
+      <div className="doctor-public-hero-copy"><p className="doctor-public-eyebrow"><span /> YOUR PRACTICE, CONNECTED</p><h1>More space<br />for <em>better care.</em></h1><p className="doctor-public-lead">A considered workspace for the way you care. Review clinical work, understand your patients and keep every next step in view.</p><div className="doctor-public-actions"><Link to={destination} className="doctor-public-button">{isAuthenticated() ? 'Open your workspace' : 'Get started'}<ArrowRight size={18} /></Link><a href="#workspace" className="doctor-public-text-link">Explore the workspace <span aria-hidden="true">↘</span></a></div><p className="doctor-public-small"><ShieldCheck size={16} /> Designed for clinician-led decisions.</p></div>
+      <div className="doctor-public-preview" aria-label="Illustrative preview of the doctor workspace"><div className="doctor-public-preview-top"><span><Activity size={16} /> Your workspace</span><span className="doctor-public-preview-label">Illustrative preview</span></div><div className="doctor-public-preview-body"><div className="doctor-public-preview-heading"><div><p>FOCUS ON WHAT MATTERS</p><h2>A clearer day of care.</h2></div><CalendarDays size={22} /></div><div className="doctor-public-preview-tabs"><span className="active">Work queue</span><span>Patients</span><span>Messages</span></div><div className="doctor-public-preview-row"><span className="doctor-public-preview-avatar">AR</span><div><strong>Clinical review</strong><p>Patient history and results, together</p></div><span className="doctor-public-pill">To review</span></div><div className="doctor-public-preview-row"><span className="doctor-public-preview-avatar muted">EO</span><div><strong>Patient follow-up</strong><p>The next step, clearly in view</p></div><ArrowRight size={17} /></div><div className="doctor-public-care-note"><span><Check size={17} /></span><div><strong>From context to a clear next step.</strong><p>Review. Decide. Follow through.</p></div></div></div><div className="doctor-public-preview-bottom"><span className="doctor-public-online-dot" /> One place to bring your care together.</div></div>
+    </section>
+    <section id="workspace" className="doctor-public-features doctor-public-width"><div className="doctor-public-section-heading"><p className="doctor-public-eyebrow">LESS FRICTION. MORE FOCUS.</p><h2>The essentials.<br />Thoughtfully connected.</h2><p>Your daily work deserves a clear path, from the first review to the next conversation.</p></div><div className="doctor-public-feature-grid">{features.map(({ icon: Icon, number, title, copy }) => <article key={title}><div className="doctor-public-feature-top"><Icon size={23} strokeWidth={1.6} /><span>{number}</span></div><h3>{title}</h3><p>{copy}</p></article>)}</div></section>
+    <section className="doctor-public-start doctor-public-width"><div><p className="doctor-public-eyebrow">A SIMPLE WAY IN</p><h2>Your next chapter of care<br />starts with your number.</h2><p>Use your WhatsApp number to sign in or create your doctor workspace.</p></div><Link to={destination} className="doctor-public-button">{isAuthenticated() ? 'Open workspace' : 'Create your workspace'}<ArrowRight size={18} /></Link></section>
+  </main><DoctorPublicFooter /></div>;
+}

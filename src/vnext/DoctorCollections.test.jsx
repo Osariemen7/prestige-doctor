@@ -30,6 +30,13 @@ describe('doctor collections', () => {
     expect(fetchDoctorPatients).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the returned patient display name and keeps demo context when opening their record', async () => {
+    fetchDoctorPatients.mockResolvedValue({ items: [{ public_id: 'patient-demo', display_name: 'Amina Yusuf' }], next_cursor: null });
+    render(<MemoryRouter initialEntries={['/app/patients?demo=1']}><DoctorPatientsScreen demo /><RouteLocation /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Amina Yusuf/ }));
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/app/patients/patient-demo?demo=1');
+  });
+
   it('restores patient search from the deep link and preserves unrelated query state', async () => {
     fetchDoctorPatients.mockResolvedValue({ items: [], next_cursor: null });
     render(<MemoryRouter initialEntries={['/app/patients?search=amina&source=qr#family']}>

@@ -1,12 +1,12 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { isAuthenticated, tryRestoreSession } from './api';
 import { loginForPath, safeDoctorPath } from './pwa/safePath';
 import PwaStatus from './pwa/PwaStatus';
 import { DoctorInstallProvider } from './pwa/InstallButton';
 import DoctorAuth from './components/DoctorAuth';
 const DoctorVNextApp = lazy(() => import('./vnext/DoctorVNextApp'));
-const LegacyWorkspace = lazy(() => import('./pwa/LegacyWorkspace'));
+const DoctorLanding = lazy(() => import('./components/DoctorLanding'));
 const TermsPage = lazy(() => import('./components/TermsPage'));
 const PrivacyPage = lazy(() => import('./components/PrivacyPage'));
 const Loading = () => <div className="doctor-loading" role="status">Preparing your workspace…</div>;
@@ -27,7 +27,7 @@ export default function App() {
   const location = useLocation(); const navigate = useNavigate();
   useEffect(() => { let active = true; tryRestoreSession().catch(() => false).finally(() => { if (active) setReady(true); }); return () => { active = false; }; }, []);
   useEffect(() => { const expired = () => navigate(loginForPath(`${location.pathname}${location.search}${location.hash}`), { replace: true }); window.addEventListener('doctor-auth-required', expired); return () => window.removeEventListener('doctor-auth-required', expired); }, [location, navigate]);
-  return <DoctorInstallProvider><PwaStatus />{!ready ? <Loading /> : <Suspense fallback={<Loading />}><Routes>
+  return <DoctorInstallProvider><PwaStatus />{!ready ? <Loading /> : <Suspense fallback={<Loading />}><Routes><Route path="/" element={<DoctorLanding />} />
     {['/login', '/register', '/register/:referralCode', '/doctor-register', '/doctor-login'].map((path) => <Route key={path} path={path} element={<PublicRoute />} />)}
     <Route path="/terms" element={<TermsPage />} />
     <Route path="/privacy" element={<PrivacyPage />} />

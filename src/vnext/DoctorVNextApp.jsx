@@ -54,6 +54,7 @@ import {
   UrgencyBadge,
 } from './components';
 import './doctor-vnext.css';
+import './workspace-polish.css';
 import { DoctorPatientsScreen, DoctorResultsScreen, DoctorResultDetailScreen } from './DoctorCollections';
 
 const NAV_ITEMS = [
@@ -66,7 +67,7 @@ const NAV_ITEMS = [
   { href: '/app/patients', label: 'Patients', icon: UsersRound },
 ];
 
-const mobileItems = [NAV_ITEMS[0], NAV_ITEMS[4], { href: '/app/notifications', label: 'Notifications', icon: Bell }, NAV_ITEMS[1]];
+const mobileItems = [NAV_ITEMS[0], NAV_ITEMS[6], NAV_ITEMS[4], { href: '/app/notifications', label: 'Updates', icon: Bell }];
 const doctorHref = (href, demo) => demo ? `${href}${href.includes('?') ? '&' : '?'}demo=1` : href;
 
 const useAsyncData = (loader, dependencies = []) => {
@@ -91,33 +92,39 @@ function DoctorShell({ children, demo, queueCount, onResetDemo }) {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const navigate = useNavigate();
+  const menuButtonRef = useRef(null);
+  const signOut = async () => { try { await disableDoctorPush(); } catch { /* Local unsubscribe protects shared devices. */ } logout(); navigate('/login', { replace: true }); };
+  useEffect(() => {
+    if (!mobileMenu) return undefined;
+    const dismiss = (event) => { if (event.key === 'Escape') { setMobileMenu(false); menuButtonRef.current?.focus(); } };
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, [mobileMenu]);
   useEffect(() => { const onOnline = () => setOffline(false); const onOffline = () => setOffline(true); window.addEventListener('online', onOnline); window.addEventListener('offline', onOffline); return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); }; }, []);
   return <div className="vnext-root">
     <a className="vnext-skip-link" href="#doctor-main-content">Skip to main content</a>
     <div className="vnext-shell">
       <header className="vnext-header">
         <div className="vnext-header__inner">
-          <div className="vnext-brand"><div className="vnext-brand__mark" aria-hidden="true">PH</div><div><div className="vnext-brand__name">Prestige Doctor</div><div className="vnext-brand__sub">Your care team, connected</div></div></div>
-          <div className="vnext-header__right"><InstallButton />{!demo && <NotificationLink />}<button type="button" className="vnext-button vnext-button--text vnext-button--small" onClick={async () => { try { await disableDoctorPush(); } catch { /* Local unsubscribe still protects a shared device. */ } logout(); navigate('/login', { replace: true }); }}>Sign out</button>
+          <NavLink to={doctorHref('/app/queue', demo)} className="vnext-brand" aria-label="Prestige Doctor — review queue"><div className="vnext-brand__mark" aria-hidden="true"><HeartPulse size={23} strokeWidth={1.8} /></div><div><div className="vnext-brand__name">Prestige <span>Doctor</span></div><div className="vnext-brand__sub">Clinical workspace</div></div></NavLink>
+          <div className="vnext-header__right"><InstallButton />{!demo && <NotificationLink />}<button type="button" className="vnext-button vnext-button--text vnext-button--small" onClick={signOut}>Sign out</button>
             {demo && <><span className="vnext-demo-label">Synthetic demo</span><button className="vnext-button vnext-button--text vnext-button--small" onClick={onResetDemo}>Reset demo</button></>}
             <div className="vnext-session"><span className="vnext-session__avatar">DR</span><span className="vnext-session__name">Current clinician</span></div>
-            <button className="vnext-icon-button vnext-mobile-menu-button" aria-label={mobileMenu ? 'Close navigation' : 'Open navigation'} onClick={() => setMobileMenu((value) => !value)}><Icon name={mobileMenu ? 'X' : 'Menu'} /></button>
+            <button ref={menuButtonRef} aria-expanded={mobileMenu} aria-controls="doctor-workspace-nav" className="vnext-icon-button vnext-mobile-menu-button" aria-label={mobileMenu ? 'Close navigation' : 'Open navigation'} onClick={() => setMobileMenu((value) => !value)}><Icon name={mobileMenu ? 'X' : 'Menu'} /></button>
           </div>
         </div>
       </header>
       {offline && <div className="vnext-offline" role="status"><Icon name="AlertTriangle" size={15} /><span><strong>Connection unavailable.</strong> Server state may be out of date. Clinical actions stay unresolved until the Care Kernel responds.</span></div>}
       <div className="vnext-body">
-        <aside className={`vnext-sidebar ${mobileMenu ? 'vnext-sidebar--mobile-open' : ''}`} aria-label="Doctor workspace navigation">
-          <div className="vnext-sidebar__label">Workspace</div>
+        <aside id="doctor-workspace-nav" className={`vnext-sidebar ${mobileMenu ? 'vnext-sidebar--mobile-open' : ''}`} aria-label="Doctor workspace navigation">
+          <div className="vnext-sidebar__label">Your workspace</div>
           <nav className="vnext-nav">
             {NAV_ITEMS.map(({ href, label, icon: NavIcon }) => <NavLink key={href} to={doctorHref(href, demo)} className={`vnext-nav__item ${pathIs(location.pathname, href) ? 'vnext-nav__item--active' : ''}`} onClick={() => setMobileMenu(false)}><NavIcon size={17} strokeWidth={1.8} /><span>{label}</span>{href === '/app/queue' && queueCount > 0 && <span className="vnext-nav__count">{queueCount}</span>}</NavLink>)}
           </nav>
           <hr className="vnext-sidebar__rule" />
-          <div className="vnext-sidebar__label">Clinical context</div>
-          <nav className="vnext-nav"><NavLink to={doctorHref('/app/queue', demo)} className="vnext-nav__item" onClick={() => setMobileMenu(false)}><Stethoscope size={17} /><span>Assigned cases</span></NavLink><NavLink to={doctorHref('/app/contribution', demo)} className="vnext-nav__item" onClick={() => setMobileMenu(false)}><UsersRound size={17} /><span>Work metrics</span></NavLink></nav>
-          <hr className="vnext-sidebar__rule" />
-          <div className="vnext-sidebar__note"><strong><ShieldCheck size={14} style={{ verticalAlign: 'middle', marginRight: 5 }} />Clinical authority</strong>Every decision is bound to the exact server proposal version. No clinical state is stored in this browser.</div>
+          <div className="vnext-sidebar__note"><strong><ShieldCheck size={16} style={{ verticalAlign: 'middle', marginRight: 5 }} />Connected care</strong>Your decisions stay linked to the exact proposal you review. Clinical records stay protected.</div>
           <ExperienceFeedback demo={demo} />
+          <div className="vnext-mobile-account"><InstallButton /><button type="button" className="vnext-button vnext-button--secondary" onClick={signOut}>Sign out</button></div>
         </aside>
         <main id="doctor-main-content" className="vnext-main"><div className="vnext-main__inner"><RouteErrorBoundary><Suspense fallback={<LoadingState />}>{children}</Suspense></RouteErrorBoundary></div></main>
       </div>
@@ -156,22 +163,22 @@ function QueueScreen({ demo }) {
   }, [data.data, tab, urgency, status]);
   const counts = data.data?.summary || {};
   return <>
-    <PageHeader title="Review queue" description="Server-prioritized cases that need a safe clinical decision. Start with urgency, authority, evidence, and the next accountable checkpoint." actions={<ActionButton icon="RefreshCw" variant="secondary" onClick={() => setReloadAt((value) => value + 1)} disabled={data.loading}>Refresh</ActionButton>} />
+    <PageHeader title="Review queue" description="A clear view of the patients who need your attention. Review evidence, make decisions, and keep care moving." actions={<ActionButton icon="RefreshCw" variant="secondary" onClick={() => setReloadAt((value) => value + 1)} disabled={data.loading}>Refresh</ActionButton>} />
     <div className="vnext-card-grid">
-      <div className="vnext-metric"><div className="vnext-metric__label">Needs attention</div><div className="vnext-metric__value">{counts.needs_attention ?? '—'}</div><div className="vnext-metric__sub">Server queue count</div></div>
-      <div className="vnext-metric"><div className="vnext-metric__label">Urgent route</div><div className="vnext-metric__value">{counts.urgent ?? '—'}</div><div className="vnext-metric__sub">Safety and SLA first</div></div>
-      <div className="vnext-metric"><div className="vnext-metric__label">Coverage pool</div><div className="vnext-metric__value">{counts.pool ?? '—'}</div><div className="vnext-metric__sub">Minimum necessary preview</div></div>
+      <div className="vnext-metric"><div className="vnext-metric__label"><ClipboardList size={17} />Needs attention</div><div className="vnext-metric__value">{counts.needs_attention ?? '—'}</div><div className="vnext-metric__sub">Ready for your review</div></div>
+      <div className="vnext-metric"><div className="vnext-metric__label"><Clock3 size={17} />Urgent route</div><div className="vnext-metric__value">{counts.urgent ?? '—'}</div><div className="vnext-metric__sub">Prioritize timely care</div></div>
+      <div className="vnext-metric"><div className="vnext-metric__label"><UsersRound size={17} />Coverage pool</div><div className="vnext-metric__value">{counts.pool ?? '—'}</div><div className="vnext-metric__sub">Available for coverage</div></div>
     </div>
-    <div className="vnext-spaced"><CareActivityPanel demo={demo} onOpenCase={(caseId) => { trackDoctorEvent('ongoing_care_opened', { mode: demo ? 'demo' : 'live' }); navigate(doctorHref(`/app/cases/${encodeURIComponent(caseId)}`, demo)); }} /></div>
-    <div className="vnext-section-heading"><div><h2>Cases</h2><p>Funding or sponsorship never changes this order, authority, or due time.</p></div></div>
+    <div className="vnext-section-heading"><div><h2>Your cases</h2><p>Ordered by clinical priority. Choose a case to continue.</p></div></div>
     <div className="vnext-tabs" role="tablist" aria-label="Queue views">
       {[['assigned', 'Assigned', counts.assigned], ['mine', 'Mine', counts.mine], ['pool', 'Coverage pool', counts.pool]].map(([value, label, count]) => <button key={value} className={`vnext-tab ${tab === value ? 'vnext-tab--active' : ''}`} role="tab" aria-selected={tab === value} onClick={() => setTab(value)}>{label}<span className="vnext-count">{count ?? '—'}</span></button>)}
     </div>
-    <div className="vnext-toolbar" style={{ marginTop: 14 }}><div className="vnext-filter"><label htmlFor="queue-urgency">Urgency</label><select id="queue-urgency" className="vnext-select" value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="all">All</option><option value="urgent">Urgent only</option><option value="soon">Due soon or urgent</option></select></div><div className="vnext-filter"><label htmlFor="queue-status">Status</label><select id="queue-status" className="vnext-select" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option value="needs_attention">Needs attention</option><option value="pending">Pending</option><option value="waiting_on_patient">Waiting on patient</option><option value="in_progress">In progress</option></select></div><SafeNote>Queue order is server-owned. Local filters do not create priority.</SafeNote></div>
+    <div className="vnext-toolbar" style={{ marginTop: 14 }}><div className="vnext-filter"><label htmlFor="queue-urgency">Urgency</label><select id="queue-urgency" className="vnext-select" value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="all">All</option><option value="urgent">Urgent only</option><option value="soon">Due soon or urgent</option></select></div><div className="vnext-filter"><label htmlFor="queue-status">Status</label><select id="queue-status" className="vnext-select" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option value="needs_attention">Needs attention</option><option value="pending">Pending</option><option value="waiting_on_patient">Waiting on patient</option><option value="in_progress">In progress</option></select></div><SafeNote>Clinical priority is maintained as you filter.</SafeNote></div>
     {tab === 'pool' && <div className="vnext-pool-callout"><Icon name="LockKeyhole" size={18} /><p><strong>Coverage pool privacy.</strong> Patient identity, clinical detail, and proposal hashes remain withheld until a successful claim returns the full proposal.</p></div>}
     <div className="vnext-panel" style={{ marginTop: 12 }}>
-      {data.loading ? <LoadingState label="Loading the server-prioritized queue…" /> : data.error ? <ErrorState error={data.error} onRetry={() => setReloadAt((value) => value + 1)} /> : rows.length === 0 ? <EmptyState title="No cases in this view" body="The server did not return a case for this filter. Your clinical queue is not being inferred in the browser." /> : <div style={{ overflowX: 'auto' }}><table className="vnext-queue-table"><thead><tr><th>Case</th><th>Route</th><th>Urgency</th><th>Authority</th><th>Evidence</th><th>Deadline</th><th><span className="vnext-sr-only">Action</span></th></tr></thead><tbody>{rows.map((row) => <QueueRow key={row.public_id} row={row} onOpen={() => { trackDoctorEvent('case_opened', { mode: demo ? 'demo' : 'live', route: row.route_mode, pool_preview: row.pool_preview }); navigate(doctorHref(`/app/cases/${encodeURIComponent(row.public_id)}`, demo)); }} />)}</tbody></table></div>}
+      {data.loading ? <LoadingState label="Loading the server-prioritized queue…" /> : data.error ? <ErrorState error={data.error} onRetry={() => setReloadAt((value) => value + 1)} /> : rows.length === 0 ? <EmptyState title="No cases in this view" body="There are no cases matching these filters. Try another view or check back for new assignments." /> : <div style={{ overflowX: 'auto' }}><table className="vnext-queue-table"><thead><tr><th>Case</th><th>Route</th><th>Urgency</th><th>Authority</th><th>Evidence</th><th>Deadline</th><th><span className="vnext-sr-only">Action</span></th></tr></thead><tbody>{rows.map((row) => <QueueRow key={row.public_id} row={row} onOpen={() => { trackDoctorEvent('case_opened', { mode: demo ? 'demo' : 'live', route: row.route_mode, pool_preview: row.pool_preview }); navigate(doctorHref(`/app/cases/${encodeURIComponent(row.public_id)}`, demo)); }} />)}</tbody></table></div>}
     </div>
+    <div className="vnext-spaced"><CareActivityPanel demo={demo} onOpenCase={(caseId) => { trackDoctorEvent('ongoing_care_opened', { mode: demo ? 'demo' : 'live' }); navigate(doctorHref(`/app/cases/${encodeURIComponent(caseId)}`, demo)); }} /></div>
   </>;
 }
 
@@ -181,7 +188,7 @@ function QueueRow({ row, onOpen }) {
     <td data-label="Case"><div className="vnext-queue-table__case">{row.pool_preview ? <div className="vnext-private-preview"><Icon name="LockKeyhole" size={16} /><div><strong>Coverage case</strong><span>Details withheld until claim</span></div></div> : <><strong>{row.patient?.display_name || 'Authorized patient'}</strong><span>{row.presenting_problem || 'Clinical case returned by the server'}</span>{row.protected_population && <ProtectedLabel />}</>}</div></td>
     <td data-label="Route"><StatusBadge status={row.route_mode === 'covering_pool' ? 'pending' : row.status} label={row.route_mode === 'covering_pool' ? 'Coverage pool' : row.route_mode === 'assigned' ? 'Assigned' : statusLabel(row.route_mode)} /></td>
     <td data-label="Urgency"><UrgencyBadge item={row} /></td>
-    <td data-label="Authority"><span className="vnext-small">{row.requested_authority}</span>{row.information_resubmission && <div className="vnext-small" style={{ color: 'var(--vnext-amber)', marginTop: 3 }}>New information returned</div>}</td>
+    <td data-label="Authority"><span className="vnext-small">{statusLabel(row.requested_authority)}</span>{row.information_resubmission && <div className="vnext-small" style={{ color: 'var(--vnext-amber)', marginTop: 3 }}>New information returned</div>}</td>
     <td data-label="Evidence"><span className="vnext-small">{row.pool_preview ? 'Withheld' : row.evidence_completeness?.label || 'Returned by server'}</span></td>
     <td data-label="Deadline"><span className={due.overdue ? 'vnext-field--danger' : ''}>{due.label}</span><div className="vnext-small vnext-muted">{row.due_at ? formatDateTime(row.due_at) : 'Not supplied'}</div></td>
     <td data-label="Action"><button className="vnext-row-action" onClick={onOpen}>{row.pool_preview ? 'Claim to view' : row.claimed_by_current_doctor ? 'Continue review' : 'Open case'} <LinkArrow /></button></td>
