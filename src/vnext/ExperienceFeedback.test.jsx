@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ExperienceFeedback, { doctorFeedbackRoute } from './ExperienceFeedback';
 import { forgetCommandKey, getCommandKey, submitExperienceFeedback } from './api';
-import { isDoctorUpdateGuarded, resetDoctorUpdateGuards } from '../pwa/updateGuard';
+import { isDoctorUpdateGuarded, resetDoctorUpdateGuards, setDoctorFormDirty } from '../pwa/updateGuard';
 
 vi.mock('./api', () => ({
   apiDiagnostics: { clientVersion: 'doctor-build-123' },
@@ -100,6 +100,26 @@ describe('doctor experience feedback', () => {
     expect(isDoctorUpdateGuarded()).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Report another problem' }));
+    expect(isDoctorUpdateGuarded()).toBe(false);
+  });
+
+  it('releases only the feedback form guard when its receipt is confirmed', async () => {
+    let resolveSubmit;
+    const releaseOtherForm = setDoctorFormDirty(true);
+    submitExperienceFeedback.mockImplementation(() => new Promise((resolve) => { resolveSubmit = resolve; }));
+    renderFeedback();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }));
+    fireEvent.change(screen.getByLabelText('What happened?'), { target: { value: 'blocked' } });
+    fireEvent.change(screen.getByLabelText(/Describe the problem/), { target: { value: 'The review action did not open.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send report' }));
+    await waitFor(() => expect(submitExperienceFeedback).toHaveBeenCalledTimes(1));
+
+    resolveSubmit({ receipt: 'feedback-receipt-overlap-1' });
+    expect(await screen.findByText('feedback-receipt-overlap-1')).toBeInTheDocument();
+    expect(isDoctorUpdateGuarded()).toBe(true);
+
+    releaseOtherForm();
     expect(isDoctorUpdateGuarded()).toBe(false);
   });
 

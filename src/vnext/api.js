@@ -234,6 +234,26 @@ export const fetchProtocolCandidates = async ({ demo = false, signal } = {}) => 
   return Array.isArray(result) ? result : result?.results || result?.items || [];
 };
 
+export const fetchResearchReviewInbox = async ({ signal } = {}) => {
+  const result = validateObject(await request('/provider/preventive-review-inbox', { signal }), 'research review inbox');
+  if (!Array.isArray(result.research_findings) || !Array.isArray(result.protocol_updates)) {
+    throw new DoctorApiError('We could not safely display the latest research review inbox.', { code: 'schema_mismatch' });
+  }
+  return { research_findings: result.research_findings, protocol_updates: result.protocol_updates };
+};
+
+export const submitResearchApplicabilityDecision = async ({ findingId, findingHash, decision, rationale, commandKey, signal } = {}) => {
+  if (!findingId || !/^[0-9a-f]{64}$/i.test(String(findingHash || '')) ||
+      !['educational_only', 'not_applicable', 'more_information', 'reject'].includes(decision) ||
+      !String(rationale || '').trim()) {
+    throw new DoctorApiError('Review the exact finding and enter a rationale before deciding.', { code: 'invalid_request', status: 422 });
+  }
+  return validateObject(await request(`/care/research-findings/${encodeURIComponent(findingId)}/applicability-decision`, {
+    method: 'POST', body: { decision, rationale: rationale.trim(), expected_finding_hash: findingHash },
+    commandKey, correlationScope: `research-finding:${findingId}`, signal,
+  }), 'research decision receipt');
+};
+
 export const submitProtocolDecision = async ({ candidateId, payload, commandKey, correlationId, demo = false, signal } = {}) => {
   if (!candidateId || !payload?.decision || !payload?.rationale) throw new DoctorApiError('A governance decision and rationale are required.', { code: 'invalid_request', status: 422 });
   if (isDemoEnabled(demo)) return demoRequest('protocol-decision', { candidateId, payload });

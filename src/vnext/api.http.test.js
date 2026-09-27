@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { fetchCareActivity, submitDoctorDecision, submitExperienceFeedback, request, fetchProposal } from './api';
+import { fetchCareActivity, fetchResearchReviewInbox, submitResearchApplicabilityDecision, submitDoctorDecision, submitExperienceFeedback, request, fetchProposal } from './api';
 import { getAccessToken } from '../api';
 
 vi.mock('../api', () => ({
@@ -65,6 +65,37 @@ describe('doctor Care Kernel HTTP contract', () => {
     expect(options.headers.Authorization).toBe('Bearer access-token');
     expect(options.headers['Idempotency-Key']).toBeUndefined();
     expect(result.items[0]).toMatchObject({ public_id: 'task-1', case_id: 'proposal-1', status: 'waiting_on_clinician' });
+  });
+
+  test('research review reads the scoped provider inbox and rejects missing queue sections', async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({ research_findings: [{ finding: 'finding-1', citations: [] }], protocol_updates: [] }));
+    const result = await fetchResearchReviewInbox();
+    expect(result.research_findings).toHaveLength(1);
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toContain('/provider/preventive-review-inbox');
+    expect(options.method).toBe('GET');
+    expect(options.headers.Authorization).toBe('Bearer access-token');
+    expect(options.headers['Idempotency-Key']).toBeUndefined();
+    global.fetch.mockResolvedValueOnce(jsonResponse({ research_findings: [] }));
+    await expect(fetchResearchReviewInbox()).rejects.toMatchObject({ code: 'schema_mismatch' });
+  });
+
+  test('research review mutation carries the exact finding hash and cannot submit care-changing approval', async () => {
+    const findingHash = 'a'.repeat(64);
+    global.fetch.mockResolvedValueOnce(jsonResponse({ public_id: 'decision-1', decision: 'educational_only' }, true, 201));
+    await submitResearchApplicabilityDecision({
+      findingId: 'finding-1', findingHash, decision: 'educational_only',
+      rationale: 'Educational context only.', commandKey: 'review-command-1',
+    });
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toContain('/care/research-findings/finding-1/applicability-decision');
+    expect(options.headers['Idempotency-Key']).toBe('review-command-1');
+    expect(JSON.parse(options.body)).toEqual({
+      decision: 'educational_only', rationale: 'Educational context only.', expected_finding_hash: findingHash,
+    });
+    await expect(submitResearchApplicabilityDecision({
+      findingId: 'finding-1', findingHash, decision: 'applicable', rationale: 'Change treatment',
+    })).rejects.toMatchObject({ code: 'invalid_request' });
   });
 });
 

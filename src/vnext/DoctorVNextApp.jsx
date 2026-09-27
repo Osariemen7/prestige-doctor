@@ -30,6 +30,7 @@ const MessagesScreen = lazy(() => import('./MessagesScreen'));
 const NotificationsScreen = lazy(() => import('../pwa/NotificationsScreen'));
 const NotificationDestination = lazy(() => import('../pwa/NotificationDestination'));
 const CaseScreen = lazy(() => import('./ClinicalCaseScreen'));
+const ResearchReviewScreen = lazy(() => import('./ResearchReviewScreen'));
 import {
   ActionButton,
   AccountabilityStrip,
@@ -58,16 +59,22 @@ import './workspace-polish.css';
 import { DoctorPatientsScreen, DoctorResultsScreen, DoctorResultDetailScreen } from './DoctorCollections';
 
 const NAV_ITEMS = [
-  { href: '/app/queue', label: 'Review queue', icon: ClipboardList },
-  { href: '/app/alerts', label: 'Alerts', icon: Bell },
-  { href: '/app/protocols', label: 'Protocols', icon: BookOpen },
-  { href: '/app/contribution', label: 'Contribution', icon: Activity },
-  { href: '/app/messages', label: 'Messages', icon: MessageSquare },
-  { href: '/app/diagnostics', label: 'Results & services', icon: FileText },
-  { href: '/app/patients', label: 'Patients', icon: UsersRound },
+  { key: 'review-queue', href: '/app/queue', label: 'Review queue', icon: ClipboardList },
+  { key: 'alerts', href: '/app/alerts', label: 'Alerts', icon: Bell },
+  { key: 'protocols', href: '/app/protocols', label: 'Protocols', icon: BookOpen },
+  { key: 'research-review', href: '/app/research-review', label: 'Research review', icon: BookOpen },
+  { key: 'contribution', href: '/app/contribution', label: 'Contribution', icon: Activity },
+  { key: 'messages', href: '/app/messages', label: 'Messages', icon: MessageSquare },
+  { key: 'results-services', href: '/app/diagnostics', label: 'Results & services', icon: FileText },
+  { key: 'patients', href: '/app/patients', label: 'Patients', icon: UsersRound },
 ];
 
-const mobileItems = [NAV_ITEMS[0], NAV_ITEMS[6], NAV_ITEMS[4], { href: '/app/notifications', label: 'Updates', icon: Bell }];
+const MOBILE_NAV_KEYS = ['review-queue', 'patients', 'messages'];
+export const selectMobileNavigationItems = (navItems = NAV_ITEMS) => {
+  const itemsByKey = new Map(navItems.map((item) => [item.key, item]));
+  return MOBILE_NAV_KEYS.map((key) => itemsByKey.get(key)).filter(Boolean);
+};
+const mobileItems = [...selectMobileNavigationItems(), { key: 'updates', href: '/app/notifications', label: 'Updates', icon: Bell }];
 const doctorHref = (href, demo) => demo ? `${href}${href.includes('?') ? '&' : '?'}demo=1` : href;
 
 const useAsyncData = (loader, dependencies = []) => {
@@ -279,6 +286,7 @@ export default function DoctorVNextApp({ demo = false }) {
   else if (path === '/app/patients') content = <DoctorPatientsScreen demo={activeDemo} />;
   else if (path === '/app/diagnostics') content = <DoctorResultsScreen demo={activeDemo} />;
   else if (path === '/app/alerts') content = <AlertsScreen demo={activeDemo} />;
+  else if (path === '/app/research-review') content = <ResearchReviewScreen demo={activeDemo} />;
   else if (path.startsWith('/app/protocols/')) content = <ProtocolCandidateScreen demo={activeDemo} candidateId={match('/app/protocols/')} />;
   else if (path === '/app/protocols') content = <ProtocolsScreen demo={activeDemo} />;
   else if (path === '/app/contribution') content = <ContributionScreen demo={activeDemo} />;

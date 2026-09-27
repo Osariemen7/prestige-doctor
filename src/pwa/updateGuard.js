@@ -1,7 +1,21 @@
-let dirtyForms = 0;
-let clinicalSubmissions = 0;
+const dirtyFormLeases = new Set();
+const clinicalSubmissionLeases = new Set();
 const announce = () => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('doctor-update-guard-changed')); };
-export const setDoctorFormDirty = (dirty) => { dirtyForms = Math.max(0, dirtyForms + (dirty ? 1 : -1)); announce(); return () => setDoctorFormDirty(false); };
-export const setClinicalSubmissionActive = (active) => { clinicalSubmissions = Math.max(0, clinicalSubmissions + (active ? 1 : -1)); announce(); return () => setClinicalSubmissionActive(false); };
-export const isDoctorUpdateGuarded = () => dirtyForms > 0 || clinicalSubmissions > 0;
-export const resetDoctorUpdateGuards = () => { dirtyForms = 0; clinicalSubmissions = 0; };
+
+const acquireLease = (leases, active, label) => {
+  if (!active) return () => {};
+  const lease = Symbol(label);
+  leases.add(lease);
+  announce();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (leases.delete(lease)) announce();
+  };
+};
+
+export const setDoctorFormDirty = (dirty) => acquireLease(dirtyFormLeases, dirty, 'doctor-dirty-form');
+export const setClinicalSubmissionActive = (active) => acquireLease(clinicalSubmissionLeases, active, 'doctor-clinical-submission');
+export const isDoctorUpdateGuarded = () => dirtyFormLeases.size > 0 || clinicalSubmissionLeases.size > 0;
+export const resetDoctorUpdateGuards = () => { dirtyFormLeases.clear(); clinicalSubmissionLeases.clear(); };

@@ -51,6 +51,7 @@ export default function ExperienceFeedback({ demo = false }) {
   const [receipt, setReceipt] = useState('');
   const intentRef = useRef(null);
   const scopeRef = useRef(null);
+  const dirtyGuardCleanupRef = useRef(null);
   const reportButtonRef = useRef(null);
   const descriptionRef = useRef(null);
 
@@ -70,7 +71,16 @@ export default function ExperienceFeedback({ demo = false }) {
   useEffect(() => {
     const hasUnconfirmedReport = phase !== 'success' && Boolean(category || description.trim());
     if (!hasUnconfirmedReport) return undefined;
-    return setDoctorFormDirty(true);
+    const releaseGuard = setDoctorFormDirty(true);
+    let released = false;
+    const releaseOnce = () => {
+      if (released) return;
+      released = true;
+      releaseGuard();
+      if (dirtyGuardCleanupRef.current === releaseOnce) dirtyGuardCleanupRef.current = null;
+    };
+    dirtyGuardCleanupRef.current = releaseOnce;
+    return releaseOnce;
   }, [category, description, phase]);
 
   if (demo) return null;
@@ -118,6 +128,7 @@ export default function ExperienceFeedback({ demo = false }) {
       if (typeof serverReceipt !== 'string' || !serverReceipt.trim()) {
         throw new Error('receipt_unavailable');
       }
+      dirtyGuardCleanupRef.current?.();
       setReceipt(serverReceipt.trim());
       setPhase('success');
       if (scopeRef.current) forgetCommandKey(scopeRef.current);
