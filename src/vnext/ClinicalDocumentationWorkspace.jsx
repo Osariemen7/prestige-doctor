@@ -30,11 +30,57 @@ import {
 import { trackDoctorEvent } from './analytics';
 import { setClinicalSubmissionActive, setDoctorFormDirty } from '../pwa/updateGuard';
 
-const reviewDraftSignature = (content, proposal) => JSON.stringify({
+const reviewDraftSignature = (content, proposal, nativeReview) => JSON.stringify({
   content,
   base_proposal_hash: proposal?.proposal_hash || null,
   proposal_version: proposal?.clinical_documentation?.source_plan_version_id || null,
+  ai_draft_hash: nativeReview?.aiHash || null,
 });
+
+const isDocument = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+// Native snapshots are a separate authority contract, not legacy scratch drafts.
+const nativeReviewFrom = (response, proposal) => {
+  const ai = response.ai_draft;
+  const envelope = ai?.envelope;
+  const planId = proposal.clinical_documentation?.source_plan_version_id;
+  if (response.proposal_id !== proposal.public_id || !response.ai_draft_hash
+    || ai?.state !== 'ai_prepared_unapproved' || !isDocument(ai.documentation)
+    || ai.documentation.schema_version !== 'care_plan_documentation.v2' || !planId
+    || envelope?.content_sha256 !== response.ai_draft_hash
+    || envelope?.proposal_id !== proposal.public_id
+    || !ai.source_sha256 || envelope?.source_sha256 !== ai.source_sha256
+    || envelope?.evidence_revision !== ai.evidence_revision
+    || ai.provenance?.proposal_hash !== proposal.proposal_hash) {
+    throw new Error('The native clinical draft identity changed or is incomplete. Reload before reviewing.');
+  }
+  const baseline = { ...copy(ai.documentation), schema_version: 'care_plan_edit.v2', source_plan_version_id: planId };
+  const saved = response.clinician_edit;
+  const payload = saved?.payload;
+  const editHash = payload?.envelope?.content_sha256 || '';
+  if (saved && (!editHash || !isDocument(payload?.edited_document))) {
+    throw new Error('The stored clinician edit has no exact review content or server hash. Reload before reviewing.');
+  }
+  const stale = Boolean(saved && (saved.stale || saved.base_proposal_hash !== proposal.proposal_hash
+    || payload.base_ai_draft_hash !== response.ai_draft_hash
+    || payload.source_sha256 !== ai.source_sha256 || payload.evidence_revision !== ai.evidence_revision
+    || payload.edited_document.source_plan_version_id !== planId));
+  return {
+    baseline, saved, content: saved && !stale ? copy(payload.edited_document) : baseline,
+    stale, staleContent: stale ? copy(payload.edited_document) : null,
+    identity: { aiHash: response.ai_draft_hash, editHash, sourceHash: ai.source_sha256, evidenceRevision: ai.evidence_revision },
+  };
+};
+
+const nativeFieldKeys = {
+  history_of_presenting_complaint: 'history_of_present_illness',
+  relevant_history_review_of_systems: 'review_of_systems',
+  allergies: 'allergies_and_interactions', patient_goal: 'patient_goals',
+  remote_assessment_limitations: 'remote_exam_limitations', education: 'patient_education',
+};
+
+const reapplicableChanges = (current, prior) => documentationChanges(current, prior)
+  .filter((change) => !['schema_version', 'source_plan_version_id'].includes(change.path));
 
 const proposalClaimedByCurrentDoctor = (proposal, demo) => Boolean(
   proposal?.review_claim?.claimed_by_current_doctor
@@ -149,14 +195,30 @@ export const validateDocumentationDraft = (draft) => {
   return [...new Set(errors)];
 };
 
-function ChangedField({ label, path, draft, original, onChange, onUndo, rows = 3, readOnly = false }) {
+function ChangedField({ label, path, draft, original, onChange, onUndo, rows = 3, readOnly = false, onInvalidChange }) {
   const value = getAt(draft, path) ?? '';
+  const structured = value !== null && typeof value === 'object';
+  const displayValue = structured ? JSON.stringify(value, null, 2) : value;
+  const [invalidText, setInvalidText] = useState(null);
+  useEffect(() => { setInvalidText(null); }, [displayValue]);
+  const changeValue = (text) => {
+    if (!structured) { onChange(path, text); return; }
+    try {
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) !== Array.isArray(value)) throw new Error('shape');
+      setInvalidText(null); onInvalidChange?.(path, false); onChange(path, parsed);
+    } catch {
+      setInvalidText(text); onInvalidChange?.(path, true);
+    }
+  };
   const originalValue = getAt(original, path) ?? '';
   const changed = JSON.stringify(value) !== JSON.stringify(originalValue);
   const id = `documentation-${path.replaceAll('.', '-')}`;
   return <div className={`doc-field ${changed ? 'doc-field--changed' : ''}`}>
     <div className="doc-field__label-row"><label htmlFor={id}>{label}</label>{changed && <span className="doc-changed-badge">Changed</span>}</div>
-    <textarea id={id} className="vnext-textarea doc-field__input" rows={rows} value={value} readOnly={readOnly} aria-readonly={readOnly} onChange={(event) => onChange(path, event.target.value)} />
+    <textarea id={id} className="vnext-textarea doc-field__input" rows={rows} value={invalidText ?? displayValue} readOnly={readOnly} aria-readonly={readOnly} aria-invalid={invalidText !== null} onChange={(event) => changeValue(event.target.value)} />
+    {invalidText !== null && <p role="alert">Keep this structured value as valid JSON before saving or signing.</p>}
+    {invalidText !== null && <button type="button" onClick={() => { setInvalidText(null); onInvalidChange?.(path, false); }}>Discard invalid text</button>}
     {changed && <div className="doc-field__audit"><details><summary>View original</summary><p>{conciseValue(originalValue)}</p></details><button type="button" onClick={() => onUndo(path)}>Undo change</button></div>}
   </div>;
 }
@@ -262,6 +324,8 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
   const [draftVersion, setDraftVersion] = useState(0);
   const [draftSaveState, setDraftSaveState] = useState("saved");
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [nativeReview, setNativeReview] = useState(null);
+  const [invalidFields, setInvalidFields] = useState({});
   const draftHydratedRef = useRef(false);
   const draftSaveIntentRef = useRef(null);
   const draftSaveInFlightRef = useRef(false);
@@ -277,6 +341,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     draftSaveIntentRef.current = null;
     savedDraftSignatureRef.current = null;
     pendingConflictDraftRef.current = null;
+    setNativeReview(null); setInvalidFields({});
     forgetCommandKey("review-draft:" + proposalId);
     commandKeyRef.current = null;
     frozenPayloadRef.current = null;
@@ -285,7 +350,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
 
   const hydrateDraft = useCallback(async (next, signal) => {
     const contract = next.clinical_documentation?.edit_contract;
-    const baseline = contract ? copy(contract) : null;
+    let baseline = contract ? copy(contract) : null;
     draftHydratedRef.current = false;
     setDraftHydrated(false);
     setOriginal(baseline);
@@ -294,35 +359,37 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     setDraftSaveState("saved");
     setStaleComparison(null);
     setReapplyChanges([]);
+    setNativeReview(null); setInvalidFields({});
     draftSaveIntentRef.current = null;
     savedDraftSignatureRef.current = baseline ? reviewDraftSignature(baseline, next) : null;
-    if (!baseline) {
-      draftHydratedRef.current = true;
-      setDraftHydrated(true);
-      return { baseline: null, content: null, version: 0, stale: false };
-    }
-
     const hydrated = { baseline, content: baseline, version: 0, stale: false };
     const claimed = proposalClaimedByCurrentDoctor(next, demo);
     if (claimed) {
       const response = await fetchReviewDraft({ proposalId, demo, signal });
-      const saved = response?.draft;
-      const content = saved?.payload?.content;
+      const native = response?.schema_version === 'clinical_review_draft_v2' ? nativeReviewFrom(response, next) : null;
+      if (native) {
+        baseline = native.baseline;
+        hydrated.baseline = baseline; hydrated.content = native.content;
+        setOriginal(baseline); setDraft(native.content); setNativeReview(native.identity);
+        savedDraftSignatureRef.current = reviewDraftSignature(native.content, next, native.identity);
+      }
+      const saved = native ? native.saved : response?.draft;
+      const content = native ? saved?.payload?.edited_document : saved?.payload?.content;
       hydrated.version = Number(saved?.version || 0);
       setDraftVersion(hydrated.version);
-      if (saved && (saved.stale || (saved.base_proposal_hash && saved.base_proposal_hash !== next.proposal_hash))) {
+      if (saved && (native?.stale || saved.stale || (saved.base_proposal_hash && saved.base_proposal_hash !== next.proposal_hash))) {
         hydrated.stale = true;
         if (content && typeof content === 'object' && !Array.isArray(content)) {
           hydrated.staleContent = copy(content);
           setStaleComparison(copy(content));
-          setReapplyChanges(documentationChanges(baseline, content));
+          setReapplyChanges(reapplicableChanges(baseline, content));
         }
         setDraftSaveState("stale");
       } else if (content && typeof content === 'object' && !Array.isArray(content)) {
         const restored = copy(content);
         hydrated.content = restored;
         setDraft(restored);
-        savedDraftSignatureRef.current = reviewDraftSignature(restored, next);
+        savedDraftSignatureRef.current = reviewDraftSignature(restored, next, native?.identity);
       }
     }
 
@@ -382,7 +449,8 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
       const hydrated = await hydrateDraft(latest);
       const current = hydrated?.content || latest.clinical_documentation?.edit_contract || {};
       setStaleComparison(copy(localDraft));
-      setReapplyChanges(documentationChanges(current, localDraft || {}));
+      setReapplyChanges(reapplicableChanges(current, localDraft || {}));
+      setConfirmOpen(false); setFinalAttestation(false);
       pendingConflictDraftRef.current = null;
       if (proposalClaimedByCurrentDoctor(latest, demo)) {
         setDraftSaveState("saved");
@@ -413,14 +481,18 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     setReloadKey((value) => value + 1);
   };
 
-  const currentDraftSignature = draft && proposal ? reviewDraftSignature(draft, proposal) : null;
+  const currentDraftSignature = draft && proposal ? reviewDraftSignature(draft, proposal, nativeReview) : null;
   const draftIsDirty = Boolean(currentDraftSignature && currentDraftSignature !== savedDraftSignatureRef.current);
   useEffect(() => { if (!draft || result) return undefined; return setDoctorFormDirty(changes.length > 0); }, [changes.length, draft, result]);
   const persistDraft = useCallback(async () => {
-    if (!draft || !proposal || result || !draftHydratedRef.current || !draftIsDirty || draftSaveInFlightRef.current) return;
+    if (!draft || !proposal || result || unresolved || !draftHydratedRef.current || !draftIsDirty || draftSaveInFlightRef.current || Object.values(invalidFields).some(Boolean)) return;
     const scope = "review-draft:" + proposalId;
     if (!draftSaveIntentRef.current) {
-      const payload = {
+      const payload = nativeReview ? {
+        ai_draft_hash: nativeReview.aiHash,
+        expected_edit_hash: nativeReview.editHash,
+        draft: copy(draft),
+      } : {
         content: copy(draft),
         base_proposal_hash: proposal.proposal_hash,
         expected_version: draftVersion,
@@ -429,7 +501,7 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
       draftSaveIntentRef.current = {
         commandKey: getCommandKey(scope),
         payload,
-        signature: reviewDraftSignature(draft, proposal),
+        signature: reviewDraftSignature(draft, proposal, nativeReview),
       };
     }
     const intent = draftSaveIntentRef.current;
@@ -437,6 +509,15 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
     setDraftSaveState("saving");
     try {
       const saved = await saveReviewDraft({ proposalId, demo, commandKey: intent.commandKey, payload: intent.payload });
+      if (nativeReview) {
+        const serverContent = saved?.draft?.payload?.edited_document;
+        if (!saved.edit_hash || saved.ai_draft_hash !== intent.payload.ai_draft_hash
+          || saved.draft?.payload?.envelope?.content_sha256 !== saved.edit_hash
+          || !isDocument(serverContent) || documentationChanges(intent.payload.draft, serverContent).length) {
+          throw new Error('The saved clinical draft content or hash was not confirmed. Reload before signing.');
+        }
+        setNativeReview((current) => ({ ...current, editHash: saved.edit_hash }));
+      }
       setDraftVersion(Number(saved?.draft?.version || saved?.version || saved?.state_version || draftVersion + 1));
       savedDraftSignatureRef.current = intent.signature;
       draftSaveIntentRef.current = null;
@@ -448,15 +529,18 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
         setReloadKey((value) => value + 1);
       } else if (saveError?.status === 409 || saveError?.staleProposal) {
         await recoverDraftConflict(copy(draft));
+      } else if (saveError?.status === 422) {
+        draftSaveIntentRef.current = null; forgetCommandKey(scope);
+        setMutationError(saveError); setDraftSaveState("invalid");
       } else {
         setDraftSaveState("failed");
       }
     } finally {
       draftSaveInFlightRef.current = false;
     }
-  }, [clearProtectedState, demo, draft, draftIsDirty, draftVersion, proposal, proposalId, recoverDraftConflict, result, documentation]);
+  }, [clearProtectedState, demo, draft, draftIsDirty, draftVersion, proposal, proposalId, recoverDraftConflict, result, documentation, nativeReview, unresolved, invalidFields]);
   useEffect(() => {
-    if (!draft || result || !draftHydratedRef.current || !draftIsDirty || ['failed', 'stale'].includes(draftSaveState)) return undefined;
+    if (!draft || result || !draftHydratedRef.current || !draftIsDirty || ['failed', 'invalid', 'stale'].includes(draftSaveState)) return undefined;
     const timer = window.setTimeout(persistDraft, 1000);
     return () => window.clearTimeout(timer);
   }, [draft, draftIsDirty, draftSaveState, persistDraft, result]);
@@ -464,11 +548,16 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
   const capabilities = documentation?.editor_capabilities || {};
 
   const updatePath = (path, value) => {
+    setFinalAttestation(false);
     setDraft((current) => withAt(current, path, value));
     trackDoctorEvent('documentation_edit_started', { mode: demo ? 'demo' : 'live', section: path.split('.')[0] });
   };
-  const undoPath = (path) => setDraft((current) => withAt(current, path, copy(getAt(original, path))));
+  const undoPath = (path) => {
+    setFinalAttestation(false); setInvalidFields((current) => ({ ...current, [path]: false }));
+    setDraft((current) => withAt(current, path, copy(getAt(original, path))));
+  };
   const updateActions = (key, rows) => {
+    setFinalAttestation(false);
     setDraft((current) => ({ ...current, [key]: rows, action_disposition: { ...(current.action_disposition || {}), [key === 'prescription' ? 'prescription' : 'investigation']: rows.length ? 'included' : 'none_indicated' } }));
     trackDoctorEvent('documentation_edit_started', { mode: demo ? 'demo' : 'live', section: key === 'prescription' ? 'prescriptions' : 'investigations' });
   };
@@ -513,14 +602,18 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
 
   const submit = async () => {
     const decision = changes.length ? 'edit_and_approve' : 'approve_as_written';
+    if (!frozenPayloadRef.current && nativeReview && (draftIsDirty || draftSaveInFlightRef.current
+      || ['failed', 'invalid', 'stale'].includes(draftSaveState) || reapplyChanges.length
+      || Object.values(invalidFields).some(Boolean) || (changes.length && !nativeReview.editHash))) return;
     const payload = {
       decision,
       proposal_hash: proposal.proposal_hash,
       reason: reason.trim(),
       clinical_attestations: { allergies_and_interactions_reviewed: finalAttestation, documentation_reviewed: true },
-      ...(changes.length ? { edited_proposal: { ...buildCompleteDocumentationEdit(documentation.edit_contract, draft), clinical_attestations: { allergies_and_interactions_reviewed: finalAttestation, documentation_reviewed: true } } } : {}),
+      ...(nativeReview ? { ai_draft_hash: nativeReview.aiHash, ...(changes.length ? { clinician_edit_hash: nativeReview.editHash } : {}) } : {}),
+      ...(!nativeReview && changes.length ? { edited_proposal: { ...buildCompleteDocumentationEdit(documentation.edit_contract, draft), clinical_attestations: { allergies_and_interactions_reviewed: finalAttestation, documentation_reviewed: true } } } : {}),
     };
-    frozenPayloadRef.current = copy(payload);
+    if (!frozenPayloadRef.current) frozenPayloadRef.current = copy(payload);
     setBusy(true); setMutationError(null); setUnresolved(null);
     const releaseSubmissionGuard = setClinicalSubmissionActive(true);
     if (!commandKeyRef.current) commandKeyRef.current = getCommandKey(`documentation-decision:${proposalId}:${proposal.proposal_hash}`);
@@ -533,14 +626,12 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
       if (submitError?.status === 403) {
         setConfirmOpen(false); clearProtectedState(submitError);
       } else if (submitError?.status === 409 || submitError?.staleProposal) {
-        const staleDraft = copy(draft);
-        setStaleComparison(staleDraft); setConfirmOpen(false); setLoading(true);
-        try {
-          const latest = await fetchProposal({ proposalId, demo });
-          const latestContract = latest.clinical_documentation?.edit_contract;
-          setProposal(latest); setOriginal(copy(latestContract)); setDraft(copy(latestContract)); setReapplyChanges(documentationChanges(latestContract || {}, staleDraft || {})); commandKeyRef.current = null;
-        } catch (refreshError) { if (refreshError?.status === 403) clearProtectedState(refreshError); else setError(refreshError); }
-        finally { setLoading(false); }
+        commandKeyRef.current = null; frozenPayloadRef.current = null;
+        await recoverDraftConflict(copy(draft));
+      } else if (submitError?.status === 422) {
+        commandKeyRef.current = null; frozenPayloadRef.current = null;
+        forgetCommandKey(`documentation-decision:${proposalId}:${proposal.proposal_hash}`);
+        setConfirmOpen(false); setFinalAttestation(false);
       } else {
         setUnresolved({ message: 'The decision is unresolved. The frozen payload and command identity remain in page memory for a safe retry.' });
       }
@@ -561,23 +652,35 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
 
   const currentSection = SECTION_DEFINITIONS.find((section) => section.id === activeSection) || SECTION_DEFINITIONS[0];
   const canEdit = capabilities.can_edit && !documentation.signed && !safety;
-  const editable = isClaimed && draftHydrated && canEdit;
-  const approvalDisabled = !editable || validationErrors.length > 0 || busy;
+  const editable = isClaimed && draftHydrated && canEdit && !unresolved && !busy;
+  const approvalDisabled = !editable || validationErrors.length > 0 || busy || Object.values(invalidFields).some(Boolean)
+    || Boolean(nativeReview && (draftIsDirty || ['saving', 'failed', 'invalid', 'stale'].includes(draftSaveState) || reapplyChanges.length || (changes.length && !nativeReview.editHash)));
+  const fieldKey = (key) => nativeReview ? (nativeFieldKeys[key] || key) : key;
+  const fieldInvalid = (path, invalid) => setInvalidFields((current) => ({ ...current, [path]: invalid }));
   return <div className="doc-workspace">
+    {nativeReview && !result && <section className="doc-context-card" aria-label="Exact native draft for review">
+      <h2>Exact native clinical document</h2>
+      <p>AI draft …{publicHashSuffix(nativeReview.aiHash)}{nativeReview.editHash && changes.length > 0 ? ' · Stored edit …' + publicHashSuffix(nativeReview.editHash) : ''}. Review all returned content; approval remains server-owned.</p>
+      <pre data-testid="native-review-content">{JSON.stringify(draft, null, 2)}</pre>
+    </section>}
     <div className="doc-page-header"><div><div className="vnext-eyebrow">AI-prepared clinical documentation</div><h1>{proposal.patient?.display_name || 'Authorized patient'}</h1><p>{proposal.presenting_problem || 'Presenting problem not returned'}</p></div><div className="doc-page-header__actions"><StatusBadge status={documentation.signed ? 'authorized' : 'pending'} label={documentation.signed ? 'Clinician signed' : 'Not signed'} /><HashBadge hash={documentation.content_hash} exact={false} /><ActionButton variant="secondary" onClick={() => navigate(-1)}>Back to case</ActionButton></div></div>
     {safety && <SafetyBanner emergency={proposal.status === 'emergency'}>The server safety route takes precedence. Documentation approval controls are suppressed.</SafetyBanner>}
     {!documentation.signed && !isClaimed && !safety && <div className="doc-claim-banner"><Icon name="LockKeyhole" /><div><strong>Claim this case before editing or signing</strong><p>The SOAP packet is read-only until the server returns an active privacy-safe lease.</p></div><ActionButton variant="primary" onClick={claim} disabled={busy}>{busy ? 'Claiming…' : 'Claim and review'}</ActionButton></div>}
     {mutationError && <div className="doc-inline-error"><ErrorState error={mutationError} compact />{isClaimed && !draftHydrated && <ActionButton variant="secondary" onClick={retryDraftRecovery} disabled={loading || busy}>Retry draft loading</ActionButton>}</div>}
     {unresolved && <div className="vnext-notice vnext-notice--warning doc-unresolved" role="status"><strong>Decision unresolved</strong><p>{unresolved.message}</p><ActionButton variant="secondary" onClick={submit} disabled={busy}>Retry frozen decision</ActionButton></div>}
-    {!result && <section className="doc-context-card doc-draft-save" aria-live="polite"><div className="doc-context-card__row"><span>Review draft</span><strong>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "failed" ? "Save outcome uncertain" : draftSaveState === "stale" ? "Version changed" : draftIsDirty ? "Unsaved changes" : "Saved"}</strong></div><p className="vnext-small vnext-muted">This draft is private working material and never signs or activates care.</p><div className="vnext-form-actions"><ActionButton variant="secondary" onClick={persistDraft} disabled={draftSaveState === "saving" || !draftIsDirty}>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "failed" ? "Retry same draft save" : "Save draft"}</ActionButton>{draftSaveState === "stale" && <span className="vnext-small vnext-field--danger">The latest proposal was loaded. Compare and reapply any local changes before saving.</span>}</div></section>}
-    {reapplyChanges.length > 0 && <section className="doc-reapply" aria-labelledby="doc-reapply-title"><div><div className="vnext-eyebrow">New exact version loaded</div><h2 id="doc-reapply-title">Reapply prior draft changes one field at a time</h2><p>No old value was merged automatically. Compare each change with the current server proposal.</p></div><div>{reapplyChanges.map((change, index) => <article key={`${change.path}-${index}`}><div><strong>{change.path.replaceAll('.', ' › ')}</strong><span>{conciseValue(change.after)}</span></div><ActionButton variant="secondary" onClick={() => reapply(change, index)}>Reapply this field</ActionButton></article>)}</div></section>}
+    {!result && <section className="doc-context-card doc-draft-save" aria-live="polite"><div className="doc-context-card__row"><span>Review draft</span><strong>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "invalid" ? "Draft rejected" : draftSaveState === "failed" ? "Save outcome uncertain" : draftSaveState === "stale" ? "Version changed" : draftIsDirty ? "Unsaved changes" : "Saved"}</strong></div><p className="vnext-small vnext-muted">This draft is private working material and never signs or activates care.</p><div className="vnext-form-actions"><ActionButton variant="secondary" onClick={persistDraft} disabled={!editable || Object.values(invalidFields).some(Boolean) || draftSaveState === "saving" || !draftIsDirty}>{draftSaveState === "saving" ? "Saving…" : draftSaveState === "invalid" ? "Save corrected draft" : draftSaveState === "failed" ? "Retry same draft save" : "Save draft"}</ActionButton>{draftSaveState === "stale" && <span className="vnext-small vnext-field--danger">The latest proposal was loaded. Compare and reapply any local changes before saving.</span>}{nativeReview && draftSaveState === "failed" && <ActionButton variant="secondary" onClick={() => recoverDraftConflict(copy(draft))}>Reload native draft</ActionButton>}</div></section>}
+    {reapplyChanges.length > 0 && <section className="doc-reapply" aria-labelledby="doc-reapply-title"><div><div className="vnext-eyebrow">New exact version loaded</div><h2 id="doc-reapply-title">Reapply prior draft changes one field at a time</h2><p>No old value was merged automatically. Compare each change with the current server proposal.</p></div><div>{reapplyChanges.map((change, index) => <article key={`${change.path}-${index}`}><div><strong>{change.path.replaceAll('.', ' › ')}</strong><span>{conciseValue(change.after)}</span></div><ActionButton variant="secondary" onClick={() => reapply(change, index)}>Reapply this field</ActionButton></article>)}<ActionButton variant="secondary" onClick={() => { setReapplyChanges([]); setStaleComparison(null); setDraftSaveState("saved"); }}>Discard prior draft changes</ActionButton></div></section>}
     {result || documentation.signed ? <section className="doc-signed-result"><div className="doc-signed-result__mark"><Icon name="CheckCircle2" size={26} /></div><div><div className="vnext-eyebrow">Server-authorized outcome</div><h2>Documentation signed against the exact clinical version</h2><p>The AI draft is now either approved as written or replaced by an immutable clinician-authored child version.</p><dl><div><dt>Signed version</dt><dd>{proposal.execution_state?.signed_version_id || documentation.version_id || 'Returned in documentation projection'}</dd></div><div><dt>Signed hash</dt><dd><code>…{publicHashSuffix(proposal.execution_state?.signed_content_hash || documentation.content_hash)}</code></dd></div><div><dt>Downstream owner</dt><dd>{proposal.execution_state?.downstream_owner?.role || proposal.execution_state?.owner || 'Not returned'}</dd></div><div><dt>Due</dt><dd>{formatDateTime(proposal.execution_state?.due_at)}</dd></div><div><dt>Next checkpoint</dt><dd>{proposal.execution_state?.next_checkpoint?.title || proposal.execution_state?.next_checkpoint || 'Not returned'}</dd></div></dl>{documentation.amendment_diff?.length > 0 && <p className="vnext-small vnext-muted">The server recorded {documentation.amendment_diff.length} privacy-minimal amendment paths.</p>}<ActionButton variant="primary" onClick={() => navigate(-1)}>Return to case</ActionButton></div></section> : <>
       <div className="doc-mobile-stepper" aria-label="Documentation steps">{SECTION_DEFINITIONS.map((section, index) => <button key={section.id} aria-current={section.id === activeSection ? 'step' : undefined} onClick={() => setActiveSection(section.id)}><span>{section.short}</span><small>{index + 1} of {SECTION_DEFINITIONS.length}</small></button>)}</div>
       <div className="doc-layout">
         <aside className="doc-section-rail"><div className="doc-section-rail__header"><span>Documentation</span><strong>{changes.length} change{changes.length === 1 ? '' : 's'}</strong></div><nav aria-label="SOAP documentation sections">{SECTION_DEFINITIONS.map((section, index) => <button key={section.id} aria-current={section.id === activeSection ? 'page' : undefined} onClick={() => setActiveSection(section.id)}><span className="doc-section-rail__index">{section.short}</span><span><strong>{section.label}</strong><small>{index + 1} of {SECTION_DEFINITIONS.length}</small></span>{changes.some((change) => change.path === section.id || change.path.startsWith(`${section.id}.`) || (section.id === 'prescriptions' && change.path.startsWith('prescription')) || (section.id === 'investigations' && change.path.startsWith('investigation'))) && <i aria-label="Contains changes" />}</button>)}</nav><div className="doc-section-rail__privacy"><Icon name="LockKeyhole" size={15} /> Draft held in page memory only</div></aside>
         <fieldset className="doc-editor" aria-label="Structured clinical documentation editor" disabled={!editable} aria-disabled={!editable}>
-          {['subjective', 'objective', 'assessment'].includes(currentSection.id) && <section aria-labelledby={`doc-${currentSection.id}-title`}><div className={`doc-section-intro doc-section-intro--${currentSection.id}`}><div><div className="vnext-eyebrow">{currentSection.eyebrow}</div><h2 id={`doc-${currentSection.id}-title`}>{currentSection.label}</h2><p>{currentSection.description}</p></div><span className="doc-section-letter">{currentSection.short}</span></div><div className="doc-field-stack">{currentSection.fields.map(([key, label, rows]) => <ChangedField key={key} label={label} path={`${currentSection.id}.${key}`} rows={rows} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} />)}</div></section>}
-          {currentSection.id === 'plan' && <section aria-labelledby="doc-plan-title"><div className="doc-section-intro doc-section-intro--plan"><div><div className="vnext-eyebrow">{currentSection.eyebrow}</div><h2 id="doc-plan-title">Plan</h2><p>{currentSection.description}</p></div><span className="doc-section-letter">P</span></div><div className="doc-field-stack">{currentSection.fields.map(([key, label, rows]) => <ChangedField key={key} label={label} path={`plan.${key}`} rows={rows} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} />)}<ChangedField label="Safety net" path="safety_net.instructions" rows={4} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} /><ChangedField label="Expected outcomes" path="expected_outcomes" rows={4} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} /><ChangedField label="Follow-up checkpoint" path="next_review.checkpoint" rows={3} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} /></div></section>}
+          {nativeReview && currentSection.fields && <section aria-label="Additional native documentation fields">
+            {Object.keys(draft[currentSection.id] || {}).filter((key) => !currentSection.fields.some(([field]) => fieldKey(field) === key)).map((key) => <ChangedField key={key} label={key.replaceAll('_', ' ')} path={currentSection.id + '.' + key} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} onInvalidChange={fieldInvalid} />)}
+            {currentSection.id === 'plan' && <ChangedField label="Safety escalation triggers" path="safety_net.escalation_triggers" draft={draft} original={original} onChange={updatePath} onUndo={undoPath} onInvalidChange={fieldInvalid} />}
+          </section>}
+          {['subjective', 'objective', 'assessment'].includes(currentSection.id) && <section aria-labelledby={`doc-${currentSection.id}-title`}><div className={`doc-section-intro doc-section-intro--${currentSection.id}`}><div><div className="vnext-eyebrow">{currentSection.eyebrow}</div><h2 id={`doc-${currentSection.id}-title`}>{currentSection.label}</h2><p>{currentSection.description}</p></div><span className="doc-section-letter">{currentSection.short}</span></div><div className="doc-field-stack">{currentSection.fields.filter(([key]) => !nativeReview || Object.hasOwn(draft[currentSection.id] || {}, fieldKey(key))).map(([key, label, rows]) => <ChangedField key={key} label={label} path={`${currentSection.id}.${fieldKey(key)}`} rows={rows} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} onInvalidChange={fieldInvalid} />)}</div></section>}
+          {currentSection.id === 'plan' && <section aria-labelledby="doc-plan-title"><div className="doc-section-intro doc-section-intro--plan"><div><div className="vnext-eyebrow">{currentSection.eyebrow}</div><h2 id="doc-plan-title">Plan</h2><p>{currentSection.description}</p></div><span className="doc-section-letter">P</span></div><div className="doc-field-stack">{currentSection.fields.filter(([key]) => !nativeReview || Object.hasOwn(draft[currentSection.id] || {}, fieldKey(key))).map(([key, label, rows]) => <ChangedField key={key} label={label} path={`plan.${fieldKey(key)}`} rows={rows} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} onInvalidChange={fieldInvalid} />)}<ChangedField label="Safety net" path="safety_net.instructions" rows={4} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} onInvalidChange={fieldInvalid} />{(!nativeReview || Object.hasOwn(draft, "expected_outcomes")) && <ChangedField label="Expected outcomes" path="expected_outcomes" rows={4} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} onInvalidChange={fieldInvalid} />}<ChangedField label="Follow-up checkpoint" path="next_review.checkpoint" rows={3} draft={draft} original={original} onChange={updatePath} onUndo={undoPath} onInvalidChange={fieldInvalid} /></div></section>}
           {currentSection.id === 'prescriptions' && <><PrescriptionEditor items={draft.prescription || []} originalItems={original.prescription || []} capabilities={capabilities} onChange={(rows) => updateActions('prescription', rows)} /><label className="doc-none-disposition"><input type="checkbox" checked={(draft.prescription || []).length === 0 && draft.action_disposition?.prescription === 'none_indicated'} disabled={(draft.prescription || []).length > 0} onChange={(event) => updatePath('action_disposition.prescription', event.target.checked ? 'none_indicated' : '')} /> No prescription is clinically indicated in this plan.</label></>}
           {currentSection.id === 'investigations' && <><InvestigationEditor items={draft.investigation || []} originalItems={original.investigation || []} capabilities={capabilities} onChange={(rows) => updateActions('investigation', rows)} /><label className="doc-none-disposition"><input type="checkbox" checked={(draft.investigation || []).length === 0 && draft.action_disposition?.investigation === 'none_indicated'} disabled={(draft.investigation || []).length > 0} onChange={(event) => updatePath('action_disposition.investigation', event.target.checked ? 'none_indicated' : '')} /> No investigation is clinically indicated in this plan.</label></>}
           <div className="doc-editor-footer"><ActionButton variant="secondary" onClick={() => setDraft(copy(original))} disabled={!changes.length || busy}>Undo all amendments</ActionButton><ActionButton variant="primary" onClick={openConfirmation} disabled={approvalDisabled}>{validationErrors.length ? `Resolve ${validationErrors.length} issue${validationErrors.length === 1 ? '' : 's'}` : changes.length ? `Review ${changes.length} change${changes.length === 1 ? '' : 's'}` : 'Review exact approval'}</ActionButton></div>
@@ -590,8 +693,8 @@ export default function ClinicalDocumentationWorkspace({ demo, proposalId }) {
       </div>
       <div className="doc-mobile-review"><div><strong>{changes.length} change{changes.length === 1 ? '' : 's'}</strong><span>{validationErrors.length ? `${validationErrors.length} issue(s) to resolve` : 'Ready for exact-hash review'}</span></div><ActionButton variant="primary" onClick={openConfirmation} disabled={approvalDisabled}>Review</ActionButton></div>
     </>}
-    <Modal open={confirmOpen} title={changes.length ? 'Confirm every clinical amendment' : 'Approve exact AI-prepared documentation'} onClose={() => !busy && setConfirmOpen(false)} footer={<><ActionButton variant="secondary" onClick={() => setConfirmOpen(false)} disabled={busy}>Continue reviewing</ActionButton><ActionButton variant="primary" onClick={submit} disabled={busy || !reason.trim() || !finalAttestation}>{busy ? 'Submitting exact decision…' : changes.length ? 'Sign amended version' : 'Approve exact version'}</ActionButton></>}>
-      <div className="doc-confirm-summary"><div><span>Source proposal hash</span><code>…{publicHashSuffix(proposal.proposal_hash)}</code></div><div><span>Source content hash</span><code>…{publicHashSuffix(documentation.content_hash)}</code></div><div><span>Decision</span><strong>{changes.length ? 'Edit and approve immutable child version' : 'Approve as written'}</strong></div></div>
+    <Modal open={confirmOpen} title={changes.length ? 'Confirm every clinical amendment' : 'Approve exact AI-prepared documentation'} onClose={() => !busy && setConfirmOpen(false)} footer={<><ActionButton variant="secondary" onClick={() => setConfirmOpen(false)} disabled={busy}>Continue reviewing</ActionButton><ActionButton variant="primary" onClick={submit} disabled={approvalDisabled || !reason.trim() || !finalAttestation}>{busy ? 'Submitting exact decision…' : changes.length ? 'Sign amended version' : 'Approve exact version'}</ActionButton></>}>
+      <div className="doc-confirm-summary"><div><span>Source proposal hash</span><code>…{publicHashSuffix(proposal.proposal_hash)}</code></div><div><span>Source content hash</span><code>…{publicHashSuffix(nativeReview?.aiHash || documentation.content_hash)}</code></div><div><span>Decision</span><strong>{changes.length ? 'Edit and approve immutable child version' : 'Approve as written'}</strong></div>{nativeReview?.editHash && changes.length > 0 && <div><span>Stored clinician edit hash</span><code>…{publicHashSuffix(nativeReview.editHash)}</code></div>}</div>
       <ChangeReview changes={changes} />
       <div className="doc-confirm-attest"><label><input type="checkbox" checked={finalAttestation} onChange={(event) => setFinalAttestation(event.target.checked)} /> I reviewed the SOAP sections, returned source evidence, allergies, interactions, prescription limits, investigation instructions, safety net, and result-review authority.</label></div>
       <label className="doc-confirm-reason" htmlFor="documentation-clinical-reason"><span>Clinical reason</span><textarea id="documentation-clinical-reason" className="vnext-textarea" rows="4" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Record the concise clinical basis for this exact-version decision." /></label>
