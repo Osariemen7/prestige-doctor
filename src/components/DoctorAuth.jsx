@@ -48,6 +48,19 @@ const displayPhone = (value) => {
 
 const initialNotice = { open: false, message: '', severity: 'info' };
 
+const profileSetupRequirement = (data) => {
+  // This describes the next form, not provider/invitation authority. Both
+  // endpoints still establish that authority on the server independently.
+  if (!data || Array.isArray(data) || data.success !== true
+      || typeof data.requires_profile_setup !== 'boolean') return null;
+  // A legacy flag alone is not the current contract. If supplied alongside
+  // it, require explicit, consistent booleans rather than truthy coercion.
+  if (Object.prototype.hasOwnProperty.call(data, 'is_existing_user')
+      && (typeof data.is_existing_user !== 'boolean'
+        || data.is_existing_user === data.requires_profile_setup)) return null;
+  return data.requires_profile_setup;
+};
+
 export default function DoctorAuth() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,7 +68,7 @@ export default function DoctorAuth() {
   const [step, setStep] = useState('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
-  const [isExistingUser, setIsExistingUser] = useState(null);
+  const [requiresProfileSetup, setRequiresProfileSetup] = useState(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [specialty, setSpecialty] = useState('general_practice');
@@ -77,6 +90,9 @@ export default function DoctorAuth() {
     }
 
     setLoading(true);
+    setRequiresProfileSetup(null);
+    setOtp('');
+    setStep('phone');
     try {
       const response = await fetch(`${API_BASE}/doctor-auth/request-otp/`, {
         method: 'POST',
@@ -89,10 +105,16 @@ export default function DoctorAuth() {
         return;
       }
 
+      const requirement = profileSetupRequirement(data);
+      if (requirement === null) {
+        showNotice('We could not confirm the next sign-in step. Request a new code and try again.', 'error');
+        return;
+      }
+
       setPhoneNumber(normalized);
-      setIsExistingUser(Boolean(data.is_existing_user));
+      setRequiresProfileSetup(requirement);
       setStep('otp');
-      showNotice(data.is_existing_user ? 'Welcome back. Check WhatsApp for your code.' : 'Code sent. Add your details to create your doctor workspace.', 'success');
+      showNotice(requirement ? 'Code sent. Add your details to complete your invited doctor profile.' : 'Welcome back. Check WhatsApp for your code.', 'success');
     } catch {
       showNotice('Network error. Please try again.', 'error');
     } finally {
@@ -102,11 +124,15 @@ export default function DoctorAuth() {
 
   const handleVerifyOtp = async (event) => {
     event?.preventDefault?.();
+    if (requiresProfileSetup === null) {
+      showNotice('Request a new code to confirm the next sign-in step.', 'warning');
+      return;
+    }
     if (!/^\d{4,6}$/.test(otp)) {
       showNotice('Enter the verification code sent to WhatsApp.', 'warning');
       return;
     }
-    if (!isExistingUser && (!firstName.trim() || !lastName.trim())) {
+    if (requiresProfileSetup && (!firstName.trim() || !lastName.trim())) {
       showNotice('Add your first and last name to set up your workspace.', 'warning');
       return;
     }
@@ -114,7 +140,7 @@ export default function DoctorAuth() {
     setLoading(true);
     try {
       const payload = { phone_number: normalizeDoctorPhone(phoneNumber), otp };
-      if (!isExistingUser) {
+      if (requiresProfileSetup) {
         payload.first_name = firstName.trim();
         payload.last_name = lastName.trim();
         payload.specialty = specialty;
@@ -142,6 +168,7 @@ export default function DoctorAuth() {
   const handleBack = () => {
     setStep('phone');
     setOtp('');
+    setRequiresProfileSetup(null);
   };
 
   return (
@@ -166,7 +193,7 @@ export default function DoctorAuth() {
             <Box className="doctor-auth-card-icon"><VerifiedUserRounded /></Box>
             <Box>
               <Typography className="doctor-auth-eyebrow">Doctor workspace</Typography>
-              <Typography component="h1" className="doctor-auth-title">{step === 'phone' ? 'Start with your WhatsApp number' : isExistingUser ? 'Welcome back' : 'Create your workspace'}</Typography>
+              <Typography component="h1" className="doctor-auth-title">{step === 'phone' ? 'Start with your WhatsApp number' : requiresProfileSetup ? 'Complete your invited profile' : 'Welcome back'}</Typography>
             </Box>
           </Box>
           <Typography className="doctor-auth-subtitle">{step === 'phone' ? 'We’ll send a verification code to your WhatsApp. No password to remember.' : `Enter the code sent to ${displayPhone(phoneNumber)}.`}</Typography>
@@ -197,13 +224,13 @@ export default function DoctorAuth() {
             </Box>
           ) : (
             <Box component="form" onSubmit={handleVerifyOtp} className="doctor-auth-form">
-              {!isExistingUser && (
+              {requiresProfileSetup === true && (
                 <Box className="doctor-auth-name-row">
                   <TextField label="First name" value={firstName} onChange={(event) => setFirstName(event.target.value)} fullWidth autoComplete="given-name" />
                   <TextField label="Last name" value={lastName} onChange={(event) => setLastName(event.target.value)} fullWidth autoComplete="family-name" />
                 </Box>
               )}
-              {!isExistingUser && (
+              {requiresProfileSetup === true && (
                 <TextField select label="Primary specialty" value={specialty} onChange={(event) => setSpecialty(event.target.value)} fullWidth>
                   {SPECIALTIES.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
                 </TextField>
@@ -219,7 +246,7 @@ export default function DoctorAuth() {
                 inputProps={{ maxLength: 6 }}
                 className="doctor-auth-otp-input"
               />
-              <Button type="submit" variant="contained" disabled={loading} endIcon={loading ? <CircularProgress size={18} color="inherit" /> : <VerifiedUserRounded />}>
+              <Button type="submit" variant="contained" disabled={loading || requiresProfileSetup === null} endIcon={loading ? <CircularProgress size={18} color="inherit" /> : <VerifiedUserRounded />}>
                 {loading ? 'Verifying…' : 'Verify & enter workspace'}
               </Button>
               <Box className="doctor-auth-secondary-actions">
