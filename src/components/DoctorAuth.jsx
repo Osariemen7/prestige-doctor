@@ -53,11 +53,9 @@ const profileSetupRequirement = (data) => {
   // endpoints still establish that authority on the server independently.
   if (!data || Array.isArray(data) || data.success !== true
       || typeof data.requires_profile_setup !== 'boolean') return null;
-  // A legacy flag alone is not the current contract. If supplied alongside
-  // it, require explicit, consistent booleans rather than truthy coercion.
-  if (Object.prototype.hasOwnProperty.call(data, 'is_existing_user')
-      && (typeof data.is_existing_user !== 'boolean'
-        || data.is_existing_user === data.requires_profile_setup)) return null;
+  // Legacy is_existing_user describes a different fact: an existing invited
+  // user can still need a ProviderProfile. Ignore extras; do not infer a
+  // complement or use legacy data as a fallback for the current contract.
   return data.requires_profile_setup;
 };
 

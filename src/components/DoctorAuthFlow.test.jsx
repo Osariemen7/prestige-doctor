@@ -80,9 +80,6 @@ test.each([
   ['null profile status', { success: true, requires_profile_setup: null }],
   ['numeric profile status', { success: true, requires_profile_setup: 0 }],
   ['legacy-only status', { success: true, is_existing_user: true }],
-  ['contradictory existing status', { success: true, requires_profile_setup: false, is_existing_user: false }],
-  ['contradictory invitation status', { success: true, requires_profile_setup: true, is_existing_user: true }],
-  ['malformed legacy status', { success: true, requires_profile_setup: false, is_existing_user: 'true' }],
 ])('fails closed and allows retry for %s', async (_name, data) => {
   const fetchMock = vi.fn().mockImplementationOnce(() => response(data))
     .mockImplementationOnce(() => response({ success: true, requires_profile_setup: false }));
@@ -99,14 +96,35 @@ test.each([
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
-test('a consistent explicit legacy flag cannot override the current profile requirement', async () => {
-  vi.stubGlobal('fetch', vi.fn(() => response({ success: true, requires_profile_setup: true, is_existing_user: false })));
+test.each([
+  ['existing invited user needing profile setup', true, true],
+  ['existing user without profile setup', false, true],
+  ['legacy false with no profile setup', false, false],
+  ['legacy false with profile setup', true, false],
+  ['irrelevant malformed legacy extra', false, 'true'],
+])('current profile status remains authoritative for %s', async (_name, requiresSetup, legacyExisting) => {
+  const fetchMock = vi.fn().mockImplementationOnce(() => response({ success: true,
+    requires_profile_setup: requiresSetup, is_existing_user: legacyExisting }))
+    .mockImplementationOnce(() => response({ access: 'test-profile-access' }));
+  vi.stubGlobal('fetch', fetchMock);
   setup();
   fireEvent.change(screen.getByLabelText('WhatsApp number'), { target: { value: '0801 234 5678' } });
   fireEvent.click(screen.getByRole('button', { name: /Continue securely/ }));
-  expect(await screen.findByRole('heading', { name: 'Complete your invited profile' })).toBeInTheDocument();
-  expect(screen.getByLabelText('First name')).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: requiresSetup ? 'Complete your invited profile' : 'Welcome back' })).toBeInTheDocument();
   expect(storeAuthData).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText('WhatsApp code'), { target: { value: '123456' } });
+  if (requiresSetup) {
+    fireEvent.click(screen.getByRole('button', { name: /Verify & enter workspace/ }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Test' } });
+    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Clinician' } });
+  } else {
+    expect(screen.queryByLabelText('First name')).not.toBeInTheDocument();
+  }
+  fireEvent.click(screen.getByRole('button', { name: /Verify & enter workspace/ }));
+  expect(await screen.findByText('/app/cases/case-1?section=plan#review')).toBeInTheDocument();
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ phone_number: '+2348012345678', otp: '123456',
+    ...(requiresSetup ? { first_name: 'Test', last_name: 'Clinician', specialty: 'general_practice' } : {}) });
 });
 
 test('verification denial does not authenticate; resend and retry retain exact next', async () => {
